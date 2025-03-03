@@ -238,10 +238,6 @@ class TeardownRunnable final : public Runnable {
 };
 
 constexpr char kFinishShutdownTopic[] = "profile-before-change-qm";
-constexpr char kPrivateBrowsingExited[] = "last-pb-context-exited";
-
-constexpr auto kPrivateBrowsingOriginPattern =
-    u"{ \"privateBrowsingId\": 1 }"_ns;
 
 already_AddRefed<nsIAsyncShutdownClient> GetAsyncShutdownBarrier() {
   AssertIsOnMainThread();
@@ -467,16 +463,6 @@ void ServiceWorkerManager::Init(ServiceWorkerRegistrar* aRegistrar) {
     MOZ_ASSERT(mShutdownBlocker);
   }
 
-  // This observer notification will be removed by
-  // ServiceWorkerManager::MaybeFinishShutdown which currently is triggered by
-  // receiving a "profile-before-change-qm" observer notification.  That
-  // observer is added by our shutdown blocker which currently fires during the
-  // "profile-change-teardown" phase.
-  nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
-  if (obs) {
-    obs->AddObserver(this, kPrivateBrowsingExited, false);
-  }
-
   MOZ_DIAGNOSTIC_ASSERT(aRegistrar);
 
   PBackgroundChild* actorChild = BackgroundChild::GetOrCreateForCurrentThread();
@@ -698,7 +684,6 @@ void ServiceWorkerManager::MaybeFinishShutdown() {
   nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
   if (obs) {
     obs->RemoveObserver(this, kFinishShutdownTopic);
-    obs->RemoveObserver(this, kPrivateBrowsingExited);
   }
 
   if (!mActor) {
@@ -1161,8 +1146,15 @@ nsresult ServiceWorkerManager::SendNotificationEvent(
   }
 
   ServiceWorkerPrivate* workerPrivate = info->WorkerPrivate();
-  return workerPrivate->SendNotificationEvent(
-      aEventName, aID, aTitle, aDir, aLang, aBody, aTag, aIcon, aData, aScope);
+
+  NotificationDirection dir = StringToEnum<NotificationDirection>(aDir).valueOr(
+      NotificationDirection::Auto);
+
+  // XXX(krosylight): Some notifications options are missing in SWM
+  IPCNotificationOptions options(
+      nsString(aTitle), dir, nsString(aLang), nsString(aBody), nsString(aTag),
+      nsString(aIcon), false, false, nsTArray<uint32_t>(), nsString(aData));
+  return workerPrivate->SendNotificationEvent(aEventName, aScope, aID, options);
 }
 
 NS_IMETHODIMP
@@ -1676,14 +1668,6 @@ void ServiceWorkerManager::StoreRegistration(
   MOZ_ASSERT(aRegistration);
 
   if (mShuttingDown) {
-    return;
-  }
-
-  // Do not store private browsing registrations to disk; our in-memory state
-  // suffices.
-  if (aPrincipal->GetIsInPrivateBrowsing()) {
-    // If we are seeing a PBM principal, PBM support must be enabled.
-    MOZ_ASSERT(StaticPrefs::dom_serviceWorkers_privateBrowsing_enabled());
     return;
   }
 
@@ -2377,7 +2361,7 @@ bool ServiceWorkerManager::IsAvailable(nsIPrincipal* aPrincipal, nsIURI* aURI,
     auto storageAccess = StorageAllowedForChannel(aChannel);
     nsCOMPtr<nsILoadInfo> loadInfo = aChannel->LoadInfo();
 
-    if (storageAccess <= StorageAccess::eDeny) {
+    if (storageAccess != StorageAccess::eAllow) {
       if (!StaticPrefs::privacy_partition_serviceWorkers()) {
         return false;
       }
@@ -3249,11 +3233,6 @@ ServiceWorkerManager::Observe(nsISupports* aSubject, const char* aTopic,
                               const char16_t* aData) {
   if (strcmp(aTopic, kFinishShutdownTopic) == 0) {
     MaybeFinishShutdown();
-    return NS_OK;
-  }
-
-  if (strcmp(aTopic, kPrivateBrowsingExited) == 0) {
-    RemoveRegistrationsByOriginAttributes(kPrivateBrowsingOriginPattern);
     return NS_OK;
   }
 

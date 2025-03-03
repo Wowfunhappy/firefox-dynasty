@@ -32,6 +32,7 @@
 
 #include "common/mac/MachIPC.h"
 
+#include <libkern/OSAtomic.h>
 #include <os/lock.h>
 
 #include <memory>
@@ -42,11 +43,11 @@ namespace google_breakpad {
 class CrashGenerationClient {
  public:
   explicit CrashGenerationClient(const char* mach_port_name)
-    : sync_(OS_UNFAIR_LOCK_INIT),
-      state_(State::Uninitialized),
+    : state_(State::Uninitialized),
       mach_port_name_(mach_port_name),
       sender_()
   {
+    sync_.mUnfairLock = OS_UNFAIR_LOCK_INIT;
     AsynchronousInitialization();
   }
 
@@ -71,7 +72,11 @@ class CrashGenerationClient {
     Failed,
   };
 
-  os_unfair_lock sync_;
+  union {
+    os_unfair_lock mUnfairLock;
+    OSSpinLock mSpinLock;
+  } sync_;
+
   State state_;
   std::string mach_port_name_;
   std::unique_ptr<MachPortSender> sender_;
