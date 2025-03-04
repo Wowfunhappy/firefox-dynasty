@@ -490,7 +490,7 @@ bool WaylandSurface::MapLocked(const WaylandSurfaceLock& aProofOfLock,
                                wl_surface* aParentWLSurface,
                                WaylandSurfaceLock* aParentWaylandSurfaceLock,
                                gfx::IntPoint aSubsurfacePosition,
-                               bool aCommitToParent, bool aSubsurfaceDesync,
+                               bool aSubsurfaceDesync,
                                bool aUseReadyToDrawCallback) {
   LOGWAYLAND("WaylandSurface::MapLocked()");
   MOZ_DIAGNOSTIC_ASSERT(&aProofOfLock == mSurfaceLock);
@@ -508,19 +508,7 @@ bool WaylandSurface::MapLocked(const WaylandSurfaceLock& aProofOfLock,
     mParentSurface = mParent->mSurface;
   }
 
-  mCommitToParentSurface = aCommitToParent;
   mSubsurfacePosition = aSubsurfacePosition;
-
-  if (mCommitToParentSurface) {
-    LOGWAYLAND("    commit to parent");
-    mIsMapped = true;
-    mSurface = mParentSurface;
-    NS_DispatchToCurrentThread(NS_NewRunnableFunction(
-        "InitialFrameCallbackHandler", [self = RefPtr{this}]() {
-          self->InitialFrameCallbackHandler(nullptr);
-        }));
-    return true;
-  }
 
   // Created wl_surface is without buffer attached
   mBufferAttached = false;
@@ -576,10 +564,8 @@ bool WaylandSurface::MapLocked(const WaylandSurfaceLock& aProofOfLock,
 
 bool WaylandSurface::MapLocked(const WaylandSurfaceLock& aProofOfLock,
                                wl_surface* aParentWLSurface,
-                               gfx::IntPoint aSubsurfacePosition,
-                               bool aCommitToParent) {
+                               gfx::IntPoint aSubsurfacePosition) {
   return MapLocked(aProofOfLock, aParentWLSurface, nullptr, aSubsurfacePosition,
-                   aCommitToParent,
                    /* aSubsurfaceDesync */ true);
 }
 
@@ -588,7 +574,6 @@ bool WaylandSurface::MapLocked(const WaylandSurfaceLock& aProofOfLock,
                                gfx::IntPoint aSubsurfacePosition) {
   return MapLocked(aProofOfLock, nullptr, aParentWaylandSurfaceLock,
                    aSubsurfacePosition,
-                   /* aCommitToParent */ false,
                    /* aSubsurfaceDesync */ true,
                    /* aUseReadyToDrawCallback */ false);
 }
@@ -636,15 +621,6 @@ void WaylandSurface::UnmapLocked(WaylandSurfaceLock& aSurfaceLock) {
   mIsMapped = false;
 
   LOGWAYLAND("WaylandSurface::UnmapLocked()");
-
-  // If mCommitToParentSurface is set, mSurface may be already deleted as
-  // unamp/hide Gtk handler is called before us and we can't do anything
-  // with it (at least I don't know how to override it).
-  // So make it cleat and don't use it.
-  // It doesn't matter much as we use direct rendering for D&D popups only.
-  if (mCommitToParentSurface) {
-    mSurface = nullptr;
-  }
 
   ClearReadyToDrawCallbacksLocked(aSurfaceLock);
   ClearFrameCallbackLocked(aSurfaceLock);
@@ -704,7 +680,7 @@ void WaylandSurface::MoveLocked(const WaylandSurfaceLock& aProofOfLock,
   MOZ_DIAGNOSTIC_ASSERT(&aProofOfLock == mSurfaceLock);
   MOZ_DIAGNOSTIC_ASSERT(mIsMapped);
 
-  if (mSubsurfacePosition == aPosition || mCommitToParentSurface) {
+  if (mSubsurfacePosition == aPosition) {
     return;
   }
 
@@ -1099,17 +1075,11 @@ void WaylandSurface::InvalidateRegionLocked(
   MOZ_DIAGNOSTIC_ASSERT(&aProofOfLock == mSurfaceLock);
   MOZ_DIAGNOSTIC_ASSERT(mSurface);
 
-  if (mCommitToParentSurface) {
-    // When committing to parent surface we must use wl_surface_damage().
-    // A parent surface is created as v.3 object which does not support
-    // wl_surface_damage_buffer().
-    wl_surface_damage(mSurface, 0, 0, INT32_MAX, INT32_MAX);
-  } else {
-    for (auto iter = aInvalidRegion.RectIter(); !iter.Done(); iter.Next()) {
-      gfx::IntRect r = iter.Get();
-      wl_surface_damage_buffer(mSurface, r.x, r.y, r.width, r.height);
-    }
+  for (auto iter = aInvalidRegion.RectIter(); !iter.Done(); iter.Next()) {
+    gfx::IntRect r = iter.Get();
+    wl_surface_damage_buffer(mSurface, r.x, r.y, r.width, r.height);
   }
+
   mSurfaceNeedsCommit = true;
 }
 
@@ -1131,63 +1101,43 @@ void WaylandSurface::ReleaseAllWaylandBuffersLocked(
   }
 }
 
-ssize_t WaylandSurface::FindBufferLocked(const WaylandSurfaceLock& aProofOfLock,
-                                         wl_buffer* aWlBuffer) {
-  for (size_t i = 0; i < mAttachedBuffers.Length(); i++) {
-    if (mAttachedBuffers[i]->Matches(aWlBuffer)) {
-      return i;
-    }
-  }
-  return -1;
-}
-
-ssize_t WaylandSurface::FindBufferLocked(const WaylandSurfaceLock& aProofOfLock,
-                                         WaylandBuffer* aWaylandBuffer) {
-  for (size_t i = 0; i < mAttachedBuffers.Length(); i++) {
-    if (mAttachedBuffers[i] == aWaylandBuffer) {
-      return i;
-    }
-  }
-  return -1;
-}
-
 // BufferFreeCallbackHandler is called when WaylandBuffer is detached by
 // compositor or we delete it explicitly. The two events can happen in any
 // order.
-void WaylandSurface::BufferFreeCallbackHandler(WaylandBuffer* aWaylandBuffer,
-                                               wl_buffer* aWlBuffer) {
-  LOGWAYLAND(
-      "WaylandSurface::BufferFreeCallbackHandler() WaylandBuffer [%p] "
-      "wl_buffer [%p]",
-      aWaylandBuffer, aWlBuffer);
+void WaylandSurface::BufferFreeCallbackHandler(uintptr_t aWlBufferID,
+                                               bool aWlBufferDelete) {
+  LOGWAYLAND("WaylandSurface::BufferFreeCallbackHandler() wl_buffer [%" PRIxPTR
+             "] buffer %s",
+             aWlBufferID, aWlBufferDelete ? "delete" : "detach");
   WaylandSurfaceLock lock(this);
 
   // BufferFreeCallbackHandler() should be caled by Wayland compostor
   // on main thread only.
   AssertIsOnMainThread();
 
-  auto bufferIndex = aWaylandBuffer ? FindBufferLocked(lock, aWaylandBuffer)
-                                    : FindBufferLocked(lock, aWlBuffer);
+  for (size_t i = 0; i < mAttachedBuffers.Length(); i++) {
+    if (mAttachedBuffers[i]->Matches(aWlBufferID)) {
+      mAttachedBuffers[i]->ReturnBufferDetached(lock);
+      mAttachedBuffers.RemoveElementAt(i);
+      return;
+    }
+  }
+
   // It's possible that buffer was already freed by previous detach call
   // and we're on synced delete now. In such case just quit.
   // Reversed order (delete, detach) is not possible - we can't get detach
   // for deleted buffers.
-  if (bufferIndex < 0) {
-    MOZ_DIAGNOSTIC_ASSERT(
-        aWaylandBuffer && !aWlBuffer,
-        "Wayland compositor detach call after wl_buffer delete?");
-    return;
-  }
-
-  mAttachedBuffers[bufferIndex]->ReturnBufferDetached(lock);
-  mAttachedBuffers.RemoveElementAt(bufferIndex);
+  MOZ_DIAGNOSTIC_ASSERT(
+      aWlBufferDelete,
+      "Wayland compositor detach call after wl_buffer delete?");
 }
 
 static void BufferDetachedCallbackHandler(void* aData, wl_buffer* aBuffer) {
   LOGS("BufferDetachedCallbackHandler() [%p] received wl_buffer [%p]", aData,
        aBuffer);
   RefPtr surface = static_cast<WaylandSurface*>(aData);
-  surface->BufferFreeCallbackHandler(/* WaylandBuffer */ nullptr, aBuffer);
+  surface->BufferFreeCallbackHandler(reinterpret_cast<uintptr_t>(aBuffer),
+                                     /* aWlBufferDelete */ false);
 }
 
 static const struct wl_buffer_listener sBufferDetachListener = {
@@ -1231,9 +1181,6 @@ bool WaylandSurface::AttachLocked(WaylandSurfaceLock& aSurfaceLock,
     mAttachedBuffers.AppendElement(aWaylandBuffer);
   }
 
-  if (mCommitToParentSurface) {
-    wl_surface_set_buffer_scale(mSurface, 1);
-  }
   wl_surface_attach(mSurface, buffer, 0, 0);
   aWaylandBuffer->SetAttachedLocked(aSurfaceLock);
   mBufferAttached = true;

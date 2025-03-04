@@ -731,7 +731,7 @@ DesktopToLayoutDeviceScale nsWindow::GetDesktopToDeviceScaleByScreen() {
 }
 
 bool nsWindow::WidgetTypeSupportsAcceleration() {
-  if (IsSmallPopup()) {
+  if (IsSmallPopup() || mIsDragPopup) {
     return false;
   }
   if (mWindowType == WindowType::Popup) {
@@ -808,7 +808,8 @@ void nsWindow::RegisterTouchWindow() {
 
 LayoutDeviceIntPoint nsWindow::GetScreenEdgeSlop() {
   if (DrawsToCSDTitlebar()) {
-    return GetClientOffset();
+    return {std::max(mClientMargin.left, mClientMargin.right),
+            std::max(mClientMargin.top, mClientMargin.bottom)};
   }
   return {};
 }
@@ -3903,7 +3904,8 @@ gboolean nsWindow::OnExposeEvent(cairo_t* cr) {
     return FALSE;
   }
 #ifdef MOZ_WAYLAND
-  if (GdkIsWaylandDisplay() && !moz_container_wayland_can_draw(mContainer)) {
+  if (!mIsDragPopup && GdkIsWaylandDisplay() &&
+      !moz_container_wayland_can_draw(mContainer)) {
     LOG("quit, !moz_container_wayland_can_draw()");
     return FALSE;
   }
@@ -3917,6 +3919,10 @@ gboolean nsWindow::OnExposeEvent(cairo_t* cr) {
   LayoutDeviceIntRegion exposeRegion;
   if (!ExtractExposeRegion(exposeRegion, cr)) {
     LOG("  no rects, quit");
+    return FALSE;
+  }
+
+  if (mIsDragPopup && DrawDragPopupSurface(cr)) {
     return FALSE;
   }
 
@@ -5485,6 +5491,76 @@ void nsWindow::RefreshScale(bool aRefreshScreen) {
   }
 }
 
+void nsWindow::SetDragPopupSurface(
+    RefPtr<gfxImageSurface> aDragPopupSurface,
+    const LayoutDeviceIntRegion& aInvalidRegion) {
+  MOZ_DIAGNOSTIC_ASSERT(NS_IsMainThread());
+
+  if (!mIsMapped) {
+    return;
+  }
+
+  mDragPopupSurface = aDragPopupSurface;
+  mDragPopupSurfaceRegion = aInvalidRegion;
+  if (mGdkWindow) {
+    gdk_window_invalidate_rect(mGdkWindow, nullptr, false);
+  }
+}
+
+bool nsWindow::DrawDragPopupSurface(cairo_t* cr) {
+  if (!mDragPopupSurface) {
+    return false;
+  }
+  RefPtr<gfxImageSurface> surface = std::move(mDragPopupSurface);
+
+  gfx::IntRect bounds = mDragPopupSurfaceRegion.GetBounds().ToUnknownRect();
+  if (bounds.IsEmpty()) {
+    return true;
+  }
+
+  cairo_surface_t* targetSurface = cairo_get_group_target(cr);
+  gfx::IntSize size(bounds.XMost(), bounds.YMost());
+  RefPtr<gfx::DrawTarget> dt =
+      gfx::Factory::CreateDrawTargetForCairoSurface(targetSurface, size);
+
+  RefPtr<gfx::SourceSurface> surf =
+      gfx::Factory::CreateSourceSurfaceForCairoSurface(
+          surface->CairoSurface(), surface->GetSize(), surface->Format());
+  if (!dt || !surf) {
+    return true;
+  }
+
+  static auto sCairoSurfaceSetDeviceScalePtr =
+      (void (*)(cairo_surface_t*, double, double))dlsym(
+          RTLD_DEFAULT, "cairo_surface_set_device_scale");
+
+  if (sCairoSurfaceSetDeviceScalePtr) {
+    double scale = FractionalScaleFactor();
+    sCairoSurfaceSetDeviceScalePtr(surface->CairoSurface(), scale, scale);
+  }
+
+  uint32_t numRects = mDragPopupSurfaceRegion.GetNumRects();
+  if (numRects == 1) {
+    dt->CopySurface(surf, bounds, bounds.TopLeft());
+  } else {
+    AutoTArray<IntRect, 32> rects;
+    rects.SetCapacity(numRects);
+    for (auto iter = mDragPopupSurfaceRegion.RectIter(); !iter.Done();
+         iter.Next()) {
+      rects.AppendElement(iter.Get().ToUnknownRect());
+    }
+    dt->PushDeviceSpaceClipRects(rects.Elements(), rects.Length());
+
+    dt->DrawSurface(surf, gfx::Rect(bounds), gfx::Rect(bounds),
+                    DrawSurfaceOptions(),
+                    DrawOptions(1.0f, CompositionOp::OP_SOURCE));
+
+    dt->PopClip();
+  }
+
+  return true;
+}
+
 void nsWindow::DispatchDragEvent(EventMessage aMsg,
                                  const LayoutDeviceIntPoint& aRefPoint,
                                  guint aTime) {
@@ -5823,24 +5899,6 @@ nsCString nsWindow::GetPopupTypeName() {
   }
 }
 
-// Disables all rendering of GtkWidget from Gtk side.
-// We do our best to persuade Gtk/Gdk to ignore all painting
-// to the widget.
-static void GtkWidgetDisableUpdates(GtkWidget* aWidget) {
-  // Clear exposure mask - it disabled synthesized events.
-  GdkWindow* window = gtk_widget_get_window(aWidget);
-  if (!window) {
-    return;
-  }
-  gdk_window_set_events(window, (GdkEventMask)(gdk_window_get_events(window) &
-                                               (~GDK_EXPOSURE_MASK)));
-
-  // Remove before/after paint handles from frame clock.
-  // It disables widget content updates.
-  GdkFrameClock* frame_clock = gdk_window_get_frame_clock(window);
-  g_signal_handlers_disconnect_by_data(frame_clock, window);
-}
-
 Window nsWindow::GetX11Window() {
 #ifdef MOZ_X11
   if (GdkIsX11Display()) {
@@ -5956,6 +6014,7 @@ nsresult nsWindow::Create(nsIWidget* aParent, const LayoutDeviceIntRect& aRect,
   // recent popup config (Bug 1728952).
   mNoAutoHide = aInitData && aInitData->mNoAutoHide;
   mIsAlert = aInitData && aInitData->mIsAlert;
+  mIsDragPopup = aInitData && aInitData->mIsDragPopup;
 
   // Popups that are not noautohide are only temporary. The are used
   // for menus and the like and disappear when another window is used.
@@ -6093,9 +6152,8 @@ nsresult nsWindow::Create(nsIWidget* aParent, const LayoutDeviceIntRect& aRect,
 #endif
     }
 
-    if (aInitData->mIsDragPopup) {
+    if (mIsDragPopup) {
       gtk_window_set_type_hint(GTK_WINDOW(mShell), GDK_WINDOW_TYPE_HINT_DND);
-      mIsDragPopup = true;
       LOG("  nsWindow::Create() Drag popup\n");
     } else if (GdkIsX11Display()) {
       // Set the window hints on X11 only. Wayland popups are configured
@@ -6203,13 +6261,6 @@ nsresult nsWindow::Create(nsIWidget* aParent, const LayoutDeviceIntRect& aRect,
   if (!mAlwaysOnTop) {
     gtk_widget_grab_focus(container);
   }
-
-#ifdef MOZ_WAYLAND
-  if (mIsDragPopup && GdkIsWaylandDisplay()) {
-    LOG("  set commit to parent");
-    moz_container_wayland_set_commit_to_parent(mContainer);
-  }
-#endif
 
   if (mWindowType == WindowType::TopLevel && gKioskMode) {
     if (gKioskMonitor != -1) {
@@ -9733,21 +9784,9 @@ void nsWindow::OnMap() {
 #endif
   }
 
-  if (mIsDragPopup) {
-    if (GdkIsWaylandDisplay()) {
-      // Disable painting to the widget on Wayland as we paint directly to the
-      // widget. Wayland compositors does not paint wl_subsurface
-      // of D&D widget.
-      if (GtkWidget* parent = gtk_widget_get_parent(mShell)) {
-        GtkWidgetDisableUpdates(parent);
-      }
-      GtkWidgetDisableUpdates(mShell);
-      GtkWidgetDisableUpdates(GTK_WIDGET(mContainer));
-    } else {
-      // Disable rendering of parent container on X11 to avoid flickering.
-      if (GtkWidget* parent = gtk_widget_get_parent(mShell)) {
-        gtk_widget_set_opacity(parent, 0.0);
-      }
+  if (mIsDragPopup && GdkIsX11Display()) {
+    if (GtkWidget* parent = gtk_widget_get_parent(mShell)) {
+      gtk_widget_set_opacity(parent, 0.0);
     }
   }
 
