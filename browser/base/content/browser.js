@@ -67,7 +67,7 @@ ChromeUtils.defineESModuleGetters(this, {
   PrivateBrowsingUtils: "resource://gre/modules/PrivateBrowsingUtils.sys.mjs",
   ProcessHangMonitor: "resource:///modules/ProcessHangMonitor.sys.mjs",
   PromptUtils: "resource://gre/modules/PromptUtils.sys.mjs",
-  ReaderMode: "resource://gre/modules/ReaderMode.sys.mjs",
+  ReaderMode: "moz-src:///toolkit/components/reader/ReaderMode.sys.mjs",
   ResetPBMPanel: "resource:///modules/ResetPBMPanel.sys.mjs",
   SafeBrowsing: "resource://gre/modules/SafeBrowsing.sys.mjs",
   Sanitizer: "resource:///modules/Sanitizer.sys.mjs",
@@ -4820,14 +4820,6 @@ var MailIntegration = {
     }
   },
 };
-
-function AddKeywordForSearchField() {
-  if (!gContextMenu) {
-    throw new Error("Context menu doesn't seem to be open.");
-  }
-
-  gContextMenu.addKeywordForSearchField();
-}
 
 /**
  * Applies only to the cmd|ctrl + shift + T keyboard shortcut

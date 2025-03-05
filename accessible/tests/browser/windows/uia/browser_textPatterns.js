@@ -1397,6 +1397,7 @@ body {
 }
 </style>
 <input id="input">
+<p id="p">p</p>
   `,
   async function testTextSupportedTextSelection() {
     let result = await runPython(`
@@ -1411,13 +1412,57 @@ body {
       SupportedTextSelection_Multiple,
       "input SupportedTextSelection correct"
     );
-    // The IA2 -> UIA bridge doesn't understand that text isn't selectable in
-    // this document.
     if (gIsUiaEnabled) {
+      // The IA2 -> UIA proxy doesn't expose the Text pattern on this text leaf.
+      is(
+        await runPython(`
+          p = findUiaByDomId(doc, "p")
+          pLeaf = uiaClient.RawViewWalker.GetFirstChildElement(p)
+          text = getUiaPattern(pLeaf, "Text")
+          return text.SupportedTextSelection
+        `),
+        SupportedTextSelection_None,
+        "pLeaf SupportedTextSelection correct"
+      );
+      // The IA2 -> UIA proxy doesn't understand that text isn't selectable in
+      // this document.
       is(
         await runPython(`getUiaPattern(doc, "Text").SupportedTextSelection`),
         SupportedTextSelection_None,
         "doc SupportedTextSelection correct"
+      );
+    }
+  }
+);
+
+/**
+ * Test the Text pattern's SupportedTextSelection property on a document with a
+ * selectable body.
+ */
+addUiaTask(
+  `<p id="p">p</p>`,
+  async function testTextSupportedTextSelectionSelectableBody() {
+    is(
+      await runPython(`
+        global doc
+        doc = getDocUia()
+        text = getUiaPattern(doc, "Text")
+        return text.SupportedTextSelection
+      `),
+      SupportedTextSelection_Multiple,
+      "doc SupportedTextSelection correct"
+    );
+    // The IA2 -> UIA proxy doesn't expose the Text pattern on this text leaf.
+    if (gIsUiaEnabled) {
+      is(
+        await runPython(`
+          p = findUiaByDomId(doc, "p")
+          pLeaf = uiaClient.RawViewWalker.GetFirstChildElement(p)
+          text = getUiaPattern(pLeaf, "Text")
+          return text.SupportedTextSelection
+        `),
+        SupportedTextSelection_Multiple,
+        "pLeaf SupportedTextSelection correct"
       );
     }
   }
@@ -1615,7 +1660,14 @@ addUiaTask(
  * Test the TextRange pattern's GetEnclosingElement method.
  */
 addUiaTask(
-  `<div id="editable" contenteditable role="textbox">ab <mark id="cdef"><span>cd</span> <a id="ef" href="/">ef</a></mark> <img id="g" src="https://example.com/a11y/accessible/tests/mochitest/moz.png" alt="g"></div>`,
+  `
+<div id="editable" contenteditable role="textbox">
+  ab
+  <mark id="cdef"><span>cd</span> <a id="ef" href="/">ef</a></mark>
+  <a href="/"><img id="g" src="https://example.com/a11y/accessible/tests/mochitest/moz.png" alt="g"></a>
+  <p><button id="h">h</button></p>
+</div>
+  `,
   async function testTextRangeGetEnclosingElement() {
     info("Getting editable DocumentRange");
     await runPython(`
@@ -1678,23 +1730,34 @@ addUiaTask(
     await runPython(
       `range.MoveEndpointByUnit(TextPatternRangeEndpoint_End, TextUnit_Character, -1)`
     );
-    // Range is now "ef".
+    // Range is now "ef". The innermost element is the text leaf, but "ef" is a
+    // link and that's what Narrator wants.
     is(
-      await runPython(`range.GetEnclosingElement().CurrentName`),
+      await runPython(`range.GetEnclosingElement().CurrentAutomationId`),
       "ef",
-      "EnclosingElement is ef text leaf"
+      "EnclosingElement is ef"
     );
+    // The IA2 -> UIA proxy gets the rest of this wrong.
+    if (!gIsUiaEnabled) {
+      return;
+    }
     info("Moving 1 word");
     await runPython(`range.Move(TextUnit_Word, 1)`);
     // Range is now the embedded object character for the img (g).
-    // The IA2 -> UIA proxy gets this wrong.
-    if (gIsUiaEnabled) {
-      is(
-        await runPython(`range.GetEnclosingElement().CurrentAutomationId`),
-        "g",
-        "EnclosingElement is g"
-      );
-    }
+    is(
+      await runPython(`range.GetEnclosingElement().CurrentAutomationId`),
+      "g",
+      "EnclosingElement is g"
+    );
+    info("Moving 1 word");
+    await runPython(`range.Move(TextUnit_Word, 1)`);
+    // Range is now "h". "h" is a button and buttons prune their children, so
+    // UIA doesn't see the text leaf.
+    is(
+      await runPython(`range.GetEnclosingElement().CurrentAutomationId`),
+      "h",
+      "EnclosingElement is h"
+    );
   }
 );
 

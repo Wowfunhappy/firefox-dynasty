@@ -2268,6 +2268,7 @@ dependencies = [
  "mozbuild",
  "profiler-macros",
  "serde",
+ "smallvec",
 ]
 
 [[package]]
