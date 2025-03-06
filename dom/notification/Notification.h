@@ -118,6 +118,8 @@ class Notification : public DOMEventTargetHelper, public SupportsWeakPtr {
   static NotificationPermission GetPermission(const GlobalObject& aGlobal,
                                               ErrorResult& aRv);
 
+  static uint32_t MaxActions(const GlobalObject& aGlobal);
+
   // Notification implementation of
   // ServiceWorkerRegistration.showNotification.
   //
@@ -143,6 +145,8 @@ class Notification : public DOMEventTargetHelper, public SupportsWeakPtr {
 
   void GetData(JSContext* aCx, JS::MutableHandle<JS::Value> aRetval);
 
+  void GetActions(nsTArray<NotificationAction>& aRetVal);
+
   static NotificationPermission GetPermission(
       nsIGlobalObject* aGlobal, notification::PermissionCheckPurpose aPurpose,
       ErrorResult& aRv);
@@ -152,23 +156,15 @@ class Notification : public DOMEventTargetHelper, public SupportsWeakPtr {
   nsresult DispatchToMainThread(already_AddRefed<nsIRunnable>&& aRunnable);
 
  protected:
-  Notification(nsIGlobalObject* aGlobal, IPCNotification&& aIPCNotification);
-
-  static already_AddRefed<Notification> CreateInternal(
-      nsIGlobalObject* aGlobal, const nsAString& aID, const nsAString& aTitle,
-      const nsAString& aDataSerialized, const NotificationOptions& aOptions,
-      ErrorResult& aRv);
+  Notification(nsIGlobalObject* aGlobal,
+               const IPCNotification& aIPCNotification,
+               const nsAString& aScope);
 
   void Deactivate();
 
   static NotificationPermission GetPermissionInternal(
       nsPIDOMWindowInner* aWindow,
       notification::PermissionCheckPurpose aPurpose, ErrorResult& rv);
-
-  void SetScope(const nsAString& aScope) {
-    MOZ_ASSERT(mScope.IsEmpty());
-    mScope = aScope;
-  }
 
   WeakPtr<notification::NotificationChild> mActor;
 
@@ -191,7 +187,7 @@ class Notification : public DOMEventTargetHelper, public SupportsWeakPtr {
   //
   // Note that aCx may not be in the compartment of aGlobal, but aOptions will
   // have its JS things in the compartment of aCx.
-  static already_AddRefed<Notification> Create(
+  static already_AddRefed<Notification> ValidateAndCreate(
       JSContext* aCx, nsIGlobalObject* aGlobal, const nsAString& aTitle,
       const NotificationOptions& aOptions, const nsAString& aScope,
       ErrorResult& aRv);

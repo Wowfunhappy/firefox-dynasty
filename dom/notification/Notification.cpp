@@ -287,10 +287,12 @@ bool Notification::PrefEnabled(JSContext* aCx, JSObject* aObj) {
 }
 
 Notification::Notification(nsIGlobalObject* aGlobal,
-                           IPCNotification&& aIPCNotification)
+                           const IPCNotification& aIPCNotification,
+                           const nsAString& aScope)
     : DOMEventTargetHelper(aGlobal),
-      mIPCNotification(std::move(aIPCNotification)),
-      mData(JS::NullValue()) {
+      mIPCNotification(aIPCNotification),
+      mData(JS::NullValue()),
+      mScope(aScope) {
   KeepAliveIfHasListenersFor(nsGkAtoms::onclick);
   KeepAliveIfHasListenersFor(nsGkAtoms::onshow);
   KeepAliveIfHasListenersFor(nsGkAtoms::onerror);
@@ -313,8 +315,8 @@ already_AddRefed<Notification> Notification::Constructor(
   }
 
   nsCOMPtr<nsIGlobalObject> global = do_QueryInterface(aGlobal.GetAsSupports());
-  RefPtr<Notification> notification =
-      Create(aGlobal.Context(), global, aTitle, aOptions, u""_ns, aRv);
+  RefPtr<Notification> notification = ValidateAndCreate(
+      aGlobal.Context(), global, aTitle, aOptions, u""_ns, aRv);
   if (NS_WARN_IF(aRv.Failed())) {
     return nullptr;
   }
@@ -367,28 +369,10 @@ Result<already_AddRefed<Notification>, nsresult> Notification::ConstructFromIPC(
     const nsAString& aServiceWorkerRegistrationScope) {
   MOZ_ASSERT(aGlobal);
 
-  const IPCNotificationOptions& ipcOptions = aIPCNotification.options();
+  MOZ_TRY(ValidateBase64Data(aIPCNotification.options().dataSerialized()));
 
-  MOZ_TRY(ValidateBase64Data(ipcOptions.dataSerialized()));
-
-  RootedDictionary<NotificationOptions> options(RootingCx());
-  options.mDir = ipcOptions.dir();
-  options.mLang = ipcOptions.lang();
-  options.mBody = ipcOptions.body();
-  options.mTag = ipcOptions.tag();
-  options.mIcon = ipcOptions.icon();
-  options.mRequireInteraction = ipcOptions.requireInteraction();
-  options.mSilent = ipcOptions.silent();
-
-  IgnoredErrorResult rv;
-  RefPtr<Notification> notification =
-      CreateInternal(aGlobal, aIPCNotification.id(), ipcOptions.title(),
-                     ipcOptions.dataSerialized(), options, rv);
-  if (NS_WARN_IF(rv.Failed())) {
-    return Err(NS_ERROR_FAILURE);
-  }
-
-  notification->SetScope(aServiceWorkerRegistrationScope);
+  RefPtr<Notification> notification = new Notification(
+      aGlobal, aIPCNotification, aServiceWorkerRegistrationScope);
 
   return notification.forget();
 }
@@ -401,11 +385,38 @@ void Notification::MaybeNotifyClose() {
   DispatchTrustedEvent(u"close"_ns);
 }
 
+static Result<nsString, nsresult> SerializeDataAsBase64(
+    JSContext* aCx, JS::Handle<JS::Value> aData) {
+  if (aData.isNull()) {
+    return nsString();
+  }
+  RefPtr<nsStructuredCloneContainer> dataObjectContainer =
+      new nsStructuredCloneContainer();
+  MOZ_TRY(dataObjectContainer->InitFromJSVal(aData, aCx));
+
+  nsString result;
+  MOZ_TRY(dataObjectContainer->GetDataAsBase64(result));
+
+  return result;
+}
+
+/* static */
 // https://notifications.spec.whatwg.org/#create-a-notification
-already_AddRefed<Notification> Notification::CreateInternal(
-    nsIGlobalObject* aGlobal, const nsAString& aID, const nsAString& aTitle,
-    const nsAString& aDataSerialized, const NotificationOptions& aOptions,
+already_AddRefed<Notification> Notification::ValidateAndCreate(
+    JSContext* aCx, nsIGlobalObject* aGlobal, const nsAString& aTitle,
+    const NotificationOptions& aOptions, const nsAString& aScope,
     ErrorResult& aRv) {
+  MOZ_ASSERT(aGlobal);
+
+  // Step 4: Set notification’s data to
+  // StructuredSerializeForStorage(options["data"]).
+  JS::Rooted<JS::Value> data(aCx, aOptions.mData);
+  Result<nsString, nsresult> dataResult = SerializeDataAsBase64(aCx, data);
+  if (dataResult.isErr()) {
+    aRv = dataResult.unwrapErr();
+    return nullptr;
+  }
+
   // Step 17: Set notification’s silent preference to options["silent"].
   bool silent = false;
   if (StaticPrefs::dom_webnotifications_silent_enabled()) {
@@ -442,16 +453,37 @@ already_AddRefed<Notification> Notification::CreateInternal(
   nsString iconUrl = aOptions.mIcon;
   ResolveIconURL(aGlobal, iconUrl);
 
+  // Step 19: Set notification’s actions to « ».
+  nsTArray<IPCNotificationAction> actions;
+  if (StaticPrefs::dom_webnotifications_actions_enabled()) {
+    // Step 20: For each entry in options["actions"], up to the maximum number
+    // of actions supported (skip any excess entries):
+    for (const auto& entry : aOptions.mActions) {
+      // Step 20.1: Let action be a new notification action.
+      IPCNotificationAction action;
+      // Step 20.2: Set action’s name to entry["action"].
+      action.name() = entry.mAction;
+      // Step 20.3: Set action’s title to entry["title"].
+      action.title() = entry.mTitle;
+      // Step 20.4: (Skipping icon support, see
+      // https://github.com/whatwg/notifications/issues/233)
+      // Step 20.5: Append action to notification’s actions.
+      actions.AppendElement(std::move(action));
+      if (actions.Length() == kMaxActions) {
+        break;
+      }
+    }
+  }
+
   IPCNotification ipcNotification(
-      nsString(aID),
-      IPCNotificationOptions(nsString(aTitle), aOptions.mDir,
-                             nsString(aOptions.mLang), nsString(aOptions.mBody),
-                             nsString(aOptions.mTag), iconUrl,
-                             aOptions.mRequireInteraction, silent, vibrate,
-                             nsString(aDataSerialized)));
+      nsString(), IPCNotificationOptions(
+                      nsString(aTitle), aOptions.mDir, nsString(aOptions.mLang),
+                      nsString(aOptions.mBody), nsString(aOptions.mTag),
+                      iconUrl, aOptions.mRequireInteraction, silent, vibrate,
+                      nsString(dataResult.unwrap()), std::move(actions)));
 
   RefPtr<Notification> notification =
-      new Notification(aGlobal, std::move(ipcNotification));
+      new Notification(aGlobal, ipcNotification, aScope);
   return notification.forget();
 }
 
@@ -580,6 +612,10 @@ NotificationPermission Notification::GetPermissionInternal(
 
   return GetNotificationPermission(principal, effectiveStoragePrincipal,
                                    aWindow->IsSecureContext(), aPurpose);
+}
+
+uint32_t Notification::MaxActions(const GlobalObject& aGlobal) {
+  return kMaxActions;
 }
 
 nsresult Notification::ResolveIconURL(nsIGlobalObject* aGlobal,
@@ -728,19 +764,15 @@ void Notification::GetData(JSContext* aCx,
   aRetval.set(mData);
 }
 
-static Result<nsString, nsresult> SerializeDataAsBase64(
-    JSContext* aCx, JS::Handle<JS::Value> aData) {
-  if (aData.isNull()) {
-    return nsString();
+void Notification::GetActions(nsTArray<NotificationAction>& aRetVal) {
+  aRetVal.Clear();
+  for (const IPCNotificationAction& entry :
+       mIPCNotification.options().actions()) {
+    RootedDictionary<NotificationAction> action(RootingCx());
+    action.mAction = entry.name();
+    action.mTitle = entry.title();
+    aRetVal.AppendElement(action);
   }
-  RefPtr<nsStructuredCloneContainer> dataObjectContainer =
-      new nsStructuredCloneContainer();
-  MOZ_TRY(dataObjectContainer->InitFromJSVal(aData, aCx));
-
-  nsString result;
-  MOZ_TRY(dataObjectContainer->GetDataAsBase64(result));
-
-  return result;
 }
 
 // Steps 2-5 of
@@ -782,7 +814,7 @@ already_AddRefed<Promise> Notification::ShowPersistentNotification(
   // normalization steps. It would be nice to export that and skip creating
   // object here.
   RefPtr<Notification> notification =
-      Create(aCx, aGlobal, aTitle, aOptions, aScope, aRv);
+      ValidateAndCreate(aCx, aGlobal, aTitle, aOptions, aScope, aRv);
   if (NS_WARN_IF(aRv.Failed())) {
     return nullptr;
   }
@@ -792,34 +824,6 @@ already_AddRefed<Promise> Notification::ShowPersistentNotification(
   }
 
   return p.forget();
-}
-
-/* static */
-// https://notifications.spec.whatwg.org/#create-a-notification
-already_AddRefed<Notification> Notification::Create(
-    JSContext* aCx, nsIGlobalObject* aGlobal, const nsAString& aTitle,
-    const NotificationOptions& aOptions, const nsAString& aScope,
-    ErrorResult& aRv) {
-  MOZ_ASSERT(aGlobal);
-
-  // Step 4: Set notification’s data to
-  // StructuredSerializeForStorage(options["data"]).
-  JS::Rooted<JS::Value> data(aCx, aOptions.mData);
-  Result<nsString, nsresult> dataResult = SerializeDataAsBase64(aCx, data);
-  if (dataResult.isErr()) {
-    aRv = dataResult.unwrapErr();
-    return nullptr;
-  }
-
-  RefPtr<Notification> notification = CreateInternal(
-      aGlobal, u""_ns, aTitle, dataResult.unwrap(), aOptions, aRv);
-  if (aRv.Failed()) {
-    return nullptr;
-  }
-
-  notification->SetScope(aScope);
-
-  return notification.forget();
 }
 
 bool Notification::CreateActor() {
