@@ -361,6 +361,12 @@
   <string name="browser_tools_menu_handlebar_content_description">Tutup lembar menu alat</string>
   <!-- Content description (not visible, for screen readers etc.) for bottom sheet handlebar custom tab menu. -->
   <string name="browser_custom_tab_menu_handlebar_content_description">Tutup lembar menu tab ubahan</string>
+  <!-- Browser menu description that describes the various tools related menu items inside of the tools sub-menu when the "Report broken site" feature is available -->
+  <string name="browser_menu_tools_description_with_translate_with_report_site_2">Tampilan Pembaca, Terjemahkan, Laporkan situs rusak, Cetak, Bagikan, Buka aplikasi</string>
+  <!-- Browser menu description that describes the various tools related menu items inside of the tools sub-menu -->
+  <string name="browser_menu_tools_description_with_translate_without_report_site">Tampilan Pembaca, Terjemahkan, Cetak, Bagikan, Buka aplikasi</string>
+  <!-- Browser menu description that describes the various tools related menu items inside of the tools sub-menu when the "Report broken site" feature is available -->
+  <string name="browser_menu_tools_description_with_report_site_2">Tampilan Pembaca, Laporkan situs rusak, Cetak, Bagikan, Buka aplikasi</string>
   <!-- Browser menu description that describes the various tools related menu items inside of the tools sub-menu -->
   <string name="browser_menu_tools_description_without_report_site">Tampilan Pembaca, Cetak, Bagikan, Buka aplikasi</string>
   <!--
@@ -572,6 +578,8 @@
     Note: The word "Firefox" should NOT be translated
   -->
   <string name="onboarding_add_on_header" tools:ignore="BrandUsage,UnusedResources">Sesuaikan Firefox Anda dengan ekstensi</string>
+  <!-- Onboarding sub header for the add-ons card, used by Nimbus experiments. -->
+  <string name="onboarding_add_on_sub_header" tools:ignore="UnusedResources">Tambahkan ekstensi pihak ketiga untuk meningkatkan keamanan, produktivitas, dan lainnya.</string>
   <!-- Onboarding add-ons card, for checking more add-ons on, used by Nimbus experiments. -->
   <string name="onboarding_add_on_explore_more_extensions_2">Jelajahi lebih banyak ekstensi</string>
   <!-- Onboarding add-ons card, button for start browsing, used by Nimbus experiments. -->
@@ -650,10 +658,18 @@
   <string name="onboarding_term_of_service_line_three_link_text">Kelola</string>
   <!-- Marketing onboarding page title. 'Firefox' is intentionally hardcoded. -->
   <string name="onboarding_marketing_title" tools:ignore="BrandUsage,UnusedResources">Bantu kami menumbuhkan Firefox</string>
+  <!-- Marketing onboarding page body. 'Firefox' is intentionally hardcoded. -->
+  <string name="onboarding_marketing_body" tools:ignore="BrandUsage,UnusedResources">Ketika Anda berbagi bagaimana Anda menemukan Firefox dan bahwa Anda menggunakannya, Anda membantu kami memperkenalkan peramban kami kepada lebih banyak orang.</string>
+  <!-- Marketing onboarding page opt-in checkbox. 'Mozilla' is intentionally hardcoded. -->
+  <string name="onboarding_marketing_opt_in_checkbox" tools:ignore="UnusedResources">Bagikan data minimal dengan mitra teknologi pemasaran Mozilla. Data ini tidak pernah dijual atau digunakan untuk menampilkan iklan kepada Anda.</string>
+  <!-- Marketing onboarding page clickable link text to "learn more" on how data is used. -->
+  <string name="onboarding_marketing_learn_more" tools:ignore="UnusedResources">Bagaimana kami menggunakan data</string>
   <!-- Marketing onboarding page button label. Button to confirm choice and start browsing. -->
   <string name="onboarding_marketing_positive_button" tools:ignore="UnusedResources">Konfirmasi dan mulai menjelajah</string>
   <!-- Marketing onboarding page title variant. “One last thing” refers to the final step or action in the onboarding process that we’re asking users to take before they can start using the browser. -->
   <string name="onboarding_marketing_title_1" tools:ignore="UnusedResources">Satu hal lagi</string>
+  <!-- Marketing onboarding page body variant. 'Firefox' is intentionally hardcoded. -->
+  <string name="onboarding_marketing_body_1" tools:ignore="BrandUsage,UnusedResources">Bagikan bagaimana Anda menemukan Firefox, dan bahwa Anda menggunakannya, dengan mitra pemasaran Mozilla. Data ini tidak pernah dijual.</string>
   <!-- Marketing onboarding page button label variant. Button to confirm choice and start browsing. -->
   <string name="onboarding_marketing_positive_button_1" tools:ignore="UnusedResources">Setuju dan mulai menjelajah</string>
   <!-- Onboarding header for the toolbar selection card, used by Nimbus experiments. -->
@@ -689,6 +705,12 @@
   <string name="onboarding_customize_theme_content_description">Gambar tema %1$s</string>
   <!-- Onboarding theme selection card label for 'Not now' button, used by Nimbus experiments. -->
   <string name="onboarding_customize_theme_not_now_button" moz:removedIn="136" tools:ignore="UnusedResources">Jangan sekarang</string>
+  <!--
+    Widget Picker
+
+    Widget description for widget picker screen
+  -->
+  <string name="widget_picket_description">Mulai pencarian cepat</string>
   <!--
     Search Widget
 
@@ -856,12 +878,18 @@
   <string name="preferences_show_voice_search">Tampilkan pencarian suara</string>
   <!-- Preference title for switch preference to show search suggestions also in private mode -->
   <string name="preferences_show_search_suggestions_in_private">Tampilkan dalam sesi privat</string>
+  <!-- Preference title for switch preference to show trending search suggestions -->
+  <string name="preferences_show_trending_search_suggestions">Tampilkan saran yang sedang tren</string>
+  <!-- Preference title for switch preference to show recent search suggestions -->
+  <string name="preferences_show_recent_search_suggestions">Tampilkan pencarian terkini</string>
   <!-- Preference title for switch preference to show a clipboard suggestion when searching -->
   <string name="preferences_show_clipboard_suggestions">Tampilkan saran papan klip</string>
   <!-- Preference title for switch preference to suggest browsing history when searching -->
   <string name="preferences_search_browsing_history">Cari riwayat jelajah</string>
   <!-- Preference title for switch preference to suggest bookmarks when searching -->
   <string name="preferences_search_bookmarks">Cari markah</string>
+  <!-- Preference title for switch preference to show shortcuts when searching -->
+  <string name="preferences_show_shortcuts">Tampilkan pintasan</string>
   <!-- Preference title for switch preference to suggest synced tabs when searching -->
   <string name="preferences_search_synced_tabs">Cari tab tersinkron</string>
   <!-- Preference for account settings -->
@@ -882,6 +910,10 @@
   <string name="preferences_show_nonsponsored_suggestions">Saran dari %1$s</string>
   <!-- Summary for preference to show Firefox Suggest search suggestions for web content -->
   <string name="preferences_show_nonsponsored_suggestions_summary">Dapatkan rekomendasi dari web yang terkait dengan pencarian Anda</string>
+  <!-- Preference for link sharing -->
+  <string name="preferences_link_sharing">Berbagi tautan</string>
+  <!-- Body for the link sharing toggle.  %1$s is replaced by the brand name (e.g. Firefox). -->
+  <string name="link_sharing_toggle_body">Undang teman Anda untuk mencoba penjelajahan yang lebih cepat dan lebih aman dengan %1$s setiap kali Anda membagikan tautan di WhatsApp.</string>
   <!-- Snackbar message shown when user shares a link -->
   <string name="link_shared_snackbar_message">Tautan dibagikan</string>
   <!-- Snackbar action label shown when user shares a link -->
@@ -1011,6 +1043,12 @@
     Title of the extension crash dialog shown to the user when enough errors have occurred with extensions and they need to be temporarily disabled
   -->
   <string name="extension_process_crash_dialog_title">Ekstensi dinonaktifkan untuk sementara</string>
+  <!--
+    This is a message shown to the user when too many errors have occurred with the extensions process and they have been disabled.
+    The user can decide if they would like to continue trying to start extensions or if they'd rather continue without them.
+    The first parameter is the application name.
+  -->
+  <string name="extension_process_crash_dialog_message">Satu atau lebih ekstensi berhenti bekerja, membuat sistem Anda tidak stabil. %1$s gagal memulai ulang ekstensi.\n\nEkstensi tidak akan dimulai ulang selama sesi Anda saat ini.\n\nMenghapus atau menonaktifkan ekstensi dapat memperbaiki masalah ini.</string>
   <!-- Button text on the extension crash dialog to prompt the user to try restarting the extensions but the dialog will reappear if it is unsuccessful again -->
   <string name="extension_process_crash_dialog_retry_button_text" tools:ignore="UnusedResources">Cobalah memulai ulang ekstensi</string>
   <!-- Button text on the extension crash dialog to prompt the user to continue with all extensions disabled. -->
@@ -1097,12 +1135,18 @@
   <string name="exceptions_empty_message_learn_more_link">Pelajari lebih lanjut</string>
   <!-- Preference switch for usage and technical data collection -->
   <string name="preference_usage_data_1">Data teknis dan interaksi</string>
+  <!-- Preference switch for usage and technical data collection -->
+  <string name="preference_usage_data_2" tools:ignore="UnusedResources">Kirim data teknis dan interaksi</string>
   <!-- Preference switch for usage and technical learn more link -->
   <string name="preference_usage_data_learn_more" tools:ignore="UnusedResources">Pelajari lebih lanjut</string>
   <!-- Preference description for usage and technical data collection -->
   <string name="preferences_usage_data_description" tools:ignore="UnusedResources" moz:removedIn="136">Bagikan data kinerja, penggunaan, perangkat keras dan pengubahsuaian peramban Anda dengan Mozilla untuk membantu kami membuat %1$s semakin baik</string>
+  <!-- Preference description for marketing data collection. Note: The words "Firefox" should NOT be translated -->
+  <string name="preferences_usage_data_description_1" tools:ignore="BrandUsage, UnusedResources">Data tentang perangkat Anda, konfigurasi perangkat keras, dan penggunaan membantu kami meningkatkan fitur, kinerja, dan stabilitas Firefox.</string>
   <!-- Preference switch for marketing data collection -->
   <string name="preferences_marketing_data" tools:ignore="UnusedResources" moz:removedIn="136">Data pemasaran</string>
+  <!-- Preference switch for campaign measurement data (marketing data) collection -->
+  <string name="preferences_marketing_data_2">Data pengukuran kampanye</string>
   <!-- Preference description for marketing data collection. Note: The words "Firefox" and "Mozilla" should NOT be translated -->
   <string name="preferences_marketing_data_description_3" tools:ignore="BrandUsage, UnusedResources" moz:removedIn="136">Bagikan informasi tentang bagaimana Anda menemukan Firefox dengan mitra pemasaran Mozilla. Ini membantu kami menumbuhkan Firefox dan membangun internet yang lebih baik</string>
   <!-- Learn more link for marketing data preference -->
@@ -1305,6 +1349,8 @@
   <string name="studies_active">Aktif</string>
   <!-- Description for studies, it indicates why Firefox use studies. The first parameter is the name of the application. -->
   <string name="studies_description_2" tools:ignore="UnusedResources" moz:removedIn="136">%1$s dapat memasang dan menjalankan kajian dari waktu ke waktu.</string>
+  <!-- Description for studies -->
+  <string name="studies_description_3">Cobalah fitur dan ide sebelum dirilis ke semua orang.</string>
   <!-- Learn more link for studies, links to an article for more information about studies. -->
   <string name="studies_learn_more">Pelajari lebih lanjut</string>
   <!-- Dialog message shown after removing a study -->
@@ -1319,8 +1365,18 @@
     Title for the list of tabs in the current private session
   -->
   <string name="tabs_header_private_tabs_title" moz:removedIn="136" tools:ignore="UnusedResources">Tab privat</string>
+  <!--
+    Title for the list of tabs in the current private session used by a11y services
+    The %1$s will be replaced by the number of opened private tabs
+  -->
+  <string name="tabs_header_private_tabs_counter_title">Tab Pribadi Terbuka: %1$s. Ketuk untuk beralih tab.</string>
   <!-- Title for the list of tabs in the synced tabs -->
   <string name="tabs_header_synced_tabs_title" moz:removedIn="136" tools:ignore="UnusedResources">Tab tersinkron</string>
+  <!--
+    Title for the list of tabs in the synced tabs used by a11y services
+    The %1$s will be replaced by the number of opened synced tabs
+  -->
+  <string name="tabs_header_synced_tabs_counter_title">Tab Terselaras Terbuka: %1$s. Ketuk untuk beralih tab.</string>
   <!-- Content description (not visible, for screen readers etc.): Add tab button. Adds a news tab when pressed -->
   <string name="add_tab">Tambah tab</string>
   <!-- Content description (not visible, for screen readers etc.): Add tab button. Adds a news tab when pressed -->
@@ -1429,14 +1485,20 @@
     The title of the Web Compat Reporter feature. This is displayed in the top app bar.
   -->
   <string name="webcompat_reporter_screen_title">Laporkan situs yang rusak</string>
+  <!-- The description of the Web Compat Reporter feature. This first parameter is the name of the application (For example: Fenix) -->
+  <string name="webcompat_reporter_description">Bantu membuat %1$s lebih baik untuk semua orang. Karyawan Mozilla menggunakan info yang Anda kirim untuk memperbaiki masalah situs web.</string>
   <!-- The text field label of the URL text field. This is displayed above the user-inputted URL. -->
   <string name="webcompat_reporter_label_url">URL</string>
   <!-- The error message of the URL text field when an invalid URL has been entered. -->
   <string name="webcompat_reporter_url_error_invalid">Masukkan URL yang valid</string>
   <!-- The label/title of an optional field in the Web Compat Reporter feature for explaining a high-level reason why the site is broken. -->
   <string name="webcompat_reporter_label_whats_broken" moz:removedIn="136" tools:ignore="UnusedResources">Apa yang rusak? (opsional)</string>
+  <!-- The label/title of a field in the Web Compat Reporter feature for explaining a high-level reason why the site is broken. -->
+  <string name="webcompat_reporter_label_whats_broken_2">Apa yang rusak?</string>
   <!-- The placeholder text for the dropdown where a user selects a high-level reason why the site is broken. -->
   <string name="webcompat_reporter_choose_reason">Pilih alasan</string>
+  <!-- The error message of the dropdown, prompting the user to select a high-level reason why the site is broken. -->
+  <string name="webcompat_reporter_choose_reason_error">Pilih alasan</string>
   <!-- The label/title of an optional field in the Web Compat Reporter feature for adding additional information. -->
   <string name="webcompat_reporter_label_description">Jelaskan masalahnya (opsional)</string>
   <!-- The button text for navigating away from the feature to provide more information on the broken site's bug report. -->
@@ -1796,6 +1858,8 @@
   <string name="sync_add_new_device_learn_button">Pelajari Tentang Pengiriman Tab…</string>
   <!-- Text for the button to connect another device -->
   <string name="sync_add_new_device_connect_button">Sambungkan Peranti Lain…</string>
+  <!-- A short message template for the shared link with a footer. %1$s is the shared link, %2$s is the app name (e.g. Firefox) and %3$s is a download link for the app. -->
+  <string name="sent_from_firefox_template_short" tools:ignore="UnusedResources">%1$s\n\nDikirim dari %2$s 🦊 %3$s</string>
   <!--
     Notifications
 
@@ -2134,6 +2198,12 @@
     Enhanced tracking protection exception preference icon for ETP settings.
   -->
   <string name="preference_etp_exceptions_icon_description">Ikon preferensi pengecualian perlindungan pelacakan yang ditingkatkan</string>
+  <!--
+    DNS Over HTTPS (DoH)
+
+    Preference title for DNS over HTTPS settings
+  -->
+  <string name="preference_doh_title">DNS Di Atas HTTPS</string>
   <!-- Used as text for the link in `preference_doh_title`, points to documentation about "DNS over HTTPS" -->
   <string name="preference_doh_learn_more">Pelajari lebih lanjut</string>
   <!-- Content description for the "Exceptions" button -->
@@ -2144,6 +2214,10 @@
   <string name="preference_doh_add_site_description">Tambahkan Situs</string>
   <!-- Title displayed for "Default Protection" option under "DNS over HTTPS" -->
   <string name="preference_doh_default_protection">Perlindungan Baku</string>
+  <!-- Summary displayed for "Default Protection" option under "DNS over HTTPS". %1$s is the name of the application (e.g. Fenix). -->
+  <string name="preference_doh_default_protection_summary">%1$s memutuskan kapan menggunakan DNS aman untuk melindungi privasi Anda.</string>
+  <!-- Bullet point 1 for "Default Protection" information page under "DNS over HTTPS" -->
+  <string name="preference_doh_default_protection_info_1">Gunakan penyedia yang Anda pilih</string>
   <!-- Text displayed above provider textfield under "DNS over HTTPS" -->
   <string name="preference_doh_provider_custom_dialog_textfield">Penyedia</string>
   <!-- Error text displayed for provider textfield under "DNS over HTTPS" if the URL does not start with "https://" or its scheme is not "https" -->
