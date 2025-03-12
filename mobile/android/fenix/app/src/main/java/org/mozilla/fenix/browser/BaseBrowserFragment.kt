@@ -85,6 +85,7 @@ import mozilla.components.compose.cfr.CFRPopupProperties
 import mozilla.components.concept.base.crash.Breadcrumb
 import mozilla.components.concept.engine.permission.SitePermissions
 import mozilla.components.concept.engine.prompt.ShareData
+import mozilla.components.concept.storage.Login
 import mozilla.components.concept.storage.LoginEntry
 import mozilla.components.feature.accounts.push.SendTabUseCases
 import mozilla.components.feature.contextmenu.ContextMenuCandidate
@@ -93,12 +94,14 @@ import mozilla.components.feature.downloads.DownloadsFeature
 import mozilla.components.feature.downloads.manager.FetchDownloadManager
 import mozilla.components.feature.downloads.temporary.CopyDownloadFeature
 import mozilla.components.feature.downloads.temporary.ShareResourceFeature
+import mozilla.components.feature.findinpage.view.FindInPageBar
 import mozilla.components.feature.intent.ext.EXTRA_SESSION_ID
 import mozilla.components.feature.media.fullscreen.MediaSessionFullscreenFeature
 import mozilla.components.feature.privatemode.feature.SecureWindowFeature
 import mozilla.components.feature.prompts.PromptFeature
 import mozilla.components.feature.prompts.PromptFeature.Companion.PIN_REQUEST
 import mozilla.components.feature.prompts.address.AddressDelegate
+import mozilla.components.feature.prompts.concept.AutocompletePrompt
 import mozilla.components.feature.prompts.creditcard.CreditCardDelegate
 import mozilla.components.feature.prompts.dialog.FullScreenNotificationToast
 import mozilla.components.feature.prompts.dialog.GestureNavUtils
@@ -106,6 +109,7 @@ import mozilla.components.feature.prompts.file.AndroidPhotoPicker
 import mozilla.components.feature.prompts.identitycredential.DialogColors
 import mozilla.components.feature.prompts.identitycredential.DialogColorsProvider
 import mozilla.components.feature.prompts.login.LoginDelegate
+import mozilla.components.feature.prompts.login.LoginSelectBar
 import mozilla.components.feature.prompts.login.PasswordGeneratorDialogColors
 import mozilla.components.feature.prompts.login.PasswordGeneratorDialogColorsProvider
 import mozilla.components.feature.prompts.login.SuggestStrongPasswordDelegate
@@ -161,6 +165,7 @@ import org.mozilla.fenix.browser.tabstrip.TabStrip
 import org.mozilla.fenix.browser.tabstrip.isTabStripEnabled
 import org.mozilla.fenix.components.AutofillBarsIntegration
 import org.mozilla.fenix.components.Components
+import org.mozilla.fenix.components.FenixAutocompletePrompt
 import org.mozilla.fenix.components.FindInPageIntegration
 import org.mozilla.fenix.components.StoreProvider
 import org.mozilla.fenix.components.accounts.FxaWebChannelIntegration
@@ -259,6 +264,8 @@ abstract class BaseBrowserFragment :
 
     private var _binding: FragmentBrowserBinding? = null
     internal val binding get() = _binding!!
+
+    lateinit var loginSelectBar: AutocompletePrompt<Login>
 
     private lateinit var browserFragmentStore: BrowserFragmentStore
     private lateinit var browserAnimator: BrowserAnimator
@@ -530,7 +537,9 @@ abstract class BaseBrowserFragment :
             settings = context.settings(),
             readerModeController = readerMenuController,
             sessionFeature = sessionFeature,
-            findInPageLauncher = { findInPageIntegration.withFeature { it.launch() } },
+            findInPageLauncher = {
+                launchFindInPageFeature(view, store)
+            },
             browserAnimator = browserAnimator,
             customTabSessionId = customTabSessionId,
             openInFenixIntent = openInFenixIntent,
@@ -597,7 +606,6 @@ abstract class BaseBrowserFragment :
         )
 
         autofillBarsIntegration = AutofillBarsIntegration(
-            loginsBar = binding.loginSelectBar,
             passwordBar = binding.suggestStrongPasswordBar,
             addressBar = binding.addressSelectBar,
             creditCardBar = binding.creditCardSelectBar,
@@ -632,29 +640,12 @@ abstract class BaseBrowserFragment :
             view = view,
         )
 
-        findInPageIntegration.set(
-            feature = FindInPageIntegration(
-                store = store,
-                appStore = requireComponents.appStore,
-                sessionId = customTabSessionId,
-                view = binding.findInPageView,
-                engineView = binding.engineView,
-                toolbarsHideCallback = {
-                    expandBrowserView()
-                },
-                toolbarsResetCallback = {
-                    onUpdateToolbarForConfigurationChange(browserToolbarView)
-                    collapseBrowserView()
-                },
-            ),
-            owner = this,
-            view = view,
-        )
-
         findInPageBinding.set(
             feature = FindInPageBinding(
                 appStore = context.components.appStore,
-                onFindInPageLaunch = { findInPageIntegration.withFeature { it.launch() } },
+                onFindInPageLaunch = {
+                    launchFindInPageFeature(view = view, store = store)
+                },
             ),
             owner = this,
             view = view,
@@ -925,6 +916,17 @@ abstract class BaseBrowserFragment :
             )
         }
 
+        loginSelectBar = FenixAutocompletePrompt(
+            viewProvider = {
+                view.findViewById(R.id.loginSelectBar) ?: (binding.loginSelectBarStub.inflate() as LoginSelectBar)
+            },
+            toolbarPositionProvider = {
+                requireContext().settings().toolbarPosition
+            },
+            onShow = ::onAutocompleteBarShow,
+            onHide = ::onAutocompleteBarHide,
+        )
+
         promptsFeature.set(
             feature = PromptFeature(
                 activity = activity,
@@ -973,7 +975,7 @@ abstract class BaseBrowserFragment :
                 },
                 loginDelegate = object : LoginDelegate {
                     override val loginPickerView
-                        get() = binding.loginSelectBar
+                        get() = loginSelectBar
                     override val onManageLogins = {
                         browserAnimator.captureEngineViewAndDrawStatically {
                             val directions =
@@ -1233,6 +1235,16 @@ abstract class BaseBrowserFragment :
             },
             operation = { },
         )
+    }
+
+    private fun onAutocompleteBarShow() {
+        removeBottomToolbarDivider(browserToolbarView.view)
+        updateNavbarDivider()
+    }
+
+    private fun onAutocompleteBarHide() {
+        restoreBottomToolbarDivider(browserToolbarView.view)
+        updateNavbarDivider()
     }
 
     /**
@@ -2710,5 +2722,29 @@ abstract class BaseBrowserFragment :
             val directions = BrowserFragmentDirections.actionLoginsListFragment()
             navController.navigate(directions)
         }
+    }
+
+    private fun launchFindInPageFeature(view: View, store: BrowserStore) {
+        val findInPageBar = view.findViewById(R.id.findInPageView)
+            ?: (binding.findInPageViewStub.inflate() as FindInPageBar)
+        findInPageIntegration.set(
+            feature = FindInPageIntegration(
+                store = store,
+                appStore = requireComponents.appStore,
+                sessionId = customTabSessionId,
+                view = findInPageBar,
+                engineView = binding.engineView,
+                toolbarsHideCallback = {
+                    expandBrowserView()
+                },
+                toolbarsResetCallback = {
+                    onUpdateToolbarForConfigurationChange(browserToolbarView)
+                    collapseBrowserView()
+                },
+            ),
+            owner = this,
+            view = view,
+        )
+        findInPageIntegration.withFeature { it.launch() }
     }
 }

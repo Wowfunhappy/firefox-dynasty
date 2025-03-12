@@ -263,11 +263,7 @@ pref("media.videocontrols.keyboard-tab-to-all-controls", true);
   pref("media.navigator.video.default_height",0); // adaptive default
   pref("media.navigator.video.max_fs", 12288); // Enough for 2048x1536
   pref("media.navigator.video.max_fr", 60);
-  #ifdef NIGHTLY_BUILD
-    pref("media.navigator.video.disable_h264_baseline", false);
-  #else
-    pref("media.navigator.video.disable_h264_baseline", true);
-  #endif
+  pref("media.navigator.video.disable_h264_baseline", false);
   pref("media.navigator.video.h264.level", 31); // 0x42E01f - level 3.1
   pref("media.navigator.video.h264.max_br", 0);
   pref("media.navigator.video.h264.max_mbps", 0);
@@ -327,8 +323,9 @@ pref("media.videocontrols.keyboard-tab-to-all-controls", true);
   #endif
 
   // 770 = DTLS 1.0, 771 = DTLS 1.2, 772 = DTLS 1.3
+  // TODO(bug 1952950) Re-enable this once 1952706 lands everywhere.
   pref("media.peerconnection.dtls.version.min", 771);
-  pref("media.peerconnection.dtls.version.max", 772);
+  pref("media.peerconnection.dtls.version.max", 771);
 
 #if defined(XP_MACOSX)
   pref("media.getusermedia.audio.processing.platform.enabled", true);
@@ -1477,9 +1474,6 @@ pref("network.proxy.autoconfig_url.include_path", false);
 pref("network.proxy.autoconfig_retry_interval_min", 5);    // 5 seconds
 pref("network.proxy.autoconfig_retry_interval_max", 300);  // 5 minutes
 pref("network.proxy.enable_wpad_over_dhcp", true);
-
-// Use the HSTS preload list by default
-pref("network.stricttransportsecurity.preloadlist", true);
 
 pref("converter.html2txt.structs",          true); // Output structured phrases (strong, em, code, sub, sup, b, i, u)
 pref("converter.html2txt.header_strategy",  1); // 0 = no indention; 1 = indention, increased with header level; 2 = numbering and slight indention
@@ -3442,6 +3436,9 @@ pref("browser.search.suggest.enabled.private", false);
 pref("browser.search.separatePrivateDefault", true);
 pref("browser.search.separatePrivateDefault.ui.enabled", false);
 pref("browser.search.removeEngineInfobar.enabled", true);
+// Temporary preference to allow switching between the Rust based search engine
+// selector and the JavaScript one (bug 1914143).
+pref("browser.search.rustSelector.featureGate", false);
 
 // GMPInstallManager prefs
 

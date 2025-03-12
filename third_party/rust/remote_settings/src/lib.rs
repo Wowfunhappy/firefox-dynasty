@@ -20,7 +20,6 @@ pub mod service;
 pub(crate) mod signatures;
 pub mod storage;
 
-#[cfg(feature = "jexl")]
 pub(crate) mod jexl_filter;
 mod macros;
 
@@ -217,7 +216,6 @@ impl RemoteSettingsClient {
                 base_url,
                 bucket_name,
                 collection_name,
-                #[cfg(feature = "jexl")]
                 context,
                 storage,
             )?,

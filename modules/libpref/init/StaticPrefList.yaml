@@ -1805,7 +1805,7 @@
 # Whether to only classify top-level channels for safe browsing.
 - name: browser.safebrowsing.only_top_level
   type: bool
-  value: @IS_NIGHTLY_BUILD@
+  value: true
   mirror: always
 
 # SessionStore prefs
@@ -2818,14 +2818,6 @@
   value: @IS_NIGHTLY_BUILD@
   mirror: always
 #endif
-
-# Whether Gecko keeps store or forgets the last deepest "enter" event target for
-# the next "enter" or "leave" event dispatching when the last "over" event
-# target is removed from the DOM tree.
-- name: dom.events.mouse-pointer-boundary.keep-enter-targets-after-over-target-removed
-  type: bool
-  value: true
-  mirror: always
 
 # Whether .offset{X,Y} for events targeted at SVG nodes returns bounds relative
 # to the outer SVG.
@@ -4926,7 +4918,7 @@
 # Whether view transitions use webrender for live-capture
 - name: dom.viewTransitions.live-capture
   type: bool
-  value: false
+  value: true
   mirror: always
 
 # Is support for WebVR APIs enabled?
@@ -14070,6 +14062,12 @@
   value: 1048576
   mirror: always
 
+# If true, use the HSTS preload list.
+- name: network.stricttransportsecurity.preloadlist
+  type: RelaxedAtomicBool
+  value: true
+  mirror: always
+
 # DNS Trusted Recursive Resolver
 # 0 - default off, 1 - reserved/off, 2 - TRR first, 3 - TRR only,
 # 4 - reserved/off, 5 off by choice
@@ -15025,6 +15023,12 @@
 - name: network.wifi.scanning_period
   type: RelaxedAtomicUint32
   value: 60000
+  mirror: always
+
+# Block synchronous XMLHttpRequests coming from system requests
+- name: network.xhr.block_sync_system_requests
+  type: bool
+  value: true
   mirror: always
 
 # When the Access-Control-Allow-Headers is wildcard (*), whether to allow
@@ -16031,6 +16035,13 @@
   value: true
   mirror: always
 
+# Whether to treat the CSP in browser.xhtml as "Report-Only".
+# This allows us to collect telemetry information about potential issues.
+- name: security.browser_xhtml_csp.report-only
+  type: bool
+  value: @IS_NOT_EARLY_BETA_OR_EARLIER@
+  mirror: always
+
 # Allowed by default so it doesn't affect Thunderbird/SeaMonkey, but
 # not allowed for Firefox Desktop in firefox.js
 - name: security.allow_parent_unrestricted_js_loads
@@ -16160,13 +16171,13 @@
   # Whether win32k is disabled for compatible plugins.
 -   name: security.sandbox.gmp.win32k-disable
     type: RelaxedAtomicBool
-    value: @IS_NIGHTLY_BUILD@
+    value: true
     mirror: always
 
   # Whether ACG is enabled (dynamic code blocked) for compatible plugins.
 -   name: security.sandbox.gmp.acg.enabled
     type: RelaxedAtomicBool
-    value: @IS_NIGHTLY_BUILD@
+    value: true
     mirror: always
 
   # Whether win32k is disabled for socket processes.
@@ -17019,6 +17030,13 @@
 #---------------------------------------------------------------------------
 # Prefs starting with "test."
 #---------------------------------------------------------------------------
+
+# A mechanism to make the current time seem later than it is for specific
+# operations. Currently used to test expiration of the HSTS preload list.
+- name: test.currentTimeOffsetSeconds
+  type: RelaxedAtomicUint32
+  value: 0
+  mirror: always
 
 - name: test.events.async.enabled
   type: RelaxedAtomicBool

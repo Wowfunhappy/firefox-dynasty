@@ -1464,11 +1464,11 @@ LocalAccessible* nsAccessibilityService::CreateAccessible(
       }
 
       // Fall back to text when encountering Content MathML.
-      if (!newAcc && !content->IsAnyOfMathMLElements(
-                         nsGkAtoms::annotation_, nsGkAtoms::annotation_xml_,
-                         nsGkAtoms::mpadded_, nsGkAtoms::mphantom_,
-                         nsGkAtoms::maligngroup_, nsGkAtoms::malignmark_,
-                         nsGkAtoms::mspace_, nsGkAtoms::semantics_)) {
+      if (!newAcc &&
+          !content->IsAnyOfMathMLElements(
+              nsGkAtoms::annotation, nsGkAtoms::annotation_xml,
+              nsGkAtoms::mpadded, nsGkAtoms::mphantom, nsGkAtoms::maligngroup,
+              nsGkAtoms::malignmark, nsGkAtoms::mspace, nsGkAtoms::semantics)) {
         newAcc = new HyperTextAccessible(content, document);
       }
     } else if (content->IsGeneratedContentContainerForMarker()) {
@@ -1534,6 +1534,10 @@ mozilla::Monitor& nsAccessibilityService::GetAndroidMonitor() {
 bool nsAccessibilityService::Init(uint64_t aCacheDomains) {
   AUTO_PROFILER_MARKER_UNTYPED("nsAccessibilityService::Init", A11Y, {});
   // DO NOT ADD CODE ABOVE HERE: THIS CODE IS MEASURING TIMINGS.
+  PerfStats::AutoMetricRecording<
+      PerfStats::Metric::A11Y_AccessibilityServiceInit>
+      autoRecording;
+  // DO NOT ADD CODE ABOVE THIS BLOCK: THIS CODE IS MEASURING TIMINGS.
 
   // Initialize accessible document manager.
   if (!DocManager::Init()) return false;

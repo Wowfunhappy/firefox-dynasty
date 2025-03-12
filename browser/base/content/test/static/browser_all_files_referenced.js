@@ -105,6 +105,13 @@ var gExceptionPaths = [
 
   // The profile avatars are directly referenced.
   "chrome://browser/content/profiles/assets/",
+
+  // The picture-in-picture add-on.
+  "resource://builtin-addons/pictureinpicture/",
+
+  // The newtab add-on
+  "resource://newtab/",
+  "chrome://newtab/",
 ];
 
 // These are not part of the omni.ja file, so we find them only when running
@@ -496,7 +503,10 @@ function parseManifest(manifestUri) {
       } else if (type == "category") {
         if (gInterestingCategories.has(argv[0])) {
           gReferencesFromCode.set(argv[2], null);
-        } else if (argv[1].startsWith("resource://")) {
+        } else if (
+          argv[1].startsWith("resource://") ||
+          argv[1].startsWith("moz-src://")
+        ) {
           // Assume that any resource paths immediately after the category name
           // are for use with BrowserUtils.callModulesFromCategory (rather than
           // having to hardcode a list of categories in this test).

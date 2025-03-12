@@ -14,7 +14,7 @@ use serde::Deserialize;
 /// The list of possible submission methods for search engine urls.
 #[derive(Debug, uniffi::Enum, PartialEq, Deserialize, Clone, Default)]
 #[serde(rename_all = "UPPERCASE")]
-pub(crate) enum JSONEngineMethod {
+pub enum JSONEngineMethod {
     Post = 2,
     #[serde(other)]
     #[default]
@@ -35,7 +35,7 @@ impl JSONEngineMethod {
 /// configuration.
 #[derive(Debug, uniffi::Record, PartialEq, Deserialize, Clone, Default)]
 #[serde(rename_all = "camelCase")]
-pub(crate) struct JSONEngineUrl {
+pub struct JSONEngineUrl {
     /// The PrePath and FilePath of the URL. May include variables for engines
     /// which have a variable FilePath, e.g. `{searchTerm}` for when a search
     /// term is within the path of the url.
@@ -57,7 +57,7 @@ pub(crate) struct JSONEngineUrl {
 /// Reflects `types::SearchEngineUrls`, but using `EngineUrl`.
 #[derive(Debug, uniffi::Record, PartialEq, Deserialize, Clone, Default)]
 #[serde(rename_all = "camelCase")]
-pub(crate) struct JSONEngineUrls {
+pub struct JSONEngineUrls {
     /// The URL to use for searches.
     pub search: Option<JSONEngineUrl>,
 
@@ -74,7 +74,7 @@ pub(crate) struct JSONEngineUrls {
 /// Represents the engine base section of the configuration.
 #[derive(Debug, Default, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
-pub(crate) struct JSONEngineBase {
+pub struct JSONEngineBase {
     /// A list of aliases for this engine.
     pub aliases: Option<Vec<String>>,
 
@@ -102,7 +102,7 @@ pub(crate) struct JSONEngineBase {
 /// applies to.
 #[derive(Debug, Deserialize, Clone, Default)]
 #[serde(rename_all = "camelCase")]
-pub(crate) struct JSONVariantEnvironment {
+pub struct JSONVariantEnvironment {
     /// Indicates that this section applies to all regions and locales. May be
     /// modified by excluded_regions/excluded_locales.
     #[serde(default)]
@@ -165,7 +165,7 @@ pub(crate) struct JSONVariantEnvironment {
 /// Describes an individual variant of a search engine.
 #[derive(Debug, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
-pub(crate) struct JSONEngineVariant {
+pub struct JSONEngineVariant {
     /// Details of the possible user environments that this variant applies to.
     pub environment: JSONVariantEnvironment,
 
@@ -200,7 +200,7 @@ pub(crate) struct JSONEngineVariant {
 /// Represents an individual engine record in the configuration.
 #[derive(Debug, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
-pub(crate) struct JSONEngineRecord {
+pub struct JSONEngineRecord {
     /// The identiifer for the search engine.
     pub identifier: String,
 
@@ -216,7 +216,7 @@ pub(crate) struct JSONEngineRecord {
 
 #[derive(Debug, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
-pub(crate) struct JSONSpecificDefaultRecord {
+pub struct JSONSpecificDefaultRecord {
     /// The identifier of the engine that will be used as the application default
     /// for the associated environment. If the entry is suffixed with a star,
     /// matching is applied on a "starts with" basis.
@@ -236,7 +236,7 @@ pub(crate) struct JSONSpecificDefaultRecord {
 /// Represents the default engines record.
 #[derive(Debug, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
-pub(crate) struct JSONDefaultEnginesRecord {
+pub struct JSONDefaultEnginesRecord {
     /// The identifier of the engine that will be used as the application default
     /// if no other engines are specified as default.
     pub global_default: String,
@@ -255,7 +255,7 @@ pub(crate) struct JSONDefaultEnginesRecord {
 
 #[derive(Debug, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
-pub(crate) struct JSONEngineOrder {
+pub struct JSONEngineOrder {
     /// The specific environment to match for this record.
     pub environment: JSONVariantEnvironment,
 
@@ -270,7 +270,7 @@ pub(crate) struct JSONEngineOrder {
 /// Represents the engine orders record.
 #[derive(Debug, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
-pub(crate) struct JSONEngineOrdersRecord {
+pub struct JSONEngineOrdersRecord {
     /// When a user's instance matches the defined environments, the associated
     /// engine order will be applied. The array is ordered, when multiple entries
     /// match on environments, the later entry will override earlier entries.
@@ -280,7 +280,7 @@ pub(crate) struct JSONEngineOrdersRecord {
 /// Represents an individual record in the raw search configuration.
 #[derive(Debug, Deserialize, Clone)]
 #[serde(tag = "recordType", rename_all = "camelCase")]
-pub(crate) enum JSONSearchConfigurationRecords {
+pub enum JSONSearchConfigurationRecords {
     DefaultEngines(JSONDefaultEnginesRecord),
     Engine(Box<JSONEngineRecord>),
     EngineOrders(JSONEngineOrdersRecord),
@@ -293,6 +293,6 @@ pub(crate) enum JSONSearchConfigurationRecords {
 
 /// Represents the search configuration as received from remote settings.
 #[derive(Debug, Deserialize)]
-pub(crate) struct JSONSearchConfiguration {
+pub struct JSONSearchConfiguration {
     pub data: Vec<JSONSearchConfigurationRecords>,
 }
