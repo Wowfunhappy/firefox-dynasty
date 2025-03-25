@@ -311,11 +311,6 @@ objc_class! {
             self.windows = windows.unwrap();
 
         }
-
-        #[sel(applicationShouldTerminateAfterLastWindowClosed:)]
-        fn application_should_terminate_after_window_closed(&mut self, _app: Ptr<cocoa::NSApplication>) -> runtime::BOOL {
-            runtime::YES
-        }
     }
 }
 
@@ -367,10 +362,13 @@ objc_class! {
 
         #[sel(windowWillClose:)]
         fn window_will_close(&mut self, _notification: Ptr<cocoa::NSNotification>) {
-            if self.modal {
-                unsafe {
-                    let nsapp = cocoa::NSApplication::sharedApplication();
+            unsafe {
+                let nsapp = cocoa::NSApplication::sharedApplication();
+                if self.modal {
                     nsapp.stopModal();
+                } else if self.instance == nsapp.mainWindow().0 {
+                    // Stop the application, causing run_loop to exit.
+                    nsapp.stop_(self.instance);
                 }
             }
         }
@@ -1164,7 +1162,7 @@ fn render_element(
                 }
                 {
                     let container = tv.textContainer();
-                        if macos_kernel_major_version() > Ok(MACOS_KERNEL_MAJOR_VERSION_LION) {
+                    if macos_kernel_major_version() > Ok(MACOS_KERNEL_MAJOR_VERSION_LION) {
                         container.setSize_(cocoa::NSSize {
                             width: f64::MAX,
                             height: f64::MAX,

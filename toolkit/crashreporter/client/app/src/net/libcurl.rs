@@ -9,6 +9,8 @@ use libloading::{Library, Symbol};
 use once_cell::sync::Lazy;
 use std::ffi::{c_char, c_long, c_uint, CStr, CString};
 
+
+
 // Constants lifted from `curl.h`
 const CURLE_OK: CurlCode = 0;
 const CURLE_OUT_OF_MEMORY: CurlCode = 27;
@@ -82,6 +84,7 @@ struct CurlMimePart(*mut ());
 #[repr(transparent)]
 #[derive(Clone, Copy)]
 struct CurlSlist(*mut ());
+
 
 // # Safety
 // Curl handles are safe to pass among threads: https://curl.se/libcurl/c/threadsafe.html.
