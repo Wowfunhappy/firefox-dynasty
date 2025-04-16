@@ -492,8 +492,8 @@ const NetworkCacheCleaner = {
       aOriginAttributes
     );
 
-    Services.cache2.clearOrigin(httpPrincipal);
-    Services.cache2.clearOrigin(httpsPrincipal);
+    Services.cache2.clearOriginsByPrincipal(httpPrincipal);
+    Services.cache2.clearOriginsByPrincipal(httpsPrincipal);
   },
 
   async deleteBySite(aSchemelessSite, _aOriginAttributesPattern) {
@@ -503,14 +503,14 @@ const NetworkCacheCleaner = {
 
   deleteByPrincipal(aPrincipal) {
     return new Promise(aResolve => {
-      Services.cache2.clearOrigin(aPrincipal);
+      Services.cache2.clearOriginsByPrincipal(aPrincipal);
       aResolve();
     });
   },
 
   deleteByOriginAttributes(aOriginAttributesString) {
     return new Promise(aResolve => {
-      Services.cache2.clearOriginAttributes(aOriginAttributesString);
+      Services.cache2.clearOriginsByOriginAttributes(aOriginAttributesString);
       aResolve();
     });
   },
@@ -523,7 +523,7 @@ const NetworkCacheCleaner = {
   },
 };
 
-const CSSCacheCleaner = {
+const createResourceCleaner = type => ({
   async deleteByHost(aHost, aOriginAttributes) {
     // Delete data from both HTTP and HTTPS sites.
     let httpURI = Services.io.newURI("http://" + aHost);
@@ -537,25 +537,35 @@ const CSSCacheCleaner = {
       aOriginAttributes
     );
 
-    ChromeUtils.clearStyleSheetCacheByPrincipal(httpPrincipal);
-    ChromeUtils.clearStyleSheetCacheByPrincipal(httpsPrincipal);
+    this.deleteByPrincipal(httpPrincipal);
+    this.deleteByPrincipal(httpsPrincipal);
   },
 
   async deleteByPrincipal(aPrincipal) {
-    ChromeUtils.clearStyleSheetCacheByPrincipal(aPrincipal);
+    ChromeUtils.clearResourceCache({
+      types: [type],
+      principal: aPrincipal,
+    });
   },
 
   async deleteBySite(aSchemelessSite, aOriginAttributesPattern) {
-    ChromeUtils.clearStyleSheetCacheBySite(
-      aSchemelessSite,
-      aOriginAttributesPattern
-    );
+    ChromeUtils.clearResourceCache({
+      types: [type],
+      schemelessSite: aSchemelessSite,
+      pattern: aOriginAttributesPattern,
+    });
   },
 
   async deleteAll() {
-    ChromeUtils.clearStyleSheetCache();
+    ChromeUtils.clearResourceCache({
+      types: [type],
+    });
   },
-};
+});
+
+const CSSCacheCleaner = createResourceCleaner("stylesheet");
+const JSCacheCleaner = createResourceCleaner("script");
+const ImageCacheCleaner = createResourceCleaner("image");
 
 const MessagingLayerSecurityStateCleaner = {
   async deleteByHost(aHost, aOriginAttributes) {
@@ -586,90 +596,6 @@ const MessagingLayerSecurityStateCleaner = {
   },
   async deleteAll() {
     ChromeUtils.clearMessagingLayerSecurityState();
-  },
-};
-
-const JSCacheCleaner = {
-  async deleteByHost(aHost, aOriginAttributes) {
-    // Delete data from both HTTP and HTTPS sites.
-    let httpURI = Services.io.newURI("http://" + aHost);
-    let httpsURI = Services.io.newURI("https://" + aHost);
-    let httpPrincipal = Services.scriptSecurityManager.createContentPrincipal(
-      httpURI,
-      aOriginAttributes
-    );
-    let httpsPrincipal = Services.scriptSecurityManager.createContentPrincipal(
-      httpsURI,
-      aOriginAttributes
-    );
-
-    ChromeUtils.clearScriptCacheByPrincipal(httpPrincipal);
-    ChromeUtils.clearScriptCacheByPrincipal(httpsPrincipal);
-  },
-
-  async deleteByPrincipal(aPrincipal) {
-    ChromeUtils.clearScriptCacheByPrincipal(aPrincipal);
-  },
-
-  async deleteBySite(aSchemelessSite, aOriginAttributesPattern) {
-    ChromeUtils.clearScriptCacheBySite(
-      aSchemelessSite,
-      aOriginAttributesPattern
-    );
-  },
-
-  async deleteAll() {
-    ChromeUtils.clearScriptCache();
-  },
-};
-
-const ImageCacheCleaner = {
-  async deleteByHost(aHost, aOriginAttributes) {
-    let imageCache = Cc["@mozilla.org/image/tools;1"]
-      .getService(Ci.imgITools)
-      .getImgCacheForDocument(null);
-
-    // Delete data from both HTTP and HTTPS sites.
-    let httpURI = Services.io.newURI("http://" + aHost);
-    let httpsURI = Services.io.newURI("https://" + aHost);
-    let httpPrincipal = Services.scriptSecurityManager.createContentPrincipal(
-      httpURI,
-      aOriginAttributes
-    );
-    let httpsPrincipal = Services.scriptSecurityManager.createContentPrincipal(
-      httpsURI,
-      aOriginAttributes
-    );
-
-    imageCache.removeEntriesFromPrincipalInAllProcesses(httpPrincipal);
-    imageCache.removeEntriesFromPrincipalInAllProcesses(httpsPrincipal);
-  },
-
-  async deleteByPrincipal(aPrincipal) {
-    let imageCache = Cc["@mozilla.org/image/tools;1"]
-      .getService(Ci.imgITools)
-      .getImgCacheForDocument(null);
-    imageCache.removeEntriesFromPrincipalInAllProcesses(aPrincipal);
-  },
-
-  async deleteBySite(aSchemelessSite, aOriginAttributesPattern) {
-    let imageCache = Cc["@mozilla.org/image/tools;1"]
-      .getService(Ci.imgITools)
-      .getImgCacheForDocument(null);
-    imageCache.removeEntriesFromSiteInAllProcesses(
-      aSchemelessSite,
-      aOriginAttributesPattern
-    );
-  },
-
-  deleteAll() {
-    return new Promise(aResolve => {
-      let imageCache = Cc["@mozilla.org/image/tools;1"]
-        .getService(Ci.imgITools)
-        .getImgCacheForDocument(null);
-      imageCache.clearCache(false); // true=chrome, false=content
-      aResolve();
-    });
   },
 };
 

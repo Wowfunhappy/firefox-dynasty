@@ -16,10 +16,16 @@ ChromeUtils.defineLazyGetter(lazy, "logConsole", function () {
 ChromeUtils.defineESModuleGetters(lazy, {
   AsyncShutdown: "resource://gre/modules/AsyncShutdown.sys.mjs",
   NimbusFeatures: "resource://nimbus/ExperimentAPI.sys.mjs",
-  DAPVisitCounter: "resource://gre/modules/DAPVisitCounter.sys.mjs",
   setTimeout: "resource://gre/modules/Timer.sys.mjs",
   ObliviousHTTP: "resource://gre/modules/ObliviousHTTP.sys.mjs",
 });
+
+XPCOMUtils.defineLazyPreferenceGetter(
+  lazy,
+  "gTelemetryEnabled",
+  "datareporting.healthreport.uploadEnabled",
+  false
+);
 
 XPCOMUtils.defineLazyPreferenceGetter(
   lazy,
@@ -47,18 +53,26 @@ XPCOMUtils.defineLazyPreferenceGetter(
 
 export const DAPTelemetrySender = new (class {
   async startup() {
-    await lazy.NimbusFeatures.dapTelemetry.ready();
-    if (!lazy.NimbusFeatures.dapTelemetry.getVariable("enabled")) {
+    if (
+      Services.startup.isInOrBeyondShutdownPhase(
+        Ci.nsIAppStartup.SHUTDOWN_PHASE_APPSHUTDOWNCONFIRMED
+      )
+    ) {
+      lazy.logConsole.warn(
+        "DAPTelemetrySender startup not possible due to shutdown."
+      );
       return;
     }
 
-    lazy.logConsole.debug("Performing DAP startup");
+    // Note that this can block until the ExperimentAPI is available.
+    // This is fine as we depend on it. In case of a race with shutdown
+    // it will reject, making the below getVariable calls return null.
+    await lazy.NimbusFeatures.dapTelemetry.ready();
 
-    if (lazy.NimbusFeatures.dapTelemetry.getVariable("visitCountingEnabled")) {
-      lazy.DAPVisitCounter.startup();
-    }
-
-    if (lazy.NimbusFeatures.dapTelemetry.getVariable("task1Enabled")) {
+    if (
+      lazy.NimbusFeatures.dapTelemetry.getVariable("enabled") &&
+      lazy.NimbusFeatures.dapTelemetry.getVariable("task1Enabled")
+    ) {
       let tasks = [];
       lazy.logConsole.debug("Task 1 is enabled.");
       let task1_id =
@@ -101,7 +115,7 @@ export const DAPTelemetrySender = new (class {
         });
       };
 
-      lazy.AsyncShutdown.quitApplicationGranted.addBlocker(
+      lazy.AsyncShutdown.appShutdownConfirmed.addBlocker(
         "DAPTelemetrySender: sending data",
         this._asyncShutdownBlocker
       );
@@ -284,6 +298,11 @@ export const DAPTelemetrySender = new (class {
    * @resolves {undefined} Once the attempt to send the report completes, whether or not it was successful.
    */
   async sendReport(leader_endpoint, task_id, report, abortSignal, options) {
+    // If telemetry disabled, don't upload DAP reports either.
+    if (!lazy.gTelemetryEnabled) {
+      return;
+    }
+
     const upload_path = leader_endpoint + "/tasks/" + task_id + "/reports";
     try {
       let requestOptions = {

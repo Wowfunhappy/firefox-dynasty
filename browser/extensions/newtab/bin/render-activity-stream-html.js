@@ -59,6 +59,8 @@ function templateHTML(options) {
    - License, v. 2.0. If a copy of the MPL was not distributed with this file,
    - You can obtain one at http://mozilla.org/MPL/2.0/. -->
 
+<!-- Note: This page is pre-rendered by render-activity-stream-html.js -->
+
 <!doctype html>
 <html>
   <head>
@@ -118,6 +120,11 @@ function templateHTML(options) {
       async
       type="module"
       src="chrome://global/content/elements/moz-message-bar.mjs"
+    ></script>
+    <script
+      async
+      type="module"
+      src="chrome://global/content/elements/moz-radio-group.mjs"
     ></script>
   </body>
 </html>

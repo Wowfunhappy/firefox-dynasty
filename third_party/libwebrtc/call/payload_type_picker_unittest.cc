@@ -10,6 +10,7 @@
 
 #include "call/payload_type_picker.h"
 
+#include "api/video_codecs/sdp_video_format.h"
 #include "call/payload_type.h"
 #include "media/base/codec.h"
 #include "media/base/media_constants.h"
@@ -20,7 +21,7 @@ namespace webrtc {
 
 using testing::Eq;
 using testing::Ge;
-using testing::Lt;
+using testing::Le;
 using testing::Ne;
 
 TEST(PayloadTypePicker, PayloadTypeAssignmentWorks) {
@@ -188,6 +189,14 @@ TEST(PayloadTypePicker, AudioGetsHigherRange) {
   EXPECT_THAT(result, Ge(96));
 }
 
+TEST(PayloadTypePicker, AudioRedGetsLowerRange) {
+  PayloadTypePicker picker;
+  cricket::Codec an_audio_codec =
+      cricket::CreateAudioCodec(-1, "red", 48000, 2);
+  auto result = picker.SuggestMapping(an_audio_codec, nullptr).value();
+  EXPECT_THAT(result, Le(63));
+}
+
 TEST(PayloadTypePicker, VideoGetsTreatedSpecially) {
   PayloadTypePicker picker;
   cricket::Codec h264_constrained = cricket::CreateVideoCodec(SdpVideoFormat(
@@ -202,12 +211,23 @@ TEST(PayloadTypePicker, VideoGetsTreatedSpecially) {
       {cricket::kVp9CodecName, {{cricket::kVP9ProfileId, "2"}}}));
   cricket::Codec vp9_profile_3 = cricket::CreateVideoCodec(SdpVideoFormat(
       {cricket::kVp9CodecName, {{cricket::kVP9ProfileId, "3"}}}));
+  cricket::Codec h265 = cricket::CreateVideoCodec(SdpVideoFormat(
+      cricket::kH265CodecName, {{cricket::kH265FmtpProfileId, "1"},
+                                {cricket::kH265FmtpTierFlag, "0"},
+                                {cricket::kH265FmtpLevelId, "93"},
+                                {cricket::kH265FmtpTxMode, "SRST"}}));
   // Valid for high range only.
   EXPECT_THAT(picker.SuggestMapping(h264_constrained, nullptr).value(), Ge(96));
   EXPECT_THAT(picker.SuggestMapping(vp9_profile_2, nullptr).value(), Ge(96));
-  // Valud for lower range.
-  EXPECT_THAT(picker.SuggestMapping(h264_yuv444, nullptr).value(), Lt(63));
-  EXPECT_THAT(picker.SuggestMapping(vp9_profile_3, nullptr).value(), Lt(63));
+  // Valid for lower range.
+  EXPECT_THAT(picker.SuggestMapping(h264_yuv444, nullptr).value(), Le(63));
+  EXPECT_THAT(picker.SuggestMapping(vp9_profile_3, nullptr).value(), Le(63));
+  EXPECT_THAT(picker.SuggestMapping(h265, nullptr).value(), Le(63));
+
+  // RTX with a primary codec in the lower range is valid for lower range.
+  cricket::Codec lower_range_rtx =
+      cricket::CreateVideoRtxCodec(cricket::Codec::kIdNotSet, 63);
+  EXPECT_THAT(picker.SuggestMapping(lower_range_rtx, nullptr).value(), Le(63));
 }
 
 TEST(PayloadTypePicker, ChoosingH264Profiles) {

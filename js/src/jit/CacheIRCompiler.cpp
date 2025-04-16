@@ -36,6 +36,7 @@
 #include "proxy/DOMProxy.h"
 #include "proxy/Proxy.h"
 #include "proxy/ScriptedProxyHandler.h"
+#include "util/DifferentialTesting.h"
 #include "vm/ArgumentsObject.h"
 #include "vm/ArrayBufferObject.h"
 #include "vm/ArrayBufferViewObject.h"
@@ -6984,48 +6985,9 @@ bool CacheIRCompiler::emitStoreDenseElementHole(ObjOperandId objId,
     masm.spectreBoundsCheck32(index, initLength, spectreTemp, &outOfBounds);
     masm.jump(&inBounds);
 
-    // If we're out-of-bounds, only handle the index == initLength case.
     masm.bind(&outOfBounds);
-    masm.branch32(Assembler::NotEqual, initLength, index, failure->label());
-
-    // If index < capacity, we can add a dense element inline. If not we
-    // need to allocate more elements.
-    Label allocElement, addNewElement;
-    Address capacity(scratch, ObjectElements::offsetOfCapacity());
-    masm.spectreBoundsCheck32(index, capacity, spectreTemp, &allocElement);
-    masm.jump(&addNewElement);
-
-    masm.bind(&allocElement);
-
-    LiveRegisterSet save = liveVolatileRegs();
-    save.takeUnchecked(scratch);
-    masm.PushRegsInMask(save);
-
-    using Fn = bool (*)(JSContext* cx, NativeObject* obj);
-    masm.setupUnalignedABICall(scratch);
-    masm.loadJSContext(scratch);
-    masm.passABIArg(scratch);
-    masm.passABIArg(obj);
-    masm.callWithABI<Fn, NativeObject::addDenseElementPure>();
-    masm.storeCallPointerResult(scratch);
-
-    masm.PopRegsInMask(save);
-    masm.branchIfFalseBool(scratch, failure->label());
-
-    // Load the reallocated elements pointer.
-    masm.loadPtr(Address(obj, NativeObject::offsetOfElements()), scratch);
-
-    masm.bind(&addNewElement);
-
-    // Increment initLength.
-    masm.add32(Imm32(1), initLength);
-
-    // If length is now <= index, increment length too.
-    Label skipIncrementLength;
-    Address length(scratch, ObjectElements::offsetOfLength());
-    masm.branch32(Assembler::Above, length, index, &skipIncrementLength);
-    masm.add32(Imm32(1), length);
-    masm.bind(&skipIncrementLength);
+    masm.prepareOOBStoreElement(obj, index, scratch, spectreTemp,
+                                failure->label(), liveVolatileRegs());
 
     // Skip EmitPreBarrier as the memory is uninitialized.
     masm.jump(&storeSkipPreBarrier);
@@ -7207,6 +7169,12 @@ bool CacheIRCompiler::emitStoreTypedArrayElement(ObjOperandId objId,
 #endif
   } else if (Scalar::isFloatingType(elementType)) {
     Register temp = scratch2 ? scratch2->get() : InvalidReg;
+
+    // Canonicalize floating point values for differential testing.
+    if (js::SupportDifferentialTesting()) {
+      masm.canonicalizeDouble(floatScratch0);
+    }
+
     masm.storeToTypedFloatArray(elementType, floatScratch0, dest, temp,
                                 liveVolatileRegs());
   } else {
@@ -7720,6 +7688,11 @@ bool CacheIRCompiler::emitStoreDataViewValueResult(
   };
 #endif
 
+  // Canonicalize floating point values for differential testing.
+  if (Scalar::isFloatingType(elementType) && js::SupportDifferentialTesting()) {
+    masm.canonicalizeDouble(floatScratch0);
+  }
+
   // Load the value into a gpr register.
   switch (elementType) {
     case Scalar::Int16:
@@ -7732,19 +7705,16 @@ bool CacheIRCompiler::emitStoreDataViewValueResult(
       FloatRegister scratchFloat32 = floatScratch0.get().asSingle();
       masm.convertDoubleToFloat16(floatScratch0, scratchFloat32, valScratch32(),
                                   liveVolatileRegs());
-      masm.canonicalizeFloatIfDeterministic(scratchFloat32);
       masm.moveFloat16ToGPR(scratchFloat32, valScratch32(), liveVolatileRegs());
       break;
     }
     case Scalar::Float32: {
       FloatRegister scratchFloat32 = floatScratch0.get().asSingle();
       masm.convertDoubleToFloat32(floatScratch0, scratchFloat32);
-      masm.canonicalizeFloatIfDeterministic(scratchFloat32);
       masm.moveFloat32ToGPR(scratchFloat32, valScratch32());
       break;
     }
     case Scalar::Float64: {
-      masm.canonicalizeDoubleIfDeterministic(floatScratch0);
       masm.moveDoubleToGPR64(floatScratch0, valScratch64());
       break;
     }
@@ -10009,82 +9979,6 @@ bool CacheIRCompiler::emitStringSplitStringResult(StringOperandId strId,
 
   using Fn = ArrayObject* (*)(JSContext*, HandleString, HandleString, uint32_t);
   callvm.call<Fn, js::StringSplitString>();
-  return true;
-}
-
-bool CacheIRCompiler::emitRegExpPrototypeOptimizableResult(
-    ObjOperandId protoId) {
-  JitSpew(JitSpew_Codegen, "%s", __FUNCTION__);
-
-  AutoOutputRegister output(*this);
-  Register proto = allocator.useRegister(masm, protoId);
-  AutoScratchRegisterMaybeOutput scratch(allocator, masm, output);
-
-  Label slow, done;
-  masm.branchIfNotRegExpPrototypeOptimizable(
-      proto, scratch, /* maybeGlobal = */ nullptr, &slow);
-  masm.moveValue(BooleanValue(true), output.valueReg());
-  masm.jump(&done);
-
-  {
-    masm.bind(&slow);
-
-    LiveRegisterSet volatileRegs = liveVolatileRegs();
-    volatileRegs.takeUnchecked(scratch);
-    masm.PushRegsInMask(volatileRegs);
-
-    using Fn = bool (*)(JSContext* cx, JSObject* proto);
-    masm.setupUnalignedABICall(scratch);
-    masm.loadJSContext(scratch);
-    masm.passABIArg(scratch);
-    masm.passABIArg(proto);
-    masm.callWithABI<Fn, RegExpPrototypeOptimizableRaw>();
-    masm.storeCallBoolResult(scratch);
-
-    masm.PopRegsInMask(volatileRegs);
-    masm.tagValue(JSVAL_TYPE_BOOLEAN, scratch, output.valueReg());
-  }
-
-  masm.bind(&done);
-  return true;
-}
-
-bool CacheIRCompiler::emitRegExpInstanceOptimizableResult(
-    ObjOperandId regexpId, ObjOperandId protoId) {
-  JitSpew(JitSpew_Codegen, "%s", __FUNCTION__);
-
-  AutoOutputRegister output(*this);
-  Register regexp = allocator.useRegister(masm, regexpId);
-  Register proto = allocator.useRegister(masm, protoId);
-  AutoScratchRegisterMaybeOutput scratch(allocator, masm, output);
-
-  Label slow, done;
-  masm.branchIfNotRegExpInstanceOptimizable(regexp, scratch,
-                                            /* maybeGlobal = */ nullptr, &slow);
-  masm.moveValue(BooleanValue(true), output.valueReg());
-  masm.jump(&done);
-
-  {
-    masm.bind(&slow);
-
-    LiveRegisterSet volatileRegs = liveVolatileRegs();
-    volatileRegs.takeUnchecked(scratch);
-    masm.PushRegsInMask(volatileRegs);
-
-    using Fn = bool (*)(JSContext* cx, JSObject* obj, JSObject* proto);
-    masm.setupUnalignedABICall(scratch);
-    masm.loadJSContext(scratch);
-    masm.passABIArg(scratch);
-    masm.passABIArg(regexp);
-    masm.passABIArg(proto);
-    masm.callWithABI<Fn, RegExpInstanceOptimizableRaw>();
-    masm.storeCallBoolResult(scratch);
-
-    masm.PopRegsInMask(volatileRegs);
-    masm.tagValue(JSVAL_TYPE_BOOLEAN, scratch, output.valueReg());
-  }
-
-  masm.bind(&done);
   return true;
 }
 

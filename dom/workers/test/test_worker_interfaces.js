@@ -267,11 +267,15 @@ let interfaceNamesInGlobalScope = [
   // IMPORTANT: Do not change this list without review from a DOM peer!
   { name: "GPUError", nightly: true },
   // IMPORTANT: Do not change this list without review from a DOM peer!
+  { name: "GPUExternalTexture", nightly: true },
+  // IMPORTANT: Do not change this list without review from a DOM peer!
   { name: "GPUInternalError", nightly: true },
   // IMPORTANT: Do not change this list without review from a DOM peer!
   { name: "GPUMapMode", nightly: true },
   // IMPORTANT: Do not change this list without review from a DOM peer!
   { name: "GPUOutOfMemoryError", nightly: true },
+  // IMPORTANT: Do not change this list without review from a DOM peer!
+  { name: "GPUPipelineError", nightly: true },
   // IMPORTANT: Do not change this list without review from a DOM peer!
   { name: "GPUPipelineLayout", nightly: true },
   // IMPORTANT: Do not change this list without review from a DOM peer!
@@ -419,7 +423,7 @@ let interfaceNamesInGlobalScope = [
   // IMPORTANT: Do not change this list without review from a DOM peer!
   { name: "RTCTransformEvent", insecureContext: true },
   // IMPORTANT: Do not change this list without review from a DOM peer!
-  { name: "Scheduler", insecureContext: true, disabled: true },
+  { name: "Scheduler", insecureContext: true, nightly: true },
   // IMPORTANT: Do not change this list without review from a DOM peer!
   "ServiceWorker",
   // IMPORTANT: Do not change this list without review from a DOM peer!
@@ -431,11 +435,11 @@ let interfaceNamesInGlobalScope = [
   // IMPORTANT: Do not change this list without review from a DOM peer!
   { name: "SubtleCrypto" },
   // IMPORTANT: Do not change this list without review from a DOM peer!
-  { name: "TaskController", insecureContext: true, disabled: true },
+  { name: "TaskController", insecureContext: true, nightly: true },
   // IMPORTANT: Do not change this list without review from a DOM peer!
-  { name: "TaskPriorityChangeEvent", insecureContext: true, disabled: true },
+  { name: "TaskPriorityChangeEvent", insecureContext: true, nightly: true },
   // IMPORTANT: Do not change this list without review from a DOM peer!
-  { name: "TaskSignal", insecureContext: true, disabled: true },
+  { name: "TaskSignal", insecureContext: true, nightly: true },
   // IMPORTANT: Do not change this list without review from a DOM peer!
   { name: "TextDecoder", insecureContext: true },
   // IMPORTANT: Do not change this list without review from a DOM peer!

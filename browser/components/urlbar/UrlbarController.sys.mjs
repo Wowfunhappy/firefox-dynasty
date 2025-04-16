@@ -7,15 +7,11 @@ import { AppConstants } from "resource://gre/modules/AppConstants.sys.mjs";
 const lazy = {};
 
 ChromeUtils.defineESModuleGetters(lazy, {
-  BrowserSearchTelemetry: "resource:///modules/BrowserSearchTelemetry.sys.mjs",
   UrlbarPrefs: "resource:///modules/UrlbarPrefs.sys.mjs",
   UrlbarProvidersManager: "resource:///modules/UrlbarProvidersManager.sys.mjs",
   UrlbarTokenizer: "resource:///modules/UrlbarTokenizer.sys.mjs",
   UrlbarUtils: "resource:///modules/UrlbarUtils.sys.mjs",
 });
-
-const TELEMETRY_1ST_RESULT = "PLACES_AUTOCOMPLETE_1ST_RESULT_TIME_MS";
-const TELEMETRY_6_FIRST_RESULTS = "PLACES_AUTOCOMPLETE_6_FIRST_RESULTS_TIME_MS";
 
 const NOTIFICATIONS = {
   QUERY_STARTED: "onQueryStarted",
@@ -124,8 +120,10 @@ export class UrlbarController {
     let contextWrapper = (this._lastQueryContextWrapper = { queryContext });
 
     queryContext.lastResultCount = 0;
-    TelemetryStopwatch.start(TELEMETRY_1ST_RESULT, queryContext);
-    TelemetryStopwatch.start(TELEMETRY_6_FIRST_RESULTS, queryContext);
+    queryContext.firstTimerId =
+      Glean.urlbar.autocompleteFirstResultTime.start();
+    queryContext.sixthTimerId =
+      Glean.urlbar.autocompleteSixthResultTime.start();
 
     // For proper functionality we must ensure this notification is fired
     // synchronously, as soon as startQuery is invoked, but after any
@@ -161,8 +159,12 @@ export class UrlbarController {
     this._lastQueryContextWrapper.done = true;
 
     let { queryContext } = this._lastQueryContextWrapper;
-    TelemetryStopwatch.cancel(TELEMETRY_1ST_RESULT, queryContext);
-    TelemetryStopwatch.cancel(TELEMETRY_6_FIRST_RESULTS, queryContext);
+
+    Glean.urlbar.autocompleteFirstResultTime.cancel(queryContext.firstTimerId);
+    queryContext.firstTimerId = 0;
+    Glean.urlbar.autocompleteSixthResultTime.cancel(queryContext.sixthTimerId);
+    queryContext.sixthTimerId = 0;
+
     this.manager.cancelQuery(queryContext);
     this.notify(NOTIFICATIONS.QUERY_CANCELLED, queryContext);
     this.notify(NOTIFICATIONS.QUERY_FINISHED, queryContext);
@@ -175,10 +177,16 @@ export class UrlbarController {
    */
   receiveResults(queryContext) {
     if (queryContext.lastResultCount < 1 && queryContext.results.length >= 1) {
-      TelemetryStopwatch.finish(TELEMETRY_1ST_RESULT, queryContext);
+      Glean.urlbar.autocompleteFirstResultTime.stopAndAccumulate(
+        queryContext.firstTimerId
+      );
+      queryContext.firstTimerId = 0;
     }
     if (queryContext.lastResultCount < 6 && queryContext.results.length >= 6) {
-      TelemetryStopwatch.finish(TELEMETRY_6_FIRST_RESULTS, queryContext);
+      Glean.urlbar.autocompleteSixthResultTime.stopAndAccumulate(
+        queryContext.sixthTimerId
+      );
+      queryContext.sixthTimerId = 0;
     }
 
     if (queryContext.firstResultChanged) {
@@ -592,32 +600,6 @@ export class UrlbarController {
   }
 
   /**
-   * Records details of the selected result in telemetry. We only record the
-   * selection behavior, type and index.
-   *
-   * @param {Event} event
-   *   The event which triggered the result to be selected.
-   * @param {UrlbarResult} result
-   *   The selected result.
-   */
-  recordSelectedResult(event, result) {
-    let resultIndex = result ? result.rowIndex : -1;
-    let selectedResult = -1;
-    if (resultIndex >= 0) {
-      // Except for the history popup, the urlbar always has a selection.  The
-      // first result at index 0 is the "heuristic" result that indicates what
-      // will happen when you press the Enter key.  Treat it as no selection.
-      selectedResult = resultIndex > 0 || !result.heuristic ? resultIndex : -1;
-    }
-    lazy.BrowserSearchTelemetry.recordSearchSuggestionSelectionMethod(
-      event,
-      "urlbar",
-      selectedResult,
-      this._userSelectionBehavior
-    );
-  }
-
-  /**
    * Triggers a "dismiss" engagement for the selected result if one is selected
    * and it's not the heuristic. Providers that can respond to dismissals of
    * their results should implement `onEngagement()`, handle the
@@ -722,7 +704,7 @@ export class UrlbarController {
   }
 
   #focusOnUnifiedSearchButton() {
-    this.input.toggleAttribute("unifiedsearchbutton-available", true);
+    this.input.setUnifiedSearchButtonAvailability(true);
 
     const switcher = this.input.document.getElementById(
       "urlbar-searchmode-switcher"
@@ -929,7 +911,6 @@ class TelemetryEvent {
     }
 
     let action;
-    let skipLegacyTelemetry = false;
     if (!event) {
       action =
         startEventInfo.interactionType == "dropped" ? "drop_go" : "paste_go";
@@ -945,10 +926,8 @@ class TelemetryEvent {
       details.element.dataset.command != "help"
     ) {
       action = details.element.dataset.command;
-      skipLegacyTelemetry = true;
     } else if (details.selType == "dismiss") {
       action = "dismiss";
-      skipLegacyTelemetry = true;
     } else if (MouseEvent.isInstance(event)) {
       action = event.target.classList.contains("urlbar-go-button")
         ? "go_button"
@@ -1004,22 +983,6 @@ class TelemetryEvent {
 
     if (!details.isSessionOngoing) {
       this.#recordExposures(queryContext);
-    }
-
-    if (!skipLegacyTelemetry) {
-      let firstVisibleResult = this._controller.view?.visibleResults?.[0];
-      if (
-        method === "engagement" &&
-        firstVisibleResult?.autofill &&
-        firstVisibleResult?.type == lazy.UrlbarUtils.RESULT_TYPE.URL
-      ) {
-        // Record autofill impressions upon engagement.
-        const type = lazy.UrlbarUtils.telemetryTypeFromResult(
-          firstVisibleResult,
-          true
-        );
-        Glean.urlbarImpression[type]?.add(1);
-      }
     }
 
     try {

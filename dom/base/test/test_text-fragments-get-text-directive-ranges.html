@@ -4,6 +4,7 @@
   <title>Text Fragment Chrome-only API Test</title>
   <meta charset="UTF-8">
   <script src="/tests/SimpleTest/SimpleTest.js"></script>
+  <script src="/tests/SimpleTest/GleanTest.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css" />
 </head>
 <body>
@@ -21,6 +22,9 @@
     }
 
     async function testGetTextDirectiveRangesAndRemoveRanges() {
+      const directiveFindTimeStart = await GleanTest.domTextfragment.findDirectives.testGetValue() ?? {count: 0};
+      console.log(directiveFindTimeStart.count);
+
       await changeHash('#:~:text=sample%20text');
 
       let ranges = SpecialPowers.wrap(document).fragmentDirective.getTextDirectiveRanges();
@@ -35,6 +39,9 @@
 
       is(ranges.length, 0, "Should have removed all text directive ranges");
 
+      const directiveFindTime1 = await GleanTest.domTextfragment.findDirectives.testGetValue();
+      is(directiveFindTime1.count, directiveFindTimeStart.count + 1, "1: Glean should have recorded the time it took to find the text directive");
+
       await changeHash("#:~:text=sample&text=text");
 
       ranges = SpecialPowers.wrap(document).fragmentDirective.getTextDirectiveRanges();
@@ -48,7 +55,7 @@
 
       ranges = SpecialPowers.wrap(document).fragmentDirective.getTextDirectiveRanges();
       is(ranges.length, 2, 'Should have two text directive ranges');
-      
+
       // This mirrors the behavior of `Selection`, where the ranges are sorted by
       // their position in the document. I'm not sure I want this.
       is(ranges[0].toString(), "sample", "The first text directive should be the first range");

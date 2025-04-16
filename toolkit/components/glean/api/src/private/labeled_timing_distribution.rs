@@ -13,13 +13,15 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use crate::private::{
-    DistributionData, ErrorType, MetricGetter, TimerId, TimingDistributionMetric,
+    BaseMetricResult, DistributionData, ErrorType, MetricMetadataGetterImpl, TimerId,
+    TimingDistributionMetric,
 };
 
 use crate::ipc::with_ipc_payload;
 
 #[cfg(feature = "with_gecko")]
 use super::timing_distribution::{TDMPayload, TimingDistributionMetricMarker};
+use super::{BaseMetric, BaseMetricId, SubMetricId};
 
 /// A timing distribution metric that knows it's a labeled timing distribution's submetric.
 ///
@@ -27,7 +29,12 @@ use super::timing_distribution::{TDMPayload, TimingDistributionMetricMarker};
 #[derive(Clone)]
 pub struct LabeledTimingDistributionMetric {
     pub(crate) inner: Arc<TimingDistributionMetric>,
-    pub(crate) id: MetricGetter,
+    // Keep a record of both the parent id, and our own id: the former is
+    // required for IPC and GIFFT, and the latter is required for the
+    // profiler.
+    pub(crate) parent_id: BaseMetricId,
+    #[allow(unused)]
+    pub(crate) id: SubMetricId,
     pub(crate) label: String,
     pub(crate) kind: LabeledTimingDistributionMetricKind,
 }
@@ -37,10 +44,19 @@ pub enum LabeledTimingDistributionMetricKind {
     Child,
 }
 
+crate::define_metric_metadata_getter!(
+    TimingDistributionMetric,
+    LabeledTimingDistributionMetric,
+    TIMING_DISTRIBUTION_MAP,
+    LABELED_TIMING_DISTRIBUTION_MAP
+);
+
+crate::define_metric_namer!(LabeledTimingDistributionMetric, LABELED);
+
 impl LabeledTimingDistributionMetric {
     #[cfg(test)]
-    pub(crate) fn metric_id(&self) -> MetricGetter {
-        self.id
+    pub(crate) fn metric_id(&self) -> super::MetricId {
+        self.parent_id.into()
     }
 }
 
@@ -57,14 +73,10 @@ impl TimingDistribution for LabeledTimingDistributionMetric {
                     timer_id: u64,
                 );
             }
-            let id = &self
-                .id
-                .metric_id()
-                .expect("Cannot perform GIFFT calls without a MetricId");
             // SAFETY: We're only loaning to C++ data we don't later use.
             unsafe {
                 GIFFT_LabeledTimingDistributionStart(
-                    id.0,
+                    self.parent_id.0,
                     &nsCString::from(&self.label),
                     timer_id.id,
                 );
@@ -76,8 +88,8 @@ impl TimingDistribution for LabeledTimingDistributionMetric {
                     super::profiler_utils::TelemetryProfilerCategory,
                     gecko_profiler::MarkerOptions::default()
                         .with_timing(gecko_profiler::MarkerTiming::instant_now()),
-                    TimingDistributionMetricMarker::new(
-                        self.id,
+                    TimingDistributionMetricMarker::<LabeledTimingDistributionMetric>::new(
+                        self.id.into(),
                         Some(self.label.clone()),
                         Some(timer_id.id),
                         None,
@@ -95,12 +107,8 @@ impl TimingDistribution for LabeledTimingDistributionMetric {
             }
             LabeledTimingDistributionMetricKind::Child => {
                 if let Some(sample) = self.inner.child_stop(timer_id) {
-                    let id = &self
-                        .id
-                        .metric_id()
-                        .expect("Cannot perform IPC calls without a MetricId");
                     with_ipc_payload(move |payload| {
-                        if let Some(map) = payload.labeled_timing_samples.get_mut(id) {
+                        if let Some(map) = payload.labeled_timing_samples.get_mut(&self.parent_id) {
                             if let Some(v) = map.get_mut(&self.label) {
                                 v.push(sample);
                             } else {
@@ -109,7 +117,7 @@ impl TimingDistribution for LabeledTimingDistributionMetric {
                         } else {
                             let mut map = HashMap::new();
                             map.insert(self.label.to_string(), vec![sample]);
-                            payload.labeled_timing_samples.insert(*id, map);
+                            payload.labeled_timing_samples.insert(self.parent_id, map);
                         }
                     });
                 } else {
@@ -126,14 +134,10 @@ impl TimingDistribution for LabeledTimingDistributionMetric {
                     timer_id: u64,
                 );
             }
-            let id = &self
-                .id
-                .metric_id()
-                .expect("Cannot perform GIFFT calls without a MetricId");
             // SAFETY: We're only loaning to C++ data we don't later use.
             unsafe {
                 GIFFT_LabeledTimingDistributionStopAndAccumulate(
-                    id.0,
+                    self.parent_id.0,
                     &nsCString::from(&self.label),
                     timer_id.id,
                 );
@@ -145,8 +149,8 @@ impl TimingDistribution for LabeledTimingDistributionMetric {
                     super::profiler_utils::TelemetryProfilerCategory,
                     gecko_profiler::MarkerOptions::default()
                         .with_timing(gecko_profiler::MarkerTiming::instant_now()),
-                    TimingDistributionMetricMarker::new(
-                        self.id,
+                    TimingDistributionMetricMarker::<LabeledTimingDistributionMetric>::new(
+                        self.id.into(),
                         Some(self.label.clone()),
                         Some(timer_id.id),
                         None,
@@ -167,14 +171,10 @@ impl TimingDistribution for LabeledTimingDistributionMetric {
                     timer_id: u64,
                 );
             }
-            let metric_id = &self
-                .id
-                .metric_id()
-                .expect("Cannot perform GIFFT calls without a MetricId");
             // SAFETY: We're only loaning to C++ data we don't later use.
             unsafe {
                 GIFFT_LabeledTimingDistributionCancel(
-                    metric_id.0,
+                    self.parent_id.0,
                     &nsCString::from(&self.label),
                     id.id,
                 );
@@ -186,8 +186,8 @@ impl TimingDistribution for LabeledTimingDistributionMetric {
                     super::profiler_utils::TelemetryProfilerCategory,
                     gecko_profiler::MarkerOptions::default()
                         .with_timing(gecko_profiler::MarkerTiming::instant_now()),
-                    TimingDistributionMetricMarker::new(
-                        self.id,
+                    TimingDistributionMetricMarker::<LabeledTimingDistributionMetric>::new(
+                        self.id.into(),
                         Some(self.label.clone()),
                         Some(id.id),
                         None,
@@ -199,18 +199,42 @@ impl TimingDistribution for LabeledTimingDistributionMetric {
 
     pub fn accumulate_samples(&self, samples: Vec<i64>) {
         #[cfg(feature = "with_gecko")]
-        if gecko_profiler::can_accept_markers() {
-            gecko_profiler::add_marker(
-                "TimingDistribution::accumulate",
-                super::profiler_utils::TelemetryProfilerCategory,
-                Default::default(),
-                TimingDistributionMetricMarker::new(
-                    self.id,
-                    Some(self.label.clone()),
-                    None,
-                    Some(TDMPayload::from_samples_signed(&samples)),
-                ),
-            );
+        {
+            if gecko_profiler::can_accept_markers() {
+                gecko_profiler::add_marker(
+                    "TimingDistribution::accumulate",
+                    super::profiler_utils::TelemetryProfilerCategory,
+                    Default::default(),
+                    TimingDistributionMetricMarker::<LabeledTimingDistributionMetric>::new(
+                        self.id.into(),
+                        Some(self.label.clone()),
+                        None,
+                        Some(TDMPayload::from_samples_signed(&samples)),
+                    ),
+                );
+            }
+            extern "C" {
+                fn GIFFT_LabeledTimingDistributionAccumulateRawMillis(
+                    metric_id: u32,
+                    label: &nsACString,
+                    sample_ms: u32,
+                );
+            }
+            for sample in samples.iter() {
+                let sample = (*sample).try_into().unwrap_or_else(|_| {
+                    // TODO: Instrument this error
+                    log::warn!("Sample larger than fits into 32-bytes. Saturating at u32::MAX.");
+                    u32::MAX
+                });
+                // SAFETY: We're only loaning to C++ data we don't later use.
+                unsafe {
+                    GIFFT_LabeledTimingDistributionAccumulateRawMillis(
+                        self.parent_id.0,
+                        &nsCString::from(&self.label),
+                        sample, // Assumed to be millis.
+                    );
+                }
+            }
         }
         self.inner.inner_accumulate_samples(samples);
     }
@@ -222,8 +246,8 @@ impl TimingDistribution for LabeledTimingDistributionMetric {
                 "TimingDistribution::accumulate",
                 super::profiler_utils::TelemetryProfilerCategory,
                 Default::default(),
-                TimingDistributionMetricMarker::new(
-                    self.id,
+                TimingDistributionMetricMarker::<LabeledTimingDistributionMetric>::new(
+                    self.id.into(),
                     Some(self.label.clone()),
                     None,
                     Some(TDMPayload::from_samples_unsigned(&samples)),
@@ -235,18 +259,40 @@ impl TimingDistribution for LabeledTimingDistributionMetric {
 
     pub fn accumulate_single_sample(&self, sample: i64) {
         #[cfg(feature = "with_gecko")]
-        if gecko_profiler::can_accept_markers() {
-            gecko_profiler::add_marker(
-                "TimingDistribution::accumulate",
-                super::profiler_utils::TelemetryProfilerCategory,
-                Default::default(),
-                TimingDistributionMetricMarker::new(
-                    self.id,
-                    Some(self.label.clone()),
-                    None,
-                    Some(TDMPayload::Sample(sample.clone())),
-                ),
-            );
+        {
+            if gecko_profiler::can_accept_markers() {
+                gecko_profiler::add_marker(
+                    "TimingDistribution::accumulate",
+                    super::profiler_utils::TelemetryProfilerCategory,
+                    Default::default(),
+                    TimingDistributionMetricMarker::<LabeledTimingDistributionMetric>::new(
+                        self.id.into(),
+                        Some(self.label.clone()),
+                        None,
+                        Some(TDMPayload::Sample(sample.clone())),
+                    ),
+                );
+            }
+            extern "C" {
+                fn GIFFT_LabeledTimingDistributionAccumulateRawMillis(
+                    metric_id: u32,
+                    label: &nsACString,
+                    sample_ms: u32,
+                );
+            }
+            let gifft_sample = sample.try_into().unwrap_or_else(|_| {
+                // TODO: Instrument this error
+                log::warn!("Sample larger than fits into 32-bytes. Saturating at u32::MAX.");
+                u32::MAX
+            });
+            // SAFETY: We're only loaning to C++ data we don't later use.
+            unsafe {
+                GIFFT_LabeledTimingDistributionAccumulateRawMillis(
+                    self.parent_id.0,
+                    &nsCString::from(&self.label),
+                    gifft_sample, // Assumed to be millis.
+                );
+            }
         }
         self.inner.inner_accumulate_single_sample(sample);
     }
@@ -265,11 +311,7 @@ impl TimingDistribution for LabeledTimingDistributionMetric {
                     u64::MAX
                 });
                 with_ipc_payload(move |payload| {
-                    let id = &self
-                        .id
-                        .metric_id()
-                        .expect("Cannot perform IPC calls without a MetricId");
-                    if let Some(map) = payload.labeled_timing_samples.get_mut(id) {
+                    if let Some(map) = payload.labeled_timing_samples.get_mut(&self.parent_id) {
                         if let Some(v) = map.get_mut(&self.label) {
                             v.push(sample);
                         } else {
@@ -278,7 +320,7 @@ impl TimingDistribution for LabeledTimingDistributionMetric {
                     } else {
                         let mut map = HashMap::new();
                         map.insert(self.label.to_string(), vec![sample]);
-                        payload.labeled_timing_samples.insert(*id, map);
+                        payload.labeled_timing_samples.insert(self.parent_id, map);
                     }
                 });
             }
@@ -299,14 +341,10 @@ impl TimingDistribution for LabeledTimingDistributionMetric {
                     sample_ms: u32,
                 );
             }
-            let id = &self
-                .id
-                .metric_id()
-                .expect("Cannot perform GIFFT calls without a MetricId");
             // SAFETY: We're only loaning to C++ data we don't later use.
             unsafe {
                 GIFFT_LabeledTimingDistributionAccumulateRawMillis(
-                    id.0,
+                    self.parent_id.0,
                     &nsCString::from(&self.label),
                     sample_ms,
                 );
@@ -317,8 +355,8 @@ impl TimingDistribution for LabeledTimingDistributionMetric {
                     "TimingDistribution::accumulate",
                     super::profiler_utils::TelemetryProfilerCategory,
                     Default::default(),
-                    TimingDistributionMetricMarker::new(
-                        self.id,
+                    TimingDistributionMetricMarker::<LabeledTimingDistributionMetric>::new(
+                        self.id.into(),
                         Some(self.label.clone()),
                         None,
                         Some(TDMPayload::Duration(duration.clone())),
@@ -337,6 +375,21 @@ impl TimingDistribution for LabeledTimingDistributionMetric {
 
     pub fn test_get_num_recorded_errors(&self, error: ErrorType) -> i32 {
         self.inner.test_get_num_recorded_errors(error)
+    }
+}
+
+impl BaseMetric for LabeledTimingDistributionMetric {
+    type BaseMetricT = TimingDistributionMetric;
+
+    fn get_base_metric<'a>(&'a self) -> super::BaseMetricResult<'a, Self::BaseMetricT> {
+        match self.kind {
+            LabeledTimingDistributionMetricKind::Parent => {
+                BaseMetricResult::BaseMetricWithLabel(self.inner.as_ref(), self.label.as_str())
+            }
+            LabeledTimingDistributionMetricKind::Child => {
+                BaseMetricResult::IndexLabelPair(self.parent_id, self.label.as_str())
+            }
+        }
     }
 }
 
@@ -404,8 +457,8 @@ mod test {
                         .get(
                             &child_metric
                                 .metric_id()
-                                .metric_id()
-                                .expect("Cannot perform IPC calls without a MetricId")
+                                .base_metric_id()
+                                .expect("Cannot perform IPC calls without a BaseMetricId")
                         )
                         .unwrap()
                         .get(label)

@@ -51,7 +51,7 @@ nsRangeFrame::nsRangeFrame(ComputedStyle* aStyle, nsPresContext* aPresContext)
 void nsRangeFrame::Init(nsIContent* aContent, nsContainerFrame* aParent,
                         nsIFrame* aPrevInFlow) {
   nsContainerFrame::Init(aContent, aParent, aPrevInFlow);
-  if (InputElement().HasAttr(nsGkAtoms::list_)) {
+  if (InputElement().HasAttr(nsGkAtoms::list)) {
     mListMutationObserver = new ListMutationObserver(*this);
   }
 }
@@ -595,7 +595,7 @@ nsresult nsRangeFrame::AttributeChanged(int32_t aNameSpaceID,
     } else if (aAttribute == nsGkAtoms::orient) {
       PresShell()->FrameNeedsReflow(this, IntrinsicDirty::None,
                                     NS_FRAME_IS_DIRTY);
-    } else if (aAttribute == nsGkAtoms::list_) {
+    } else if (aAttribute == nsGkAtoms::list) {
       const bool isRemoval = aModType == MutationEvent_Binding::REMOVAL;
       if (mListMutationObserver) {
         mListMutationObserver->Detach();
@@ -631,11 +631,12 @@ nscoord nsRangeFrame::IntrinsicISize(const IntrinsicSizeInput& aInput,
   if (aType == IntrinsicISizeType::MinISize) {
     const auto* pos = StylePosition();
     auto wm = GetWritingMode();
-    if (pos->ISize(wm).HasPercent()) {
+    const auto iSize = pos->ISize(wm, StyleDisplay()->mPosition);
+    if (iSize->HasPercent()) {
       // https://drafts.csswg.org/css-sizing-3/#percentage-sizing
       // https://drafts.csswg.org/css-sizing-3/#min-content-zero
-      return nsLayoutUtils::ResolveToLength<true>(
-          pos->ISize(wm).AsLengthPercentage(), nscoord(0));
+      return nsLayoutUtils::ResolveToLength<true>(iSize->AsLengthPercentage(),
+                                                  nscoord(0));
     }
   }
   if (IsInlineOriented()) {

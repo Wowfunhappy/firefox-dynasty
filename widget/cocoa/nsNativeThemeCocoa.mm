@@ -1701,14 +1701,16 @@ void nsNativeThemeCocoa::DrawDropdown(CGContextRef cgContext,
   NS_OBJC_END_TRY_IGNORE_BLOCK;
 }
 
-static const CellRenderSettings spinnerSettings = {
+MOZ_RUNINIT static const CellRenderSettings spinnerSettings = {
     {
-        NSMakeSize(11, 16),  // mini (width trimmed by 2px to reduce blank border)
+        NSMakeSize(11,
+                   16),  // mini (width trimmed by 2px to reduce blank border)
         NSMakeSize(15, 22),  // small
         NSMakeSize(19, 27)   // regular
     },
     {
-        NSMakeSize(11, 16),  // mini (width trimmed by 2px to reduce blank border)
+        NSMakeSize(11,
+                   16),  // mini (width trimmed by 2px to reduce blank border)
         NSMakeSize(15, 22),  // small
         NSMakeSize(19, 27)   // regular
     },
@@ -1725,8 +1727,8 @@ static const CellRenderSettings spinnerSettings = {
          {0, 0, 0, 0}   // regular
      }}};
 
-HIThemeButtonDrawInfo nsNativeThemeCocoa::SpinButtonDrawInfo(ThemeButtonKind aKind,
-                                                             const SpinButtonParams& aParams) {
+HIThemeButtonDrawInfo nsNativeThemeCocoa::SpinButtonDrawInfo(
+    ThemeButtonKind aKind, const SpinButtonParams& aParams) {
   HIThemeButtonDrawInfo bdi;
   bdi.version = 0;
   bdi.kind = aKind;
@@ -1748,21 +1750,25 @@ HIThemeButtonDrawInfo nsNativeThemeCocoa::SpinButtonDrawInfo(ThemeButtonKind aKi
   return bdi;
 }
 
-void nsNativeThemeCocoa::DrawSpinButtons(CGContextRef cgContext, const HIRect& inBoxRect,
+void nsNativeThemeCocoa::DrawSpinButtons(CGContextRef cgContext,
+                                         const HIRect& inBoxRect,
                                          const SpinButtonParams& aParams) {
-  NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
+  NS_OBJC_BEGIN_TRY_IGNORE_BLOCK;
 
   HIThemeButtonDrawInfo bdi = SpinButtonDrawInfo(kThemeIncDecButton, aParams);
   HIThemeDrawButton(&inBoxRect, &bdi, cgContext, HITHEME_ORIENTATION, NULL);
 
-  NS_OBJC_END_TRY_ABORT_BLOCK;
+  NS_OBJC_END_TRY_IGNORE_BLOCK;
 }
 
-void nsNativeThemeCocoa::DrawSpinButton(CGContextRef cgContext, const HIRect& inBoxRect,
-                                        SpinButton aDrawnButton, const SpinButtonParams& aParams) {
-  NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
+void nsNativeThemeCocoa::DrawSpinButton(CGContextRef cgContext,
+                                        const HIRect& inBoxRect,
+                                        SpinButton aDrawnButton,
+                                        const SpinButtonParams& aParams) {
+  NS_OBJC_BEGIN_TRY_IGNORE_BLOCK;
 
-  HIThemeButtonDrawInfo bdi = SpinButtonDrawInfo(kThemeIncDecButtonMini, aParams);
+  HIThemeButtonDrawInfo bdi =
+      SpinButtonDrawInfo(kThemeIncDecButtonMini, aParams);
 
   // Cocoa only allows kThemeIncDecButton to paint the up and down spin buttons
   // together as a single unit (presumably because when one button is active,
@@ -1785,9 +1791,9 @@ void nsNativeThemeCocoa::DrawSpinButton(CGContextRef cgContext, const HIRect& in
 
   CGContextRestoreGState(cgContext);
 
-  NS_OBJC_END_TRY_ABORT_BLOCK;
-
+  NS_OBJC_END_TRY_IGNORE_BLOCK;
 }
+
 
 MOZ_RUNINIT static const CellRenderSettings progressSettings[2][2] = {
     // Vertical progress bar.
@@ -2513,6 +2519,52 @@ Maybe<nsNativeThemeCocoa::WidgetInfo> nsNativeThemeCocoa::ComputeWidgetInfo(
           ComputeControlParams(aFrame, elementState), buttonType}));
     }
 
+    case StyleAppearance::Spinner: {
+      bool isSpinner = (aAppearance == StyleAppearance::Spinner);
+      nsIContent* content = aFrame->GetContent();
+      if (isSpinner && content->IsHTMLElement()) {
+        // In HTML the theming for the spin buttons is drawn individually into
+        // their own backgrounds instead of being drawn into the background of
+        // their spinner parent as it is for XUL.
+        break;
+      }
+      SpinButtonParams params;
+      if (content->IsElement()) {
+        if (content->AsElement()->AttrValueIs(
+                kNameSpaceID_None, nsGkAtoms::state, u"up"_ns, eCaseMatters)) {
+          params.pressedButton = Some(SpinButton::eUp);
+        } else if (content->AsElement()->AttrValueIs(
+                       kNameSpaceID_None, nsGkAtoms::state, u"down"_ns,
+                       eCaseMatters)) {
+          params.pressedButton = Some(SpinButton::eDown);
+        }
+      }
+      params.disabled = elementState.HasState(ElementState::DISABLED);
+      params.insideActiveWindow = FrameIsInActiveWindow(aFrame);
+
+      return Some(WidgetInfo::SpinButtons(params));
+    }
+
+    case StyleAppearance::SpinnerUpbutton:
+    case StyleAppearance::SpinnerDownbutton: {
+      nsNumberControlFrame* numberControlFrame =
+          nsNumberControlFrame::GetNumberControlFrameForSpinButton(aFrame);
+      if (numberControlFrame) {
+        SpinButtonParams params;
+        if (numberControlFrame->SpinnerUpButtonIsDepressed()) {
+          params.pressedButton = Some(SpinButton::eUp);
+        } else if (numberControlFrame->SpinnerDownButtonIsDepressed()) {
+          params.pressedButton = Some(SpinButton::eDown);
+        }
+        params.disabled = elementState.HasState(ElementState::DISABLED);
+        params.insideActiveWindow = FrameIsInActiveWindow(aFrame);
+        if (aAppearance == StyleAppearance::SpinnerUpbutton) {
+          return Some(WidgetInfo::SpinButtonUp(params));
+        }
+        return Some(WidgetInfo::SpinButtonDown(params));
+      }
+    } break;
+
     case StyleAppearance::Toolbarbutton: {
       SegmentParams params = ComputeSegmentParams(aFrame, elementState,
                                                   SegmentType::eToolbarButton);
@@ -2782,10 +2834,6 @@ void nsNativeThemeCocoa::RenderWidget(const WidgetInfo& aWidgetInfo,
           DrawDropdown(cgContext, macRect, params);
           break;
         }
-        case Widget::eFocusOutline: {
-          DrawFocusOutline(cgContext, macRect);
-          break;
-        }
         case Widget::eSpinButtons: {
           SpinButtonParams params = aWidgetInfo.Params<SpinButtonParams>();
           DrawSpinButtons(cgContext, macRect, params);
@@ -2799,6 +2847,10 @@ void nsNativeThemeCocoa::RenderWidget(const WidgetInfo& aWidgetInfo,
         case Widget::eSpinButtonDown: {
           SpinButtonParams params = aWidgetInfo.Params<SpinButtonParams>();
           DrawSpinButton(cgContext, macRect, SpinButton::eDown, params);
+          break;
+        }
+        case Widget::eFocusOutline: {
+          DrawFocusOutline(cgContext, macRect);
           break;
         }
         case Widget::eSegment: {
@@ -2966,6 +3018,9 @@ bool nsNativeThemeCocoa::CreateWebRenderCommandsForWidget(
     case StyleAppearance::MozMacHelpButton:
     case StyleAppearance::MozMacDisclosureButtonOpen:
     case StyleAppearance::MozMacDisclosureButtonClosed:
+    case StyleAppearance::Spinner:
+    case StyleAppearance::SpinnerUpbutton:
+    case StyleAppearance::SpinnerDownbutton:
     case StyleAppearance::Toolbarbutton:
     case StyleAppearance::Separator:
     case StyleAppearance::Statusbar:
@@ -3010,10 +3065,14 @@ LayoutDeviceIntMargin nsNativeThemeCocoa::DirectionAwareMargin(
   return LayoutDeviceIntMargin(m.top, m.right, m.bottom, m.left);
 }
 
-static constexpr LayoutDeviceIntMargin kAquaDropdownBorder(1, 22, 2, 5);
-static constexpr LayoutDeviceIntMargin kAquaSearchfieldBorder(3, 5, 2, 19);
-static constexpr LayoutDeviceIntMargin kAquaSearchfieldBorderBigSur(5, 5, 4,
-                                                                    26);
+MOZ_RUNINIT static const LayoutDeviceIntMargin kAquaDropdownBorder(1, 22, 2, 5);
+MOZ_RUNINIT static const LayoutDeviceIntMargin kAquaComboboxBorder(3, 20, 3, 4);
+MOZ_RUNINIT static const LayoutDeviceIntMargin kAquaSearchfieldBorder(3, 5, 2,
+                                                                      19);
+MOZ_RUNINIT static const LayoutDeviceIntMargin kAquaSearchfieldBorderBigSur(5,
+                                                                            5,
+                                                                            4,
+                                                                            26);
 
 LayoutDeviceIntMargin nsNativeThemeCocoa::GetWidgetBorder(
     nsDeviceContext* aContext, nsIFrame* aFrame, StyleAppearance aAppearance) {
@@ -3237,6 +3296,28 @@ LayoutDeviceIntSize nsNativeThemeCocoa::GetMinimumWidgetSize(
       break;
     }
 
+    case StyleAppearance::Spinner:
+    case StyleAppearance::SpinnerUpbutton:
+    case StyleAppearance::SpinnerDownbutton: {
+      SInt32 buttonHeight = 0, buttonWidth = 0;
+      if (aFrame->GetContent()->IsXULElement()) {
+        ::GetThemeMetric(kThemeMetricLittleArrowsWidth, &buttonWidth);
+        ::GetThemeMetric(kThemeMetricLittleArrowsHeight, &buttonHeight);
+      } else {
+        NSSize size =
+            spinnerSettings
+                .minimumSizes[EnumSizeForCocoaSize(NSControlSizeMini)];
+        buttonWidth = size.width;
+        buttonHeight = size.height;
+        if (aAppearance != StyleAppearance::Spinner) {
+          // the buttons are half the height of the spinner
+          buttonHeight /= 2;
+        }
+      }
+      result.SizeTo(buttonWidth, buttonHeight);
+      break;
+    }
+
     case StyleAppearance::Menulist:
     case StyleAppearance::MenulistButton: {
       SInt32 popupHeight = 0;
@@ -3373,6 +3454,7 @@ bool nsNativeThemeCocoa::ThemeSupportsWidget(nsPresContext* aPresContext,
     case StyleAppearance::Listbox:
     case StyleAppearance::MozWindowButtonBox:
     case StyleAppearance::MozWindowTitlebar:
+    case StyleAppearance::MozSidebar:
     case StyleAppearance::Menupopup:
     case StyleAppearance::Menuitem:
     case StyleAppearance::Menuseparator:
@@ -3385,6 +3467,9 @@ bool nsNativeThemeCocoa::ThemeSupportsWidget(nsPresContext* aPresContext,
     case StyleAppearance::MozMacDisclosureButtonClosed:
     case StyleAppearance::Button:
     case StyleAppearance::Toolbarbutton:
+    case StyleAppearance::Spinner:
+    case StyleAppearance::SpinnerUpbutton:
+    case StyleAppearance::SpinnerDownbutton:
     case StyleAppearance::Statusbar:
     case StyleAppearance::NumberInput:
     case StyleAppearance::PasswordInput:
@@ -3475,6 +3560,9 @@ bool nsNativeThemeCocoa::WidgetAppearanceDependsOnWindowFocus(
     case StyleAppearance::Menuitem:
     case StyleAppearance::Menuseparator:
     case StyleAppearance::Tooltip:
+    case StyleAppearance::Spinner:
+    case StyleAppearance::SpinnerUpbutton:
+    case StyleAppearance::SpinnerDownbutton:
     case StyleAppearance::Separator:
     case StyleAppearance::NumberInput:
     case StyleAppearance::PasswordInput:

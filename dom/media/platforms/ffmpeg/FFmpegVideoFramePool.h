@@ -15,6 +15,10 @@
 #include "mozilla/widget/DMABufLibWrapper.h"
 #include "mozilla/widget/DMABufSurface.h"
 
+namespace mozilla::layers {
+class PlanarYCbCrImage;
+}
+
 namespace mozilla {
 
 // VideoFrameSurface holds a reference to GPU data with a video frame.
@@ -134,6 +138,8 @@ class VideoFramePool<LIBAV_VER> {
       AVDRMFrameDescriptor& aDesc, int aWidth, int aHeight,
       AVCodecContext* aAVCodecContext, AVFrame* aAVFrame,
       FFmpegLibWrapper* aLib);
+  RefPtr<VideoFrameSurface<LIBAV_VER>> GetVideoFrameSurface(
+      const layers::PlanarYCbCrData& aData, AVCodecContext* aAVCodecContext);
 
   void ReleaseUnusedVAAPIFrames();
 
@@ -146,9 +152,10 @@ class VideoFramePool<LIBAV_VER> {
   // Protect mDMABufSurfaces pool access
   Mutex mSurfaceLock MOZ_UNANNOTATED;
   nsTArray<RefPtr<VideoFrameSurface<LIBAV_VER>>> mDMABufSurfaces;
-  // Number of dmabuf surfaces allocated by ffmpeg for decoded video frames.
-  // Can be adjusted by extra_hw_frames at InitVAAPICodecContext().
-  int mFFMPEGPoolSize;
+  // Maximal number of dmabuf surfaces allocated by ffmpeg for decoded video
+  // frames. Can be adjusted by extra_hw_frames at InitVAAPICodecContext().
+  // Zero meand unlimited / dynamically allocated pool.
+  int mMaxFFMPEGPoolSize;
   // We may fail to create texture over DMABuf memory due to driver bugs so
   // check that before we export first DMABuf video frame.
   Maybe<bool> mTextureCreationWorks;

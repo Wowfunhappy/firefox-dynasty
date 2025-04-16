@@ -4,13 +4,20 @@
  * You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  * The origin of this IDL file is
- * https://fedidcg.github.io/FedCM
+ * https://w3c-fedid.github.io/FedCM
  */
 
 
+dictionary IdentityCredentialDisconnectOptions : IdentityProviderConfig  {
+  required UTF8String accountHint;
+};
+
+ // https://w3c-fedid.github.io/FedCM/#browser-api-identity-credential-interface
 [Exposed=Window, SecureContext,
  Pref="dom.security.credentialmanagement.identity.enabled"]
 interface IdentityCredential : Credential {
+ [Throws]
+ static Promise<undefined> disconnect(optional IdentityCredentialDisconnectOptions options = {});
  readonly attribute USVString? token;
  [Throws, Pref="dom.security.credentialmanagement.identity.lightweight.enabled"]
  readonly attribute UTF8String origin;
@@ -84,8 +91,11 @@ dictionary IdentityProviderBranding {
 [GenerateInit, GenerateConversionToJS]
 dictionary IdentityProviderAPIConfig {
   required UTF8String accounts_endpoint;
-  required UTF8String client_metadata_endpoint;
+  // We do not want to gather consent for identity providers, so we
+  // omit this requirement and its use: https://github.com/w3c-fedid/FedCM/issues/703
+  // required UTF8String client_metadata_endpoint;
   required UTF8String id_assertion_endpoint;
+  UTF8String disconnect_endpoint;
   IdentityProviderBranding branding;
 };
 
@@ -117,4 +127,10 @@ dictionary IdentityProviderClientMetadata {
 [GenerateInit]
 dictionary IdentityProviderToken {
   required USVString token;
+};
+
+// https://w3c-fedid.github.io/FedCM/#dictdef-disconnectedaccount
+[GenerateInit]
+dictionary DisconnectedAccount {
+  required UTF8String account_id;
 };

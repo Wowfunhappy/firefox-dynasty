@@ -11,6 +11,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.app.NotificationManagerCompat
 import com.google.android.play.core.review.ReviewManagerFactory
+import mozilla.appservices.remotesettings.RemoteSettingsServer
 import mozilla.components.feature.addons.AddonManager
 import mozilla.components.feature.addons.amo.AMOAddonsProvider
 import mozilla.components.feature.addons.migration.DefaultSupportedAddonsChecker
@@ -21,6 +22,7 @@ import mozilla.components.lib.crash.store.CrashMiddleware
 import mozilla.components.lib.publicsuffixlist.PublicSuffixList
 import mozilla.components.support.base.android.NotificationsDelegate
 import mozilla.components.support.base.worker.Frequency
+import mozilla.components.support.remotesettings.RemoteSettingsService
 import org.mozilla.fenix.BuildConfig
 import org.mozilla.fenix.Config
 import org.mozilla.fenix.FeatureFlags
@@ -30,6 +32,8 @@ import org.mozilla.fenix.autofill.AutofillSearchActivity
 import org.mozilla.fenix.autofill.AutofillUnlockActivity
 import org.mozilla.fenix.components.appstate.AppAction
 import org.mozilla.fenix.components.appstate.AppState
+import org.mozilla.fenix.components.appstate.setup.checklist.SetupChecklistState
+import org.mozilla.fenix.components.appstate.setup.checklist.getSetupChecklistCollection
 import org.mozilla.fenix.components.metrics.MetricsMiddleware
 import org.mozilla.fenix.crashes.CrashReportingAppMiddleware
 import org.mozilla.fenix.crashes.SettingsCrashReportCache
@@ -46,7 +50,11 @@ import org.mozilla.fenix.home.PocketUpdatesMiddleware
 import org.mozilla.fenix.home.blocklist.BlocklistHandler
 import org.mozilla.fenix.home.blocklist.BlocklistMiddleware
 import org.mozilla.fenix.home.middleware.HomeTelemetryMiddleware
+import org.mozilla.fenix.home.setup.store.DefaultSetupChecklistRepository
+import org.mozilla.fenix.home.setup.store.SetupChecklistPreferencesMiddleware
+import org.mozilla.fenix.home.setup.store.SetupChecklistTelemetryMiddleware
 import org.mozilla.fenix.messaging.state.MessagingMiddleware
+import org.mozilla.fenix.nimbus.FxNimbus
 import org.mozilla.fenix.onboarding.FenixOnboarding
 import org.mozilla.fenix.perf.AppStartReasonProvider
 import org.mozilla.fenix.perf.StartupActivityLog
@@ -55,6 +63,7 @@ import org.mozilla.fenix.perf.StrictModeManager
 import org.mozilla.fenix.perf.lazyMonitored
 import org.mozilla.fenix.utils.ClipboardHandler
 import org.mozilla.fenix.utils.Settings
+import org.mozilla.fenix.utils.isLargeScreenSize
 import org.mozilla.fenix.wifi.WifiConnectionMonitor
 import java.util.concurrent.TimeUnit
 
@@ -84,7 +93,6 @@ class Components(private val context: Context) {
     val services by lazyMonitored { Services(context, core.store, backgroundServices.accountManager) }
     val core by lazyMonitored { Core(context, analytics.crashReporter, strictMode) }
 
-    @Suppress("Deprecation")
     val useCases by lazyMonitored {
         UseCases(
             context,
@@ -131,8 +139,8 @@ class Components(private val context: Context) {
             )
         }
         // Use build config otherwise
-        else if (!BuildConfig.AMO_COLLECTION_USER.isNullOrEmpty() &&
-            !BuildConfig.AMO_COLLECTION_NAME.isNullOrEmpty()
+        else if (BuildConfig.AMO_COLLECTION_USER.isNotEmpty() &&
+            BuildConfig.AMO_COLLECTION_NAME.isNotEmpty()
         ) {
             AMOAddonsProvider(
                 context,
@@ -221,6 +229,7 @@ class Components(private val context: Context) {
                     emptyList()
                 },
                 recentHistory = emptyList(),
+                setupChecklistState = setupChecklistState(),
             ).run { filterState(blocklistHandler) },
             middlewares = listOf(
                 BlocklistMiddleware(blocklistHandler),
@@ -241,13 +250,36 @@ class Components(private val context: Context) {
                     ),
                 ),
                 HomeTelemetryMiddleware(),
+                SetupChecklistPreferencesMiddleware(DefaultSetupChecklistRepository(settings)),
+                SetupChecklistTelemetryMiddleware(),
             ),
         ).also {
             it.dispatch(AppAction.CrashActionWrapper(CrashAction.Initialize))
         }
     }
 
-    val fxSuggest by lazyMonitored { FxSuggest(context) }
+    private fun setupChecklistState() = if (settings.showSetupChecklist) {
+        val type = FxNimbus.features.setupChecklist.value().setupChecklistType
+        SetupChecklistState(checklistItems = getSetupChecklistCollection(settings, type))
+    } else {
+        null
+    }
+
+    val remoteSettingsService = lazyMonitored {
+        RemoteSettingsService(
+            context,
+            if (context.settings().useProductionRemoteSettingsServer) {
+                RemoteSettingsServer.Prod
+            } else {
+                RemoteSettingsServer.Stage
+            },
+            channel = BuildConfig.BUILD_TYPE,
+            // Need to send this value separately, since `isLargeScreenSize()` is a fenix extension
+            isLargeScreenSize = context.isLargeScreenSize(),
+        )
+    }
+
+    val fxSuggest by lazyMonitored { FxSuggest(context, remoteSettingsService.value) }
 
     val distributionIdManager by lazyMonitored {
         DistributionIdManager(

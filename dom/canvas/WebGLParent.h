@@ -97,9 +97,6 @@ class WebGLParent : public PWebGLParent, public SupportsWeakPtr {
                                          Maybe<double>* ret);
   IPCResult RecvGetSamplerParameter(ObjectId id, GLenum pname,
                                     Maybe<double>* ret);
-  IPCResult RecvGetShaderPrecisionFormat(
-      GLenum shaderType, GLenum precisionType,
-      Maybe<webgl::ShaderPrecisionFormat>* ret);
   IPCResult RecvGetString(GLenum pname, Maybe<std::string>* ret);
   IPCResult RecvGetTexParameter(ObjectId id, GLenum pname, Maybe<double>* ret);
   IPCResult RecvGetUniform(ObjectId id, uint32_t loc,
@@ -112,6 +109,8 @@ class WebGLParent : public PWebGLParent, public SupportsWeakPtr {
 
   const RefPtr<layers::SharedSurfacesHolder> mSharedSurfacesHolder;
   const dom::ContentParentId mContentId;
+
+  HostWebGLContext* GetHostWebGLContext() const { return mHost.get(); }
 
  private:
   ~WebGLParent();

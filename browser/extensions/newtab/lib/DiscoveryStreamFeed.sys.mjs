@@ -4,6 +4,8 @@
 
 const lazy = {};
 ChromeUtils.defineESModuleGetters(lazy, {
+  ClientEnvironmentBase:
+    "resource://gre/modules/components-utils/ClientEnvironment.sys.mjs",
   ExperimentAPI: "resource://nimbus/ExperimentAPI.sys.mjs",
   NimbusFeatures: "resource://nimbus/ExperimentAPI.sys.mjs",
   NewTabUtils: "resource://gre/modules/NewTabUtils.sys.mjs",
@@ -125,6 +127,8 @@ const PREF_INTEREST_PICKER_ENABLED =
   "discoverystream.sections.interestPicker.enabled";
 const PREF_VISIBLE_SECTIONS =
   "discoverystream.sections.interestPicker.visibleSections";
+const PREF_PRIVATE_PING_ENABLED = "telemetry.privatePing.enabled";
+const PREF_SURFACE_ID = "telemetry.surfaceId";
 
 let getHardcodedLayout;
 
@@ -453,9 +457,12 @@ export class DiscoveryStreamFeed {
 
     try {
       // Make sure the requested endpoint is allowed
-      const allowed = this.store
-        .getState()
-        .Prefs.values[PREF_ENDPOINTS].split(",");
+      const allowed =
+        this.store
+          .getState()
+          .Prefs.values[PREF_ENDPOINTS].split(",")
+          .map(item => item.trim())
+          .filter(item => item) || [];
       if (!allowed.some(prefix => endpoint.startsWith(prefix))) {
         throw new Error(`Not one of allowed prefixes (${allowed})`);
       }
@@ -1181,11 +1188,16 @@ export class DiscoveryStreamFeed {
         const headers = new Headers();
         headers.append("content-type", "application/json");
 
-        const spocsResponse = await this.fetchFromEndpoint(endpoint, {
-          method: "POST",
-          headers,
-          body: JSON.stringify(body),
-        });
+        let spocsResponse;
+        try {
+          spocsResponse = await this.fetchFromEndpoint(endpoint, {
+            method: "POST",
+            headers,
+            body: JSON.stringify(body),
+          });
+        } catch (error) {
+          console.error("Error trying to load spocs feeds:", error);
+        }
 
         if (spocsResponse) {
           const fetchTimestamp = Date.now();
@@ -1639,6 +1651,7 @@ export class DiscoveryStreamFeed {
             received_rank: item.receivedRank,
             recommended_at: feedResponse.recommendedAt,
             icon_src: item.iconUrl,
+            isTimeSensitive: item.isTimeSensitive,
           }));
           if (feedResponse.feeds && selectedFeedPref && !sectionsEnabled) {
             isFakespot = selectedFeedPref === "fakespot";
@@ -1665,6 +1678,7 @@ export class DiscoveryStreamFeed {
                 feedName: selectedFeedPref,
                 category: item.category,
                 icon_src: item.iconUrl,
+                isTimeSensitive: item.isTimeSensitive,
               })
             );
 
@@ -1700,9 +1714,9 @@ export class DiscoveryStreamFeed {
                     raw_image_src: item.imageUrl,
                     received_rank: item.receivedRank,
                     recommended_at: feedResponse.recommendedAt,
-                    // property to determine if rec is used in ListFeed or not
                     section: sectionKey,
                     icon_src: item.iconUrl,
+                    isTimeSensitive: item.isTimeSensitive,
                   });
                 }
                 sections.push({
@@ -1781,12 +1795,19 @@ export class DiscoveryStreamFeed {
             sections,
             interestPicker: feedResponse.interestPicker || {},
             recommendations: filteredResults,
+            surfaceId: feedResponse.surfaceId || "",
             status: "success",
           },
         };
       } else {
         console.error("No response for feed");
       }
+    }
+
+    // if surfaceID is availible either through the cache or the response set value in Glean
+    if (prefs[PREF_PRIVATE_PING_ENABLED] && feed.data.surfaceId) {
+      Glean.newtabContent.surfaceId.set(feed.data.surfaceId);
+      this.store.dispatch(ac.SetPref(PREF_SURFACE_ID, feed.data.surfaceId));
     }
 
     // If we have no feed at this point, both fetch and cache failed for some reason.
@@ -1887,9 +1908,17 @@ export class DiscoveryStreamFeed {
       // To display the inline interest picker pass `enableInterestPicker` into the request
       const interestPickerEnabled = prefs[PREF_INTEREST_PICKER_ENABLED];
 
+      const requestMetadata = {
+        otc_offset: lazy.NewTabUtils.getUtcOffset(),
+        coarse_os: lazy.NewTabUtils.normalizeOs(),
+        coarse_os_version: lazy.ClientEnvironmentBase.os.version,
+        surface_id: prefs[PREF_SURFACE_ID] || "",
+      };
+
       headers.append("content-type", "application/json");
       let body = {
         ...(prefMerinoFeedExperiment ? this.getExperimentInfo() : {}),
+        ...requestMetadata,
         locale: this.locale,
         region: this.region,
         topics,

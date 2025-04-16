@@ -18,7 +18,6 @@ data class BrowserToolbarState(
     val mode: Mode = Mode.DISPLAY,
     val displayState: DisplayState = DisplayState(),
     val editState: EditState = EditState(),
-
 ) : State {
 
     /**
@@ -40,11 +39,6 @@ enum class Mode {
      * Edit mode - Allows the user to edit the URL.
      */
     EDIT,
-
-    /**
-     * Custom tab - Displays the URL and title of a custom tab.
-     */
-    CUSTOM_TAB,
 }
 
 /**

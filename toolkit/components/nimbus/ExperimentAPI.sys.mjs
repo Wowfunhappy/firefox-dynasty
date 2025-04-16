@@ -12,9 +12,11 @@ ChromeUtils.defineESModuleGetters(lazy, {
   ExperimentManager: "resource://nimbus/lib/ExperimentManager.sys.mjs",
   FeatureManifest: "resource://nimbus/FeatureManifest.sys.mjs",
   NimbusMigrations: "resource://nimbus/lib/Migrations.sys.mjs",
+  NimbusTelemetry: "resource://nimbus/lib/Telemetry.sys.mjs",
   RemoteSettings: "resource://services-settings/remote-settings.sys.mjs",
   RemoteSettingsExperimentLoader:
     "resource://nimbus/lib/RemoteSettingsExperimentLoader.sys.mjs",
+  UnenrollmentCause: "resource://nimbus/lib/ExperimentManager.sys.mjs",
 });
 
 ChromeUtils.defineLazyGetter(lazy, "log", () => {
@@ -95,19 +97,27 @@ export const ExperimentAPI = {
    * This will initialize the ExperimentManager and the
    * RemoteSettingsExperimentLoader. It will also trigger The
    * RemoteSettingsExperimentLoader to update recipes.
+   *
+   * @param {object} options
+   * @param {object?} options.extraContext
+   *        Additional context to use in the ExperimentManager's targeting
+   *        context.
+   * @param {boolean?} options.forceSync
+   *        Force the RemoteSettingsExperimentLoader to trigger a RemoteSettings
+   *        sync before updating recipes for the first time.
    */
-  async init() {
+  async init({ extraContext, forceSync = false } = {}) {
     if (!initialized) {
       initialized = true;
 
       try {
-        await this._manager.onStartup();
+        await this._manager.onStartup(extraContext);
       } catch (e) {
         lazy.log.error("Failed to initialize ExperimentManager:", e);
       }
 
       try {
-        await this._rsLoader.enable();
+        await this._rsLoader.enable({ forceSync });
       } catch (e) {
         lazy.log.error("Failed to enable RemoteSettingsExperimentLoader:", e);
       }
@@ -143,7 +153,7 @@ export const ExperimentAPI = {
    *          store
    */
   async ready() {
-    return this._store.ready();
+    return this._manager.store.ready();
   },
 
   async _annotateCrashReport() {
@@ -181,9 +191,9 @@ export const ExperimentAPI = {
     let experimentData;
     try {
       if (slug) {
-        experimentData = this._store.get(slug);
+        experimentData = this._manager.store.get(slug);
       } else if (featureId) {
-        experimentData = this._store.getExperimentForFeature(featureId);
+        experimentData = this._manager.store.getExperimentForFeature(featureId);
       }
     } catch (e) {
       console.error(e);
@@ -216,12 +226,13 @@ export const ExperimentAPI = {
     let experimentData;
     try {
       if (slug) {
-        experimentData = this._store.get(slug);
+        experimentData = this._manager.store.get(slug);
       } else if (featureId) {
         if (isRollout) {
-          experimentData = this._store.getRolloutForFeature(featureId);
+          experimentData = this._manager.store.getRolloutForFeature(featureId);
         } else {
-          experimentData = this._store.getExperimentForFeature(featureId);
+          experimentData =
+            this._manager.store.getExperimentForFeature(featureId);
         }
       }
     } catch (e) {
@@ -263,9 +274,9 @@ export const ExperimentAPI = {
     let experiment = null;
     try {
       if (slug) {
-        experiment = this._store.get(slug);
+        experiment = this._manager.store.get(slug);
       } else if (featureId) {
-        experiment = this._store.getExperimentForFeature(featureId);
+        experiment = this._manager.store.getExperimentForFeature(featureId);
       }
     } catch (e) {
       console.error(e);
@@ -281,21 +292,12 @@ export const ExperimentAPI = {
   },
 
   /**
-   * Deregisters an event listener.
-   * @param {string} eventName
-   * @param {function} callback
-   */
-  off(eventName, callback) {
-    this._store.off(eventName, callback);
-  },
-
-  /**
    * Returns the recipe for a given experiment slug
    *
    * This should noly be called from the main process.
    *
    * Note that the recipe is directly fetched from RemoteSettings, which has
-   * all the recipe metadata available without relying on the `this._store`.
+   * all the recipe metadata available without relying on the `this._manager.store`.
    * Therefore, calling this function does not require to call `this.ready()` first.
    *
    * @param slug {String} An experiment identifier
@@ -347,19 +349,6 @@ export const ExperimentAPI = {
       branch => new Proxy(branch, experimentBranchAccessor)
     );
   },
-
-  recordExposureEvent({ featureId, experimentSlug, branchSlug }) {
-    Glean.normandy.exposeNimbusExperiment.record({
-      value: experimentSlug,
-      branchSlug,
-      featureId,
-    });
-    Glean.nimbusEvents.exposure.record({
-      experiment: experimentSlug,
-      branch: branchSlug,
-      feature_id: featureId,
-    });
-  },
 };
 
 /**
@@ -396,7 +385,7 @@ export class _ExperimentFeature {
           fallbackPref,
           null,
           () => {
-            ExperimentAPI._store._emitFeatureUpdate(
+            ExperimentAPI._manager.store._emitFeatureUpdate(
               this.featureId,
               "pref-updated"
             );
@@ -437,7 +426,9 @@ export class _ExperimentFeature {
   getAllVariables({ defaultValues = null } = {}) {
     let enrollment = null;
     try {
-      enrollment = ExperimentAPI._store.getExperimentForFeature(this.featureId);
+      enrollment = ExperimentAPI._manager.store.getExperimentForFeature(
+        this.featureId
+      );
     } catch (e) {
       console.error(e);
     }
@@ -445,7 +436,9 @@ export class _ExperimentFeature {
 
     if (typeof featureValue === "undefined") {
       try {
-        enrollment = ExperimentAPI._store.getRolloutForFeature(this.featureId);
+        enrollment = ExperimentAPI._manager.store.getRolloutForFeature(
+          this.featureId
+        );
       } catch (e) {
         console.error(e);
       }
@@ -472,7 +465,9 @@ export class _ExperimentFeature {
     // Next, check if an experiment is defined
     let enrollment = null;
     try {
-      enrollment = ExperimentAPI._store.getExperimentForFeature(this.featureId);
+      enrollment = ExperimentAPI._manager.store.getExperimentForFeature(
+        this.featureId
+      );
     } catch (e) {
       console.error(e);
     }
@@ -483,7 +478,9 @@ export class _ExperimentFeature {
 
     // Next, check for a rollout.
     try {
-      enrollment = ExperimentAPI._store.getRolloutForFeature(this.featureId);
+      enrollment = ExperimentAPI._manager.store.getRolloutForFeature(
+        this.featureId
+      );
     } catch (e) {
       console.error(e);
     }
@@ -498,7 +495,7 @@ export class _ExperimentFeature {
   }
 
   getRollout() {
-    let remoteConfig = ExperimentAPI._store.getRolloutForFeature(
+    let remoteConfig = ExperimentAPI._manager.store.getRolloutForFeature(
       this.featureId
     );
     if (!remoteConfig) {
@@ -535,21 +532,21 @@ export class _ExperimentFeature {
 
     // Exposure only sent if user is enrolled in an experiment
     if (enrollmentData) {
-      ExperimentAPI.recordExposureEvent({
-        featureId: this.featureId,
-        experimentSlug: enrollmentData.slug,
-        branchSlug: enrollmentData.branch?.slug,
-      });
+      lazy.NimbusTelemetry.recordExposure(
+        enrollmentData.slug,
+        enrollmentData.branch.slug,
+        this.featureId
+      );
       this._didSendExposureEvent = true;
     }
   }
 
   onUpdate(callback) {
-    ExperimentAPI._store._onFeatureUpdate(this.featureId, callback);
+    ExperimentAPI._manager.store._onFeatureUpdate(this.featureId, callback);
   }
 
   offUpdate(callback) {
-    ExperimentAPI._store._offFeatureUpdate(this.featureId, callback);
+    ExperimentAPI._manager.store._offFeatureUpdate(this.featureId, callback);
   }
 
   /**
@@ -604,7 +601,9 @@ export class _ExperimentFeature {
     );
 
     if (missingIds?.size) {
-      throw new ExperimentLocalizationError("l10n-missing-entry");
+      throw new ExperimentLocalizationError(
+        lazy.NimbusTelemetry.ValidationFailureReason.L10N_MISSING_ENTRY
+      );
     }
 
     return result;
@@ -657,7 +656,9 @@ export class _ExperimentFeature {
             missingIds.add(value.id);
             break;
           } else {
-            throw new ExperimentLocalizationError("l10n-missing-entry");
+            throw new ExperimentLocalizationError(
+              lazy.NimbusTelemetry.ValidationFailureReason.L10N_MISSING_ENTRY
+            );
           }
         }
 
@@ -693,7 +694,12 @@ export class _ExperimentFeature {
         (typeof enrollment.localizations[locale] !== "object" ||
           enrollment.localizations[locale] === null)
       ) {
-        ExperimentAPI._manager.unenroll(enrollment.slug, "l10n-missing-locale");
+        ExperimentAPI._manager._unenroll(
+          enrollment,
+          lazy.UnenrollmentCause.fromReason(
+            lazy.NimbusTelemetry.UnenrollReason.L10N_MISSING_LOCALE
+          )
+        );
         return undefined;
       }
 
@@ -710,7 +716,10 @@ export class _ExperimentFeature {
         } catch (e) {
           // This should never happen.
           if (e instanceof ExperimentLocalizationError) {
-            ExperimentAPI._manager.unenroll(enrollment.slug, e.reason);
+            ExperimentAPI._manager._unenroll(
+              enrollment,
+              lazy.UnenrollmentCause.fromReason(e.reason)
+            );
           } else {
             throw e;
           }
@@ -738,11 +747,6 @@ if (CRASHREPORTER_ENABLED) {
 
 ChromeUtils.defineLazyGetter(ExperimentAPI, "_manager", function () {
   return lazy.ExperimentManager;
-});
-
-Object.defineProperty(ExperimentAPI, "_store", {
-  configurable: true,
-  get: () => ExperimentAPI._manager.store,
 });
 
 ChromeUtils.defineLazyGetter(ExperimentAPI, "_rsLoader", function () {

@@ -94,13 +94,14 @@ void js::wasm::ReportTier2ResultsOffThread(bool success,
 
 class Module::CompleteTier2GeneratorTaskImpl
     : public CompleteTier2GeneratorTask {
-  SharedBytes bytecode_;
+  SharedBytes codeSection_;
   SharedModule module_;
   mozilla::Atomic<bool> cancelled_;
 
  public:
-  CompleteTier2GeneratorTaskImpl(const ShareableBytes& bytecode, Module& module)
-      : bytecode_(&bytecode), module_(&module), cancelled_(false) {}
+  CompleteTier2GeneratorTaskImpl(const ShareableBytes* codeSection,
+                                 Module& module)
+      : codeSection_(codeSection), module_(&module), cancelled_(false) {}
 
   ~CompleteTier2GeneratorTaskImpl() override {
     module_->completeTier2Listener_ = nullptr;
@@ -120,7 +121,7 @@ class Module::CompleteTier2GeneratorTaskImpl
       // that's okay.
       UniqueChars error;
       UniqueCharsVector warnings;
-      bool success = CompileCompleteTier2(bytecode_->vector, *module_, &error,
+      bool success = CompileCompleteTier2(codeSection_, *module_, &error,
                                           &warnings, &cancelled_);
       if (!cancelled_) {
         // We could try to dispatch a runnable to the thread that started this
@@ -153,11 +154,12 @@ Module::~Module() {
   MOZ_ASSERT(!testingTier2Active_);
 }
 
-void Module::startTier2(const ShareableBytes& bytecode,
+void Module::startTier2(const ShareableBytes* codeSection,
                         JS::OptimizedEncodingListener* listener) {
   MOZ_ASSERT(!testingTier2Active_);
+  MOZ_ASSERT_IF(codeMeta().codeSectionRange.isSome(), codeSection);
 
-  auto task = MakeUnique<CompleteTier2GeneratorTaskImpl>(bytecode, *this);
+  auto task = MakeUnique<CompleteTier2GeneratorTaskImpl>(codeSection, *this);
   if (!task) {
     return;
   }
@@ -171,9 +173,10 @@ void Module::startTier2(const ShareableBytes& bytecode,
 }
 
 bool Module::finishTier2(UniqueCodeBlock tier2CodeBlock,
-                         UniqueLinkData tier2LinkData) const {
-  if (!code_->finishTier2(std::move(tier2CodeBlock),
-                          std::move(tier2LinkData))) {
+                         UniqueLinkData tier2LinkData,
+                         const TierStats& tier2Stats) const {
+  if (!code_->finishTier2(std::move(tier2CodeBlock), std::move(tier2LinkData),
+                          tier2Stats)) {
     return false;
   }
 
@@ -920,7 +923,7 @@ bool Module::instantiate(JSContext* cx, ImportValues& imports,
   }
 
   UniqueDebugState maybeDebug;
-  if (codeMeta().debugEnabled) {
+  if (code().debugEnabled()) {
     maybeDebug = cx->make_unique<DebugState>(*code_, *this);
     if (!maybeDebug) {
       ReportOutOfMemory(cx);

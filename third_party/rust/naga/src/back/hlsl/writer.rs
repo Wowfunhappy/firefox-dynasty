@@ -1,3 +1,10 @@
+use alloc::{
+    format,
+    string::{String, ToString},
+    vec::Vec,
+};
+use core::{fmt, mem};
+
 use super::{
     help,
     help::{
@@ -9,10 +16,10 @@ use super::{
 };
 use crate::{
     back::{self, Baked},
-    proc::{self, index, ExpressionKindTracker, NameKey},
+    common,
+    proc::{self, index, NameKey},
     valid, Handle, Module, RayQueryFunction, Scalar, ScalarKind, ShaderStage, TypeInner,
 };
-use std::{fmt, mem};
 
 const LOCATION_SEMANTIC: &str = "LOC";
 const SPECIAL_CBUF_TYPE: &str = "NagaConstants";
@@ -31,6 +38,10 @@ pub(crate) const ABS_FUNCTION: &str = "naga_abs";
 pub(crate) const DIV_FUNCTION: &str = "naga_div";
 pub(crate) const MOD_FUNCTION: &str = "naga_mod";
 pub(crate) const NEG_FUNCTION: &str = "naga_neg";
+pub(crate) const F2I32_FUNCTION: &str = "naga_f2i32";
+pub(crate) const F2U32_FUNCTION: &str = "naga_f2u32";
+pub(crate) const F2I64_FUNCTION: &str = "naga_f2i64";
+pub(crate) const F2U64_FUNCTION: &str = "naga_f2u64";
 
 struct EpStructMember {
     name: String,
@@ -133,8 +144,7 @@ impl<'a, W: fmt::Write> super::Writer<'a, W> {
         self.names.clear();
         self.namer.reset(
             module,
-            super::keywords::RESERVED,
-            super::keywords::TYPES,
+            &super::keywords::RESERVED_SET,
             super::keywords::RESERVED_CASE_INSENSITIVE,
             super::keywords::RESERVED_PREFIXES,
             &mut self.names,
@@ -164,12 +174,14 @@ impl<'a, W: fmt::Write> super::Writer<'a, W> {
         }
 
         let loop_bound_name = self.namer.call("loop_bound");
-        let decl = format!("{level}uint2 {loop_bound_name} = uint2(0u, 0u);");
-        let level = level.next();
         let max = u32::MAX;
+        // Count down from u32::MAX rather than up from 0 to avoid hang on
+        // certain Intel drivers. See <https://github.com/gfx-rs/wgpu/issues/7319>.
+        let decl = format!("{level}uint2 {loop_bound_name} = uint2({max}u, {max}u);");
+        let level = level.next();
         let break_and_inc = format!(
-            "{level}if (all({loop_bound_name} == uint2({max}u, {max}u))) {{ break; }}
-{level}{loop_bound_name} += uint2({loop_bound_name}.y == {max}u, 1u);"
+            "{level}if (all({loop_bound_name} == uint2(0u, 0u))) {{ break; }}
+{level}{loop_bound_name} -= uint2({loop_bound_name}.y == 0u, 1u);"
         );
 
         Some((decl, break_and_inc))
@@ -194,7 +206,7 @@ impl<'a, W: fmt::Write> super::Writer<'a, W> {
                 self.need_bake_expressions.insert(exp_handle);
             }
 
-            if let Expression::Math { fun, arg, .. } = *expr {
+            if let Expression::Math { fun, arg, arg1, .. } = *expr {
                 match fun {
                     crate::MathFunction::Asinh
                     | crate::MathFunction::Acosh
@@ -220,6 +232,10 @@ impl<'a, W: fmt::Write> super::Writer<'a, W> {
                         if let Some(ScalarKind::Sint) = inner.scalar_kind() {
                             self.need_bake_expressions.insert(arg);
                         }
+                    }
+                    crate::MathFunction::Dot4U8Packed | crate::MathFunction::Dot4I8Packed => {
+                        self.need_bake_expressions.insert(arg);
+                        self.need_bake_expressions.insert(arg1.unwrap());
                     }
                     _ => {}
                 }
@@ -261,10 +277,6 @@ impl<'a, W: fmt::Write> super::Writer<'a, W> {
         module_info: &valid::ModuleInfo,
         fragment_entry_point: Option<&FragmentEntryPoint<'_>>,
     ) -> Result<super::ReflectionInfo, Error> {
-        if !module.overrides.is_empty() {
-            return Err(Error::Override);
-        }
-
         self.reset(module);
 
         // Write special constants, if needed
@@ -418,7 +430,6 @@ impl<'a, W: fmt::Write> super::Writer<'a, W> {
                 info,
                 expressions: &function.expressions,
                 named_expressions: &function.named_expressions,
-                expr_kind_tracker: ExpressionKindTracker::from_arena(&function.expressions),
             };
             let name = self.names[&NameKey::Function(handle)].clone();
 
@@ -459,7 +470,6 @@ impl<'a, W: fmt::Write> super::Writer<'a, W> {
                 info,
                 expressions: &ep.function.expressions,
                 named_expressions: &ep.function.named_expressions,
-                expr_kind_tracker: ExpressionKindTracker::from_arena(&ep.function.expressions),
             };
 
             self.write_wrapped_functions(module, &ctx)?;
@@ -528,16 +538,11 @@ impl<'a, W: fmt::Write> super::Writer<'a, W> {
                 write!(self.out, " : {builtin_str}")?;
             }
             Some(crate::Binding::Location {
-                second_blend_source: true,
-                ..
+                blend_src: Some(1), ..
             }) => {
                 write!(self.out, " : SV_Target1")?;
             }
-            Some(crate::Binding::Location {
-                location,
-                second_blend_source: false,
-                ..
-            }) => {
+            Some(crate::Binding::Location { location, .. }) => {
                 if stage == Some((ShaderStage::Fragment, Io::Output)) {
                     write!(self.out, " : SV_Target{location}")?;
                 } else {
@@ -999,7 +1004,7 @@ impl<'a, W: fmt::Write> super::Writer<'a, W> {
             if global.space == crate::AddressSpace::Private {
                 write!(self.out, " = ")?;
                 if let Some(init) = global.init {
-                    self.write_const_expression(module, init)?;
+                    self.write_const_expression(module, init, &module.global_expressions)?;
                 } else {
                     self.write_default_init(module, global.ty)?;
                 }
@@ -1109,7 +1114,7 @@ impl<'a, W: fmt::Write> super::Writer<'a, W> {
             self.write_array_size(module, base, size)?;
         }
         write!(self.out, " = ")?;
-        self.write_const_expression(module, constant.init)?;
+        self.write_const_expression(module, constant.init, &module.global_expressions)?;
         writeln!(self.out, ";")?;
         Ok(())
     }
@@ -1122,12 +1127,11 @@ impl<'a, W: fmt::Write> super::Writer<'a, W> {
     ) -> BackendResult {
         write!(self.out, "[")?;
 
-        match size {
-            crate::ArraySize::Constant(size) => {
+        match size.resolve(module.to_ctx())? {
+            proc::IndexableLength::Known(size) => {
                 write!(self.out, "{size}")?;
             }
-            crate::ArraySize::Pending(_) => unreachable!(),
-            crate::ArraySize::Dynamic => unreachable!(),
+            proc::IndexableLength::Dynamic => unreachable!(),
         }
 
         write!(self.out, "]")?;
@@ -1172,7 +1176,7 @@ impl<'a, W: fmt::Write> super::Writer<'a, W> {
                 }
             }
             let ty_inner = &module.types[member.ty].inner;
-            last_offset = member.offset + ty_inner.size_hlsl(module.to_ctx());
+            last_offset = member.offset + ty_inner.size_hlsl(module.to_ctx())?;
 
             // The indentation is only for readability
             write!(self.out, "{}", back::INDENT)?;
@@ -1315,7 +1319,7 @@ impl<'a, W: fmt::Write> super::Writer<'a, W> {
                     self.out,
                     "{}{}",
                     scalar.to_hlsl_str()?,
-                    back::vector_size_str(size)
+                    common::vector_size_str(size)
                 )?;
             }
             TypeInner::Matrix {
@@ -1331,8 +1335,8 @@ impl<'a, W: fmt::Write> super::Writer<'a, W> {
                     self.out,
                     "{}{}x{}",
                     scalar.to_hlsl_str()?,
-                    back::vector_size_str(columns),
-                    back::vector_size_str(rows),
+                    common::vector_size_str(columns),
+                    common::vector_size_str(rows),
                 )?;
             }
             TypeInner::Image {
@@ -1356,10 +1360,10 @@ impl<'a, W: fmt::Write> super::Writer<'a, W> {
             TypeInner::Array { base, size, .. } | TypeInner::BindingArray { base, size } => {
                 self.write_array_size(module, base, size)?;
             }
-            TypeInner::AccelerationStructure => {
+            TypeInner::AccelerationStructure { .. } => {
                 write!(self.out, "RaytracingAccelerationStructure")?;
             }
-            TypeInner::RayQuery => {
+            TypeInner::RayQuery { .. } => {
                 // these are constant flags, there are dynamic flags also but constant flags are not supported by naga
                 write!(self.out, "RayQuery<RAY_FLAG_NONE>")?;
             }
@@ -1534,7 +1538,7 @@ impl<'a, W: fmt::Write> super::Writer<'a, W> {
 
             match module.types[local.ty].inner {
                 // from https://microsoft.github.io/DirectX-Specs/d3d/Raytracing.html#tracerayinline-example-1 it seems that ray queries shouldn't be zeroed
-                TypeInner::RayQuery => {}
+                TypeInner::RayQuery { .. } => {}
                 _ => {
                     write!(self.out, " = ")?;
                     // Write the local initializer if needed
@@ -1715,14 +1719,14 @@ impl<'a, W: fmt::Write> super::Writer<'a, W> {
                     }
 
                     let last_case = &cases[end_case_idx];
-                    if last_case.body.last().map_or(true, |s| !s.is_terminator()) {
+                    if last_case.body.last().is_none_or(|s| !s.is_terminator()) {
                         writeln!(self.out, "{indent_level_2}break;")?;
                     }
                 } else {
                     for sta in case.body.iter() {
                         self.write_stmt(module, sta, func_ctx, indent_level_2)?;
                     }
-                    if !case.fall_through && case.body.last().map_or(true, |s| !s.is_terminator()) {
+                    if !case.fall_through && case.body.last().is_none_or(|s| !s.is_terminator()) {
                         writeln!(self.out, "{indent_level_2}break;")?;
                     }
                 }
@@ -2607,13 +2611,45 @@ impl<'a, W: fmt::Write> super::Writer<'a, W> {
         &mut self,
         module: &Module,
         expr: Handle<crate::Expression>,
+        arena: &crate::Arena<crate::Expression>,
     ) -> BackendResult {
-        self.write_possibly_const_expression(
-            module,
-            expr,
-            &module.global_expressions,
-            |writer, expr| writer.write_const_expression(module, expr),
-        )
+        self.write_possibly_const_expression(module, expr, arena, |writer, expr| {
+            writer.write_const_expression(module, expr, arena)
+        })
+    }
+
+    pub(super) fn write_literal(&mut self, literal: crate::Literal) -> BackendResult {
+        match literal {
+            crate::Literal::F64(value) => write!(self.out, "{value:?}L")?,
+            crate::Literal::F32(value) => write!(self.out, "{value:?}")?,
+            crate::Literal::F16(value) => write!(self.out, "{value:?}h")?,
+            crate::Literal::U32(value) => write!(self.out, "{value}u")?,
+            // `-2147483648` is parsed by some compilers as unary negation of
+            // positive 2147483648, which is too large for an int, causing
+            // issues for some compilers. Neither DXC nor FXC appear to have
+            // this problem, but this is not specified and could change. We
+            // therefore use `-2147483647 - 1` as a precaution.
+            crate::Literal::I32(value) if value == i32::MIN => {
+                write!(self.out, "int({} - 1)", value + 1)?
+            }
+            // HLSL has no suffix for explicit i32 literals, but not using any suffix
+            // makes the type ambiguous which prevents overload resolution from
+            // working. So we explicitly use the int() constructor syntax.
+            crate::Literal::I32(value) => write!(self.out, "int({value})")?,
+            crate::Literal::U64(value) => write!(self.out, "{value}uL")?,
+            // I64 version of the minimum I32 value issue described above.
+            crate::Literal::I64(value) if value == i64::MIN => {
+                write!(self.out, "({}L - 1L)", value + 1)?;
+            }
+            crate::Literal::I64(value) => write!(self.out, "{value}L")?,
+            crate::Literal::Bool(value) => write!(self.out, "{value}")?,
+            crate::Literal::AbstractInt(_) | crate::Literal::AbstractFloat(_) => {
+                return Err(Error::Custom(
+                    "Abstract types should not appear in IR presented to backends".into(),
+                ));
+            }
+        }
+        Ok(())
     }
 
     fn write_possibly_const_expression<E>(
@@ -2629,31 +2665,15 @@ impl<'a, W: fmt::Write> super::Writer<'a, W> {
         use crate::Expression;
 
         match expressions[expr] {
-            Expression::Literal(literal) => match literal {
-                // Floats are written using `Debug` instead of `Display` because it always appends the
-                // decimal part even it's zero
-                crate::Literal::F64(value) => write!(self.out, "{value:?}L")?,
-                crate::Literal::F32(value) => write!(self.out, "{value:?}")?,
-                crate::Literal::U32(value) => write!(self.out, "{value}u")?,
-                // HLSL has no suffix for explicit i32 literals, but not using any suffix
-                // makes the type ambiguous which prevents overload resolution from
-                // working. So we explicitly use the int() constructor syntax.
-                crate::Literal::I32(value) => write!(self.out, "int({value})")?,
-                crate::Literal::U64(value) => write!(self.out, "{value}uL")?,
-                crate::Literal::I64(value) => write!(self.out, "{value}L")?,
-                crate::Literal::Bool(value) => write!(self.out, "{value}")?,
-                crate::Literal::AbstractInt(_) | crate::Literal::AbstractFloat(_) => {
-                    return Err(Error::Custom(
-                        "Abstract types should not appear in IR presented to backends".into(),
-                    ));
-                }
-            },
+            Expression::Literal(literal) => {
+                self.write_literal(literal)?;
+            }
             Expression::Constant(handle) => {
                 let constant = &module.constants[handle];
                 if constant.name.is_some() {
                     write!(self.out, "{}", self.names[&NameKey::Constant(handle)])?;
                 } else {
-                    self.write_const_expression(module, constant.init)?;
+                    self.write_const_expression(module, constant.init, &module.global_expressions)?;
                 }
             }
             Expression::ZeroValue(ty) => {
@@ -2694,7 +2714,9 @@ impl<'a, W: fmt::Write> super::Writer<'a, W> {
                 write_expression(self, value)?;
                 write!(self.out, ").{number_of_components}")?
             }
-            _ => unreachable!(),
+            _ => {
+                return Err(Error::Override);
+            }
         }
 
         Ok(())
@@ -2964,7 +2986,6 @@ impl<'a, W: fmt::Write> super::Writer<'a, W> {
                             index::IndexableLength::Known(limit) => {
                                 write!(self.out, "{}u", limit - 1)?;
                             }
-                            index::IndexableLength::Pending => unreachable!(),
                             index::IndexableLength::Dynamic => unreachable!(),
                         }
                         write!(self.out, ")")?;
@@ -3175,7 +3196,7 @@ impl<'a, W: fmt::Write> super::Writer<'a, W> {
                 if let Some(offset) = offset {
                     write!(self.out, ", ")?;
                     write!(self.out, "int2(")?; // work around https://github.com/microsoft/DirectXShaderCompiler/issues/5082#issuecomment-1540147807
-                    self.write_const_expression(module, offset)?;
+                    self.write_const_expression(module, offset, func_ctx.expressions)?;
                     write!(self.out, ")")?;
                 }
 
@@ -3322,53 +3343,72 @@ impl<'a, W: fmt::Write> super::Writer<'a, W> {
                 convert,
             } => {
                 let inner = func_ctx.resolve_type(expr, &module.types);
-                let close_paren = match convert {
-                    Some(dst_width) => {
-                        let scalar = Scalar {
-                            kind,
-                            width: dst_width,
-                        };
-                        match *inner {
-                            TypeInner::Vector { size, .. } => {
-                                write!(
-                                    self.out,
-                                    "{}{}(",
-                                    scalar.to_hlsl_str()?,
-                                    back::vector_size_str(size)
-                                )?;
-                            }
-                            TypeInner::Scalar(_) => {
-                                write!(self.out, "{}(", scalar.to_hlsl_str()?,)?;
-                            }
-                            TypeInner::Matrix { columns, rows, .. } => {
-                                write!(
-                                    self.out,
-                                    "{}{}x{}(",
-                                    scalar.to_hlsl_str()?,
-                                    back::vector_size_str(columns),
-                                    back::vector_size_str(rows)
-                                )?;
-                            }
-                            _ => {
-                                return Err(Error::Unimplemented(format!(
-                                    "write_expr expression::as {inner:?}"
-                                )));
-                            }
-                        };
-                        true
-                    }
-                    None => {
-                        if inner.scalar_width() == Some(8) {
-                            false
-                        } else {
-                            write!(self.out, "{}(", kind.to_hlsl_cast(),)?;
+                if inner.scalar_kind() == Some(ScalarKind::Float)
+                    && (kind == ScalarKind::Sint || kind == ScalarKind::Uint)
+                    && convert.is_some()
+                {
+                    // Use helper functions for float to int casts in order to
+                    // avoid undefined behaviour when value is out of range for
+                    // the target type.
+                    let fun_name = match (kind, convert) {
+                        (ScalarKind::Sint, Some(4)) => F2I32_FUNCTION,
+                        (ScalarKind::Uint, Some(4)) => F2U32_FUNCTION,
+                        (ScalarKind::Sint, Some(8)) => F2I64_FUNCTION,
+                        (ScalarKind::Uint, Some(8)) => F2U64_FUNCTION,
+                        _ => unreachable!(),
+                    };
+                    write!(self.out, "{fun_name}(")?;
+                    self.write_expr(module, expr, func_ctx)?;
+                    write!(self.out, ")")?;
+                } else {
+                    let close_paren = match convert {
+                        Some(dst_width) => {
+                            let scalar = Scalar {
+                                kind,
+                                width: dst_width,
+                            };
+                            match *inner {
+                                TypeInner::Vector { size, .. } => {
+                                    write!(
+                                        self.out,
+                                        "{}{}(",
+                                        scalar.to_hlsl_str()?,
+                                        common::vector_size_str(size)
+                                    )?;
+                                }
+                                TypeInner::Scalar(_) => {
+                                    write!(self.out, "{}(", scalar.to_hlsl_str()?,)?;
+                                }
+                                TypeInner::Matrix { columns, rows, .. } => {
+                                    write!(
+                                        self.out,
+                                        "{}{}x{}(",
+                                        scalar.to_hlsl_str()?,
+                                        common::vector_size_str(columns),
+                                        common::vector_size_str(rows)
+                                    )?;
+                                }
+                                _ => {
+                                    return Err(Error::Unimplemented(format!(
+                                        "write_expr expression::as {inner:?}"
+                                    )));
+                                }
+                            };
                             true
                         }
+                        None => {
+                            if inner.scalar_width() == Some(8) {
+                                false
+                            } else {
+                                write!(self.out, "{}(", kind.to_hlsl_cast(),)?;
+                                true
+                            }
+                        }
+                    };
+                    self.write_expr(module, expr, func_ctx)?;
+                    if close_paren {
+                        write!(self.out, ")")?;
                     }
-                };
-                self.write_expr(module, expr, func_ctx)?;
-                if close_paren {
-                    write!(self.out, ")")?;
                 }
             }
             Expression::Math {
@@ -3397,6 +3437,8 @@ impl<'a, W: fmt::Write> super::Writer<'a, W> {
                     Unpack4x8unorm,
                     Unpack4xI8,
                     Unpack4xU8,
+                    Dot4I8Packed,
+                    Dot4U8Packed,
                     QuantizeToF16,
                     Regular(&'static str),
                     MissingIntOverload(&'static str),
@@ -3448,6 +3490,8 @@ impl<'a, W: fmt::Write> super::Writer<'a, W> {
                     Mf::Pow => Function::Regular("pow"),
                     // geometry
                     Mf::Dot => Function::Regular("dot"),
+                    Mf::Dot4I8Packed => Function::Dot4I8Packed,
+                    Mf::Dot4U8Packed => Function::Dot4U8Packed,
                     //Mf::Outer => ,
                     Mf::Cross => Function::Regular("cross"),
                     Mf::Distance => Function::Regular("distance"),
@@ -3668,6 +3712,37 @@ impl<'a, W: fmt::Write> super::Writer<'a, W> {
                         self.write_expr(module, arg, func_ctx)?;
                         write!(self.out, " >> 16, ")?;
                         self.write_expr(module, arg, func_ctx)?;
+                        write!(self.out, " >> 24) << 24 >> 24)")?;
+                    }
+                    fun @ (Function::Dot4I8Packed | Function::Dot4U8Packed) => {
+                        let arg1 = arg1.unwrap();
+
+                        write!(self.out, "dot(")?;
+
+                        if matches!(fun, Function::Dot4U8Packed) {
+                            write!(self.out, "u")?;
+                        }
+                        write!(self.out, "int4(")?;
+                        self.write_expr(module, arg, func_ctx)?;
+                        write!(self.out, ", ")?;
+                        self.write_expr(module, arg, func_ctx)?;
+                        write!(self.out, " >> 8, ")?;
+                        self.write_expr(module, arg, func_ctx)?;
+                        write!(self.out, " >> 16, ")?;
+                        self.write_expr(module, arg, func_ctx)?;
+                        write!(self.out, " >> 24) << 24 >> 24, ")?;
+
+                        if matches!(fun, Function::Dot4U8Packed) {
+                            write!(self.out, "u")?;
+                        }
+                        write!(self.out, "int4(")?;
+                        self.write_expr(module, arg1, func_ctx)?;
+                        write!(self.out, ", ")?;
+                        self.write_expr(module, arg1, func_ctx)?;
+                        write!(self.out, " >> 8, ")?;
+                        self.write_expr(module, arg1, func_ctx)?;
+                        write!(self.out, " >> 16, ")?;
+                        self.write_expr(module, arg1, func_ctx)?;
                         write!(self.out, " >> 24) << 24 >> 24)")?;
                     }
                     Function::QuantizeToF16 => {
@@ -3947,6 +4022,8 @@ impl<'a, W: fmt::Write> super::Writer<'a, W> {
                     write!(self.out, ")")?;
                 }
             }
+            // Not supported yet
+            Expression::RayQueryVertexPositions { .. } => unreachable!(),
             // Nothing to do here, since call expression already cached
             Expression::CallResult(_)
             | Expression::AtomicResult { .. }
@@ -4129,6 +4206,9 @@ impl<'a, W: fmt::Write> super::Writer<'a, W> {
         }
         if barrier.contains(crate::Barrier::SUB_GROUP) {
             // Does not exist in DirectX
+        }
+        if barrier.contains(crate::Barrier::TEXTURE) {
+            writeln!(self.out, "{level}DeviceMemoryBarrierWithGroupSync();")?;
         }
         Ok(())
     }

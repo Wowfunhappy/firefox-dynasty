@@ -38,7 +38,6 @@
 #include "mozilla/StaticPrefs_pdfjs.h"
 #include "mozilla/StaticPrefs_privacy.h"
 #include "mozilla/StorageAccess.h"
-#include "mozilla/Telemetry.h"
 #include "BatteryManager.h"
 #include "mozilla/dom/CredentialsContainer.h"
 #include "mozilla/dom/Clipboard.h"
@@ -52,6 +51,7 @@
 #include "mozilla/dom/LockManager.h"
 #include "mozilla/dom/MIDIAccessManager.h"
 #include "mozilla/dom/MIDIOptionsBinding.h"
+#include "mozilla/dom/NavigatorLogin.h"
 #include "mozilla/dom/Permissions.h"
 #include "mozilla/dom/ServiceWorkerContainer.h"
 #include "mozilla/dom/StorageManager.h"
@@ -164,6 +164,7 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(Navigator)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mAddonManager)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mWebGpu)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mLocks)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mLogin)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mPrivateAttribution)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mUserActivation)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mWakeLock)
@@ -253,6 +254,8 @@ void Navigator::Invalidate() {
     mLocks->Shutdown();
     mLocks = nullptr;
   }
+
+  mLogin = nullptr;
 
   mPrivateAttribution = nullptr;
 
@@ -1232,7 +1235,7 @@ bool Navigator::SendBeaconInternal(const nsAString& aUrl,
   }
 
   // Spec disallows any schemes save for HTTP/HTTPs
-  if (!uri->SchemeIs("http") && !uri->SchemeIs("https")) {
+  if (!net::SchemeIsHttpOrHttps(uri)) {
     aRv.ThrowTypeError<MSG_INVALID_URL_SCHEME>("Beacon",
                                                uri->GetSpecOrDefault());
     return false;
@@ -1351,11 +1354,6 @@ void Navigator::MozGetUserMedia(const MediaStreamConstraints& aConstraints,
     return;
   }
   MOZ_ASSERT(mMediaDevices);
-  if (Document* doc = mWindow->GetExtantDoc()) {
-    if (!mWindow->IsSecureContext()) {
-      doc->SetUseCounter(eUseCounter_custom_MozGetUserMediaInsec);
-    }
-  }
   RefPtr<MediaManager::StreamPromise> sp;
   if (!MediaManager::IsOn(aConstraints.mVideo) &&
       !MediaManager::IsOn(aConstraints.mAudio)) {
@@ -1944,6 +1942,12 @@ bool Navigator::HasUserMediaSupport(JSContext* cx, JSObject* obj) {
 }
 
 /* static */
+bool Navigator::MozGetUserMediaSupport(JSContext* aCx, JSObject* aObj) {
+  return StaticPrefs::media_navigator_mozgetusermedia_enabled() &&
+         Navigator::HasUserMediaSupport(aCx, aObj);
+}
+
+/* static */
 bool Navigator::HasShareSupport(JSContext* cx, JSObject* obj) {
   if (!StaticPrefs::dom_webshare_enabled()) {
     return false;
@@ -2267,6 +2271,13 @@ dom::LockManager* Navigator::Locks() {
     mLocks = dom::LockManager::Create(*GetWindow()->AsGlobal());
   }
   return mLocks;
+}
+
+NavigatorLogin* Navigator::Login() {
+  if (!mLogin) {
+    mLogin = new NavigatorLogin(GetWindow()->AsGlobal());
+  }
+  return mLogin;
 }
 
 dom::PrivateAttribution* Navigator::PrivateAttribution() {

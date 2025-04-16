@@ -2268,7 +2268,7 @@ class nsIFrame : public nsQueryFrame {
                       nsSelectionAmount aBeginAmountType,
                       nsSelectionAmount aEndAmountType, uint32_t aSelectFlags);
 
-  MOZ_CAN_RUN_SCRIPT nsresult PeekBackwardAndForward(
+  MOZ_CAN_RUN_SCRIPT nsresult PeekBackwardAndForwardForSelection(
       nsSelectionAmount aAmountBack, nsSelectionAmount aAmountForward,
       int32_t aStartPos, bool aJumpLines, uint32_t aSelectFlags);
 
@@ -3280,8 +3280,9 @@ class nsIFrame : public nsQueryFrame {
   // Returns true iff this frame's computed block-size property is one of the
   // intrinsic-sizing keywords.
   bool HasIntrinsicKeywordForBSize() const {
-    const auto& bSize = StylePosition()->BSize(GetWritingMode());
-    return IsIntrinsicKeyword(bSize);
+    const auto bSize =
+        StylePosition()->BSize(GetWritingMode(), StyleDisplay()->mPosition);
+    return IsIntrinsicKeyword(*bSize);
   }
 
  protected:
@@ -3464,6 +3465,19 @@ class nsIFrame : public nsQueryFrame {
   bool IsHiddenByContentVisibilityOnAnyAncestor(
       const mozilla::EnumSet<IncludeContentVisibility>& =
           IncludeAllContentVisibility()) const;
+
+  /**
+   * @brief Returns true if the frame is hidden=until-found or in a closed
+   *        <details> element.
+   *
+   * The frame is considered hidden=until-found, if all parent frames are either
+   * visible or hidden=until-found. If a hidden=until-found element is inside a
+   * content-visibility:hidden element (or vice versa), this returns false.
+   *
+   * Similarly, if the frame is inside a closed details element, and it is not
+   * hidden, this also returns true.
+   */
+  bool IsHiddenUntilFoundOrClosedDetails() const;
 
   /**
    * Returns true is this frame is hidden by its first unskipped in flow
@@ -4138,12 +4152,15 @@ class nsIFrame : public nsQueryFrame {
    * @param aDirection the direction to move in (eDirPrevious or eDirNext)
    * @param aOptions the other options which is same as
    * PeekOffsetStruct::mOptions.
+   * @param aAncestorLimiter if set, this refers only the frames for its
+   * descendants.
    * FIXME: Due to the include hell, we cannot use the alias, PeekOffsetOptions
    * is not available in this header file.
    */
   SelectablePeekReport GetFrameFromDirection(
       nsDirection aDirection,
-      const mozilla::EnumSet<mozilla::PeekOffsetOption>& aOptions);
+      const mozilla::EnumSet<mozilla::PeekOffsetOption>& aOptions,
+      const mozilla::dom::Element* aAncestorLimiter);
   SelectablePeekReport GetFrameFromDirection(
       const mozilla::PeekOffsetStruct& aPos);
 
@@ -5619,8 +5636,10 @@ class nsIFrame : public nsQueryFrame {
   /**
    * Dump the frame tree beginning from the root frame.
    */
-  void DumpFrameTree(bool aListOnlyDeterministic = false) const;
-  void DumpFrameTreeInCSSPixels(bool aListOnlyDeterministic = false) const;
+  void DumpFrameTree() const;
+  void DumpFrameTree(bool aListOnlyDeterministic) const;
+  void DumpFrameTreeInCSSPixels() const;
+  void DumpFrameTreeInCSSPixels(bool aListOnlyDeterministic) const;
 
   /**
    * Dump the frame tree beginning from ourselves.

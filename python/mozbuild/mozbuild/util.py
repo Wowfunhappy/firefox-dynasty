@@ -11,13 +11,13 @@ import copy
 import difflib
 import functools
 import hashlib
-import io
 import itertools
 import os
 import re
 import subprocess
 import sys
 from io import BytesIO, StringIO
+from pathlib import Path
 
 import six
 
@@ -40,8 +40,8 @@ else:
 
 def _open(path, mode):
     if "b" in mode:
-        return io.open(path, mode)
-    return io.open(path, mode, encoding="utf-8", newline="\n")
+        return open(path, mode)
+    return open(path, mode, encoding="utf-8", newline="\n")
 
 
 def hash_file(path, hasher=None):
@@ -63,7 +63,7 @@ def hash_file(path, hasher=None):
     return h.hexdigest()
 
 
-class EmptyValue(six.text_type):
+class EmptyValue(str):
     """A dummy type that behaves like an empty string and sequence.
 
     This type exists in order to support
@@ -75,11 +75,11 @@ class EmptyValue(six.text_type):
         super(EmptyValue, self).__init__()
 
 
-class ReadOnlyNamespace(object):
+class ReadOnlyNamespace:
     """A class for objects with immutable attributes set at initialization."""
 
     def __init__(self, **kwargs):
-        for k, v in six.iteritems(kwargs):
+        for k, v in kwargs.items():
             super(ReadOnlyNamespace, self).__setattr__(k, v)
 
     def __delattr__(self, key):
@@ -133,7 +133,7 @@ class ReadOnlyDict(dict):
         return (self.__class__, (dict(self),))
 
 
-class undefined_default(object):
+class undefined_default:
     """Represents an undefined argument value that isn't None."""
 
 
@@ -228,14 +228,14 @@ class FileAvoidWrite(BytesIO):
         try:
             existing = _open(self.name, self.mode)
             existed = True
-        except IOError:
+        except OSError:
             pass
         else:
             try:
                 old_content = existing.read()
                 if old_content == buf:
                     return True, False
-            except IOError:
+            except OSError:
                 pass
             finally:
                 existing.close()
@@ -250,7 +250,11 @@ class FileAvoidWrite(BytesIO):
                 buf = six.ensure_binary(buf)
             else:
                 buf = six.ensure_text(buf)
-            with _open(self.name, writemode) as file:
+            path = Path(self.name)
+            if path.is_symlink():
+                # Migration to code autogeneration can encounter with existing symlinks, e.g. bug 1953858.
+                path.unlink()
+            with _open(path, writemode) as file:
                 file.write(buf)
 
         self._generate_diff(buf, old_content)
@@ -603,12 +607,12 @@ def FlagsFactory(flags):
     assert isinstance(flags, dict)
     assert all(isinstance(v, type) for v in flags.values())
 
-    class Flags(object):
+    class Flags:
         __slots__ = flags.keys()
         _flags = flags
 
         def update(self, **kwargs):
-            for k, v in six.iteritems(kwargs):
+            for k, v in kwargs.items():
                 setattr(self, k, v)
 
         def __getattr__(self, name):
@@ -750,7 +754,7 @@ def StrictOrderingOnAppendListWithFlagsFactory(flags):
     return StrictOrderingOnAppendListWithFlagsSpecialization
 
 
-class HierarchicalStringList(object):
+class HierarchicalStringList:
     """A hierarchy of lists of strings.
 
     Each instance of this object contains a list of strings, which can be set or
@@ -868,7 +872,7 @@ class HierarchicalStringList(object):
         if not isinstance(value, list):
             raise ValueError("Expected a list of strings, not %s" % type(value))
         for v in value:
-            if not isinstance(v, six.string_types):
+            if not isinstance(v, (str,)):
                 raise ValueError(
                     "Expected a list of strings, not an element of %s" % type(v)
                 )
@@ -923,7 +927,7 @@ class memoize(dict):
         )
 
 
-class memoized_property(object):
+class memoized_property:
     """A specialized version of the memoize decorator that works for
     class instance properties.
     """
@@ -1121,10 +1125,37 @@ def expand_variables(s, variables):
         value = variables.get(name)
         if not value:
             continue
-        if not isinstance(value, six.string_types):
+        if not isinstance(value, (str,)):
             value = " ".join(value)
         result += value
     return result
+
+
+class ForwardingArgumentParser(argparse.ArgumentParser):
+    """
+    An argument parser with customized help generation when forwarding
+    arguments.
+    """
+
+    def add_forwarding_group(
+        self, title, dest, help, forwarding_help, default_type=list, **kwargs
+    ):
+        """
+        Add a group that captures all remaining arguments in order to pass them
+        down to another program.
+        """
+        group = self.add_argument_group(
+            title, description=f"-- --help {forwarding_help}", **kwargs
+        )
+
+        group.add_argument(
+            dest,
+            nargs=argparse.REMAINDER,
+            default=default_type(),
+            metavar=f"[--] {dest}...",
+            help=help,
+        )
+        return group
 
 
 class DefinesAction(argparse.Action):
@@ -1149,7 +1180,7 @@ class EnumStringComparisonError(Exception):
     pass
 
 
-class EnumString(six.text_type):
+class EnumString(str):
     """A string type that only can have a limited set of values, similarly to
     an Enum, and can only be compared against that set of values.
 
@@ -1189,17 +1220,17 @@ def _escape_char(c):
     # quoting could be done with either ' or ".
     if c == "'":
         return "\\'"
-    return six.text_type(c.encode("unicode_escape"))
+    return str(c.encode("unicode_escape"))
 
 
 def ensure_bytes(value, encoding="utf-8"):
-    if isinstance(value, six.text_type):
+    if isinstance(value, str):
         return value.encode(encoding)
     return value
 
 
 def ensure_unicode(value, encoding="utf-8"):
-    if isinstance(value, six.binary_type):
+    if isinstance(value, bytes):
         return value.decode(encoding)
     return value
 
@@ -1209,7 +1240,7 @@ def hexdump(buf):
     Returns a list of hexdump-like lines corresponding to the given input buffer.
     """
     assert six.PY3
-    off_format = "%0{}x ".format(len(str(len(buf))))
+    off_format = f"%0{len(str(len(buf)))}x "
     lines = []
     for off in range(0, len(buf), 16):
         line = off_format % off

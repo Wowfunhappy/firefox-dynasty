@@ -31,7 +31,7 @@ def test_dict():
     return _TESTS
 
 
-class Test(object):
+class Test:
     """abstract base class for a Talos test case"""
 
     __test__ = False  # not pytest
@@ -987,7 +987,7 @@ class tp5n(PageloaderTest):
     setup = "${talos}/xtalos/start_xperf.py -c ${talos}/bcontroller.json"
     cleanup = "${talos}/xtalos/parse_xperf.py -c ${talos}/bcontroller.json"
     preferences = {
-        "extensions.enabledScopes": "",
+        "extensions.enabledScopes": 5,
         "talos.logfile": "browser_output.txt",
     }
     unit = "ms"

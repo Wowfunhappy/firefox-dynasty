@@ -84,6 +84,7 @@
 #include "mozilla/StyleSheetInlines.h"
 #include "mozilla/TaskController.h"
 #include "mozilla/glean/DomMetrics.h"
+#include "mozilla/glean/IpcMetrics.h"
 #include "mozilla/Telemetry.h"
 #include "mozilla/TelemetryIPC.h"
 #include "mozilla/ThreadSafety.h"
@@ -122,6 +123,7 @@
 #include "mozilla/dom/Permissions.h"
 #include "mozilla/dom/ProcessMessageManager.h"
 #include "mozilla/dom/PushNotifier.h"
+#include "mozilla/dom/RemoteWorkerDebuggerManagerParent.h"
 #include "mozilla/dom/RemoteWorkerServiceParent.h"
 #include "mozilla/dom/ServiceWorkerManager.h"
 #include "mozilla/dom/ServiceWorkerRegistrar.h"
@@ -152,7 +154,7 @@
 #include "mozilla/ipc/Endpoint.h"
 #include "mozilla/ipc/FileDescriptorUtils.h"
 #include "mozilla/ipc/IPCStreamUtils.h"
-#include "mozilla/ipc/SharedMemory.h"
+#include "mozilla/ipc/SharedMemoryHandle.h"
 #include "mozilla/ipc/TestShellParent.h"
 #include "mozilla/layers/CompositorThread.h"
 #include "mozilla/layers/ImageBridgeParent.h"
@@ -936,10 +938,7 @@ UniqueContentParentKeepAlive ContentParent::GetNewOrUsedLaunchingBrowserProcess(
           ("GetNewOrUsedProcess for type %s",
            PromiseFlatCString(aRemoteType).get()));
 
-  // Fallback check (we really want our callers to avoid this).
   if (AppShutdown::IsInOrBeyond(ShutdownPhase::AppShutdownConfirmed)) {
-    MOZ_DIAGNOSTIC_ASSERT(
-        false, "Late attempt to GetNewOrUsedLaunchingBrowserProcess!");
     return nullptr;
   }
 
@@ -1261,114 +1260,8 @@ void ContentParent::LogAndAssertFailedPrincipalValidationInfo(
 bool ContentParent::ValidatePrincipal(
     nsIPrincipal* aPrincipal,
     const EnumSet<ValidatePrincipalOptions>& aOptions) {
-  // If the pref says we should not validate, then there is nothing to do
-  if (!StaticPrefs::dom_security_enforceIPCBasedPrincipalVetting()) {
-    return true;
-  }
-
-  // If there is no principal, then there is nothing to validate!
-  if (!aPrincipal) {
-    return aOptions.contains(ValidatePrincipalOptions::AllowNullPtr);
-  }
-
-  // We currently do not track relationships between specific null principals
-  // and content processes, so we can not validate much here - just allow all
-  // null principals we see because they are generally safe anyway!
-  if (aPrincipal->GetIsNullPrincipal()) {
-    return true;
-  }
-
-  // Only allow the system principal if the passed in options flags
-  // request permitting the system principal.
-  if (aPrincipal->IsSystemPrincipal()) {
-    return aOptions.contains(ValidatePrincipalOptions::AllowSystem);
-  }
-
-  // XXXckerschb: we should eliminate the resource carve-out here and always
-  // validate the Principal, see Bug 1686200: Investigate Principal for pdf.js
-  if (aPrincipal->SchemeIs("resource")) {
-    return true;
-  }
-
-  // Validate each inner principal individually, allowing us to catch expanded
-  // principals containing the system principal, etc.
-  if (aPrincipal->GetIsExpandedPrincipal()) {
-    if (!aOptions.contains(ValidatePrincipalOptions::AllowExpanded)) {
-      return false;
-    }
-    // FIXME: There are more constraints on expanded principals in-practice,
-    // such as the structure of extension expanded principals. This may need
-    // to be investigated more in the future.
-    nsCOMPtr<nsIExpandedPrincipal> expandedPrincipal =
-        do_QueryInterface(aPrincipal);
-    const auto& allowList = expandedPrincipal->AllowList();
-    for (const auto& innerPrincipal : allowList) {
-      if (!ValidatePrincipal(innerPrincipal, aOptions)) {
-        return false;
-      }
-    }
-    return true;
-  }
-
-  // A URI with a file:// scheme can never load in a non-file content process
-  // due to sandboxing.
-  if (aPrincipal->SchemeIs("file")) {
-    // If we don't support a separate 'file' process, then we can return here.
-    if (!StaticPrefs::browser_tabs_remote_separateFileUriProcess()) {
-      return true;
-    }
-    return mRemoteType == FILE_REMOTE_TYPE;
-  }
-
-  if (aPrincipal->SchemeIs("about")) {
-    uint32_t flags = 0;
-    nsresult rv = aPrincipal->GetAboutModuleFlags(&flags);
-    if (rv == nsresult::NS_ERROR_FACTORY_NOT_REGISTERED) {
-      // This happens in our tests. There is a race between an about page
-      // getting unregistered and the content process unregistering a blob URL
-      // which it was using.
-      return true;
-    }
-    if (NS_FAILED(rv)) {
-      return false;
-    }
-
-    // Block principals for about: URIs which can't load in this process.
-    if (!(flags & (nsIAboutModule::URI_CAN_LOAD_IN_CHILD |
-                   nsIAboutModule::URI_MUST_LOAD_IN_CHILD))) {
-      return false;
-    }
-    if (flags & nsIAboutModule::URI_MUST_LOAD_IN_EXTENSION_PROCESS) {
-      return mRemoteType == EXTENSION_REMOTE_TYPE;
-    }
-    return true;
-  }
-
-  if (!mRemoteTypeIsolationPrincipal ||
-      RemoteTypePrefix(mRemoteType) != FISSION_WEB_REMOTE_TYPE) {
-    return true;
-  }
-
-  // Web content can contain extension content frames, so a content process may
-  // send us an extension's principal.
-  auto* addonPolicy = BasePrincipal::Cast(aPrincipal)->AddonPolicy();
-  if (addonPolicy) {
-    return true;
-  }
-
-  // Ensure that the expected site-origin matches the one specified by our
-  // mRemoteTypeIsolationPrincipal.
-  nsAutoCString siteOriginNoSuffix;
-  if (NS_FAILED(aPrincipal->GetSiteOriginNoSuffix(siteOriginNoSuffix))) {
-    return false;
-  }
-  nsAutoCString remoteTypeSiteOriginNoSuffix;
-  if (NS_FAILED(mRemoteTypeIsolationPrincipal->GetSiteOriginNoSuffix(
-          remoteTypeSiteOriginNoSuffix))) {
-    return false;
-  }
-
-  return remoteTypeSiteOriginNoSuffix.Equals(siteOriginNoSuffix);
+  return ValidatePrincipalCouldPotentiallyBeLoadedBy(aPrincipal, mRemoteType,
+                                                     aOptions);
 }
 
 /*static*/
@@ -1536,9 +1429,8 @@ void ContentParent::BroadcastStringBundle(
     const StringBundleDescriptor& aBundle) {
   for (auto* cp : AllProcesses(eLive)) {
     AutoTArray<StringBundleDescriptor, 1> array;
-    array.AppendElement(StringBundleDescriptor(
-        aBundle.bundleURL(), SharedMemory::CloneHandle(aBundle.mapHandle()),
-        aBundle.mapSize()));
+    array.AppendElement(StringBundleDescriptor(aBundle.bundleURL(),
+                                               aBundle.mapHandle().Clone()));
     Unused << cp->SendRegisterStringBundles(std::move(array));
   }
 }
@@ -1547,9 +1439,9 @@ void ContentParent::BroadcastShmBlockAdded(uint32_t aGeneration,
                                            uint32_t aIndex) {
   auto* pfl = gfxPlatformFontList::PlatformFontList();
   for (auto* cp : AllProcesses(eLive)) {
-    SharedMemory::Handle handle =
+    ReadOnlySharedMemoryHandle handle =
         pfl->ShareShmBlockToProcess(aIndex, cp->Pid());
-    if (handle == SharedMemory::NULLHandle()) {
+    if (!handle.IsValid()) {
       // If something went wrong here, we just skip it; the child will need to
       // request the block as needed, at some performance cost.
       continue;
@@ -1593,7 +1485,7 @@ const nsACString& ContentParent::GetRemoteType() const { return mRemoteType; }
 
 static StaticRefPtr<nsIAsyncShutdownClient> sXPCOMShutdownClient;
 static StaticRefPtr<nsIAsyncShutdownClient> sProfileBeforeChangeClient;
-static StaticRefPtr<nsIAsyncShutdownClient> sQuitApplicationGrantedClient;
+static StaticRefPtr<nsIAsyncShutdownClient> sAppShutdownConfirmedClient;
 
 void ContentParent::Init() {
   MOZ_ASSERT(sXPCOMShutdownClient);
@@ -1933,8 +1825,7 @@ void ContentParent::ActorDestroy(ActorDestroyReason why) {
   if (StringBeginsWith(mRemoteType, WEB_REMOTE_TYPE) ||
       mRemoteType == FILE_REMOTE_TYPE || mRemoteType == EXTENSION_REMOTE_TYPE) {
     TimeDuration runtime = TimeStamp::Now() - mActivateTS;
-    Telemetry::Accumulate(Telemetry::PROCESS_LIFETIME,
-                          uint64_t(runtime.ToSeconds()));
+    glean::process::lifetime.AccumulateRawDuration(runtime);
   }
 
   if (mSendShutdownTimer) {
@@ -1998,8 +1889,7 @@ void ContentParent::ActorDestroy(ActorDestroyReason why) {
     props->SetPropertyAsUint64(u"childID"_ns, mChildID);
 
     if (AbnormalShutdown == why) {
-      Telemetry::Accumulate(Telemetry::SUBPROCESS_ABNORMAL_ABORT, "content"_ns,
-                            1);
+      glean::subprocess::abnormal_abort.Get("content"_ns).Add(1);
 
       props->SetPropertyAsBool(u"abnormal"_ns, true);
 
@@ -2081,8 +1971,7 @@ void ContentParent::ActorDestroy(ActorDestroyReason why) {
   }
 
   // Unregister all the BlobURLs registered by the ContentChild.
-  BlobURLProtocolHandler::RemoveDataEntries(mBlobURLs);
-  mBlobURLs.Clear();
+  BlobURLProtocolHandler::RemoveDataEntriesPerContentParent(ChildID());
 
 #ifdef MOZ_DIAGNOSTIC_ASSERT_ENABLED
   AssertNotInPool();
@@ -2811,7 +2700,7 @@ bool ContentParent::InitInternal(ProcessPriority aInitialPriority) {
 
   // If the shared fontlist is in use, collect its shmem block handles to pass
   // to the child.
-  nsTArray<SharedMemoryHandle> sharedFontListBlocks;
+  nsTArray<ReadOnlySharedMemoryHandle> sharedFontListBlocks;
   gfxPlatformFontList::PlatformFontList()->ShareFontListToProcess(
       &sharedFontListBlocks, OtherPid());
 
@@ -2850,10 +2739,10 @@ bool ContentParent::InitInternal(ProcessPriority aInitialPriority) {
   screenManager.CopyScreensToRemote(this);
 
   // Send the UA sheet shared memory buffer and the address it is mapped at.
-  Maybe<SharedMemoryHandle> sharedUASheetHandle;
+  Maybe<ReadOnlySharedMemoryHandle> sharedUASheetHandle;
   uintptr_t sharedUASheetAddress = sheetCache->GetSharedMemoryAddress();
 
-  if (SharedMemoryHandle handle = sheetCache->CloneHandle()) {
+  if (ReadOnlySharedMemoryHandle handle = sheetCache->CloneHandle()) {
     sharedUASheetHandle.emplace(std::move(handle));
   } else {
     sharedUASheetAddress = 0;
@@ -3060,9 +2949,9 @@ bool ContentParent::InitInternal(ProcessPriority aInitialPriority) {
         return false;
       }
 
-      registrations.AppendElement(
-          BlobURLRegistrationData(nsCString(aURI), ipcBlob, aPrincipal,
-                                  nsCString(aPartitionKey), aRevoked));
+      registrations.AppendElement(BlobURLRegistrationData(
+          nsCString(aURI), ipcBlob, WrapNotNull(aPrincipal),
+          nsCString(aPartitionKey), aRevoked));
 
       rv = TransmitPermissionsForPrincipal(aPrincipal);
       Unused << NS_WARN_IF(NS_FAILED(rv));
@@ -3602,8 +3491,8 @@ ContentParent::BlockShutdown(nsIAsyncShutdownClient* aClient) {
     // shutdown and eventually cancel content JS.
     SignalImpendingShutdownToContentJS();
 
-    if (sQuitApplicationGrantedClient) {
-      Unused << sQuitApplicationGrantedClient->RemoveBlocker(this);
+    if (sAppShutdownConfirmedClient) {
+      Unused << sAppShutdownConfirmedClient->RemoveBlocker(this);
     }
 #ifdef MOZ_DIAGNOSTIC_ASSERT_ENABLED
     mBlockShutdownCalled = false;
@@ -3704,13 +3593,11 @@ static void InitShutdownClients() {
         ClearOnShutdown(&sProfileBeforeChangeClient);
       }
     }
-    // TODO: ShutdownPhase::AppShutdownConfirmed is not mapping to
-    // QuitApplicationGranted, see bug 1762840 comment 4.
     if (!AppShutdown::IsInOrBeyond(ShutdownPhase::AppShutdownConfirmed)) {
-      rv = svc->GetQuitApplicationGranted(getter_AddRefs(client));
+      rv = svc->GetAppShutdownConfirmed(getter_AddRefs(client));
       if (NS_SUCCEEDED(rv)) {
-        sQuitApplicationGrantedClient = client.forget();
-        ClearOnShutdown(&sQuitApplicationGrantedClient);
+        sAppShutdownConfirmedClient = client.forget();
+        ClearOnShutdown(&sAppShutdownConfirmedClient);
       }
     }
   }
@@ -3729,8 +3616,8 @@ void ContentParent::AddShutdownBlockers() {
     sProfileBeforeChangeClient->AddBlocker(
         this, NS_LITERAL_STRING_FROM_CSTRING(__FILE__), __LINE__, u""_ns);
   }
-  if (sQuitApplicationGrantedClient) {
-    sQuitApplicationGrantedClient->AddBlocker(
+  if (sAppShutdownConfirmedClient) {
+    sAppShutdownConfirmedClient->AddBlocker(
         this, NS_LITERAL_STRING_FROM_CSTRING(__FILE__), __LINE__, u""_ns);
   }
 }
@@ -3751,8 +3638,8 @@ void ContentParent::RemoveShutdownBlockers() {
   if (sProfileBeforeChangeClient) {
     Unused << sProfileBeforeChangeClient->RemoveBlocker(this);
   }
-  if (sQuitApplicationGrantedClient) {
-    Unused << sQuitApplicationGrantedClient->RemoveBlocker(this);
+  if (sAppShutdownConfirmedClient) {
+    Unused << sAppShutdownConfirmedClient->RemoveBlocker(this);
   }
 }
 
@@ -4343,7 +4230,7 @@ void ContentParent::KillHard(const char* aReason) {
   } else {
     reason = nsDependentCString("KillHard after IsNotifiedShutdownSuccess.");
   }
-  Telemetry::Accumulate(Telemetry::SUBPROCESS_KILL_HARD, reason, 1);
+  glean::subprocess::kill_hard.Get(reason).Add(1);
 
   ProcessHandle otherProcessHandle;
   if (!base::OpenProcessHandle(OtherPid(), &otherProcessHandle)) {
@@ -4397,10 +4284,9 @@ void ContentParent::FriendlyName(nsAString& aName, bool aAnonymize) {
 }
 
 mozilla::ipc::IPCResult ContentParent::RecvInitCrashReporter(
-    const NativeThreadId& aThreadId) {
+    const CrashReporter::CrashReporterInitArgs& aInitArgs) {
   mCrashReporter = MakeUnique<CrashReporterHost>(GeckoProcessType_Content,
-                                                 OtherPid(), aThreadId);
-
+                                                 OtherPid(), aInitArgs);
   return IPC_OK();
 }
 
@@ -5628,7 +5514,7 @@ mozilla::ipc::IPCResult ContentParent::RecvShutdownPerfStats(
 
 mozilla::ipc::IPCResult ContentParent::RecvGetFontListShmBlock(
     const uint32_t& aGeneration, const uint32_t& aIndex,
-    SharedMemory::Handle* aOut) {
+    ReadOnlySharedMemoryHandle* aOut) {
   auto* fontList = gfxPlatformFontList::PlatformFontList();
   MOZ_RELEASE_ASSERT(fontList, "gfxPlatformFontList not initialized?");
   fontList->ShareFontListShmBlockToProcess(aGeneration, aIndex, Pid(), aOut);
@@ -5680,12 +5566,12 @@ mozilla::ipc::IPCResult ContentParent::RecvStartCmapLoading(
 }
 
 mozilla::ipc::IPCResult ContentParent::RecvGetHyphDict(
-    nsIURI* aURI, SharedMemory::Handle* aOutHandle, uint32_t* aOutSize) {
+    nsIURI* aURI, ReadOnlySharedMemoryHandle* aOutHandle) {
   if (!aURI) {
     return IPC_FAIL(this, "aURI must not be null.");
   }
-  nsHyphenationManager::Instance()->ShareHyphDictToProcess(
-      aURI, Pid(), aOutHandle, aOutSize);
+  nsHyphenationManager::Instance()->ShareHyphDictToProcess(aURI, Pid(),
+                                                           aOutHandle);
   return IPC_OK();
 }
 
@@ -5900,12 +5786,8 @@ mozilla::ipc::IPCResult ContentParent::RecvStoreAndBroadcastBlobURLRegistration(
   }
 
   BlobURLProtocolHandler::AddDataEntry(aURI, aPrincipal, aPartitionKey,
-                                       blobImpl);
+                                       blobImpl, Some(ChildID()));
   BroadcastBlobURLRegistration(aURI, blobImpl, aPrincipal, aPartitionKey, this);
-
-  // We want to store this blobURL, so we can unregister it if the child
-  // crashes.
-  mBlobURLs.AppendElement(aURI);
 
   return IPC_OK();
 }
@@ -5922,7 +5804,6 @@ ContentParent::RecvUnstoreAndBroadcastBlobURLUnregistration(
     }
 
     uris.AppendElement(request.url());
-    mBlobURLs.RemoveElement(request.url());
   }
 
   BroadcastBlobURLUnregistration(aRequests, this);
@@ -6190,9 +6071,9 @@ void ContentParent::TransmitBlobURLsForPrincipal(nsIPrincipal* aPrincipal) {
             return false;
           }
 
-          registrations.AppendElement(
-              BlobURLRegistrationData(nsCString(aURI), ipcBlob, aPrincipal,
-                                      nsCString(aPartitionKey), aRevoked));
+          registrations.AppendElement(BlobURLRegistrationData(
+              nsCString(aURI), ipcBlob, WrapNotNull(aPrincipal),
+              nsCString(aPartitionKey), aRevoked));
 
           rv = TransmitPermissionsForPrincipal(aBlobPrincipal);
           Unused << NS_WARN_IF(NS_FAILED(rv));
@@ -6446,14 +6327,7 @@ mozilla::ipc::IPCResult ContentParent::RecvPURLClassifierLocalByNameConstructor(
       continue;
     }
 
-    nsAutoCString exceptionHostList;
-    rv = feature->GetExceptionHostList(exceptionHostList);
-    if (NS_WARN_IF(NS_FAILED(rv))) {
-      continue;
-    }
-
-    ipcFeatures.AppendElement(
-        IPCURLClassifierFeature(name, tables, exceptionHostList));
+    ipcFeatures.AppendElement(IPCURLClassifierFeature(name, tables));
   }
 
   auto* actor = static_cast<URLClassifierLocalByNameParent*>(aActor);
@@ -7864,8 +7738,14 @@ void ContentParent::StartRemoteWorkerService() {
   Endpoint<PRemoteWorkerServiceChild> childEp;
   mRemoteWorkerServiceActor =
       RemoteWorkerServiceParent::CreateForProcess(this, &childEp);
+
+  Endpoint<PRemoteWorkerDebuggerManagerChild> remoteDebuggerChildEp;
+  mRemoteWorkerDebuggerManagerActor =
+      RemoteWorkerDebuggerManagerParent::CreateForProcess(
+          &remoteDebuggerChildEp);
   if (mRemoteWorkerServiceActor) {
-    Unused << SendInitRemoteWorkerService(std::move(childEp));
+    Unused << SendInitRemoteWorkerService(std::move(childEp),
+                                          std::move(remoteDebuggerChildEp));
   }
 }
 

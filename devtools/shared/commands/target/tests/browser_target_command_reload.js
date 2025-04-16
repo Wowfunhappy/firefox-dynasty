@@ -86,38 +86,40 @@ add_task(async function () {
   await targetCommand.startListening();
 
   // Observe the new document being reported while reloading
-  let reloadedTargets = [];
+  const reloadedTargets = [];
   await commands.resourceCommand.watchResources(
     [commands.resourceCommand.TYPES.DOCUMENT_EVENT],
     {
       onAvailable(resources) {
         for (const resource of resources) {
           if (resource.name == "dom-complete") {
-            reloadedTargets.push(resource.targetFront.isFallbackExtensionDocument);
+            reloadedTargets.push(
+              resource.targetFront.isFallbackExtensionDocument
+            );
           }
         }
       },
-      ignoreExistingResources: true
+      ignoreExistingResources: true,
     }
   );
 
   const targets = await targetCommand.getAllTargets(targetCommand.ALL_TYPES);
-  for(const targetFront of targets) {
-    is(targetFront.addonId, extension.id, `Target ${targetFront.actorID} has the right addonId attribute`);
+  for (const targetFront of targets) {
+    is(
+      targetFront.addonId,
+      extension.id,
+      `Target ${targetFront.actorID} has the right addonId attribute`
+    );
   }
 
   await targetCommand.reloadTopLevelTarget();
 
   info("Wait for next dom-loading DOCUMENT_EVENT");
-  await waitFor(()=>reloadedTargets.length == 1);
+  await waitFor(() => reloadedTargets.length == 1);
 
   // We only get a new background document
   // (the fallback stays alive)
-  Assert.deepEqual(
-    reloadedTargets,
-    [false],
-    "All the targets got reloaded"
-  );
+  Assert.deepEqual(reloadedTargets, [false], "All the targets got reloaded");
 
   await commands.destroy();
 

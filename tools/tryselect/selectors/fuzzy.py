@@ -121,6 +121,7 @@ class FuzzyParser(BaseTryParser):
         "gecko-profile",
         "new-test-config",
         "path",
+        "target-tasks-method",
         "test-tag",
         "pernosco",
         "rebuild",
@@ -159,8 +160,16 @@ def run(
 
     push = not stage_changes and not dry_run
     check_working_directory(push)
+
+    target_tasks_method = None
+    if try_config_params and "target_tasks_method" in try_config_params:
+        target_tasks_method = try_config_params.pop("target_tasks_method")
+
     tg = generate_tasks(
-        parameters, full=full, disable_target_task_filter=disable_target_task_filter
+        parameters,
+        full=full,
+        disable_target_task_filter=disable_target_task_filter,
+        target_tasks_method=target_tasks_method,
     )
     all_tasks = tg.tasks
 
@@ -214,18 +223,14 @@ def run(
         base_cmd.extend(
             [
                 "--preview",
-                '{} {} -g {} -s -c {} -t "{{+f}}"'.format(
-                    str(PurePath(sys.executable)), PREVIEW_SCRIPT, dep_cache, cache_dir
-                ),
+                f'{str(PurePath(sys.executable))} {PREVIEW_SCRIPT} -g {dep_cache} -s -c {cache_dir} -t "{{+f}}"',
             ]
         )
     else:
         base_cmd.extend(
             [
                 "--preview",
-                '{} {} -t "{{+f}}"'.format(
-                    str(PurePath(sys.executable)), PREVIEW_SCRIPT
-                ),
+                f'{str(PurePath(sys.executable))} {PREVIEW_SCRIPT} -t "{{+f}}"',
             ]
         )
 
@@ -277,7 +282,7 @@ def run(
 
     # build commit message
     msg = "Fuzzy"
-    args = ["query={}".format(q) for q in queries]
+    args = [f"query={q}" for q in queries]
     if test_paths:
         args.append("paths={}".format(":".join(test_paths)))
     if args:

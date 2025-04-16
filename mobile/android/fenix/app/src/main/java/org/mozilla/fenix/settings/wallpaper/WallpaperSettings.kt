@@ -46,10 +46,11 @@ import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.core.graphics.createBitmap
 import mozilla.components.compose.base.annotation.FlexibleWindowLightDarkPreview
+import mozilla.components.compose.base.modifier.debouncedClickable
 import org.mozilla.fenix.R
 import org.mozilla.fenix.compose.ClickableSubstringLink
-import org.mozilla.fenix.compose.ext.debouncedClickable
 import org.mozilla.fenix.theme.FirefoxTheme
 import org.mozilla.fenix.wallpapers.Wallpaper
 
@@ -340,7 +341,7 @@ private fun WallpaperThumbnailsPreview() {
                 if (wallpaper == Wallpaper.Default) {
                     null
                 } else {
-                    Bitmap.createBitmap(100, 100, Bitmap.Config.ARGB_8888)
+                    createBitmap(100, 100, Bitmap.Config.ARGB_8888)
                 }
             },
             wallpaperGroups = mapOf(

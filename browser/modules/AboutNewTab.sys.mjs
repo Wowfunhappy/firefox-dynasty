@@ -9,13 +9,18 @@ const lazy = {};
 
 ChromeUtils.defineESModuleGetters(lazy, {
   ActivityStream: "resource://newtab/lib/ActivityStream.sys.mjs",
+  AddonManager: "resource://gre/modules/AddonManager.sys.mjs",
+  AddonManagerPrivate: "resource://gre/modules/AddonManager.sys.mjs",
   ObjectUtils: "resource://gre/modules/ObjectUtils.sys.mjs",
 });
 
 const ABOUT_URL = "about:newtab";
 const PREF_ACTIVITY_STREAM_DEBUG = "browser.newtabpage.activity-stream.debug";
-const TOPIC_APP_QUIT = "quit-application-granted";
+// AboutHomeStartupCache needs us in "quit-application", so stay alive longer.
+// TODO: We could better have a shared async shutdown blocker?
+const TOPIC_APP_QUIT = "profile-before-change";
 const BROWSER_READY_NOTIFICATION = "sessionstore-windows-restored";
+const BUILTIN_ADDON_ID = "newtab@mozilla.org";
 
 export const AboutNewTab = {
   QueryInterface: ChromeUtils.generateQI([
@@ -69,6 +74,13 @@ export const AboutNewTab = {
     this.initialized = true;
 
     Services.obs.addObserver(this, BROWSER_READY_NOTIFICATION);
+  },
+
+  async uninstallAddon() {
+    let addon = await lazy.AddonManager.getAddonByID(BUILTIN_ADDON_ID);
+    if (addon) {
+      addon.uninstall();
+    }
   },
 
   /**
@@ -142,9 +154,27 @@ export const AboutNewTab = {
   /**
    * onBrowserReady - Continues the initialization of Activity Stream after browser is ready.
    */
-  onBrowserReady() {
+  async onBrowserReady() {
     if (this.activityStream && this.activityStream.initialized) {
       return;
+    }
+
+    if (AppConstants.BROWSER_NEWTAB_AS_ADDON) {
+      let addonPolicy = WebExtensionPolicy.getByID(BUILTIN_ADDON_ID);
+      if (!addonPolicy) {
+        // If this is the first time that the build flag was set to true, we
+        // might not yet have refreshed the addon database cache yet, in which
+        // case the addonPolicy will be null. In that case, we'll wait for the
+        // database to be ready before proceeding.
+        await lazy.AddonManagerPrivate.databaseReady;
+      } else {
+        await addonPolicy.readyPromise;
+      }
+    } else {
+      // We may have had the built-in addon installed in the past. Since the
+      // flag is false, let's go ahead and remove it. We don't need to await on
+      // this since the extension should be inert if the build flag is false.
+      this.uninstallAddon();
     }
 
     this.activityStream = new lazy.ActivityStream();
@@ -228,10 +258,7 @@ export const AboutNewTab = {
   observe(subject, topic) {
     switch (topic) {
       case TOPIC_APP_QUIT: {
-        // We defer to this to the next tick of the event loop since the
-        // AboutHomeStartupCache might want to read from the ActivityStream
-        // store during TOPIC_APP_QUIT.
-        Services.tm.dispatchToMainThread(() => this.uninit());
+        this.uninit();
         break;
       }
       case BROWSER_READY_NOTIFICATION: {

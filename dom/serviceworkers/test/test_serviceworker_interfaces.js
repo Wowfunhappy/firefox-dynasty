@@ -156,7 +156,7 @@ let interfaceNamesInGlobalScope = [
   // IMPORTANT: Do not change this list without review from a DOM peer!
   "CountQueuingStrategy",
   // IMPORTANT: Do not change this list without review from a DOM peer!
-  "CookieStore",
+  { name: "CookieStore", nightly: true },
   // IMPORTANT: Do not change this list without review from a DOM peer!
   "Crypto",
   // IMPORTANT: Do not change this list without review from a DOM peer!
@@ -258,11 +258,15 @@ let interfaceNamesInGlobalScope = [
   // IMPORTANT: Do not change this list without review from a DOM peer!
   { name: "GPUError", nightly: true },
   // IMPORTANT: Do not change this list without review from a DOM peer!
+  { name: "GPUExternalTexture", nightly: true },
+  // IMPORTANT: Do not change this list without review from a DOM peer!
   { name: "GPUInternalError", nightly: true },
   // IMPORTANT: Do not change this list without review from a DOM peer!
   { name: "GPUMapMode", nightly: true },
   // IMPORTANT: Do not change this list without review from a DOM peer!
   { name: "GPUOutOfMemoryError", nightly: true },
+  // IMPORTANT: Do not change this list without review from a DOM peer!
+  { name: "GPUPipelineError", nightly: true },
   // IMPORTANT: Do not change this list without review from a DOM peer!
   { name: "GPUPipelineLayout", nightly: true },
   // IMPORTANT: Do not change this list without review from a DOM peer!
@@ -406,7 +410,7 @@ let interfaceNamesInGlobalScope = [
   // IMPORTANT: Do not change this list without review from a DOM peer!
   "Response",
   // IMPORTANT: Do not change this list without review from a DOM peer!
-  { name: "Scheduler", disabled: true },
+  { name: "Scheduler", nightly: true },
   // IMPORTANT: Do not change this list without review from a DOM peer!
   "ServiceWorker",
   // IMPORTANT: Do not change this list without review from a DOM peer!
@@ -420,11 +424,11 @@ let interfaceNamesInGlobalScope = [
   // IMPORTANT: Do not change this list without review from a DOM peer!
   "SubtleCrypto",
   // IMPORTANT: Do not change this list without review from a DOM peer!
-  { name: "TaskController", disabled: true },
+  { name: "TaskController", nightly: true },
   // IMPORTANT: Do not change this list without review from a DOM peer!
-  { name: "TaskPriorityChangeEvent", disabled: true },
+  { name: "TaskPriorityChangeEvent", nightly: true },
   // IMPORTANT: Do not change this list without review from a DOM peer!
-  { name: "TaskSignal", disabled: true },
+  { name: "TaskSignal", nightly: true },
   // IMPORTANT: Do not change this list without review from a DOM peer!
   "TextDecoder",
   // IMPORTANT: Do not change this list without review from a DOM peer!
@@ -512,7 +516,7 @@ let interfaceNamesInGlobalScope = [
   // IMPORTANT: Do not change this list without review from a DOM peer!
   "console",
   // IMPORTANT: Do not change this list without review from a DOM peer!
-  "cookieStore",
+  { name: "cookieStore", nightly: true },
   // IMPORTANT: Do not change this list without review from a DOM peer!
   "onactivate",
   // IMPORTANT: Do not change this list without review from a DOM peer!

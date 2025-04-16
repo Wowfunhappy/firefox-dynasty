@@ -1513,6 +1513,24 @@ void LIRGenerator::visitCompare(MCompare* comp) {
   MOZ_CRASH("Unrecognized compare type.");
 }
 
+void LIRGenerator::visitStrictConstantCompareInt32(
+    MStrictConstantCompareInt32* ins) {
+  MDefinition* value = ins->value();
+
+  auto* lir = new (alloc())
+      LStrictConstantCompareInt32(useBox(value), tempDouble(), tempDouble());
+  define(lir, ins);
+}
+
+void LIRGenerator::visitStrictConstantCompareBoolean(
+    MStrictConstantCompareBoolean* ins) {
+  MDefinition* value = ins->value();
+
+  auto* lir =
+      new (alloc()) LStrictConstantCompareBoolean(useBox(value), temp());
+  define(lir, ins);
+}
+
 void LIRGenerator::visitSameValueDouble(MSameValueDouble* ins) {
   MDefinition* lhs = ins->lhs();
   MDefinition* rhs = ins->rhs();
@@ -3910,25 +3928,6 @@ void LIRGenerator::visitRegExpHasCaptureGroups(MRegExpHasCaptureGroups* ins) {
                                                     useRegister(ins->input()));
   define(lir, ins);
   assignSafepoint(lir, ins);
-}
-
-void LIRGenerator::visitRegExpPrototypeOptimizable(
-    MRegExpPrototypeOptimizable* ins) {
-  MOZ_ASSERT(ins->object()->type() == MIRType::Object);
-  MOZ_ASSERT(ins->type() == MIRType::Boolean);
-  LRegExpPrototypeOptimizable* lir = new (alloc())
-      LRegExpPrototypeOptimizable(useRegister(ins->object()), temp());
-  define(lir, ins);
-}
-
-void LIRGenerator::visitRegExpInstanceOptimizable(
-    MRegExpInstanceOptimizable* ins) {
-  MOZ_ASSERT(ins->object()->type() == MIRType::Object);
-  MOZ_ASSERT(ins->proto()->type() == MIRType::Object);
-  MOZ_ASSERT(ins->type() == MIRType::Boolean);
-  LRegExpInstanceOptimizable* lir = new (alloc()) LRegExpInstanceOptimizable(
-      useRegister(ins->object()), useRegister(ins->proto()), temp());
-  define(lir, ins);
 }
 
 void LIRGenerator::visitGetFirstDollarIndex(MGetFirstDollarIndex* ins) {
@@ -6415,6 +6414,12 @@ void LIRGenerator::visitHasClass(MHasClass* ins) {
   define(new (alloc()) LHasClass(useRegister(ins->object())), ins);
 }
 
+void LIRGenerator::visitHasShape(MHasShape* ins) {
+  MOZ_ASSERT(ins->object()->type() == MIRType::Object);
+  MOZ_ASSERT(ins->type() == MIRType::Boolean);
+  define(new (alloc()) LHasShape(useRegister(ins->object())), ins);
+}
+
 void LIRGenerator::visitGuardToClass(MGuardToClass* ins) {
   MOZ_ASSERT(ins->object()->type() == MIRType::Object);
   MOZ_ASSERT(ins->type() == MIRType::Object);
@@ -7836,6 +7841,22 @@ void LIRGenerator::visitPostIntPtrConversion(MPostIntPtrConversion* ins) {
   redefine(ins, ins->input());
 }
 
+void LIRGenerator::visitCanonicalizeNaN(MCanonicalizeNaN* ins) {
+  MOZ_ASSERT(ins->type() == ins->input()->type());
+
+  auto input = useRegisterAtStart(ins->input());
+  switch (ins->type()) {
+    case MIRType::Double:
+      defineReuseInput(new (alloc()) LCanonicalizeNaND(input), ins, 0);
+      return;
+    case MIRType::Float32:
+      defineReuseInput(new (alloc()) LCanonicalizeNaNF(input), ins, 0);
+      return;
+    default:
+      MOZ_CRASH("unexpected floating point type");
+  }
+}
+
 void LIRGenerator::visitConstant(MConstant* ins) {
   if (!IsFloatingPointType(ins->type()) && ins->canEmitAtUses()) {
     emitAtUses(ins);
@@ -8389,10 +8410,15 @@ void LIRGenerator::visitWasmRefIsSubtypeOfConcrete(
          ins);
 }
 
+void LIRGenerator::visitWasmRefConvertAnyExtern(MWasmRefConvertAnyExtern* ins) {
+  // Because any and extern have the same representation, this is a no-op.
+  return redefine(ins, ins->ref());
+}
+
 void LIRGenerator::visitWasmNewStructObject(MWasmNewStructObject* ins) {
-  LWasmNewStructObject* lir = new (alloc())
-      LWasmNewStructObject(useFixed(ins->instance(), InstanceReg),
-                           useRegister(ins->typeDefData()), temp(), temp());
+  LWasmNewStructObject* lir =
+      new (alloc()) LWasmNewStructObject(useFixed(ins->instance(), InstanceReg),
+                                         useRegister(ins->allocSite()), temp());
   define(lir, ins);
   assignWasmSafepoint(lir);
 }
@@ -8401,7 +8427,7 @@ void LIRGenerator::visitWasmNewArrayObject(MWasmNewArrayObject* ins) {
   LWasmNewArrayObject* lir = new (alloc())
       LWasmNewArrayObject(useFixed(ins->instance(), InstanceReg),
                           useRegisterOrConstant(ins->numElements()),
-                          useRegister(ins->typeDefData()), temp(), temp());
+                          useRegister(ins->allocSite()), temp(), temp());
   define(lir, ins);
   assignWasmSafepoint(lir);
 }

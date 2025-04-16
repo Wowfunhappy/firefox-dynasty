@@ -7,6 +7,10 @@
 
 <html>
   <head>
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src chrome:; img-src chrome: moz-icon:; style-src chrome: 'unsafe-inline'; object-src 'none';"
+    />
     <title>Interactions Debug Viewer</title>
     <script
       type="module"
@@ -24,7 +28,7 @@
     />
     <style id="tableStyle" type="text/css"></style>
   </head>
-  <body>
+  <body class="hidden">
     <div id="enabledWarning" class="message-bar message-bar-warning" hidden>
       <img class="message-bar-icon" />
       <descripton class="message-bar-description">

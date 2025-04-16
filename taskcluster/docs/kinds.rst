@@ -305,10 +305,6 @@ release-binary-transparency
 Binary transparency creates a publicly verifiable log of binary shas for downstream
 release auditing. https://wiki.mozilla.org/Security/Binary_Transparency
 
-release-flatpak-repackage
--------------------------
-Generate an installer using Flathub's Flatpak format.
-
 release-flatpak-push
 --------------------
 Pushes Flatpak repackage on Flathub
@@ -881,3 +877,7 @@ Generate instrumented apks used to generate Baseline Profile for Android apps.
 generate-baseline-profile-firebase
 ----------------------------------
 Run baseline profile generation for Android on Firebase TestLab.
+
+update
+------------
+Run tests to see if the executable can be updated to the latest release.

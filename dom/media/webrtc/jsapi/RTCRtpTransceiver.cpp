@@ -170,10 +170,13 @@ struct ConduitControlState : public AudioConduitControlInterface,
       override {
     return mSender->CanonicalFrameTransformerProxy();
   }
-
   Canonical<RefPtr<FrameTransformerProxy>>& CanonicalFrameTransformerProxyRecv()
       override {
     return mReceiver->CanonicalFrameTransformerProxy();
+  }
+  Canonical<webrtc::DegradationPreference>&
+  CanonicalVideoDegradationPreference() override {
+    return mSender->CanonicalVideoDegradationPreference();
   }
 };
 }  // namespace
@@ -983,9 +986,9 @@ void RTCRtpTransceiver::Stop(ErrorResult& aRv) {
 void RTCRtpTransceiver::SetCodecPreferences(
     const nsTArray<RTCRtpCodec>& aCodecs, ErrorResult& aRv) {
   nsTArray<RTCRtpCodec> aCodecsFiltered;
-  bool rtxPref =
-      Preferences::GetBool("media.peerconnection.video.use_rtx", false);
-  bool useRtx = false;
+  OverrideRtxPreference rtxOverride =
+      OverrideRtxPreference::OverrideWithDisabled;
+  ;
   bool useableCodecs = false;
 
   // kind = transciever's kind.
@@ -1020,7 +1023,7 @@ void RTCRtpTransceiver::SetCodecPreferences(
         useableCodecs = true;
       }
       if (codec.mMimeType.EqualsLiteral("video/rtx")) {
-        useRtx = rtxPref;
+        rtxOverride = OverrideRtxPreference::OverrideWithEnabled;
       }
     }
 
@@ -1048,15 +1051,15 @@ void RTCRtpTransceiver::SetCodecPreferences(
       aRv.ThrowInvalidModificationError("No useable codecs supplied");
       return;
     }
-  } else {
-    useRtx = rtxPref;
   }
+  // If we passed an empty list, we should restore the default list, including
+  // RTX
 
   mPreferredCodecs.clear();
   std::vector<UniquePtr<JsepCodecDescription>> defaultCodecs;
 
   if (kind.EqualsLiteral("video")) {
-    PeerConnectionImpl::GetDefaultVideoCodecs(defaultCodecs, useRtx);
+    PeerConnectionImpl::GetDefaultVideoCodecs(defaultCodecs, rtxOverride);
   } else if (kind.EqualsLiteral("audio")) {
     PeerConnectionImpl::GetDefaultAudioCodecs(defaultCodecs);
   }

@@ -89,7 +89,7 @@
         ".tab-icon-pending":
           "fadein,pinned,busy,progress,selected=visuallyselected,pendingicon",
         ".tab-icon-image":
-          "src=image,triggeringprincipal=iconloadingprincipal,requestcontextid,fadein,pinned,selected=visuallyselected,busy,crashed,sharing,pictureinpicture,pending",
+          "src=image,triggeringprincipal=iconloadingprincipal,requestcontextid,fadein,pinned,selected=visuallyselected,busy,crashed,sharing,pictureinpicture,pending,discarded",
         ".tab-sharing-icon-overlay": "sharing,selected=visuallyselected,pinned",
         ".tab-icon-overlay":
           "sharing,pictureinpicture,crashed,busy,soundplaying,soundplaying-scheduledremoval,pinned,muted,blocked,selected=visuallyselected,activemedia-blocked",
@@ -127,10 +127,18 @@
       let labelContainer = this.querySelector(".tab-label-container");
       labelContainer.addEventListener("overflow", this);
       labelContainer.addEventListener("underflow", this);
+
+      // Tabs in the tab strip default to being at the top level (level 1)
+      // Tabs in tab groups are one level down (level 2); tab groups will
+      // update this value when tabs move in and out of tab groups.
+      this.setAttribute("aria-level", 1);
     }
 
     #elementIndex;
     get elementIndex() {
+      if (!this.visible) {
+        throw new Error("Tab is not visible, so does not have an elementIndex");
+      }
       // Make sure the index is up to date.
       this.container.ariaFocusableItems;
       return this.#elementIndex;
@@ -376,9 +384,9 @@
       }
 
       const diff_in_msec = Date.now() - this._lastUnloaded;
-      Services.telemetry
-        .getHistogramById("TAB_UNLOAD_TO_RELOAD")
-        .add(diff_in_msec / 1000);
+      Glean.browserEngagement.tabUnloadToReload.accumulateSingleSample(
+        diff_in_msec / 1000
+      );
       Glean.browserEngagement.tabReloadCount.add(1);
       delete this._lastUnloaded;
     }

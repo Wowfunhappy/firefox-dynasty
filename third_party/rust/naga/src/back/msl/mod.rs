@@ -29,10 +29,30 @@ holding the result.
 [msl]: https://developer.apple.com/metal/Metal-Shading-Language-Specification.pdf
 [all-atom]: crate::valid::Capabilities::SHADER_INT64_ATOMIC_ALL_OPS
 
+## Pointer-typed bounds-checked expressions and OOB locals
+
+MSL (unlike HLSL and GLSL) has native support for pointer-typed function
+arguments. When the [`BoundsCheckPolicy`] is `ReadZeroSkipWrite` and an
+out-of-bounds index expression is used for such an argument, our strategy is to
+pass a pointer to a dummy variable. These dummy variables are called "OOB
+locals". We emit at most one OOB local per function for each type, since all
+expressions producing a result of that type can share the same OOB local. (Note
+that the OOB local mechanism is not actually implementing "skip write", nor even
+"read zero" in some cases of read-after-write, but doing so would require
+additional effort and the difference is unlikely to matter.)
+
+[`BoundsCheckPolicy`]: crate::proc::BoundsCheckPolicy
+
 */
 
+use alloc::{
+    format,
+    string::{String, ToString},
+    vec::Vec,
+};
+use core::fmt::{Error as FmtError, Write};
+
 use crate::{arena::Handle, proc::index, valid::ModuleInfo};
-use std::fmt::{Error as FmtError, Write};
 
 mod keywords;
 pub mod sampler;
@@ -62,6 +82,7 @@ pub struct BindTarget {
     pub mutable: bool,
 }
 
+#[cfg(any(feature = "serialize", feature = "deserialize"))]
 #[cfg_attr(feature = "serialize", derive(serde::Serialize))]
 #[cfg_attr(feature = "deserialize", derive(serde::Deserialize))]
 struct BindingMapSerialization {
@@ -85,7 +106,7 @@ where
 }
 
 // Using `BTreeMap` instead of `HashMap` so that we can hash itself.
-pub type BindingMap = std::collections::BTreeMap<crate::ResourceBinding, BindTarget>;
+pub type BindingMap = alloc::collections::BTreeMap<crate::ResourceBinding, BindTarget>;
 
 #[derive(Clone, Debug, Default, Hash, Eq, PartialEq)]
 #[cfg_attr(feature = "serialize", derive(serde::Serialize))]
@@ -106,14 +127,14 @@ pub struct EntryPointResources {
     pub sizes_buffer: Option<Slot>,
 }
 
-pub type EntryPointResourceMap = std::collections::BTreeMap<String, EntryPointResources>;
+pub type EntryPointResourceMap = alloc::collections::BTreeMap<String, EntryPointResources>;
 
 enum ResolvedBinding {
     BuiltIn(crate::BuiltIn),
     Attribute(u32),
     Color {
         location: u32,
-        second_blend_source: bool,
+        blend_src: Option<u32>,
     },
     User {
         prefix: &'static str,
@@ -176,6 +197,8 @@ pub enum Error {
     Override,
     #[error("bitcasting to {0:?} is not supported")]
     UnsupportedBitCast(crate::TypeInner),
+    #[error(transparent)]
+    ResolveArraySizeError(#[from] crate::proc::ResolveArraySizeError),
 }
 
 #[derive(Clone, Debug, PartialEq, thiserror::Error)]
@@ -459,18 +482,16 @@ impl Options {
                 location,
                 interpolation,
                 sampling,
-                second_blend_source,
+                blend_src,
             } => match mode {
                 LocationMode::VertexInput => Ok(ResolvedBinding::Attribute(location)),
                 LocationMode::FragmentOutput => {
-                    if second_blend_source && self.lang_version < (1, 2) {
-                        return Err(Error::UnsupportedAttribute(
-                            "second_blend_source".to_string(),
-                        ));
+                    if blend_src.is_some() && self.lang_version < (1, 2) {
+                        return Err(Error::UnsupportedAttribute("blend_src".to_string()));
                     }
                     Ok(ResolvedBinding::Color {
                         location,
-                        second_blend_source,
+                        blend_src,
                     })
                 }
                 LocationMode::VertexOutput | LocationMode::FragmentInput => {
@@ -582,13 +603,6 @@ impl ResolvedBinding {
         }
     }
 
-    const fn as_bind_target(&self) -> Option<&BindTarget> {
-        match *self {
-            Self::Resource(ref target) => Some(target),
-            _ => None,
-        }
-    }
-
     fn try_fmt<W: Write>(&self, out: &mut W) -> Result<(), Error> {
         write!(out, " [[")?;
         match *self {
@@ -632,10 +646,10 @@ impl ResolvedBinding {
             Self::Attribute(index) => write!(out, "attribute({index})")?,
             Self::Color {
                 location,
-                second_blend_source,
+                blend_src,
             } => {
-                if second_blend_source {
-                    write!(out, "color({location}) index(1)")?
+                if let Some(blend_src) = blend_src {
+                    write!(out, "color({location}) index({blend_src})")?
                 } else {
                     write!(out, "color({location})")?
                 }
@@ -723,6 +737,5 @@ pub fn write_string(
 
 #[test]
 fn test_error_size() {
-    use std::mem::size_of;
     assert_eq!(size_of::<Error>(), 32);
 }

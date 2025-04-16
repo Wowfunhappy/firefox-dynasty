@@ -441,6 +441,32 @@
 - name: Compare
   gen_boilerplate: false
 
+- name: StrictConstantCompareInt32
+  operands:
+    value: Value
+  arguments:
+    constant: int32_t
+    jsop: JSOp
+  can_recover: true
+  movable: true
+  alias_set: none
+  result_type: Boolean
+  generate_lir: true
+  lir_temps: 2
+
+- name: StrictConstantCompareBoolean
+  operands:
+    value: Value
+  arguments:
+    constant: bool
+    jsop: JSOp
+  can_recover: true
+  movable: true
+  alias_set: none
+  result_type: Boolean
+  generate_lir: true
+  lir_temps: 1
+
 - name: SameValueDouble
   operands:
     left: Double
@@ -735,13 +761,7 @@
   clone: true
 
 - name: WasmNewI31Ref
-  operands:
-    input: Int32
-  type_policy: none
-  result_type: WasmAnyRef
-  movable: true
-  congruent_to: if_operands_equal
-  alias_set: none
+  gen_boilerplate: false
 
 - name: WasmI31RefGet
   operands:
@@ -1464,19 +1484,6 @@
   result_type: Boolean
   possibly_calls: true
 
-- name: RegExpPrototypeOptimizable
-  operands:
-    object: Object
-  result_type: Boolean
-  alias_set: none
-
-- name: RegExpInstanceOptimizable
-  operands:
-    object: Object
-    proto: Object
-  result_type: Boolean
-  alias_set: none
-
 - name: GetFirstDollarIndex
   gen_boilerplate: false
 
@@ -1967,6 +1974,17 @@
   congruent_to: custom
   alias_set: custom
   might_alias: custom
+
+- name: HasShape
+  operands:
+    object: Object
+  arguments:
+    shape: Shape*
+  result_type: Boolean
+  movable: true
+  congruent_to: custom
+  alias_set: custom
+  generate_lir: true
 
 - name: GuardFuse
   arguments:
@@ -3447,6 +3465,9 @@
 - name: PostIntPtrConversion
   gen_boilerplate: false
 
+- name: CanonicalizeNaN
+  gen_boilerplate: false
+
 - name: WasmNeg
   gen_boilerplate: false
 
@@ -3731,6 +3752,9 @@
   gen_boilerplate: false
 
 - name: WasmRefIsSubtypeOfAbstract
+  gen_boilerplate: false
+
+- name: WasmRefConvertAnyExtern
   gen_boilerplate: false
 
 - name: WasmNewStructObject

@@ -86,7 +86,8 @@ class CodeGenerator final : public CodeGeneratorSpecific {
 
  public:
   CodeGenerator(MIRGenerator* gen, LIRGraph* graph,
-                MacroAssembler* masm = nullptr);
+                MacroAssembler* masm = nullptr,
+                const wasm::CodeMetadata* wasmCodeMeta = nullptr);
   ~CodeGenerator();
 
   [[nodiscard]] bool generate(const WarpSnapshot* snapshot);
@@ -117,7 +118,6 @@ class CodeGenerator final : public CodeGeneratorSpecific {
   void visitOutOfLineCallVM(
       OutOfLineCallVM<Fn, fn, ArgSeq, StoreOutputTo>* ool);
 
-  void emitStoreElementHoleOOL(LInstruction* lir);
   void emitIsCallableOOL(Register object, Register output);
 
   void emitResumableWasmTrapOOL(LInstruction* lir, size_t framePushed,
@@ -131,12 +131,13 @@ class CodeGenerator final : public CodeGeneratorSpecific {
       OutOfLineCallPostWriteElementBarrier* ool);
 
   void callWasmStructAllocFun(LInstruction* lir, wasm::SymbolicAddress fun,
-                              Register typeDefData, Register output,
+                              Register typeDefData, Register allocSite,
+                              Register output,
                               const wasm::TrapSiteDesc& trapSiteDesc);
 
   void callWasmArrayAllocFun(LInstruction* lir, wasm::SymbolicAddress fun,
                              Register numElements, Register typeDefData,
-                             Register output,
+                             Register allocSite, Register output,
                              const wasm::TrapSiteDesc& trapSiteDesc);
 
 #ifdef ENABLE_WASM_JSPI
@@ -381,6 +382,7 @@ class CodeGenerator final : public CodeGeneratorSpecific {
   void emitDebugResultChecks(LInstruction* ins);
   void emitGCThingResultChecks(LInstruction* lir, MDefinition* mir);
   void emitValueResultChecks(LInstruction* lir, MDefinition* mir);
+  void emitWasmAnyrefResultChecks(LInstruction* lir, MDefinition* mir);
 #endif
 
   // Script counts created during code generation.

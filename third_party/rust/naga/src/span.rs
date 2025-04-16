@@ -1,5 +1,12 @@
+use alloc::{
+    borrow::ToOwned,
+    format,
+    string::{String, ToString},
+    vec::Vec,
+};
+use core::{error::Error, fmt, ops::Range};
+
 use crate::{Arena, Handle, UniqueArena};
-use std::{error::Error, fmt, ops::Range};
 
 /// A source code span, used for error reporting.
 #[derive(Clone, Copy, Debug, PartialEq, Default)]
@@ -94,7 +101,7 @@ impl From<Range<usize>> for Span {
     }
 }
 
-impl std::ops::Index<Span> for str {
+impl core::ops::Index<Span> for str {
     type Output = str;
 
     #[inline]
@@ -232,7 +239,7 @@ impl<E> WithSpan<E> {
 
     /// Return a [`SourceLocation`] for our first span, if we have one.
     pub fn location(&self, source: &str) -> Option<SourceLocation> {
-        if self.spans.is_empty() {
+        if self.spans.is_empty() || source.is_empty() {
             return None;
         }
 
@@ -278,8 +285,8 @@ impl<E> WithSpan<E> {
     where
         E: Error,
     {
+        use codespan_reporting::term::termcolor::{ColorChoice, StandardStream};
         use codespan_reporting::{files, term};
-        use term::termcolor::{ColorChoice, StandardStream};
 
         let files = files::SimpleFile::new(path, source);
         let config = term::Config::default();
@@ -301,8 +308,8 @@ impl<E> WithSpan<E> {
     where
         E: Error,
     {
+        use codespan_reporting::term::termcolor::NoColor;
         use codespan_reporting::{files, term};
-        use term::termcolor::NoColor;
 
         let files = files::SimpleFile::new(path, source);
         let config = term::Config::default();
@@ -359,7 +366,7 @@ pub(crate) trait SpanProvider<T> {
             x if !x.is_defined() => (Default::default(), "".to_string()),
             known => (
                 known,
-                format!("{} {:?}", std::any::type_name::<T>(), handle),
+                format!("{} {:?}", core::any::type_name::<T>(), handle),
             ),
         }
     }

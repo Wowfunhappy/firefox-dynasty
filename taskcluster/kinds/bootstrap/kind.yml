@@ -76,7 +76,7 @@ tasks:
     fedora42:
         image: fedora:42
         pre-commands:
-            - dnf install -y mercurial python3-pip
+            - dnf install -y mercurial python3-pip awk
     rockylinux8:
         image: rockylinux:8
         pre-commands:
@@ -104,7 +104,7 @@ tasks:
         image: gentoo/stage3
         pre-commands:
             - emerge --sync
-            - emerge mercurial dev-python/pip
+            - emerge mercurial dev-python/pip curl
     archlinux:
         image: archlinux
         pre-commands:

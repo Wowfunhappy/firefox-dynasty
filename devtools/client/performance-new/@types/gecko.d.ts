@@ -26,6 +26,9 @@ declare namespace MockedExports {
     "resource:///modules/CustomizableUI.sys.mjs": typeof import("resource:///modules/CustomizableUI.sys.mjs");
     "resource:///modules/CustomizableWidgets.sys.mjs": typeof import("resource:///modules/CustomizableWidgets.sys.mjs");
     "resource://devtools/shared/loader/Loader.sys.mjs": typeof import("resource://devtools/shared/loader/Loader.sys.mjs");
+    "resource://devtools/shared/performance-new/errors.sys.mjs": typeof import("resource://devtools/shared/performance-new/errors.sys.mjs");
+    "resource://devtools/shared/performance-new/prefs-presets.sys.mjs": typeof import("resource://devtools/shared/performance-new/prefs-presets.sys.mjs");
+    "resource://devtools/shared/performance-new/recording-utils.sys.mjs": typeof import("resource://devtools/shared/performance-new/recording-utils.sys.mjs");
     "resource://devtools/client/performance-new/shared/background.sys.mjs": typeof import("resource://devtools/client/performance-new/shared/background.sys.mjs");
     "resource://devtools/client/performance-new/shared/symbolication.sys.mjs": typeof import("resource://devtools/client/performance-new/shared/symbolication.sys.mjs");
     "resource://devtools/shared/loader/browser-loader.sys.mjs": any;
@@ -309,9 +312,14 @@ interface PathUtilsInterface {
   isAbsolute: (path: string) => boolean;
 }
 
-declare module "resource://devtools/client/shared/vendor/react.js" {
+declare module "resource://devtools/client/shared/vendor/react.mjs" {
   import * as React from "react";
   export = React;
+}
+
+declare module "resource://devtools/client/shared/vendor/react-dom.mjs" {
+  import * as ReactDOM from "react-dom";
+  export = ReactDOM;
 }
 
 declare module "resource://devtools/client/shared/vendor/react-dom-factories.js" {

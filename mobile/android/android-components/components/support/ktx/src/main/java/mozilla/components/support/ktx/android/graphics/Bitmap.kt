@@ -12,6 +12,8 @@ import android.graphics.Paint
 import android.graphics.Shader.TileMode
 import android.util.Base64
 import androidx.annotation.CheckResult
+import androidx.core.graphics.createBitmap
+import androidx.core.graphics.get
 import java.io.ByteArrayOutputStream
 
 /**
@@ -37,7 +39,7 @@ private const val BITMAP_COMPRESSION_QUALITY = 100
  */
 @CheckResult
 fun Bitmap.withRoundedCorners(cornerRadiusPx: Float, config: Config): Bitmap {
-    val roundedBitmap = Bitmap.createBitmap(width, height, config)
+    val roundedBitmap = createBitmap(width, height, config)
     val canvas = Canvas(roundedBitmap)
     val paint = Paint().apply {
         isAntiAlias = true
@@ -60,7 +62,7 @@ fun Bitmap.withRoundedCorners(cornerRadiusPx: Float, config: Config): Bitmap {
  * Returns true if all pixels have the same value, false otherwise.
  */
 fun Bitmap.arePixelsAllTheSame(): Boolean {
-    val testPixel = getPixel(0, 0)
+    val testPixel = this[0, 0]
 
     // For perf, I expect iteration order is important. Under the hood, the pixels are represented
     // by a single array: if you iterate along the buffer, you can take advantage of cache hits
@@ -70,8 +72,7 @@ fun Bitmap.arePixelsAllTheSame(): Boolean {
     // with index 1 being the same value as getPixel(1, 0) (i.e. it writes width first).
     for (y in 0 until height) {
         for (x in 0 until width) {
-            val color = getPixel(x, y)
-            if (color != testPixel) {
+            if (this[x, y] != testPixel) {
                 return false
             }
         }

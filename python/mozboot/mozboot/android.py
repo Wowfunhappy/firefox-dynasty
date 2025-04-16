@@ -20,25 +20,17 @@ from tqdm import tqdm
 # variable.
 from mozboot.bootstrap import MOZCONFIG_SUGGESTION_TEMPLATE
 
-NDK_VERSION = "r27c"
-CMDLINE_TOOLS_VERSION_STRING = "17.0"
-CMDLINE_TOOLS_VERSION = "12700392"
+NDK_VERSION = "r28"
+CMDLINE_TOOLS_VERSION_STRING = "19.0"
+CMDLINE_TOOLS_VERSION = "13114758"
 
-BUNDLETOOL_VERSION = "1.18.0"
+BUNDLETOOL_VERSION = "1.18.1"
 
 # We expect the emulator AVD definitions to be platform agnostic
-LINUX_X86_64_ANDROID_AVD = "linux64-android-avd-x86_64-repack"
-LINUX_ARM_ANDROID_AVD = "linux64-android-avd-arm-repack"
-
-MACOS_X86_64_ANDROID_AVD = "linux64-android-avd-x86_64-repack"
-MACOS_ARM_ANDROID_AVD = "linux64-android-avd-arm-repack"
-MACOS_ARM64_ANDROID_AVD = "linux64-android-avd-arm64-repack"
-
-WINDOWS_X86_64_ANDROID_AVD = "linux64-android-avd-x86_64-repack"
-WINDOWS_ARM_ANDROID_AVD = "linux64-android-avd-arm-repack"
+X86_64_ANDROID_AVD = "linux64-android-avd-x86_64-repack"
+ARM64_ANDROID_AVD = "linux64-android-avd-arm64-repack"
 
 AVD_MANIFEST_X86_64 = Path(__file__).resolve().parent / "android-avds/x86_64.json"
-AVD_MANIFEST_ARM = Path(__file__).resolve().parent / "android-avds/arm.json"
 AVD_MANIFEST_ARM64 = Path(__file__).resolve().parent / "android-avds/arm64.json"
 
 JAVA_VERSION_MAJOR = "17"
@@ -56,11 +48,11 @@ Looks like you have the Android SDK installed at:
 We will install all required Android packages.
 """
 
-ANDROID_SDK_TOO_OLD = """
+ANDROID_SDK_TOO_OLD_UPDATE_IN_PLACE = """
 Looks like you have an outdated Android SDK installed at:
 %s
-I can't update outdated Android SDKs to have the required 'sdkmanager'
-tool.  Move it out of the way (or remove it entirely) and then run
+I can update outdated Android SDKs to have the required 'sdkmanager' tool. If
+this fails, move it out of the way (or remove it entirely) and then run
 bootstrap again.
 """
 
@@ -195,7 +187,7 @@ def download_internal(
     with open(download_file_path, "ab") as file:
         # 64 KB/s should be fine on even the slowest internet connections
         chunk_size = 1024 * 64
-        # https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Range#directives
+        # https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Range#directives
         resume_header = (
             {"Range": f"bytes={resume_from_byte_pos}-"}
             if resume_from_byte_pos
@@ -224,7 +216,7 @@ def get_ndk_version(ndk_path: Union[str, Path]):
     minor, human).
     """
     ndk_path = Path(ndk_path)
-    with open(ndk_path / "source.properties", "r") as f:
+    with open(ndk_path / "source.properties") as f:
         revision = [line for line in f if line.startswith("Pkg.Revision")]
         if not revision:
             raise GetNdkVersionError(
@@ -318,6 +310,14 @@ def ensure_android(
 
     `os_name` can be 'linux', 'macosx' or 'windows'.
     """
+
+    if os_name == "windows" and os_arch == "ARM64":
+        raise NotImplementedError(
+            "Building for Android is not supported on ARM64 Windows because "
+            "Google does not distribute emulator binary for ARM64 Windows. "
+            "See also https://issuetracker.google.com/issues/264614669."
+        )
+
     # The user may have an external Android SDK (in which case we
     # save them a lengthy download), or they may have already
     # completed the download. We unpack to
@@ -331,13 +331,9 @@ def ensure_android(
     else:
         os_tag = os_name
 
-    sdk_url = "https://dl.google.com/android/repository/commandlinetools-{0}-{1}_latest.zip".format(  # NOQA: E501
-        os_tag, CMDLINE_TOOLS_VERSION
-    )
+    sdk_url = f"https://dl.google.com/android/repository/commandlinetools-{os_tag}-{CMDLINE_TOOLS_VERSION}_latest.zip"
     ndk_url = android_ndk_url(os_name)
-    bundletool_url = "https://github.com/google/bundletool/releases/download/{v}/bundletool-all-{v}.jar".format(  # NOQA: E501
-        v=BUNDLETOOL_VERSION
-    )
+    bundletool_url = f"https://github.com/google/bundletool/releases/download/{BUNDLETOOL_VERSION}/bundletool-all-{BUNDLETOOL_VERSION}.jar"
 
     ensure_android_sdk_and_ndk(
         mozbuild_path,
@@ -437,9 +433,9 @@ def ensure_android_sdk_and_ndk(
     # the user may have already installed.
     if sdkmanager_tool(sdk_path).is_file():
         print(ANDROID_SDK_EXISTS % sdk_path)
-    elif sdk_path.is_dir():
-        raise NotImplementedError(ANDROID_SDK_TOO_OLD % sdk_path)
     else:
+        if sdk_path.is_dir():
+            print(ANDROID_SDK_TOO_OLD_UPDATE_IN_PLACE % sdk_path)
         # The SDK archive used to include a top-level
         # android-sdk-$OS_NAME directory; it no longer does so.  We
         # preserve the old convention to smooth detecting existing SDK
@@ -505,7 +501,7 @@ def ensure_android_avd(
     env = os.environ.copy()
     env["ANDROID_AVD_HOME"] = str(avd_home_path)
     proc = subprocess.Popen(args, stdin=subprocess.PIPE, env=env)
-    proc.communicate("no\n".encode("UTF-8"))
+    proc.communicate(b"no\n")
 
     retcode = proc.poll()
     if retcode:
@@ -760,7 +756,7 @@ def main(argv):
     else:
         raise NotImplementedError(
             "We don't support bootstrapping the Android SDK (or Android "
-            "NDK) on {0} yet!".format(platform.system())
+            f"NDK) on {platform.system()} yet!"
         )
 
     os_arch = platform.machine()
@@ -797,7 +793,7 @@ def main(argv):
     return 0
 
 
-def ensure_java(os_name, os_arch):
+def ensure_java(os_name: str, os_arch: str):
     mozbuild_path, _, _, _ = get_paths(os_name)
 
     if os_name == "macosx":
@@ -807,7 +803,7 @@ def ensure_java(os_name, os_arch):
 
     if os_arch == "x86_64":
         arch = "x64"
-    elif os_arch == "arm64":
+    elif os_arch.lower() == "arm64":
         arch = "aarch64"
     else:
         arch = os_arch
@@ -822,16 +818,9 @@ def ensure_java(os_name, os_arch):
         # e.g. https://github.com/adoptium/temurin17-binaries/releases/
         #      download/jdk-17.0.14%2B7/OpenJDK17U-jdk_x64_linux_hotspot_17.0.14_7.tar.gz
         java_url = (
-            "https://github.com/adoptium/temurin{major}-binaries/releases/"
-            "download/jdk-{major}.{minor}%2B{patch}/"
-            "OpenJDK{major}U-jdk_{arch}_{os}_hotspot_{major}.{minor}_{patch}.{ext}"
-        ).format(
-            major=JAVA_VERSION_MAJOR,
-            minor=JAVA_VERSION_MINOR,
-            patch=JAVA_VERSION_PATCH,
-            os=os_tag,
-            arch=arch,
-            ext=ext,
+            f"https://github.com/adoptium/temurin{JAVA_VERSION_MAJOR}-binaries/releases/"
+            f"download/jdk-{JAVA_VERSION_MAJOR}.{JAVA_VERSION_MINOR}%2B{JAVA_VERSION_PATCH}/"
+            f"OpenJDK{JAVA_VERSION_MAJOR}U-jdk_{arch}_{os_tag}_hotspot_{JAVA_VERSION_MAJOR}.{JAVA_VERSION_MINOR}_{JAVA_VERSION_PATCH}.{ext}"
         )
         install_mobile_android_sdk_or_ndk(java_url, mozbuild_path / "jdk")
     return java_path
@@ -839,9 +828,7 @@ def ensure_java(os_name, os_arch):
 
 def java_bin_path(os_name, toolchain_path: Path):
     # Like jdk-17.0.14+7
-    jdk_folder = "jdk-{major}.{minor}+{patch}".format(
-        major=JAVA_VERSION_MAJOR, minor=JAVA_VERSION_MINOR, patch=JAVA_VERSION_PATCH
-    )
+    jdk_folder = f"jdk-{JAVA_VERSION_MAJOR}.{JAVA_VERSION_MINOR}+{JAVA_VERSION_PATCH}"
 
     java_path = toolchain_path / "jdk" / jdk_folder
 

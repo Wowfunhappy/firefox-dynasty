@@ -18,7 +18,7 @@
 #ifdef DRM_FORMAT_MOD_INVALID
 #  undef DRM_FORMAT_MOD_INVALID
 #endif
-#include "drm_fourcc.h"
+#include <libdrm/drm_fourcc.h>
 
 #ifdef MOZ_LOGGING
 #  undef DMABUF_LOG
@@ -91,7 +91,7 @@ void VideoFrameSurface<LIBAV_VER>::LockVAAPIData(
 
 void VideoFrameSurface<LIBAV_VER>::ReleaseVAAPIData(bool aForFrameRecycle) {
   DMABUF_LOG(
-      "VideoFrameSurface: VAAPI releasing dmabuf surface UID %d FFMPEG ID 0x%x "
+      "VideoFrameSurface: Releasing dmabuf surface UID %d FFMPEG ID 0x%x "
       "aForFrameRecycle %d mLib %p mAVHWFrameContext %p mHWAVBuffer %p",
       mSurface->GetUID(), mFFMPEGSurfaceID.value(), aForFrameRecycle, mLib,
       mAVHWFrameContext, mHWAVBuffer);
@@ -113,19 +113,23 @@ void VideoFrameSurface<LIBAV_VER>::ReleaseVAAPIData(bool aForFrameRecycle) {
   mSurface->ReleaseSurface();
 
   if (aForFrameRecycle && IsUsed()) {
-    NS_WARNING("VA-API: Reusing live dmabuf surface, visual glitches ahead");
+    NS_WARNING("Reusing live dmabuf surface, visual glitches ahead");
   }
 }
 
 VideoFramePool<LIBAV_VER>::VideoFramePool(int aFFMPEGPoolSize)
     : mSurfaceLock("VideoFramePoolSurfaceLock"),
-      mFFMPEGPoolSize(aFFMPEGPoolSize) {
-  DMABUF_LOG("VideoFramePool::VideoFramePool() pool size %d", mFFMPEGPoolSize);
+      mMaxFFMPEGPoolSize(aFFMPEGPoolSize) {
+  DMABUF_LOG("VideoFramePool::VideoFramePool() pool size %d",
+             mMaxFFMPEGPoolSize);
 }
 
 VideoFramePool<LIBAV_VER>::~VideoFramePool() {
+  DMABUF_LOG("VideoFramePool::~VideoFramePool()");
   MutexAutoLock lock(mSurfaceLock);
   mDMABufSurfaces.Clear();
+
+  DMABufSurface::DeleteSnapshotGLContext();
 }
 
 void VideoFramePool<LIBAV_VER>::ReleaseUnusedVAAPIFrames() {
@@ -133,7 +137,7 @@ void VideoFramePool<LIBAV_VER>::ReleaseUnusedVAAPIFrames() {
   for (const auto& surface : mDMABufSurfaces) {
 #ifdef DEBUG
     if (!surface->mFFMPEGSurfaceID && surface->IsUsed()) {
-      NS_WARNING("VA-API: Untracked but still used dmabug surface!");
+      NS_WARNING("Untracked but still used dmabug surface!");
     }
 #endif
     if (surface->mFFMPEGSurfaceID && !surface->IsUsed()) {
@@ -182,12 +186,18 @@ bool VideoFramePool<LIBAV_VER>::ShouldCopySurface() {
       }
     }
   }
-  float freeRatio = 1.0f - (surfacesUsedFFmpeg / (float)mFFMPEGPoolSize);
+
+  // mMaxFFMPEGPoolSize can be zero for dynamic pools,
+  // we don't do copy in that case unless it's requested by HW setup.
+  float freeRatio =
+      mMaxFFMPEGPoolSize
+          ? 1.0f - (surfacesUsedFFmpeg / (float)mMaxFFMPEGPoolSize)
+          : 1.0;
   DMABUF_LOG(
       "Surface pool size %d used copied %d used ffmpeg %d (max %d) free ratio "
       "%f",
       (int)mDMABufSurfaces.Length(), surfacesUsed - surfacesUsedFFmpeg,
-      surfacesUsedFFmpeg, mFFMPEGPoolSize, freeRatio);
+      surfacesUsedFFmpeg, mMaxFFMPEGPoolSize, freeRatio);
   if (!gfx::gfxVars::HwDecodedVideoZeroCopy()) {
     return true;
   }
@@ -251,6 +261,59 @@ VideoFramePool<LIBAV_VER>::GetVideoFrameSurface(
     CheckNewFFMPEGSurface(ffmpegSurfaceID);
     videoSurface->LockVAAPIData(aAVCodecContext, aAVFrame, aLib);
   }
+  return videoSurface;
+}
+
+static gfx::SurfaceFormat GetSurfaceFormat(enum AVPixelFormat aPixFmt) {
+  switch (aPixFmt) {
+    case AV_PIX_FMT_YUV420P10LE:
+      return gfx::SurfaceFormat::YUV420P10;
+    case AV_PIX_FMT_YUV420P:
+      return gfx::SurfaceFormat::YUV420;
+    default:
+      return gfx::SurfaceFormat::UNKNOWN;
+  }
+}
+
+// TODO: Add support for AV_PIX_FMT_YUV444P / AV_PIX_FMT_GBRP
+RefPtr<VideoFrameSurface<LIBAV_VER>>
+VideoFramePool<LIBAV_VER>::GetVideoFrameSurface(
+    const layers::PlanarYCbCrData& aData, AVCodecContext* aAVCodecContext) {
+  static gfx::SurfaceFormat format = GetSurfaceFormat(aAVCodecContext->pix_fmt);
+  if (format == gfx::SurfaceFormat::UNKNOWN) {
+    DMABUF_LOG("Unsupported FFmpeg DMABuf format %x", aAVCodecContext->pix_fmt);
+    return nullptr;
+  }
+
+  MutexAutoLock lock(mSurfaceLock);
+
+  RefPtr<DMABufSurfaceYUV> surface;
+  RefPtr<VideoFrameSurface<LIBAV_VER>> videoSurface =
+      GetFreeVideoFrameSurface();
+  if (!videoSurface) {
+    surface = new DMABufSurfaceYUV();
+    videoSurface = new VideoFrameSurface<LIBAV_VER>(surface);
+    mDMABufSurfaces.AppendElement(videoSurface);
+  } else {
+    surface = videoSurface->GetDMABufSurface();
+  }
+
+  DMABUF_LOG("Using SW DMABufSurface UID %d", surface->GetUID());
+
+  if (!surface->UpdateYUVData(aData, format)) {
+    DMABUF_LOG("  failed to convert YUV data to DMABuf memory!");
+    return nullptr;
+  }
+
+  if (MOZ_UNLIKELY(!mTextureCreationWorks)) {
+    mTextureCreationWorks = Some(surface->VerifyTextureCreation());
+    if (!*mTextureCreationWorks) {
+      DMABUF_LOG("  failed to create texture over DMABuf memory!");
+      return nullptr;
+    }
+  }
+
+  videoSurface->MarkAsUsed(/* Any random value as FFmpegID */ 1);
   return videoSurface;
 }
 

@@ -28,7 +28,8 @@ class CodeGeneratorX86Shared : public CodeGeneratorShared {
 
  protected:
   CodeGeneratorX86Shared(MIRGenerator* gen, LIRGraph* graph,
-                         MacroAssembler* masm);
+                         MacroAssembler* masm,
+                         const wasm::CodeMetadata* wasmCodeMeta);
 
   NonAssertingLabel deoptLabel_;
 
@@ -90,8 +91,6 @@ class CodeGeneratorX86Shared : public CodeGeneratorShared {
                                Register base);
 
   void generateInvalidateEpilogue();
-
-  void canonicalizeIfDeterministic(Scalar::Type type, const LAllocation* value);
 
   template <typename T>
   Operand toMemoryAccessOperand(T* lir, int32_t disp);

@@ -1326,7 +1326,7 @@ bool nsChildView::PaintWindowInDrawTarget(gfx::DrawTarget* aDT,
   nsAutoRetainCocoaObject kungFuDeathGrip(mView);
   if (GetWindowRenderer()->GetBackendType() == LayersBackend::LAYERS_NONE) {
     nsBaseWidget::AutoLayerManagerSetup setupLayerManager(
-        this, &targetContext, BufferMode::BUFFER_NONE);
+        this, &targetContext);
     return PaintWindow(aRegion);
   }
   return false;
@@ -1743,6 +1743,8 @@ void nsChildView::UpdateThemeGeometries(
 static Maybe<VibrancyType> ThemeGeometryTypeToVibrancyType(
     nsITheme::ThemeGeometryType aThemeGeometryType) {
   switch (aThemeGeometryType) {
+    case eThemeGeometryTypeSidebar:
+      return Some(VibrancyType::Sidebar);
     case eThemeGeometryTypeTitlebar:
       return Some(VibrancyType::Titlebar);
     default:
@@ -4764,6 +4766,7 @@ static CFTypeRefPtr<CFURLRef> GetPasteLocation(NSPasteboard* aPasteboard) {
                          [UTIHelper
                              stringFromPboardType:
                                  (NSString*)kPasteboardTypeFileURLPromise]]) {
+
         CFTypeRefPtr<CFURLRef> url = GetPasteLocation(aPasteboard);
         if (!url) {
           continue;

@@ -219,8 +219,7 @@ class nsRFPService final : public nsIObserver, public nsIRFPService {
 
   static bool IsRFPEnabledFor(
       bool aIsPrivateMode, RFPTarget aTarget,
-      const Maybe<RFPTargetSet>& aOverriddenFingerprintingSettings,
-      bool aSkipChromePrincipalCheck = false);
+      const Maybe<RFPTargetSet>& aOverriddenFingerprintingSettings);
 
   static bool IsSystemPrincipalOrAboutFingerprintingProtection(JSContext*,
                                                                JSObject*);
@@ -356,7 +355,7 @@ class nsRFPService final : public nsIObserver, public nsIRFPService {
   // and third-party URI. Otherwise, it will return Nothing() to indicate using
   // the default RFPTargets.
   static Maybe<RFPTargetSet> GetOverriddenFingerprintingSettingsForURI(
-      nsIURI* aFirstPartyURI, nsIURI* aThirdPartyURI);
+      nsIURI* aFirstPartyURI, nsIURI* aThirdPartyURI, bool aIsPrivate);
 
   // --------------------------------------------------------------------------
 
@@ -365,7 +364,7 @@ class nsRFPService final : public nsIObserver, public nsIRFPService {
                                              nsACString& aOriginNoSuffix);
 
   static void MaybeReportFontFingerprinter(nsIChannel* aChannel,
-                                           nsACString& aOriginNoSuffix);
+                                           const nsACString& aOriginNoSuffix);
 
   // --------------------------------------------------------------------------
 
@@ -400,6 +399,9 @@ class nsRFPService final : public nsIObserver, public nsIRFPService {
 
   // Returns the device pixel ratio at the given zoom level.
   static double GetDevicePixelRatioAtZoom(float aZoom);
+
+  // Returns the value of privacy.resistFingerprinting.exemptedDomains pref
+  static void GetExemptedDomainsLowercase(nsCString& aExemptedDomains);
 
  private:
   nsresult Init();
@@ -494,6 +496,25 @@ class nsRFPService final : public nsIObserver, public nsIRFPService {
   static RFPTargetSet CreateOverridesFromText(
       const nsString& aOverridesText,
       RFPTargetSet aBaseOverrides = RFPTargetSet());
+
+  enum FingerprintingProtectionType : uint8_t {
+    RFP,
+    FPP,
+    Baseline,
+    None,
+  };
+
+  static FingerprintingProtectionType GetFingerprintingProtectionType(
+      bool aIsPrivateMode);
+
+  static Maybe<bool> HandleExeptionalRFPTargets(
+      RFPTarget aTarget, bool aIsPrivateMode,
+      FingerprintingProtectionType aMode);
+
+  static bool IsTargetActiveForMode(RFPTarget aTarget,
+                                    FingerprintingProtectionType aMode);
+
+  static nsCString* sExemptedDomainsLowercase;
 };
 
 }  // namespace mozilla

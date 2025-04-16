@@ -17,7 +17,9 @@
 #include "mozilla/gfx/GPUParent.h"
 #include "mozilla/gfx/GPUProcessManager.h"
 #include "mozilla/gfx/Logging.h"
+#include "mozilla/gfx/Swizzle.h"
 #include "mozilla/ipc/Endpoint.h"
+#include "mozilla/ipc/SharedMemoryHandle.h"
 #include "mozilla/layers/BufferTexture.h"
 #include "mozilla/layers/CanvasTranslator.h"
 #include "mozilla/layers/ImageDataSerializer.h"
@@ -28,6 +30,8 @@
 #include "mozilla/SyncRunnable.h"
 #include "mozilla/TaskQueue.h"
 #include "GLContext.h"
+#include "HostWebGLContext.h"
+#include "WebGLParent.h"
 #include "RecordedCanvasEventImpl.h"
 
 #if defined(XP_WIN)
@@ -102,21 +106,6 @@ bool CanvasTranslator::IsInTaskQueue() const {
   return gfx::CanvasRenderThread::IsInCanvasRenderThread();
 }
 
-static bool CreateAndMapShmem(RefPtr<ipc::SharedMemory>& aShmem,
-                              Handle&& aHandle,
-                              ipc::SharedMemory::OpenRights aOpenRights,
-                              size_t aSize) {
-  auto shmem = MakeRefPtr<ipc::SharedMemory>();
-  if (!shmem->SetHandle(std::move(aHandle), aOpenRights) ||
-      !shmem->Map(aSize)) {
-    return false;
-  }
-
-  shmem->CloseHandle();
-  aShmem = shmem.forget();
-  return true;
-}
-
 StaticRefPtr<gfx::SharedContextWebgl> CanvasTranslator::sSharedContext;
 
 bool CanvasTranslator::EnsureSharedContextWebgl() {
@@ -154,8 +143,8 @@ void CanvasTranslator::Shutdown() {
 
 mozilla::ipc::IPCResult CanvasTranslator::RecvInitTranslator(
     TextureType aTextureType, TextureType aWebglTextureType,
-    gfx::BackendType aBackendType, Handle&& aReadHandle,
-    nsTArray<Handle>&& aBufferHandles, uint64_t aBufferSize,
+    gfx::BackendType aBackendType, ipc::MutableSharedMemoryHandle&& aReadHandle,
+    nsTArray<ipc::ReadOnlySharedMemoryHandle>&& aBufferHandles,
     CrossProcessSemaphoreHandle&& aReaderSem,
     CrossProcessSemaphoreHandle&& aWriterSem) {
   if (mHeaderShmem) {
@@ -167,14 +156,13 @@ mozilla::ipc::IPCResult CanvasTranslator::RecvInitTranslator(
   mBackendType = aBackendType;
   mOtherPid = OtherPid();
 
-  mHeaderShmem = MakeAndAddRef<ipc::SharedMemory>();
-  if (!CreateAndMapShmem(mHeaderShmem, std::move(aReadHandle),
-                         ipc::SharedMemory::RightsReadWrite, sizeof(Header))) {
+  mHeaderShmem = aReadHandle.Map();
+  if (!mHeaderShmem) {
     Deactivate();
     return IPC_FAIL(this, "Failed to map canvas header shared memory.");
   }
 
-  mHeader = static_cast<Header*>(mHeaderShmem->Memory());
+  mHeader = mHeaderShmem.DataAs<Header>();
 
   mWriterSemaphore.reset(CrossProcessSemaphore::Create(std::move(aWriterSem)));
   mWriterSemaphore->CloseHandle();
@@ -193,10 +181,10 @@ mozilla::ipc::IPCResult CanvasTranslator::RecvInitTranslator(
   }
 
   // Use the first buffer as our current buffer.
-  mDefaultBufferSize = aBufferSize;
+  mDefaultBufferSize = aBufferHandles[0].Size();
   auto handleIter = aBufferHandles.begin();
-  if (!CreateAndMapShmem(mCurrentShmem.shmem, std::move(*handleIter),
-                         ipc::SharedMemory::RightsReadOnly, aBufferSize)) {
+  mCurrentShmem.shmem = std::move(*handleIter).Map();
+  if (!mCurrentShmem.shmem) {
     Deactivate();
     return IPC_FAIL(this, "Failed to map canvas buffer shared memory.");
   }
@@ -205,8 +193,8 @@ mozilla::ipc::IPCResult CanvasTranslator::RecvInitTranslator(
   // Add all other buffers to our recycled CanvasShmems.
   for (handleIter++; handleIter < aBufferHandles.end(); handleIter++) {
     CanvasShmem newShmem;
-    if (!CreateAndMapShmem(newShmem.shmem, std::move(*handleIter),
-                           ipc::SharedMemory::RightsReadOnly, aBufferSize)) {
+    newShmem.shmem = std::move(*handleIter).Map();
+    if (!newShmem.shmem) {
       Deactivate();
       return IPC_FAIL(this, "Failed to map canvas buffer shared memory.");
     }
@@ -247,7 +235,7 @@ ipc::IPCResult CanvasTranslator::RecvRestartTranslation() {
 }
 
 ipc::IPCResult CanvasTranslator::RecvAddBuffer(
-    ipc::SharedMemory::Handle&& aBufferHandle, uint64_t aBufferSize) {
+    ipc::ReadOnlySharedMemoryHandle&& aBufferHandle) {
   if (mDeactivated) {
     // The other side might have sent a resume message before we deactivated.
     return IPC_OK();
@@ -255,20 +243,20 @@ ipc::IPCResult CanvasTranslator::RecvAddBuffer(
 
   if (UsePendingCanvasTranslatorEvents()) {
     MutexAutoLock lock(mCanvasTranslatorEventsLock);
-    mPendingCanvasTranslatorEvents.push_back(CanvasTranslatorEvent::AddBuffer(
-        std::move(aBufferHandle), aBufferSize));
+    mPendingCanvasTranslatorEvents.push_back(
+        CanvasTranslatorEvent::AddBuffer(std::move(aBufferHandle)));
     PostCanvasTranslatorEvents(lock);
   } else {
-    DispatchToTaskQueue(NewRunnableMethod<ipc::SharedMemory::Handle&&, size_t>(
+    DispatchToTaskQueue(NewRunnableMethod<ipc::ReadOnlySharedMemoryHandle&&>(
         "CanvasTranslator::AddBuffer", this, &CanvasTranslator::AddBuffer,
-        std::move(aBufferHandle), aBufferSize));
+        std::move(aBufferHandle)));
   }
 
   return IPC_OK();
 }
 
-bool CanvasTranslator::AddBuffer(ipc::SharedMemory::Handle&& aBufferHandle,
-                                 size_t aBufferSize) {
+bool CanvasTranslator::AddBuffer(
+    ipc::ReadOnlySharedMemoryHandle&& aBufferHandle) {
   MOZ_ASSERT(IsInTaskQueue());
   if (mHeader->readerState == State::Failed) {
     // We failed before we got to the pause event.
@@ -297,8 +285,8 @@ bool CanvasTranslator::AddBuffer(ipc::SharedMemory::Handle&& aBufferHandle,
   }
 
   CanvasShmem newShmem;
-  if (!CreateAndMapShmem(newShmem.shmem, std::move(aBufferHandle),
-                         ipc::SharedMemory::RightsReadOnly, aBufferSize)) {
+  newShmem.shmem = aBufferHandle.Map();
+  if (!newShmem.shmem) {
     return false;
   }
 
@@ -309,7 +297,7 @@ bool CanvasTranslator::AddBuffer(ipc::SharedMemory::Handle&& aBufferHandle,
 }
 
 ipc::IPCResult CanvasTranslator::RecvSetDataSurfaceBuffer(
-    ipc::SharedMemory::Handle&& aBufferHandle, uint64_t aBufferSize) {
+    ipc::MutableSharedMemoryHandle&& aBufferHandle) {
   if (mDeactivated) {
     // The other side might have sent a resume message before we deactivated.
     return IPC_OK();
@@ -318,21 +306,19 @@ ipc::IPCResult CanvasTranslator::RecvSetDataSurfaceBuffer(
   if (UsePendingCanvasTranslatorEvents()) {
     MutexAutoLock lock(mCanvasTranslatorEventsLock);
     mPendingCanvasTranslatorEvents.push_back(
-        CanvasTranslatorEvent::SetDataSurfaceBuffer(std::move(aBufferHandle),
-                                                    aBufferSize));
+        CanvasTranslatorEvent::SetDataSurfaceBuffer(std::move(aBufferHandle)));
     PostCanvasTranslatorEvents(lock);
   } else {
-    DispatchToTaskQueue(NewRunnableMethod<ipc::SharedMemory::Handle&&, size_t>(
+    DispatchToTaskQueue(NewRunnableMethod<ipc::MutableSharedMemoryHandle&&>(
         "CanvasTranslator::SetDataSurfaceBuffer", this,
-        &CanvasTranslator::SetDataSurfaceBuffer, std::move(aBufferHandle),
-        aBufferSize));
+        &CanvasTranslator::SetDataSurfaceBuffer, std::move(aBufferHandle)));
   }
 
   return IPC_OK();
 }
 
 bool CanvasTranslator::SetDataSurfaceBuffer(
-    ipc::SharedMemory::Handle&& aBufferHandle, size_t aBufferSize) {
+    ipc::MutableSharedMemoryHandle&& aBufferHandle) {
   MOZ_ASSERT(IsInTaskQueue());
   if (mHeader->readerState == State::Failed) {
     // We failed before we got to the pause event.
@@ -349,8 +335,8 @@ bool CanvasTranslator::SetDataSurfaceBuffer(
     return false;
   }
 
-  if (!CreateAndMapShmem(mDataSurfaceShmem, std::move(aBufferHandle),
-                         ipc::SharedMemory::RightsReadWrite, aBufferSize)) {
+  mDataSurfaceShmem = aBufferHandle.Map();
+  if (!mDataSurfaceShmem) {
     return false;
   }
 
@@ -385,11 +371,11 @@ void CanvasTranslator::GetDataSurface(uint64_t aSurfaceRef) {
       ImageDataSerializer::ComputeRGBStride(format, dstSize.width);
   auto requiredSize =
       ImageDataSerializer::ComputeRGBBufferSize(dstSize, format);
-  if (requiredSize <= 0 || size_t(requiredSize) > mDataSurfaceShmem->Size()) {
+  if (requiredSize <= 0 || size_t(requiredSize) > mDataSurfaceShmem.Size()) {
     return;
   }
 
-  uint8_t* dst = static_cast<uint8_t*>(mDataSurfaceShmem->Memory());
+  uint8_t* dst = mDataSurfaceShmem.DataAs<uint8_t>();
   const uint8_t* src = map->GetData();
   const uint8_t* endSrc = src + (srcSize.height * srcStride);
   while (src < endSrc) {
@@ -714,7 +700,7 @@ bool CanvasTranslator::TranslateRecording() {
 
     mHeader->processedCount++;
 
-    if (mHeader->readerState == State::Paused) {
+    if (mHeader->readerState == State::Paused || PauseUntilSync()) {
       // We're waiting for an IPDL message return false, because we will resume
       // translation after it is received.
       Flush();
@@ -777,7 +763,7 @@ void CanvasTranslator::HandleCanvasTranslatorEvents() {
   {
     MutexAutoLock lock(mCanvasTranslatorEventsLock);
     MOZ_ASSERT_IF(mIPDLClosed, mPendingCanvasTranslatorEvents.empty());
-    if (mPendingCanvasTranslatorEvents.empty()) {
+    if (mPendingCanvasTranslatorEvents.empty() || PauseUntilSync()) {
       mCanvasTranslatorEventsRunnable = nullptr;
       return;
     }
@@ -795,12 +781,11 @@ void CanvasTranslator::HandleCanvasTranslatorEvents() {
         dispatchTranslate = TranslateRecording();
         break;
       case CanvasTranslatorEvent::Tag::AddBuffer:
-        dispatchTranslate =
-            AddBuffer(event->TakeBufferHandle(), event->BufferSize());
+        dispatchTranslate = AddBuffer(event->TakeBufferHandle());
         break;
       case CanvasTranslatorEvent::Tag::SetDataSurfaceBuffer:
-        dispatchTranslate = SetDataSurfaceBuffer(event->TakeBufferHandle(),
-                                                 event->BufferSize());
+        dispatchTranslate =
+            SetDataSurfaceBuffer(event->TakeDataSurfaceBufferHandle());
         break;
       case CanvasTranslatorEvent::Tag::ClearCachedResources:
         ClearCachedResources();
@@ -816,6 +801,12 @@ void CanvasTranslator::HandleCanvasTranslatorEvents() {
       MutexAutoLock lock(mCanvasTranslatorEventsLock);
       MOZ_ASSERT_IF(mIPDLClosed, mPendingCanvasTranslatorEvents.empty());
       if (mIPDLClosed) {
+        return;
+      }
+      if (PauseUntilSync()) {
+        mCanvasTranslatorEventsRunnable = nullptr;
+        mPendingCanvasTranslatorEvents.push_front(
+            CanvasTranslatorEvent::TranslateRecording());
         return;
       }
       if (!mIPDLClosed && !dispatchTranslate &&
@@ -1071,8 +1062,7 @@ void CanvasTranslator::CacheSnapshotShmem(
       nsCOMPtr<nsIThread> thread =
           gfx::CanvasRenderThread::GetCanvasRenderThread();
       RefPtr<CanvasTranslator> translator = this;
-      SendSnapshotShmem(aTextureOwnerId, std::move(shmemHandle),
-                        webgl->GetShmemSize())
+      SendSnapshotShmem(aTextureOwnerId, std::move(shmemHandle))
           ->Then(
               thread, __func__,
               [=](bool) { translator->RemoveTexture(aTextureOwnerId); },
@@ -1638,6 +1628,175 @@ void CanvasTranslator::CheckpointReached() { CheckAndSignalWriter(); }
 
 void CanvasTranslator::PauseTranslation() {
   mHeader->readerState = State::Paused;
+}
+
+void CanvasTranslator::AwaitTranslationSync(uint64_t aSyncId) {
+  if (NS_WARN_IF(!UsePendingCanvasTranslatorEvents()) ||
+      NS_WARN_IF(!IsInTaskQueue()) || NS_WARN_IF(mAwaitSyncId >= aSyncId)) {
+    return;
+  }
+
+  mAwaitSyncId = aSyncId;
+}
+
+void CanvasTranslator::SyncTranslation(uint64_t aSyncId) {
+  if (NS_WARN_IF(!IsInTaskQueue()) || NS_WARN_IF(aSyncId <= mLastSyncId)) {
+    return;
+  }
+
+  bool wasPaused = PauseUntilSync();
+  mLastSyncId = aSyncId;
+  // If translation was previously paused waiting on a sync-id, check if sync-id
+  // encountered requires restarting translation.
+  if (wasPaused && !PauseUntilSync()) {
+    HandleCanvasTranslatorEvents();
+  }
+}
+
+class WebGLContextBackBufferAccess : public WebGLContext {
+ public:
+  already_AddRefed<gfx::SourceSurface> GetBackBufferSnapshot(
+      const bool requireAlphaPremult);
+};
+
+already_AddRefed<gfx::SourceSurface>
+WebGLContextBackBufferAccess::GetBackBufferSnapshot(
+    const bool requireAlphaPremult) {
+  if (IsContextLost()) {
+    return nullptr;
+  }
+
+  const auto surfSize = DrawingBufferSize();
+  if (surfSize.x <= 0 || surfSize.y <= 0) {
+    return nullptr;
+  }
+
+  const auto& options = Options();
+  const auto surfFormat = options.alpha ? gfx::SurfaceFormat::B8G8R8A8
+                                        : gfx::SurfaceFormat::B8G8R8X8;
+
+  RefPtr<gfx::DataSourceSurface> dataSurf =
+      gfx::Factory::CreateDataSourceSurface(
+          gfx::IntSize(surfSize.x, surfSize.y), surfFormat);
+  if (!dataSurf) {
+    NS_WARNING("Failed to alloc DataSourceSurface for GetBackBufferSnapshot");
+    return nullptr;
+  }
+
+  {
+    gfx::DataSourceSurface::ScopedMap map(dataSurf,
+                                          gfx::DataSourceSurface::READ_WRITE);
+    if (!map.IsMapped()) {
+      NS_WARNING("Failed to map DataSourceSurface for GetBackBufferSnapshot");
+      return nullptr;
+    }
+
+    // GetDefaultFBForRead might overwrite FB state if it needs to resolve a
+    // multisampled FB, so save/restore the FB state here just in case.
+    const gl::ScopedBindFramebuffer bindFb(GL());
+    const auto fb = GetDefaultFBForRead();
+    if (!fb) {
+      gfxCriticalNote << "GetDefaultFBForRead failed for GetBackBufferSnapshot";
+      return nullptr;
+    }
+    const auto byteCount = CheckedInt<size_t>(map.GetStride()) * surfSize.y;
+    if (!byteCount.isValid()) {
+      gfxCriticalNote << "Invalid byte count for GetBackBufferSnapshot";
+      return nullptr;
+    }
+    const Range<uint8_t> range = {map.GetData(), byteCount.value()};
+    if (!SnapshotInto(fb->mFB, fb->mSize, range,
+                      Some(size_t(map.GetStride())))) {
+      gfxCriticalNote << "SnapshotInto failed for GetBackBufferSnapshot";
+      return nullptr;
+    }
+
+    if (requireAlphaPremult && options.alpha && !options.premultipliedAlpha) {
+      bool rv = gfx::PremultiplyYFlipData(
+          map.GetData(), map.GetStride(), gfx::SurfaceFormat::R8G8B8A8,
+          map.GetData(), map.GetStride(), surfFormat, dataSurf->GetSize());
+      MOZ_RELEASE_ASSERT(rv, "PremultiplyYFlipData failed!");
+    } else {
+      bool rv = gfx::SwizzleYFlipData(
+          map.GetData(), map.GetStride(), gfx::SurfaceFormat::R8G8B8A8,
+          map.GetData(), map.GetStride(), surfFormat, dataSurf->GetSize());
+      MOZ_RELEASE_ASSERT(rv, "SwizzleYFlipData failed!");
+    }
+  }
+
+  return dataSurf.forget();
+}
+
+mozilla::ipc::IPCResult CanvasTranslator::RecvSnapshotExternalCanvas(
+    uint64_t aSyncId, uint32_t aManagerId, int32_t aCanvasId) {
+  if (NS_WARN_IF(!IsInTaskQueue())) {
+    return IPC_FAIL(this,
+                    "RecvSnapshotExternalCanvas used outside of task queue.");
+  }
+
+  // Verify that snapshot requests are not received out of order order.
+  if (NS_WARN_IF(aSyncId <= mLastSyncId)) {
+    return IPC_FAIL(this, "RecvSnapShotExternalCanvas received too late.");
+  }
+
+  // Attempt to snapshot an external canvas that is associated with the same
+  // content process as this canvas. On success, associate it with the sync-id.
+  RefPtr<gfx::SourceSurface> surf;
+  if (auto* actor = gfx::CanvasManagerParent::GetCanvasActor(
+          mContentId, aManagerId, aCanvasId)) {
+    switch (actor->GetProtocolId()) {
+      case ProtocolId::PWebGLMsgStart:
+        if (auto* hostContext =
+                static_cast<dom::WebGLParent*>(actor)->GetHostWebGLContext()) {
+          surf = static_cast<WebGLContextBackBufferAccess*>(
+                     hostContext->GetWebGLContext())
+                     ->GetBackBufferSnapshot(true);
+        }
+        break;
+      default:
+        MOZ_ASSERT_UNREACHABLE("Unsupported protocol");
+        break;
+    }
+  }
+
+  if (surf) {
+    mExternalSnapshots.InsertOrUpdate(aSyncId, surf);
+  }
+
+  // Regardless, sync translation so it may resume after attempting snapshot.
+  SyncTranslation(aSyncId);
+
+  if (!surf) {
+    return IPC_FAIL(this, "SnapshotExternalCanvas failed to get surface.");
+  }
+
+  return IPC_OK();
+}
+
+already_AddRefed<gfx::SourceSurface> CanvasTranslator::LookupExternalSnapshot(
+    uint64_t aSyncId) {
+  MOZ_ASSERT(IsInTaskQueue());
+  uint64_t prevSyncId = mLastSyncId;
+  if (NS_WARN_IF(aSyncId > mLastSyncId)) {
+    // If arriving here, a previous SnapshotExternalCanvas IPDL message never
+    // arrived for some reason. Sync translation here to avoid locking up.
+    SyncTranslation(aSyncId);
+  }
+  RefPtr<gfx::SourceSurface> surf;
+  // Check if the snapshot was added. This should only ever be called once per
+  // snapshot, as it is removed from the table when resolved.
+  if (mExternalSnapshots.Remove(aSyncId, getter_AddRefs(surf))) {
+    return surf.forget();
+  }
+  // There was no snapshot available, which can happen if this was called
+  // before or without a corresponding SnapshotExternalCanvas, or if called
+  // multiple times.
+  if (aSyncId > prevSyncId) {
+    gfxCriticalNoteOnce << "External canvas snapshot resolved before creation.";
+  } else {
+    gfxCriticalNoteOnce << "Exernal canvas snapshot already resolved.";
+  }
+  return nullptr;
 }
 
 already_AddRefed<gfx::GradientStops> CanvasTranslator::GetOrCreateGradientStops(

@@ -12,7 +12,6 @@ import androidx.annotation.VisibleForTesting
 import androidx.core.view.isVisible
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
-import androidx.navigation.Navigation
 import androidx.navigation.findNavController
 import androidx.navigation.fragment.findNavController
 import kotlinx.coroutines.CoroutineDispatcher
@@ -106,26 +105,22 @@ class InstalledAddonDetailsFragment : Fragment() {
             // Only needed in case we are not able to find the add-on.
             var breadcrumb: Breadcrumb? = null
             try {
-                val addons = provideAddonManager().getAddons()
+                val latestAddon = provideAddonManager().getAddonByID(addon.id)
                 runIfFragmentIsAttached {
-                    addons.find { addon.id == it.id }.let {
-                        if (it == null) {
-                            val addonsStringList = addons.joinToString { item -> item.id }
-                            breadcrumb = Breadcrumb(
-                                "Addon ${addon.id} not found, isInstalled: ${addon.isInstalled()}," +
-                                    " add-ons: $addonsStringList",
-                            )
-                            throw AddonManagerException(Exception("Addon ${addon.id} not found"))
-                        } else {
-                            withContext(Dispatchers.Main) {
-                                addon = it
-                                bindUI()
-                            }
-                        }
+                    if (latestAddon == null) {
+                        breadcrumb = Breadcrumb(
+                            "Addon ${addon.id} not found, isInstalled: ${addon.isInstalled()}",
+                        )
+                        throw AddonManagerException(Exception("Addon ${addon.id} not found"))
+                    } else {
                         withContext(Dispatchers.Main) {
-                            binding.addOnProgressBar.isVisible = false
-                            binding.addonContainer.isVisible = true
+                            addon = latestAddon
+                            bindUI()
                         }
+                    }
+                    withContext(Dispatchers.Main) {
+                        binding.addOnProgressBar.isVisible = false
+                        binding.addonContainer.isVisible = true
                     }
                 }
             } catch (e: AddonManagerException) {
@@ -368,7 +363,7 @@ class InstalledAddonDetailsFragment : Fragment() {
             )
 
             // Send user to the newly open tab.
-            Navigation.findNavController(it).navigate(
+            it.findNavController().navigate(
                 InstalledAddonDetailsFragmentDirections.actionGlobalBrowser(null),
             )
         }
@@ -396,7 +391,7 @@ class InstalledAddonDetailsFragment : Fragment() {
                     InstalledAddonDetailsFragmentDirections
                         .actionInstalledAddonFragmentToAddonInternalSettingsFragment(addon)
                 }
-                Navigation.findNavController(this).navigate(directions)
+                this.findNavController().navigate(directions)
             }
         }
     }
@@ -407,7 +402,7 @@ class InstalledAddonDetailsFragment : Fragment() {
                 InstalledAddonDetailsFragmentDirections.actionInstalledAddonFragmentToAddonDetailsFragment(
                     addon,
                 )
-            Navigation.findNavController(binding.root).navigate(directions)
+            binding.root.findNavController().navigate(directions)
         }
     }
 
@@ -417,7 +412,7 @@ class InstalledAddonDetailsFragment : Fragment() {
                 InstalledAddonDetailsFragmentDirections.actionInstalledAddonFragmentToAddonPermissionsDetailsFragment(
                     addon,
                 )
-            Navigation.findNavController(binding.root).navigate(directions)
+            binding.root.findNavController().navigate(directions)
         }
     }
 

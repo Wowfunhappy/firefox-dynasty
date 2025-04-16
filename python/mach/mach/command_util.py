@@ -6,6 +6,7 @@ import argparse
 import ast
 import difflib
 import errno
+import importlib.metadata
 import shlex
 import sys
 import types
@@ -153,6 +154,7 @@ MACH_COMMANDS = {
     ),
     "mozharness": MachCommandReference("testing/mozharness/mach_commands.py"),
     "mozregression": MachCommandReference("tools/mach_commands.py"),
+    "newtab": MachCommandReference("browser/extensions/newtab/mach_commands.py"),
     "node": MachCommandReference("tools/mach_commands.py"),
     "npm": MachCommandReference("tools/mach_commands.py"),
     "package": MachCommandReference("python/mozbuild/mozbuild/mach_commands.py"),
@@ -171,9 +173,7 @@ MACH_COMMANDS = {
         "python/mozperftest/mozperftest/mach_commands.py"
     ),
     "power": MachCommandReference("tools/power/mach_commands.py"),
-    "prettier-format": MachCommandReference(
-        "python/mozbuild/mozbuild/code_analysis/mach_commands.py"
-    ),
+    "prettier": MachCommandReference("tools/lint/mach_commands.py"),
     "puppeteer-test": MachCommandReference("remote/mach_commands.py"),
     "python": MachCommandReference("python/mach_commands.py"),
     "python-test": MachCommandReference("python/mach_commands.py"),
@@ -223,6 +223,8 @@ MACH_COMMANDS = {
     "update-glean-tags": MachCommandReference(
         "toolkit/components/glean/build_scripts/mach_commands.py"
     ),
+    "update-test": MachCommandReference("testing/update/mach_commands.py"),
+    "use-moz-src": MachCommandReference("tools/use-moz-src/mach_commands.py"),
     "valgrind-test": MachCommandReference("build/valgrind/mach_commands.py"),
     "vcs-setup": MachCommandReference(
         "python/mozboot/mozboot/mach_commands.py",
@@ -494,16 +496,7 @@ def load_commands_from_entry_point(group="mach.providers"):
     This takes an optional group argument which specifies the entry point
     group to use. If not specified, it defaults to 'mach.providers'.
     """
-    try:
-        import pkg_resources
-    except ImportError:
-        print(
-            "Could not find setuptools, ignoring command entry points",
-            file=sys.stderr,
-        )
-        return
-
-    for entry in pkg_resources.iter_entry_points(group=group, name=None):
+    for entry in importlib.metadata.entry_points(group=group):
         paths = [Path(path) for path in entry.load()()]
         if not isinstance(paths, Iterable):
             print(INVALID_ENTRY_POINT % entry)

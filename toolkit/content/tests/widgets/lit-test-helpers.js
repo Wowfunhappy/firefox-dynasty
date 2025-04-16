@@ -728,6 +728,7 @@ class InputTestHelpers extends LitTestHelpers {
     let renderTarget = await this.renderTemplate(nestedTemplate);
     let parentInput = renderTarget.querySelector(selector);
     let nestedEls = [];
+    let disabledEls = [];
 
     async function waitForUpdateComplete() {
       await parentInput.updateComplete;
@@ -762,14 +763,45 @@ class InputTestHelpers extends LitTestHelpers {
     nestedSelect.append(...options);
 
     parentInput.append(...nestedEls);
+
+    let nestedDisabledCheckbox = document.createElement("moz-checkbox");
+    nestedDisabledCheckbox.slot = "nested";
+    nestedDisabledCheckbox.label = "nested disabled checkbox";
+    nestedDisabledCheckbox.disabled = true;
+    parentInput.append(nestedDisabledCheckbox);
+    disabledEls.push(nestedDisabledCheckbox);
+
+    let nestedDisabledRadioGroup = document.createElement("moz-radio-group");
+    nestedDisabledRadioGroup.slot = "nested";
+    nestedDisabledRadioGroup.label = "nested disabled radio group";
+    nestedDisabledRadioGroup.disabled = true;
+    parentInput.append(nestedDisabledRadioGroup);
+
+    let nestedDisabledRadioOptions = ["one", "two", "three"].map(val => {
+      let nestedDisabledRadioOption = document.createElement("moz-radio");
+      nestedDisabledRadioOption.label = `nested disabled radio ${val}`;
+      nestedDisabledRadioOption.value = val;
+      nestedDisabledRadioOption.disabled = val == "two";
+      nestedDisabledRadioGroup.append(nestedDisabledRadioOption);
+      return nestedDisabledRadioOption;
+    });
+    disabledEls.push(...nestedDisabledRadioOptions);
+
     await waitForUpdateComplete();
 
     // Test the initial state when parent input is enabled and activated.
     nestedEls.forEach(nestedEl => {
       is(
-        nestedEl.disabled,
+        (nestedEl.inputEl ?? nestedEl.buttonEl).disabled,
         false,
         `The nested ${nestedEl.localName} element is enabled when the parent input is activated.`
+      );
+    });
+    disabledEls.forEach(disabledEl => {
+      is(
+        disabledEl.inputEl.disabled,
+        true,
+        `The nested disabled ${disabledEl.localName} element is disabled when the parent input is activated.`
       );
     });
 
@@ -779,9 +811,16 @@ class InputTestHelpers extends LitTestHelpers {
 
     nestedEls.forEach(nestedEl => {
       is(
-        nestedEl.disabled,
+        (nestedEl.inputEl ?? nestedEl.buttonEl).disabled,
         true,
         `The nested ${nestedEl.localName} element is disabled when the parent input is deactivated.`
+      );
+    });
+    disabledEls.forEach(disabledEl => {
+      is(
+        disabledEl.inputEl.disabled,
+        true,
+        `The nested disabled ${disabledEl.localName} element is disabled when the parent input is deactivated.`
       );
     });
 
@@ -798,7 +837,7 @@ class InputTestHelpers extends LitTestHelpers {
     parentInput.append(anotherNestedCheckbox);
     await checkboxSlotted;
     is(
-      anotherNestedCheckbox.disabled,
+      anotherNestedCheckbox.inputEl.disabled,
       true,
       "Newly slotted checkbox is initially disabled."
     );
@@ -809,9 +848,16 @@ class InputTestHelpers extends LitTestHelpers {
 
     nestedEls.forEach(nestedEl => {
       is(
-        nestedEl.disabled,
+        (nestedEl.inputEl ?? nestedEl.buttonEl).disabled,
         false,
         `The nested ${nestedEl.localName} element is enabled when the parent input is reactivated.`
+      );
+    });
+    disabledEls.forEach(disabledEl => {
+      is(
+        disabledEl.inputEl.disabled,
+        true,
+        `The nested disabled ${disabledEl.localName} element is disabled when the parent input is reactivated.`
       );
     });
 
@@ -828,7 +874,7 @@ class InputTestHelpers extends LitTestHelpers {
     firstNestedCheckbox.append(deeplyNestedCheckbox);
     await checkboxSlotted;
     is(
-      deeplyNestedCheckbox.disabled,
+      deeplyNestedCheckbox.inputEl.disabled,
       false,
       "Deeply nested checkbox is initially enabled."
     );
@@ -839,9 +885,16 @@ class InputTestHelpers extends LitTestHelpers {
 
     nestedEls.forEach(nestedEl => {
       is(
-        nestedEl.disabled,
+        (nestedEl.inputEl ?? nestedEl.buttonEl).disabled,
         true,
         `The nested ${nestedEl.localName} element is disabled when parent input is disabled.`
+      );
+    });
+    disabledEls.forEach(disabledEl => {
+      is(
+        disabledEl.inputEl.disabled,
+        true,
+        `The nested disabled ${disabledEl.localName} element is disabled when the parent input is disabled.`
       );
     });
 
@@ -851,10 +904,75 @@ class InputTestHelpers extends LitTestHelpers {
 
     nestedEls.forEach(nestedEl => {
       is(
-        nestedEl.disabled,
+        (nestedEl.inputEl ?? nestedEl.buttonEl).disabled,
         false,
         `The nested ${nestedEl.localName} element is enabled when parent input is reenabled.`
       );
     });
+    disabledEls.forEach(disabledEl => {
+      is(
+        disabledEl.inputEl.disabled,
+        true,
+        `The nested disabled ${disabledEl.localName} element is disabled when the parent input is reenabled.`
+      );
+    });
+  }
+
+  /**
+   * Verifies it is possible to set readonly attribute to the input element and remove it.
+   *
+   * @param {string} selector - HTML tag of the element under test.
+   */
+  async verifyReadonly(selector) {
+    const INITIAL_VALUE = "value";
+    const NEW_VALUE = "new value";
+    let renderTarget = await this.renderTemplate();
+    let firstInput = renderTarget.querySelector(selector);
+
+    async function enterInputValue(inputComponent, inputValue) {
+      synthesizeMouseAtCenter(inputComponent.inputEl, {});
+      sendString(inputValue);
+      inputComponent.blur();
+      await TestUtils.waitForTick();
+    }
+
+    ok(
+      !firstInput.readonly,
+      "Input has a readonly property set to false on initial render."
+    );
+    is(
+      firstInput.inputEl.value,
+      "",
+      "The initial value of the input element is an empty string."
+    );
+
+    await enterInputValue(firstInput, INITIAL_VALUE);
+    is(
+      firstInput.inputEl.value,
+      INITIAL_VALUE,
+      "The value of the input element has changed."
+    );
+
+    firstInput.readonly = true;
+    await firstInput.updateComplete;
+
+    ok(firstInput.readonly, "Input is readonly.");
+    ok(firstInput.inputEl.readOnly, "Readonly state is propagated.");
+
+    await enterInputValue(firstInput, NEW_VALUE);
+    is(
+      firstInput.inputEl.value,
+      INITIAL_VALUE,
+      "The value of the input element hasn't changed."
+    );
+
+    firstInput.readonly = false;
+    await firstInput.updateComplete;
+
+    ok(
+      !firstInput.readonly,
+      "Input has a readonly property set to false again."
+    );
+    ok(!firstInput.inputEl.readOnly, "Readonly state is propagated.");
   }
 }

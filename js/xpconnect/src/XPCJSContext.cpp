@@ -25,7 +25,6 @@
 #include "nsPrintfCString.h"
 #include "mozilla/AppShutdown.h"
 #include "mozilla/Preferences.h"
-#include "mozilla/Telemetry.h"
 #include "mozilla/MemoryTelemetry.h"
 #include "mozilla/Services.h"
 #ifdef FUZZING
@@ -52,6 +51,7 @@
 #include "js/MemoryMetrics.h"
 #include "js/Prefs.h"
 #include "js/WasmFeatures.h"
+#include "fmt/format.h"
 #include "mozilla/dom/BindingUtils.h"
 #include "mozilla/dom/ContentChild.h"
 #include "mozilla/dom/Document.h"
@@ -741,9 +741,9 @@ bool XPCJSContext::InterruptCallback(JSContext* cx) {
 
   // Accumulate slow script invokation delay.
   if (!chrome && !self->mTimeoutAccumulated) {
-    uint32_t delay = uint32_t(self->mSlowScriptActualWait.ToMilliseconds() -
-                              (limit * 1000.0));
-    Telemetry::Accumulate(Telemetry::SLOW_SCRIPT_NOTIFY_DELAY, delay);
+    TimeDuration delay =
+        self->mSlowScriptActualWait - TimeDuration::FromSeconds(limit);
+    glean::slow_script_warning::notify_delay.AccumulateRawDuration(delay);
     self->mTimeoutAccumulated = true;
   }
 
@@ -1182,13 +1182,20 @@ static void LogPrintVA(JS::OpaqueLogger aLogger, mozilla::LogLevel level,
   logmod->Printv(level, aFmt, ap);
 }
 
+static void LogPrintFMT(JS::OpaqueLogger aLogger, mozilla::LogLevel level,
+                        fmt::string_view fmt, fmt::format_args args) {
+  LogModule* logmod = static_cast<LogModule*>(aLogger);
+
+  logmod->PrintvFmt(level, fmt, args);
+}
+
 static AtomicLogLevel& GetLevelRef(JS::OpaqueLogger aLogger) {
   LogModule* logmod = static_cast<LogModule*>(aLogger);
   return logmod->LevelRef();
 }
 
 static JS::LoggingInterface loggingInterface = {GetLoggerByName, LogPrintVA,
-                                                GetLevelRef};
+                                                LogPrintFMT, GetLevelRef};
 
 nsresult XPCJSContext::Initialize() {
   if (StaticPrefs::javascript_options_external_thread_pool_DoNotUseDirectly()) {

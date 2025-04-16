@@ -36,8 +36,9 @@ using mozilla::DebugOnly;
 using mozilla::FloatingPoint;
 
 CodeGeneratorX86::CodeGeneratorX86(MIRGenerator* gen, LIRGraph* graph,
-                                   MacroAssembler* masm)
-    : CodeGeneratorX86Shared(gen, graph, masm) {}
+                                   MacroAssembler* masm,
+                                   const wasm::CodeMetadata* wasmCodeMeta)
+    : CodeGeneratorX86Shared(gen, graph, masm, wasmCodeMeta) {}
 
 void CodeGenerator::visitBox(LBox* box) {
   const LDefinition* type = box->getDef(TYPE_INDEX);
@@ -1021,8 +1022,8 @@ void CodeGenerator::visitWasmCompareAndSelect(LWasmCompareAndSelect* ins) {
   const LAllocation* falseExpr = ins->ifFalseExpr();
   Register lhs = ToRegister(ins->leftExpr());
 
-  if (rhs->isRegister()) {
-    if (falseExpr->isRegister()) {
+  if (rhs->isGeneralReg()) {
+    if (falseExpr->isGeneralReg()) {
       masm.cmp32Move32(cond, lhs, ToRegister(rhs), ToRegister(falseExpr),
                        trueExprAndDest);
     } else {
@@ -1030,7 +1031,7 @@ void CodeGenerator::visitWasmCompareAndSelect(LWasmCompareAndSelect* ins) {
                        trueExprAndDest);
     }
   } else {
-    if (falseExpr->isRegister()) {
+    if (falseExpr->isGeneralReg()) {
       masm.cmp32Move32(cond, lhs, ToAddress(rhs), ToRegister(falseExpr),
                        trueExprAndDest);
     } else {

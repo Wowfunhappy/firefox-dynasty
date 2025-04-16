@@ -11,9 +11,9 @@
 
 [package]
 edition = "2021"
-rust-version = "1.73"
+rust-version = "1.82.0"
 name = "wgpu-core"
-version = "24.0.0"
+version = "25.0.0"
 authors = ["gfx-rs developers"]
 build = "build.rs"
 autolib = false
@@ -34,61 +34,66 @@ ignored = ["cfg_aliases"]
 [package.metadata.docs.rs]
 all-features = true
 rustdoc-args = [
-    "--cfg",
-    "docsrs",
+"--cfg",
+"docsrs",
 ]
 targets = [
-    "x86_64-unknown-linux-gnu",
-    "x86_64-apple-darwin",
-    "x86_64-pc-windows-msvc",
-    "wasm32-unknown-unknown",
+"x86_64-unknown-linux-gnu",
+"x86_64-apple-darwin",
+"x86_64-pc-windows-msvc",
+"wasm32-unknown-unknown",
 ]
 
 [features]
 angle = ["wgpu-core-deps-apple/angle"]
 api_log_info = []
 counters = ["wgpu-types/counters"]
+default = ["std"]
 dx12 = ["wgpu-core-deps-windows-linux-android/dx12"]
 fragile-send-sync-non-atomic-wasm = ["wgpu-hal/fragile-send-sync-non-atomic-wasm"]
 gles = [
-    "wgpu-core-deps-windows-linux-android/gles",
-    "wgpu-core-deps-emscripten/gles",
+"wgpu-core-deps-windows-linux-android/gles",
+"wgpu-core-deps-emscripten/gles",
 ]
 glsl = ["naga/glsl-in"]
-indirect-validation = ["naga/wgsl-in"]
 metal = ["wgpu-core-deps-apple/metal"]
 noop = []
 observe_locks = [
-    "dep:ron",
-    "serde/serde_derive",
+"std",
+"dep:ron",
+"serde/serde_derive",
 ]
 portable-atomic = [
-    "dep:portable-atomic",
-    "wgpu-hal/portable-atomic",
+"dep:portable-atomic",
+"wgpu-hal/portable-atomic",
 ]
 raw-window-handle = ["dep:raw-window-handle"]
 renderdoc = ["wgpu-core-deps-windows-linux-android/renderdoc"]
 replay = [
-    "serde",
-    "naga/deserialize",
+"serde",
+"naga/deserialize",
 ]
 resource_log_info = []
 serde = [
-    "dep:serde",
-    "wgpu-types/serde",
-    "arrayvec/serde",
-    "hashbrown/serde",
+"dep:serde",
+"wgpu-types/serde",
+"arrayvec/serde",
+"hashbrown/serde",
 ]
 spirv = [
-    "naga/spv-in",
-    "dep:bytemuck",
+"naga/spv-in",
+"dep:bytemuck",
 ]
 static-dxc = ["wgpu-hal/static-dxc"]
+std = []
 strict_asserts = ["wgpu-types/strict_asserts"]
 trace = [
-    "dep:ron",
-    "serde",
-    "naga/serialize",
+"serde",
+"std",
+"dep:ron",
+"naga/serialize",
+"wgpu-types/trace",
+"dep:bytemuck",
 ]
 vulkan = ["wgpu-core-deps-windows-linux-android/vulkan"]
 vulkan-portability = ["wgpu-core-deps-apple/vulkan-portability"]
@@ -103,19 +108,22 @@ path = "src/lib.rs"
 version = "0.7.6"
 default-features = false
 
+[dependencies.bit-set]
+version = "0.8"
+default-features = false
+
 [dependencies.bit-vec]
 version = "0.8"
 default-features = false
 
 [dependencies.bitflags]
-version = "2.7"
+version = "2.9"
 
 [dependencies.bytemuck]
-version = "1.21"
+version = "1.22"
 features = [
-    "derive",
-    "extern_crate_alloc",
-    "min_const_generics",
+"extern_crate_alloc",
+"min_const_generics",
 ]
 optional = true
 
@@ -123,26 +131,26 @@ optional = true
 version = "0.2.11"
 
 [dependencies.hashbrown]
-version = "0.14.5"
+version = "0.15.2"
 features = [
-    "ahash",
-    "inline-more",
+"default-hasher",
+"inline-more",
 ]
 default-features = false
 
 [dependencies.indexmap]
-version = "2.5.0"
+version = "2.7.1"
 default-features = false
 
 [dependencies.log]
 version = "0.4"
 
 [dependencies.naga]
-version = "24.0.0"
+version = "25.0.0"
 path = "../naga"
 
 [dependencies.once_cell]
-version = "1.20.3"
+version = "1.21.3"
 features = ["std"]
 default-features = false
 
@@ -159,7 +167,7 @@ optional = true
 default-features = false
 
 [dependencies.ron]
-version = "0.8"
+version = "0.9"
 optional = true
 
 [dependencies.rustc-hash]
@@ -169,8 +177,8 @@ default-features = false
 [dependencies.serde]
 version = "1"
 features = [
-    "default",
-    "derive",
+"default",
+"derive",
 ]
 optional = true
 default-features = false
@@ -183,23 +191,23 @@ version = "2"
 default-features = false
 
 [dependencies.wgpu-hal]
-version = "24.0.0"
+version = "25.0.0"
 path = "../wgpu-hal"
 
 [dependencies.wgpu-types]
-version = "24.0.0"
+version = "25.0.0"
 path = "../wgpu-types"
 
 [build-dependencies.cfg_aliases]
 version = "0.2.1"
 
 [target.'cfg(all(target_arch = "wasm32", not(target_os = "emscripten")))'.dependencies.wgpu-core-deps-wasm]
-version = "24.0.0"
+version = "25.0.0"
 path = "platform-deps/wasm"
 optional = true
 
 [target.'cfg(any(windows, target_os = "linux", target_os = "android"))'.dependencies.wgpu-core-deps-windows-linux-android]
-version = "24.0.0"
+version = "25.0.0"
 path = "platform-deps/windows-linux-android"
 optional = true
 
@@ -208,12 +216,12 @@ version = "1"
 optional = true
 
 [target.'cfg(target_os = "emscripten")'.dependencies.wgpu-core-deps-emscripten]
-version = "24.0.0"
+version = "25.0.0"
 path = "platform-deps/emscripten"
 optional = true
 
 [target.'cfg(target_vendor = "apple")'.dependencies.wgpu-core-deps-apple]
-version = "24.0.0"
+version = "25.0.0"
 path = "platform-deps/apple"
 optional = true
 

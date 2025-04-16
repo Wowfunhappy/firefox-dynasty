@@ -3,6 +3,8 @@ tags = "addons"
 support-files = [
   "addons/browser_dragdrop1.xpi",
   "addons/browser_dragdrop1.zip",
+  "addons/browser_dragdrop1.1.xpi",
+  "addons/browser_dragdrop1.1.zip",
   "addons/browser_dragdrop2.xpi",
   "addons/browser_dragdrop2.zip",
   "addons/browser_dragdrop_incompat.xpi",
@@ -33,6 +35,8 @@ support-files = [
 generated-files = [
   "addons/browser_dragdrop1.xpi",
   "addons/browser_dragdrop1.zip",
+  "addons/browser_dragdrop1.1.xpi",
+  "addons/browser_dragdrop1.1.zip",
   "addons/browser_dragdrop2.xpi",
   "addons/browser_dragdrop2.zip",
   "addons/browser_dragdrop_incompat.xpi",
@@ -90,6 +94,8 @@ support-files = ["head_disco.js"]
 
 ["browser_html_list_view_recommendations.js"]
 skip-if = ["os == 'linux' && os_version == '18.04' && processor == 'x86_64' && opt && a11y_checks && swgl"] # Bug 1858037 to investigate intermittent a11y_checks results for .popup-notification-primary-button.primary.footer-button
+
+["browser_html_mlmodel_addons.js"]
 
 ["browser_html_options_ui.js"]
 

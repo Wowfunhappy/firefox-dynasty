@@ -30,7 +30,7 @@ must implement the FrameworkGatherer class.
 """
 
 
-class FrameworkGatherer(object):
+class FrameworkGatherer:
     """
     Abstract class for framework gatherers.
     """
@@ -338,11 +338,11 @@ class RaptorGatherer(FrameworkGatherer):
         if len(matcher) == 0:
             logger.critical(
                 "No tests exist for the following name "
-                "(obtained from config.yml): {}".format(title)
+                f"(obtained from config.yml): {title}"
             )
             raise Exception(
                 "No tests exist for the following name "
-                "(obtained from config.yml): {}".format(title)
+                f"(obtained from config.yml): {title}"
             )
 
         result = f".. dropdown:: {title}\n"
@@ -495,9 +495,14 @@ class MozperftestGatherer(FrameworkGatherer):
             test_list = test_manifest.active_tests(exists=False, disabled=True)
             for test in test_list:
                 si = ScriptInfo(test["path"])
-                self.script_infos[si["name"].replace(".", "")] = si
+                if si["name"].endswith(".js"):
+                    cleaned_name = si["name"]
+                else:
+                    cleaned_name = si["name"].replace(".", "")
+
+                self.script_infos[cleaned_name] = si
                 self._test_list.setdefault(suite_name.replace("\\", "/"), {}).update(
-                    {si["name"].replace(".", ""): {"path": str(path)}}
+                    {cleaned_name: {"path": str(path)}}
                 )
 
         return self._test_list

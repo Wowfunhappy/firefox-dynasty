@@ -25,6 +25,7 @@
 #include "media/base/media_constants.h"
 #include "rtc_base/checks.h"
 #include "rtc_base/logging.h"
+#include "rtc_base/string_encode.h"
 
 namespace webrtc {
 
@@ -53,10 +54,11 @@ struct MapTableEntry {
 bool CodecPrefersLowerRange(const cricket::Codec& codec) {
   // All audio codecs prefer upper range.
   if (codec.type == cricket::Codec::Type::kAudio) {
-    return false;
+    return absl::EqualsIgnoreCase(codec.name, cricket::kRedCodecName);
   }
   if (absl::EqualsIgnoreCase(codec.name, cricket::kFlexfecCodecName) ||
-      absl::EqualsIgnoreCase(codec.name, cricket::kAv1CodecName)) {
+      absl::EqualsIgnoreCase(codec.name, cricket::kAv1CodecName) ||
+      absl::EqualsIgnoreCase(codec.name, cricket::kH265CodecName)) {
     return true;
   } else if (absl::EqualsIgnoreCase(codec.name, cricket::kH264CodecName)) {
     std::string profile_level_id;
@@ -76,10 +78,19 @@ bool CodecPrefersLowerRange(const cricket::Codec& codec) {
     std::string profile_id;
 
     if (codec.GetParam(cricket::kVP9ProfileId, &profile_id)) {
-      if (profile_id.compare("1") == 0 || profile_id.compare("3") == 0) {
+      if (profile_id == "1" || profile_id == "3") {
         return true;
       }
     }
+  } else if (absl::EqualsIgnoreCase(codec.name, cricket::kRtxCodecName)) {
+    // For RTX prefer lower range if the associated codec is in that range.
+    std::string associated_pt_str;
+    int associated_pt;
+    return codec.GetParam(cricket::kCodecParamAssociatedPayloadType,
+                          &associated_pt_str) &&
+           rtc::FromString(associated_pt_str, &associated_pt) &&
+           associated_pt >= kFirstDynamicPayloadTypeLowerRange &&
+           associated_pt <= kLastDynamicPayloadTypeLowerRange;
   }
   return false;
 }
@@ -179,7 +190,7 @@ PayloadTypePicker::PayloadTypePicker() {
       {{cricket::kDtmfCodecName, 32000, 1}, 112},
       {{cricket::kDtmfCodecName, 16000, 1}, 113},
       {{cricket::kDtmfCodecName, 8000, 1}, 126}};
-  for (auto entry : default_audio_mappings) {
+  for (const MapTableEntry& entry : default_audio_mappings) {
     AddMapping(PayloadType(entry.payload_type),
                cricket::CreateAudioCodec(entry.format));
   }
@@ -198,7 +209,7 @@ RTCErrorOr<PayloadType> PayloadTypePicker::SuggestMapping(
   }
   // The first matching entry is returned, unless excluder
   // maps it to something different.
-  for (auto entry : entries_) {
+  for (const MapEntry& entry : entries_) {
     if (MatchesWithReferenceAttributes(entry.codec(), codec)) {
       if (excluder) {
         auto result = excluder->LookupCodec(entry.payload_type());
@@ -223,7 +234,7 @@ RTCError PayloadTypePicker::AddMapping(PayloadType payload_type,
                                        cricket::Codec codec) {
   // Completely duplicate mappings are ignored.
   // Multiple mappings for the same codec and the same PT are legal;
-  for (auto entry : entries_) {
+  for (const MapEntry& entry : entries_) {
     if (payload_type == entry.payload_type() &&
         MatchesWithReferenceAttributes(codec, entry.codec())) {
       return RTCError::OK();

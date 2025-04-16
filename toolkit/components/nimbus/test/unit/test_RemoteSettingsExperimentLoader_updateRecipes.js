@@ -1,83 +1,58 @@
 "use strict";
 
-const { ExperimentFakes, ExperimentTestUtils } = ChromeUtils.importESModule(
-  "resource://testing-common/NimbusTestUtils.sys.mjs"
-);
-const { FirstStartup } = ChromeUtils.importESModule(
-  "resource://gre/modules/FirstStartup.sys.mjs"
-);
-const {
-  ExperimentAPI,
-  NimbusFeatures,
-  _ExperimentFeature: ExperimentFeature,
-} = ChromeUtils.importESModule("resource://nimbus/ExperimentAPI.sys.mjs");
-const { EnrollmentsContext, RecipeStatus } = ChromeUtils.importESModule(
+const { NimbusFeatures, _ExperimentFeature: ExperimentFeature } =
+  ChromeUtils.importESModule("resource://nimbus/ExperimentAPI.sys.mjs");
+const { EnrollmentsContext, MatchStatus } = ChromeUtils.importESModule(
   "resource://nimbus/lib/RemoteSettingsExperimentLoader.sys.mjs"
+);
+const { NimbusTelemetry } = ChromeUtils.importESModule(
+  "resource://nimbus/lib/Telemetry.sys.mjs"
 );
 const { PanelTestProvider } = ChromeUtils.importESModule(
   "resource:///modules/asrouter/PanelTestProvider.sys.mjs"
 );
+const { TelemetryEnvironment } = ChromeUtils.importESModule(
+  "resource://gre/modules/TelemetryEnvironment.sys.mjs"
+);
 const { TelemetryTestUtils } = ChromeUtils.importESModule(
   "resource://testing-common/TelemetryTestUtils.sys.mjs"
 );
+const { UnenrollmentCause } = ChromeUtils.importESModule(
+  "resource://nimbus/lib/ExperimentManager.sys.mjs"
+);
+
+function assertEnrollments(store, expectedActive, expectedInactive) {
+  for (const slug of expectedActive) {
+    Assert.ok(store.get(slug), `${slug} is present in the store`);
+    Assert.ok(store.get(slug).active, `${slug} is active`);
+  }
+
+  for (const slug of expectedInactive) {
+    Assert.ok(store.get(slug), `${slug} is present in the store`);
+    Assert.ok(!store.get(slug).active, `${slug} is not active`);
+  }
+
+  for (const enrollment of store.getAll()) {
+    const slug = enrollment.slug;
+
+    if (!expectedActive.includes(slug) && !expectedInactive.includes(slug)) {
+      Assert.ok(
+        false,
+        `Store has unexpected ${enrollment.active ? "active" : "inactive"} enrollment with slug ${slug}`
+      );
+    }
+  }
+}
 
 add_setup(async function setup() {
-  do_get_profile();
   Services.fog.initializeFOG();
 });
 
-add_task(async function test_updateRecipes_activeExperiments() {
-  const manager = ExperimentFakes.manager();
-  const sandbox = sinon.createSandbox();
-  const recipe = ExperimentFakes.recipe("foo");
-  const loader = ExperimentFakes.rsLoader();
-  loader.manager = manager;
-  const PASS_FILTER_RECIPE = ExperimentFakes.recipe("foo", {
-    targeting: `"${recipe.slug}" in activeExperiments`,
-  });
-  const onRecipe = sandbox.stub(manager, "onRecipe");
-  sinon
-    .stub(loader.remoteSettingsClients.experiments, "get")
-    .resolves([PASS_FILTER_RECIPE]);
-  sandbox.stub(manager.store, "ready").resolves();
-  sandbox.stub(manager.store, "getAllActiveExperiments").returns([recipe]);
-
-  await loader.enable();
-
-  ok(onRecipe.calledOnce, "Should match active experiments");
-
-  await assertEmptyStore(manager.store);
-});
-
-add_task(async function test_updateRecipes_isFirstRun() {
-  const manager = ExperimentFakes.manager();
-  const sandbox = sinon.createSandbox();
-  const recipe = ExperimentFakes.recipe("foo");
-  const loader = ExperimentFakes.rsLoader();
-  loader.manager = manager;
-  const PASS_FILTER_RECIPE = { ...recipe, targeting: "isFirstStartup" };
-  const onRecipe = sandbox.stub(manager, "onRecipe");
-  sinon
-    .stub(loader.remoteSettingsClients.experiments, "get")
-    .resolves([PASS_FILTER_RECIPE]);
-  sandbox.stub(manager.store, "ready").resolves();
-  sandbox.stub(manager.store, "getAllActiveExperiments").returns([recipe]);
-
-  // Pretend to be in the first startup
-  FirstStartup._state = FirstStartup.IN_PROGRESS;
-  await loader.enable();
-
-  Assert.ok(onRecipe.calledOnce, "Should match first run");
-
-  await assertEmptyStore(manager.store);
-});
+function setupTest({ ...args } = {}) {
+  return NimbusTestUtils.setupTest({ ...args, clearTelemetry: true });
+}
 
 add_task(async function test_updateRecipes_invalidFeatureId() {
-  const manager = ExperimentFakes.manager();
-  const sandbox = sinon.createSandbox();
-  const loader = ExperimentFakes.rsLoader();
-  loader.manager = manager;
-
   const badRecipe = ExperimentFakes.recipe("foo", {
     branches: [
       {
@@ -103,25 +78,28 @@ add_task(async function test_updateRecipes_invalidFeatureId() {
     ],
   });
 
-  const onRecipe = sandbox.stub(manager, "onRecipe");
-  sinon
-    .stub(loader.remoteSettingsClients.experiments, "get")
-    .resolves([badRecipe]);
-  sandbox.stub(manager.store, "ready").resolves();
-  sandbox.stub(manager.store, "getAllActiveExperiments").returns([]);
+  const { sandbox, loader, manager, cleanup } = await setupTest();
 
-  await loader.enable();
-  ok(onRecipe.notCalled, "Should not call .onRecipe for invalid recipes");
+  sandbox.spy(manager, "onRecipe");
+  sandbox.spy(manager, "enroll");
+  loader.remoteSettingsClients.experiments.get.resolves([badRecipe]);
 
-  await assertEmptyStore(manager.store);
+  await loader.updateRecipes();
+
+  Assert.ok(
+    manager.onRecipe.calledOnceWith(badRecipe, "rs-loader", {
+      ok: false,
+      reason: "invalid-feature",
+      featureIds: ["invalid-feature-id"],
+    }),
+    "should call onRecipe with invalid-feature"
+  );
+  Assert.ok(manager.enroll.notCalled, "Would not enroll");
+
+  cleanup();
 });
 
 add_task(async function test_updateRecipes_invalidFeatureValue() {
-  const manager = ExperimentFakes.manager();
-  const sandbox = sinon.createSandbox();
-  const loader = ExperimentFakes.rsLoader();
-  loader.manager = manager;
-
   const badRecipe = ExperimentFakes.recipe("foo", {
     branches: [
       {
@@ -151,116 +129,109 @@ add_task(async function test_updateRecipes_invalidFeatureValue() {
     ],
   });
 
-  const onRecipe = sandbox.stub(manager, "onRecipe");
-  sinon
-    .stub(loader.remoteSettingsClients.experiments, "get")
-    .resolves([badRecipe]);
-  sandbox.stub(manager.store, "ready").resolves();
-  sandbox.stub(manager.store, "getAllActiveExperiments").returns([]);
+  const { sandbox, loader, manager, cleanup } = await setupTest();
 
-  await loader.enable();
-  ok(onRecipe.notCalled, "Should not call onRecipe for invalid recipe");
+  sandbox.spy(manager, "onRecipe");
+  sandbox.spy(manager, "enroll");
+  loader.remoteSettingsClients.experiments.get.resolves([badRecipe]);
 
-  await assertEmptyStore(manager.store, { cleanup: true });
+  await loader.updateRecipes();
+
+  Assert.ok(
+    manager.onRecipe.calledOnceWith(badRecipe, "rs-loader", {
+      ok: false,
+      reason: "invalid-branch",
+      branchSlugs: ["control", "treatment"],
+    }),
+    "Should call onRecipe with invalid-branch"
+  );
+  Assert.ok(manager.enroll.notCalled, "Would not enroll");
+
+  cleanup();
 });
 
 add_task(async function test_updateRecipes_invalidRecipe() {
-  const manager = ExperimentFakes.manager();
-  const sandbox = sinon.createSandbox();
-  const loader = ExperimentFakes.rsLoader();
-  loader.manager = manager;
-
   const badRecipe = ExperimentFakes.recipe("foo");
   delete badRecipe.slug;
 
-  const onRecipe = sandbox.stub(manager, "onRecipe");
-  sinon
-    .stub(loader.remoteSettingsClients.experiments, "get")
-    .resolves([badRecipe]);
-  sandbox.stub(manager.store, "ready").resolves();
-  sandbox.stub(manager.store, "getAllActiveExperiments").returns([]);
+  const { sandbox, loader, manager, cleanup } = await setupTest();
 
-  await loader.enable();
-  ok(onRecipe.notCalled, "Should not call .onRecipe for invalid recipe");
+  sandbox.spy(manager, "onRecipe");
+  sandbox.spy(manager, "enroll");
+  loader.remoteSettingsClients.experiments.get.resolves([badRecipe]);
 
-  await assertEmptyStore(manager.store, { cleanup: true });
+  await loader.updateRecipes();
+
+  Assert.ok(
+    manager.onRecipe.calledOnceWith(badRecipe, "rs-loader", {
+      ok: false,
+      reason: "invalid-recipe",
+    }),
+    "Should call onRecipe with invalid-recipe"
+  );
+  Assert.ok(manager.enroll.notCalled, "Would not enroll");
+
+  cleanup();
 });
 
 add_task(async function test_updateRecipes_invalidRecipeAfterUpdate() {
-  Services.fog.testResetFOG();
+  const recipe = ExperimentFakes.recipe("foo", {
+    bucketConfig: {
+      ...ExperimentFakes.recipe.bucketConfig,
+      count: 1000,
+    },
+  });
 
-  const manager = ExperimentFakes.manager();
-  const loader = ExperimentFakes.rsLoader();
-  loader.manager = manager;
-
-  const recipe = ExperimentFakes.recipe("foo");
   const badRecipe = { ...recipe };
   delete badRecipe.branches;
 
-  sinon.stub(manager, "onRecipe");
-  sinon.stub(manager, "onFinalize");
+  const { sandbox, loader, manager, cleanup } = await setupTest();
 
-  sinon
-    .stub(loader.remoteSettingsClients.experiments, "get")
-    .resolves([recipe]);
-  sinon.stub(manager.store, "ready").resolves();
-  sinon.spy(loader, "updateRecipes");
+  sandbox.spy(manager, "onRecipe");
+  sandbox.spy(manager, "updateEnrollment");
+  sandbox.spy(manager, "enroll");
+  sandbox.spy(manager, "_unenroll");
 
-  await loader.enable();
+  loader.remoteSettingsClients.experiments.get.resolves([recipe]);
+  await loader.updateRecipes();
 
-  ok(loader.updateRecipes.calledOnce, "should call .updateRecipes");
-  equal(loader.manager.onRecipe.callCount, 1, "should call .onRecipe once");
-  ok(
-    loader.manager.onRecipe.calledWith(recipe, "rs-loader", true),
-    "should call .onRecipe with recipe and isTargettingMatch=true"
-  );
-  equal(loader.manager.onFinalize.callCount, 1, "should call .onFinalize once");
-
-  ok(
-    onFinalizeCalled(loader.manager.onFinalize, "rs-loader", {
-      recipeMismatches: [],
-      invalidRecipes: [],
-      invalidBranches: new Map(),
-      invalidFeatures: new Map(),
-      missingLocale: [],
-      missingL10nIds: new Map(),
-      locale: Services.locale.appLocaleAsBCP47,
-      validationEnabled: true,
+  Assert.ok(
+    manager.onRecipe.calledOnceWith(recipe, "rs-loader", {
+      ok: true,
+      status: MatchStatus.TARGETING_AND_BUCKETING,
     }),
-    "should call .onFinalize with no mismatches or invalid recipes"
+    "Should call onRecipe with targeting and bucketing match"
+  );
+  Assert.ok(
+    manager.enroll.calledOnceWith(recipe, "rs-loader"),
+    "Should enroll"
   );
 
   info("Replacing recipe with an invalid one");
 
   loader.remoteSettingsClients.experiments.get.resolves([badRecipe]);
+  await loader.updateRecipes();
 
-  await loader.updateRecipes("timer");
-  equal(
-    loader.manager.onRecipe.callCount,
-    1,
-    "should not have called .onRecipe again"
+  Assert.ok(
+    manager.updateEnrollment.calledOnceWith(
+      sinon.match({ slug: recipe.slug }),
+      badRecipe,
+      "rs-loader",
+      {
+        ok: false,
+        reason: "invalid-recipe",
+      }
+    ),
+    "Should call onRecipe with invalid-recipe"
   );
-  equal(
-    loader.manager.onFinalize.callCount,
-    2,
-    "should have called .onFinalize again"
-  );
-
-  ok(
-    onFinalizeCalled(loader.manager.onFinalize.secondCall.args, "rs-loader", {
-      recipeMismatches: [],
-      invalidRecipes: ["foo"],
-      invalidBranches: new Map(),
-      invalidFeatures: new Map(),
-      missingLocale: [],
-      missingL10nIds: new Map(),
-      locale: Services.locale.appLocaleAsBCP47,
-      validationEnabled: true,
+  Assert.ok(
+    manager._unenroll.calledOnceWith(sinon.match({ slug: recipe.slug }), {
+      reason: "invalid-recipe",
     }),
-    "should call .onFinalize with an invalid recipe"
+    "Should unenroll"
   );
 
-  await assertEmptyStore(manager.store, { cleanup: true });
+  cleanup();
 });
 
 add_task(async function test_updateRecipes_invalidBranchAfterUpdate() {
@@ -268,11 +239,11 @@ add_task(async function test_updateRecipes_invalidBranchAfterUpdate() {
     msgs.find(m => m.id === "MULTISTAGE_SPOTLIGHT_MESSAGE")
   );
 
-  const manager = ExperimentFakes.manager();
-  const loader = ExperimentFakes.rsLoader();
-  loader.manager = manager;
-
-  const recipe = ExperimentFakes.recipe("foo", {
+  const recipe = ExperimentFakes.recipe("recipe", {
+    bucketConfig: {
+      ...ExperimentFakes.recipe.bucketConfig,
+      count: 1000,
+    },
     branches: [
       {
         slug: "control",
@@ -314,77 +285,65 @@ add_task(async function test_updateRecipes_invalidBranchAfterUpdate() {
   };
   delete badRecipe.branches[1].features[0].value.template;
 
-  sinon.stub(manager, "onRecipe");
-  sinon.stub(manager, "onFinalize");
+  const { sandbox, loader, manager, cleanup } = await setupTest();
 
-  sinon
-    .stub(loader.remoteSettingsClients.experiments, "get")
-    .resolves([recipe]);
-  sinon.stub(manager.store, "ready").resolves();
-  sinon.spy(loader, "updateRecipes");
+  sandbox.spy(manager, "onRecipe");
+  sandbox.spy(manager, "updateEnrollment");
+  sandbox.spy(manager, "enroll");
+  sandbox.spy(manager, "_unenroll");
 
-  await loader.enable();
+  loader.remoteSettingsClients.experiments.get.resolves([recipe]);
+  await loader.updateRecipes();
 
-  ok(loader.updateRecipes.calledOnce, "should call .updateRecipes");
-  equal(loader.manager.onRecipe.callCount, 1, "should call .onRecipe once");
-  ok(
-    loader.manager.onRecipe.calledWith(recipe, "rs-loader", true),
-    "should call .onRecipe with recipe and isTargetting=true"
-  );
-  equal(loader.manager.onFinalize.callCount, 1, "should call .onFinalize once");
-  ok(
-    onFinalizeCalled(loader.manager.onFinalize, "rs-loader", {
-      recipeMismatches: [],
-      invalidRecipes: [],
-      invalidBranches: new Map(),
-      invalidFeatures: new Map(),
-      missingLocale: [],
-      missingL10nIds: new Map(),
-      locale: Services.locale.appLocaleAsBCP47,
-      validationEnabled: true,
+  Assert.ok(
+    manager.onRecipe.calledOnceWith(recipe, "rs-loader", {
+      ok: true,
+      status: MatchStatus.TARGETING_AND_BUCKETING,
     }),
-    "should call .onFinalize with no mismatches or invalid recipes"
+    "should call onRecipe with targeting and bucketing match"
+  );
+  Assert.ok(
+    manager.enroll.calledOnceWith(recipe, "rs-loader"),
+    "should enroll"
   );
 
   info("Replacing recipe with an invalid one");
 
   loader.remoteSettingsClients.experiments.get.resolves([badRecipe]);
+  await loader.updateRecipes();
 
-  await loader.updateRecipes("timer");
-  equal(
-    loader.manager.onRecipe.callCount,
-    1,
-    "should not have called .onRecipe again"
+  Assert.ok(
+    manager.updateEnrollment.calledOnceWith(
+      sinon.match({ slug: recipe.slug }),
+      badRecipe,
+      "rs-loader",
+      {
+        ok: false,
+        reason: "invalid-branch",
+        branchSlugs: ["treatment"],
+      }
+    ),
+    "Should call updateEnrollment with invalid-branch"
   );
-  equal(
-    loader.manager.onFinalize.callCount,
-    2,
-    "should have called .onFinalize again"
-  );
-
-  ok(
-    onFinalizeCalled(loader.manager.onFinalize.secondCall.args, "rs-loader", {
-      recipeMismatches: [],
-      invalidRecipes: [],
-      invalidBranches: new Map([["foo", [badRecipe.branches[1].slug]]]),
-      invalidFeatures: new Map(),
-      missingLocale: [],
-      missingL10nIds: new Map(),
-      locale: Services.locale.appLocaleAsBCP47,
-      validationEnabled: true,
+  Assert.ok(
+    manager._unenroll.calledOnceWith(sinon.match({ slug: "recipe" }), {
+      reason: "invalid-branch",
     }),
-    "should call .onFinalize with an invalid branch"
+    "should unenroll"
   );
 
-  await assertEmptyStore(manager.store, { cleanup: true });
+  cleanup();
 });
 
 add_task(async function test_updateRecipes_simpleFeatureInvalidAfterUpdate() {
-  const loader = ExperimentFakes.rsLoader();
-  const manager = loader.manager;
-
-  const recipe = ExperimentFakes.recipe("foo");
-  const badRecipe = ExperimentFakes.recipe("foo", {
+  const recipe = ExperimentFakes.recipe("recipe", {
+    bucketConfig: {
+      ...ExperimentFakes.recipe.bucketConfig,
+      count: 1000,
+    },
+  });
+  const badRecipe = {
+    ...recipe,
     branches: [
       {
         ...recipe.branches[0],
@@ -405,7 +364,7 @@ add_task(async function test_updateRecipes_simpleFeatureInvalidAfterUpdate() {
         ],
       },
     ],
-  });
+  };
 
   const EXPECTED_SCHEMA = {
     $schema: "https://json-schema.org/draft/2019-09/schema",
@@ -426,39 +385,31 @@ add_task(async function test_updateRecipes_simpleFeatureInvalidAfterUpdate() {
     additionalProperties: true,
   };
 
-  sinon.spy(loader, "updateRecipes");
-  sinon.spy(EnrollmentsContext.prototype, "_generateVariablesOnlySchema");
-  sinon
-    .stub(loader.remoteSettingsClients.experiments, "get")
-    .resolves([recipe]);
+  const { sandbox, loader, manager, initExperimentAPI, cleanup } =
+    await setupTest({ init: false, experiments: [recipe] });
 
-  sinon.stub(manager, "onFinalize");
-  sinon.stub(manager, "onRecipe");
-  sinon.stub(manager.store, "ready").resolves();
+  sandbox.spy(loader, "updateRecipes");
+  sandbox.spy(EnrollmentsContext.prototype, "_generateVariablesOnlySchema");
+  sandbox.spy(manager, "onRecipe");
+  sandbox.spy(manager, "updateEnrollment");
+  sandbox.spy(manager, "enroll");
+  sandbox.spy(manager, "_unenroll");
 
-  await loader.enable();
-  ok(manager.onRecipe.calledOnce, "should call .updateRecipes");
-  equal(loader.manager.onRecipe.callCount, 1, "should call .onRecipe once");
-  ok(
-    loader.manager.onRecipe.calledWith(recipe, "rs-loader"),
-    "should call .onRecipe with argument data"
-  );
-  equal(loader.manager.onFinalize.callCount, 1, "should call .onFinalize once");
-  ok(
-    onFinalizeCalled(loader.manager.onFinalize, "rs-loader", {
-      recipeMismatches: [],
-      invalidRecipes: [],
-      invalidBranches: new Map(),
-      invalidFeatures: new Map(),
-      missingLocale: [],
-      missingL10nIds: new Map(),
-      locale: Services.locale.appLocaleAsBCP47,
-      validationEnabled: true,
+  await initExperimentAPI();
+
+  Assert.ok(
+    manager.onRecipe.calledOnceWith(recipe, "rs-loader", {
+      ok: true,
+      status: MatchStatus.TARGETING_AND_BUCKETING,
     }),
-    "should call .onFinalize with nomismatches or invalid recipes"
+    "should call .onRecipe with targeting and bucketing match"
+  );
+  Assert.ok(
+    manager.enroll.calledOnceWith(recipe, "rs-loader"),
+    "Should enroll"
   );
 
-  ok(
+  Assert.ok(
     EnrollmentsContext.prototype._generateVariablesOnlySchema.calledOnce,
     "Should have generated a schema for testFeature"
   );
@@ -472,44 +423,32 @@ add_task(async function test_updateRecipes_simpleFeatureInvalidAfterUpdate() {
   info("Replacing recipe with an invalid one");
 
   loader.remoteSettingsClients.experiments.get.resolves([badRecipe]);
+  await loader.updateRecipes();
 
-  await loader.updateRecipes("timer");
-  equal(
-    manager.onRecipe.callCount,
-    1,
-    "should not have called .onRecipe again"
+  Assert.ok(
+    manager.updateEnrollment.calledOnceWith(
+      sinon.match({ slug: recipe.slug }),
+      badRecipe,
+      "rs-loader",
+      {
+        ok: false,
+        reason: "invalid-branch",
+        branchSlugs: ["control"],
+      }
+    ),
+    "Should call updateEnrollment with invalid-branch"
   );
-  equal(
-    manager.onFinalize.callCount,
-    2,
-    "should have called .onFinalize again"
-  );
-
-  ok(
-    onFinalizeCalled(loader.manager.onFinalize.secondCall.args, "rs-loader", {
-      recipeMismatches: [],
-      invalidRecipes: [],
-      invalidBranches: new Map([["foo", [badRecipe.branches[0].slug]]]),
-      invalidFeatures: new Map(),
-      missingLocale: [],
-      missingL10nIds: new Map(),
-      locale: Services.locale.appLocaleAsBCP47,
-      validationEnabled: true,
+  Assert.ok(
+    manager._unenroll.calledOnceWith(sinon.match({ slug: recipe.slug }), {
+      reason: "invalid-branch",
     }),
-    "should call .onFinalize with an invalid branch"
+    "Should unenroll"
   );
 
-  EnrollmentsContext.prototype._generateVariablesOnlySchema.restore();
-
-  await assertEmptyStore(manager.store, { cleanup: true });
+  cleanup();
 });
 
 add_task(async function test_updateRecipes_validationTelemetry() {
-  Services.telemetry.snapshotEvents(
-    Ci.nsITelemetry.DATASET_PRERELEASE_CHANNELS,
-    /* clear = */ true
-  );
-
   const invalidRecipe = ExperimentFakes.recipe("invalid-recipe");
   delete invalidRecipe.channel;
 
@@ -518,6 +457,10 @@ add_task(async function test_updateRecipes_validationTelemetry() {
   invalidBranch.branches[1].features[0].value.testInt = "world";
 
   const invalidFeature = ExperimentFakes.recipe("invalid-feature", {
+    bucketConfig: {
+      ...ExperimentFakes.recipe.bucketConfig,
+      count: 1000,
+    },
     branches: [
       {
         slug: "control",
@@ -567,26 +510,20 @@ add_task(async function test_updateRecipes_validationTelemetry() {
 
   for (const { recipe, reason, events, callCount } of TEST_CASES) {
     info(`Testing validation failed telemetry for reason = "${reason}" ...`);
-    const loader = ExperimentFakes.rsLoader();
-    const manager = loader.manager;
 
-    sinon
-      .stub(loader.remoteSettingsClients.experiments, "get")
-      .resolves([recipe]);
+    const { sandbox, initExperimentAPI, cleanup } = await setupTest({
+      init: false,
+      experiments: [recipe],
+    });
 
-    sinon.stub(manager, "onRecipe");
-    sinon.stub(manager.store, "ready").resolves();
-    sinon.stub(manager.store, "getAllActiveExperiments").returns([]);
-    sinon.stub(manager.store, "getAllActiveRollouts").returns([]);
+    sandbox.spy(NimbusTelemetry, "recordValidationFailure");
 
-    const telemetrySpy = sinon.spy(manager, "sendValidationFailedTelemetry");
-
-    await loader.enable();
+    await initExperimentAPI();
 
     Assert.equal(
-      telemetrySpy.callCount,
+      NimbusTelemetry.recordValidationFailure.callCount,
       callCount,
-      `Should call sendValidationFailedTelemetry ${callCount} times for reason ${reason}`
+      `Should call recordValidationFailure ${callCount} times for reason ${reason}`
     );
 
     const gleanEvents = Glean.nimbusEvents.validationFailed
@@ -624,27 +561,37 @@ add_task(async function test_updateRecipes_validationTelemetry() {
       LEGACY_FILTER,
     }));
 
-    TelemetryTestUtils.assertEvents(expectedLegacyEvents, LEGACY_FILTER, {
-      clear: true,
-    });
+    TelemetryTestUtils.assertEvents(expectedLegacyEvents, LEGACY_FILTER);
 
-    Services.fog.testResetFOG();
-
-    await assertEmptyStore(manager.store, { cleanup: true });
+    cleanup();
   }
 });
 
 add_task(async function test_updateRecipes_validationDisabled() {
   Services.prefs.setBoolPref("nimbus.validation.enabled", false);
 
-  const invalidRecipe = ExperimentFakes.recipe("invalid-recipe");
+  const invalidRecipe = ExperimentFakes.recipe("invalid-recipe", {
+    bucketConfig: {
+      ...ExperimentFakes.recipe.bucketConfig,
+      count: 1000,
+    },
+  });
   delete invalidRecipe.channel;
 
-  const invalidBranch = ExperimentFakes.recipe("invalid-branch");
+  const invalidBranch = ExperimentFakes.recipe("invalid-branch", {
+    bucketConfig: {
+      ...ExperimentFakes.recipe.bucketConfig,
+      count: 1000,
+    },
+  });
   invalidBranch.branches[0].features[0].value.testInt = "hello";
   invalidBranch.branches[1].features[0].value.testInt = "world";
 
   const invalidFeature = ExperimentFakes.recipe("invalid-feature", {
+    bucketConfig: {
+      ...ExperimentFakes.recipe.bucketConfig,
+      count: 1000,
+    },
     branches: [
       {
         slug: "control",
@@ -664,53 +611,46 @@ add_task(async function test_updateRecipes_validationDisabled() {
   });
 
   for (const recipe of [invalidRecipe, invalidBranch, invalidFeature]) {
-    const loader = ExperimentFakes.rsLoader();
-    const manager = loader.manager;
+    const { sandbox, manager, initExperimentAPI, cleanup } = await setupTest({
+      init: false,
+      experiments: [recipe],
+    });
 
-    sinon
-      .stub(loader.remoteSettingsClients.experiments, "get")
-      .resolves([recipe]);
+    sandbox.stub(manager, "enroll");
+    sandbox.spy(manager, "onRecipe");
+    sandbox.spy(NimbusTelemetry, "recordValidationFailure");
 
-    sinon.stub(manager, "onRecipe");
-    sinon.stub(manager.store, "ready").resolves();
-    sinon.stub(manager.store, "getAllActiveExperiments").returns([]);
-    sinon.stub(manager.store, "getAllActiveRollouts").returns([]);
+    await initExperimentAPI();
 
-    const finalizeStub = sinon.stub(manager, "onFinalize");
-    const telemetrySpy = sinon.spy(manager, "sendValidationFailedTelemetry");
-
-    await loader.enable();
-
-    Assert.equal(
-      telemetrySpy.callCount,
-      0,
+    Assert.ok(
+      NimbusTelemetry.recordValidationFailure.notCalled,
       "Should not send validation failed telemetry"
     );
     Assert.ok(
-      onFinalizeCalled(finalizeStub, "rs-loader", {
-        recipeMismatches: [],
-        invalidRecipes: [],
-        invalidBranches: new Map(),
-        invalidFeatures: new Map(),
-        missingLocale: [],
-        missingL10nIds: new Map(),
-        locale: Services.locale.appLocaleAsBCP47,
-        validationEnabled: false,
+      manager.onRecipe.calledOnceWith(recipe, "rs-loader", {
+        ok: true,
+        status: MatchStatus.TARGETING_AND_BUCKETING,
       }),
-      "should call .onFinalize with no validation issues"
+      "Should call onRecipe with no validation issues"
     );
 
-    await assertEmptyStore(manager.store, { cleanup: true });
+    Assert.ok(
+      manager.enroll.calledOnceWith(recipe, "rs-loader"),
+      "Would enroll"
+    );
+
+    cleanup();
   }
 
   Services.prefs.clearUserPref("nimbus.validation.enabled");
 });
 
 add_task(async function test_updateRecipes_appId() {
-  const loader = ExperimentFakes.rsLoader();
-  const manager = loader.manager;
-
   const recipe = ExperimentFakes.recipe("background-task-recipe", {
+    bucketConfig: {
+      ...ExperimentFakes.recipe.bucketConfig,
+      count: 1000,
+    },
     branches: [
       {
         slug: "control",
@@ -725,33 +665,28 @@ add_task(async function test_updateRecipes_appId() {
     ],
   });
 
-  sinon
-    .stub(loader.remoteSettingsClients.experiments, "get")
-    .resolves([recipe]);
+  const { sandbox, loader, manager, cleanup } = await setupTest();
 
-  sinon.stub(manager, "onRecipe");
-  sinon.stub(manager, "onFinalize");
-  sinon.stub(manager.store, "ready").resolves();
+  sandbox.spy(manager, "onRecipe");
+  sandbox.stub(manager, "enroll");
 
   info("Testing updateRecipes() with the default application ID");
-  await loader.enable();
 
-  Assert.ok(manager.onRecipe.notCalled, ".onRecipe was never called");
+  loader.remoteSettingsClients.experiments.get.resolves([recipe]);
+  await loader.updateRecipes();
+
   Assert.ok(
-    onFinalizeCalled(manager.onFinalize, "rs-loader", {
-      recipeMismatches: [],
-      invalidRecipes: [],
-      invalidBranches: new Map(),
-      invalidFeatures: new Map(),
-      missingLocale: [],
-      missingL10nIds: new Map(),
-      locale: Services.locale.appLocaleAsBCP47,
-      validationEnabled: true,
+    manager.onRecipe.calledOnceWith(recipe, "rs-loader", {
+      ok: false,
+      reason: "unsupported-feature",
+      featureIds: ["backgroundTaskMessage"],
     }),
-    "Should call .onFinalize with no validation issues"
+    "Should call onRecipe with unsupported-feature"
   );
+  Assert.ok(manager.enroll.notCalled, "Would not enroll");
 
   info("Testing updateRecipes() with a custom application ID");
+  manager.onRecipe.resetHistory();
 
   Services.prefs.setStringPref(
     "nimbus.appId",
@@ -760,34 +695,25 @@ add_task(async function test_updateRecipes_appId() {
 
   await loader.updateRecipes();
   Assert.ok(
-    manager.onRecipe.calledWith(recipe, "rs-loader"),
-    `.onRecipe called with ${recipe.slug}`
-  );
-
-  Assert.ok(
-    onFinalizeCalled(manager.onFinalize, "rs-loader", {
-      recipeMismatches: [],
-      invalidRecipes: [],
-      invalidBranches: new Map(),
-      invalidFeatures: new Map(),
-      missingLocale: [],
-      missingL10nIds: new Map(),
-      locale: Services.locale.appLocaleAsBCP47,
-      validationEnabled: true,
+    manager.onRecipe.calledOnceWith(recipe, "rs-loader", {
+      ok: true,
+      status: MatchStatus.TARGETING_AND_BUCKETING,
     }),
-    "Should call .onFinalize with no validation issues"
+    `onRecipe called`
   );
+  Assert.ok(manager.enroll.calledOnceWith(recipe, "rs-loader"), "Would enroll");
 
   Services.prefs.clearUserPref("nimbus.appId");
 
-  await assertEmptyStore(manager.store, { cleanup: true });
+  cleanup();
 });
 
 add_task(async function test_updateRecipes_withPropNotInManifest() {
-  // Need to randomize the slug so subsequent test runs don't skip enrollment
-  // due to a conflicting slug
-  const PASS_FILTER_RECIPE = ExperimentFakes.recipe("foo" + Math.random(), {
-    arguments: {},
+  const recipe = ExperimentFakes.recipe("foo", {
+    bucketConfig: {
+      ...ExperimentFakes.recipe.bucketConfig,
+      count: 1000,
+    },
     branches: [
       {
         features: [
@@ -811,28 +737,25 @@ add_task(async function test_updateRecipes_withPropNotInManifest() {
     targeting: "true",
   });
 
-  const loader = ExperimentFakes.rsLoader();
-  sinon
-    .stub(loader.remoteSettingsClients.experiments, "get")
-    .resolves([PASS_FILTER_RECIPE]);
-  sinon.stub(loader.manager, "onRecipe").resolves();
-  sinon.stub(loader.manager, "onFinalize");
+  const { sandbox, loader, manager, cleanup } = await setupTest();
 
-  await loader.enable();
+  sandbox.stub(manager, "onRecipe");
 
-  ok(
-    loader.manager.onRecipe.calledWith(PASS_FILTER_RECIPE, "rs-loader"),
-    "should call .onRecipe with this recipe"
+  loader.remoteSettingsClients.experiments.get.resolves([recipe]);
+  await loader.updateRecipes();
+
+  Assert.ok(
+    manager.onRecipe.calledOnceWith(recipe, "rs-loader", {
+      ok: true,
+      status: MatchStatus.TARGETING_AND_BUCKETING,
+    }),
+    "should call onRecipe with this recipe"
   );
-  equal(loader.manager.onRecipe.callCount, 1, "should only call onRecipe once");
 
-  await assertEmptyStore(loader.manager.store, { cleanup: true });
+  cleanup();
 });
 
 add_task(async function test_updateRecipes_recipeAppId() {
-  const loader = ExperimentFakes.rsLoader();
-  const manager = loader.manager;
-
   const recipe = ExperimentFakes.recipe("mobile-experiment", {
     appId: "org.mozilla.firefox",
     branches: [
@@ -851,35 +774,23 @@ add_task(async function test_updateRecipes_recipeAppId() {
     ],
   });
 
-  sinon
-    .stub(loader.remoteSettingsClients.experiments, "get")
-    .resolves([recipe]);
+  const { sandbox, loader, manager, cleanup } = await setupTest();
+  sandbox.stub(manager, "onRecipe");
 
-  sinon.stub(manager, "onRecipe");
-  sinon.stub(manager, "onFinalize");
-  sinon.stub(manager.store, "ready").resolves();
+  loader.remoteSettingsClients.experiments.get.resolves([recipe]);
+  await loader.updateRecipes();
 
-  await loader.enable();
   Assert.ok(manager.onRecipe.notCalled, ".onRecipe was never called");
-  Assert.ok(
-    onFinalizeCalled(manager.onFinalize, "rs-loader", {
-      recipeMismatches: [],
-      invalidRecipes: [],
-      invalidBranches: new Map(),
-      invalidFeatures: new Map(),
-      missingLocale: [],
-      missingL10nIds: new Map(),
-      locale: Services.locale.appLocaleAsBCP47,
-      validationEnabled: true,
-    }),
-    "Should call .onFinalize with no validation issues"
-  );
 
-  await assertEmptyStore(manager.store, { cleanup: true });
+  cleanup();
 });
 
 add_task(async function test_updateRecipes_featureValidationOptOut() {
-  const invalidTestRecipe = ExperimentFakes.recipe("invalid-recipe", {
+  const invalidFeatureRecipe = ExperimentFakes.recipe("invalid-recipe", {
+    bucketConfig: {
+      ...ExperimentFakes.recipe.bucketConfig,
+      count: 1000,
+    },
     branches: [
       {
         slug: "control",
@@ -903,6 +814,10 @@ add_task(async function test_updateRecipes_featureValidationOptOut() {
   delete message.template;
 
   const invalidMsgRecipe = ExperimentFakes.recipe("invalid-recipe", {
+    bucketConfig: {
+      ...ExperimentFakes.recipe.bucketConfig,
+      count: 1000,
+    },
     branches: [
       {
         slug: "control",
@@ -917,48 +832,41 @@ add_task(async function test_updateRecipes_featureValidationOptOut() {
     ],
   });
 
-  for (const invalidRecipe of [invalidTestRecipe, invalidMsgRecipe]) {
+  for (const invalidRecipe of [invalidFeatureRecipe, invalidMsgRecipe]) {
     const optOutRecipe = {
       ...invalidMsgRecipe,
       slug: "optout-recipe",
       featureValidationOptOut: true,
     };
 
-    const loader = ExperimentFakes.rsLoader();
-    const manager = loader.manager;
+    const { sandbox, loader, manager, cleanup } = await setupTest();
+    sandbox.stub(manager, "onRecipe");
 
-    sinon
-      .stub(loader.remoteSettingsClients.experiments, "get")
-      .resolves([invalidRecipe, optOutRecipe]);
+    loader.remoteSettingsClients.experiments.get.resolves([
+      invalidRecipe,
+      optOutRecipe,
+    ]);
+    await loader.updateRecipes();
 
-    sinon.stub(manager, "onRecipe");
-    sinon.stub(manager, "onFinalize");
-    sinon.stub(manager.store, "ready").resolves();
-    sinon.stub(manager.store, "getAllActiveExperiments").returns([]);
-    sinon.stub(manager.store, "getAllActiveRollouts").returns([]);
-
-    await loader.enable();
-    ok(
-      manager.onRecipe.calledOnceWith(optOutRecipe, "rs-loader", true),
-      "should call .onRecipe for opt-out recipe"
+    Assert.equal(manager.onRecipe.callCount, 2);
+    Assert.ok(
+      manager.onRecipe.calledWith(
+        invalidRecipe,
+        "rs-loader",
+        sinon.match({ ok: false })
+      ),
+      "should call onRecipe for invalidRecipe with an error"
     );
 
-    ok(
-      manager.onFinalize.calledOnce &&
-        onFinalizeCalled(manager.onFinalize, "rs-loader", {
-          recipeMismatches: [],
-          invalidRecipes: [],
-          invalidBranches: new Map([[invalidRecipe.slug, ["control"]]]),
-          invalidFeatures: new Map(),
-          missingLocale: [],
-          missingL10nIds: new Map(),
-          locale: Services.locale.appLocaleAsBCP47,
-          validationEnabled: true,
-        }),
-      "should call .onFinalize with only one invalid recipe"
+    Assert.ok(
+      manager.onRecipe.calledWith(optOutRecipe, "rs-loader", {
+        ok: true,
+        status: MatchStatus.TARGETING_AND_BUCKETING,
+      }),
+      "should call onRecipe for optOutRecipe with targeting and bucketing match"
     );
 
-    await assertEmptyStore(manager.store, { cleanup: true });
+    cleanup();
   }
 });
 
@@ -984,61 +892,45 @@ add_task(async function test_updateRecipes_invalidFeature_mismatch() {
     targeting: "false",
   });
 
-  const loader = ExperimentFakes.rsLoader();
-  const manager = loader.manager;
+  const { sandbox, loader, manager, cleanup } = await setupTest();
 
-  sinon
-    .stub(loader.remoteSettingsClients.experiments, "get")
-    .resolves([recipe]);
+  sandbox.stub(manager, "onRecipe");
+  sandbox.stub(NimbusTelemetry, "recordValidationFailure");
+  sandbox.spy(EnrollmentsContext.prototype, "checkTargeting");
+  sandbox.spy(EnrollmentsContext.prototype, "checkRecipe");
 
-  sinon.stub(manager, "onRecipe");
-  sinon.stub(manager, "onFinalize");
-  sinon.stub(manager.store, "ready").resolves();
-  sinon.stub(manager.store, "getAllActiveExperiments").returns([]);
-  sinon.stub(manager.store, "getAllActiveRollouts").returns([]);
+  loader.remoteSettingsClients.experiments.get.resolves([recipe]);
+  await loader.updateRecipes();
 
-  const telemetrySpy = sinon.stub(manager, "sendValidationFailedTelemetry");
-  const targetingSpy = sinon.spy(
-    EnrollmentsContext.prototype,
-    "checkTargeting"
+  Assert.ok(
+    EnrollmentsContext.prototype.checkTargeting.calledOnce,
+    "Should have checked targeting for recipe"
   );
-  const checkSpy = sinon.spy(EnrollmentsContext.prototype, "checkRecipe");
-
-  await loader.enable();
-  ok(targetingSpy.calledOnce, "Should have checked targeting for recipe");
   ok(
-    !(await targetingSpy.returnValues[0]),
+    !(await EnrollmentsContext.prototype.checkTargeting.returnValues[0]),
     "Targeting should not have matched"
   );
-  Assert.equal(
-    await checkSpy.returnValues[0],
-    RecipeStatus.TARGETING_MISMATCH,
+  Assert.deepEqual(
+    await EnrollmentsContext.prototype.checkRecipe.returnValues[0],
+    { ok: true, status: MatchStatus.NO_MATCH },
     "Recipe should be considered a targeting mismatch"
   );
-  ok(
-    manager.onRecipe.calledOnceWith(recipe, "rs-loader", false),
-    "should call .onRecipe for the recipe"
+  Assert.ok(
+    manager.onRecipe.calledOnceWith(recipe, "rs-loader", {
+      ok: true,
+      status: MatchStatus.NO_MATCH,
+    }),
+    "should call onRecipe for the recipe"
   );
-  ok(
-    telemetrySpy.notCalled,
+  Assert.ok(
+    NimbusTelemetry.recordValidationFailure.notCalled,
     "Should not have submitted validation failed telemetry"
   );
 
-  targetingSpy.restore();
-
-  await assertEmptyStore(manager.store, { cleanup: true });
+  cleanup();
 });
 
 add_task(async function test_updateRecipes_rollout_bucketing() {
-  Services.fog.testResetFOG();
-  Services.telemetry.snapshotEvents(
-    Ci.nsITelemetry.DATASET_PRERELEASE_CHANNELS,
-    /* clear = */ true
-  );
-
-  const loader = ExperimentFakes.rsLoader();
-  const manager = loader.manager;
-
   const experiment = ExperimentFakes.recipe("experiment", {
     branches: [
       {
@@ -1083,14 +975,9 @@ add_task(async function test_updateRecipes_rollout_bucketing() {
     },
   });
 
-  await manager.onStartup();
-  await manager.store.ready();
-  await loader.enable();
+  const { loader, manager, cleanup } = await setupTest();
 
-  sinon
-    .stub(loader.remoteSettingsClients.experiments, "get")
-    .resolves([experiment, rollout]);
-
+  loader.remoteSettingsClients.experiments.get.resolves([experiment, rollout]);
   await loader.updateRecipes();
 
   Assert.equal(
@@ -1106,7 +993,6 @@ add_task(async function test_updateRecipes_rollout_bucketing() {
 
   experiment.bucketConfig.count = 0;
   rollout.bucketConfig.count = 0;
-
   await loader.updateRecipes();
 
   Assert.equal(
@@ -1154,32 +1040,20 @@ add_task(async function test_updateRecipes_rollout_bucketing() {
   );
 
   manager.unenroll(experiment.slug);
-  await assertEmptyStore(manager.store, { cleanup: true });
+
+  cleanup();
 });
 
 add_task(async function test_reenroll_rollout_resized() {
-  const loader = ExperimentFakes.rsLoader();
-  const manager = loader.manager;
-
-  await manager.onStartup();
-  await manager.store.ready();
-  await loader.enable();
-
-  const rollout = ExperimentFakes.recipe("rollout", {
+  const rollout = NimbusTestUtils.factories.recipe("rollout", {
     isRollout: true,
   });
-  rollout.bucketConfig = {
-    ...rollout.bucketConfig,
-    start: 0,
-    count: 1000,
-    total: 1000,
-  };
 
-  sinon
-    .stub(loader.remoteSettingsClients.experiments, "get")
-    .resolves([rollout]);
+  const { loader, manager, cleanup } = await setupTest();
 
+  loader.remoteSettingsClients.experiments.get.resolves([rollout]);
   await loader.updateRecipes();
+
   Assert.equal(
     manager.store.getRolloutForFeature("testFeature")?.slug,
     rollout.slug,
@@ -1217,24 +1091,14 @@ add_task(async function test_reenroll_rollout_resized() {
   );
 
   manager.unenroll(rollout.slug);
-  await assertEmptyStore(manager.store, { cleanup: true });
+
+  cleanup();
 });
 
 add_task(async function test_experiment_reenroll() {
-  const loader = ExperimentFakes.rsLoader();
-  const manager = loader.manager;
+  const experiment = NimbusTestUtils.factories.recipe("experiment");
 
-  await manager.onStartup();
-  await manager.store.ready();
-  await loader.enable();
-
-  const experiment = ExperimentFakes.recipe("experiment");
-  experiment.bucketConfig = {
-    ...experiment.bucketConfig,
-    start: 0,
-    count: 1000,
-    total: 1000,
-  };
+  const { loader, manager, cleanup } = await setupTest();
 
   await manager.enroll(experiment, "test");
   Assert.equal(
@@ -1249,46 +1113,37 @@ add_task(async function test_experiment_reenroll() {
     "Should unenroll from experiment"
   );
 
-  sinon
-    .stub(loader.remoteSettingsClients.experiments, "get")
-    .resolves([experiment]);
-
+  loader.remoteSettingsClients.experiments.get.resolves([experiment]);
   await loader.updateRecipes();
+
   Assert.ok(
     !manager.store.getExperimentForFeature("testFeature"),
     "Should not re-enroll in experiment"
   );
 
-  await assertEmptyStore(manager.store, { cleanup: true });
+  cleanup();
 });
 
 add_task(async function test_rollout_reenroll_optout() {
-  const loader = ExperimentFakes.rsLoader();
-  const manager = loader.manager;
+  const rollout = NimbusTestUtils.factories.recipe("rollout", {
+    isRollout: true,
+  });
 
-  await manager.onStartup();
-  await manager.store.ready();
-  await loader.enable();
-
-  const rollout = ExperimentFakes.recipe("experiment", { isRollout: true });
-  rollout.bucketConfig = {
-    ...rollout.bucketConfig,
-    start: 0,
-    count: 1000,
-    total: 1000,
-  };
-
-  sinon
-    .stub(loader.remoteSettingsClients.experiments, "get")
-    .resolves([rollout]);
-  await loader.updateRecipes();
+  const { loader, manager, cleanup } = await setupTest({
+    experiments: [rollout],
+  });
 
   Assert.ok(
     manager.store.getRolloutForFeature("testFeature"),
     "Should enroll in rollout"
   );
 
-  manager.unenroll(rollout.slug, "individual-opt-out");
+  manager.unenroll(
+    rollout.slug,
+    UnenrollmentCause.fromReason(
+      NimbusTelemetry.UnenrollReason.INDIVIDUAL_OPT_OUT
+    )
+  );
 
   await loader.updateRecipes();
 
@@ -1297,17 +1152,10 @@ add_task(async function test_rollout_reenroll_optout() {
     "Should not re-enroll in rollout"
   );
 
-  await assertEmptyStore(manager.store, { cleanup: true });
+  cleanup();
 });
 
 add_task(async function test_active_and_past_experiment_targeting() {
-  const loader = ExperimentFakes.rsLoader();
-  const manager = loader.manager;
-
-  await manager.onStartup();
-  await manager.store.ready();
-  await loader.enable();
-
   const cleanupFeatures = ExperimentTestUtils.addTestFeatures(
     new ExperimentFeature("feature-a", {
       isEarlyStartup: false,
@@ -1386,24 +1234,16 @@ add_task(async function test_active_and_past_experiment_targeting() {
     isRollout: true,
   });
 
-  sinon
-    .stub(loader.remoteSettingsClients.experiments, "get")
-    .resolves([experimentA, rolloutA]);
+  const { loader, manager, cleanup } = await setupTest();
 
   // Enroll in A.
+  loader.remoteSettingsClients.experiments.get.resolves([
+    experimentA,
+    rolloutA,
+  ]);
   await loader.updateRecipes();
-  Assert.equal(
-    manager.store.getExperimentForFeature("feature-a")?.slug,
-    "experiment-a"
-  );
-  Assert.ok(!manager.store.getExperimentForFeature("feature-b"));
-  Assert.ok(!manager.store.getExperimentForFeature("feature-c"));
-  Assert.equal(
-    manager.store.getRolloutForFeature("feature-a")?.slug,
-    "rollout-a"
-  );
-  Assert.ok(!manager.store.getRolloutForFeature("feature-b"));
-  Assert.ok(!manager.store.getRolloutForFeature("feature-c"));
+
+  assertEnrollments(manager.store, ["experiment-a", "rollout-a"], []);
 
   loader.remoteSettingsClients.experiments.get.resolves([
     experimentA,
@@ -1413,31 +1253,16 @@ add_task(async function test_active_and_past_experiment_targeting() {
     rolloutB,
     rolloutC,
   ]);
-
-  // B will enroll becuase A is enrolled.
   await loader.updateRecipes();
-  Assert.equal(
-    manager.store.getExperimentForFeature("feature-a")?.slug,
-    "experiment-a"
-  );
-  Assert.equal(
-    manager.store.getExperimentForFeature("feature-b")?.slug,
-    "experiment-b"
-  );
-  Assert.ok(!manager.store.getExperimentForFeature("feature-c"));
-  Assert.equal(
-    manager.store.getRolloutForFeature("feature-a")?.slug,
-    "rollout-a"
-  );
-  Assert.equal(
-    manager.store.getRolloutForFeature("feature-b")?.slug,
-    "rollout-b"
-  );
-  Assert.ok(!manager.store.getRolloutForFeature("feature-c"));
 
-  // Remove experiment A and rollout A to cause them to unenroll. A will still
-  // be enrolled while B and C are evaluating targeting, so their enrollment
-  // won't change.
+  // B will enroll becuase A is enrolled. C will not enroll because A is still
+  // enrolled.
+  assertEnrollments(
+    manager.store,
+    ["experiment-a", "experiment-b", "rollout-a", "rollout-b"],
+    []
+  );
+
   loader.remoteSettingsClients.experiments.get.resolves([
     experimentB,
     experimentC,
@@ -1445,50 +1270,23 @@ add_task(async function test_active_and_past_experiment_targeting() {
     rolloutC,
   ]);
   await loader.updateRecipes();
-  Assert.ok(!manager.store.getExperimentForFeature("feature-a"));
-  Assert.equal(
-    manager.store.getExperimentForFeature("feature-b")?.slug,
-    "experiment-b"
-  );
-  Assert.ok(!manager.store.getExperimentForFeature("feature-c"));
-  Assert.ok(!manager.store.getRolloutForFeature("feature-a"));
-  Assert.equal(
-    manager.store.getRolloutForFeature("feature-b")?.slug,
-    "rollout-b"
-  );
-  Assert.ok(!manager.store.getRolloutForFeature("feature-c"));
 
-  // Now A will be marked as unenrolled while evaluating B and C's targeting, so
-  // their enrollment will change.
-  await loader.updateRecipes();
-  Assert.ok(!manager.store.getExperimentForFeature("feature-a"));
-  Assert.ok(!manager.store.getExperimentForFeature("feature-b"));
-  Assert.equal(
-    manager.store.getExperimentForFeature("feature-c")?.slug,
-    "experiment-c"
-  );
-  Assert.ok(!manager.store.getRolloutForFeature("feature-a"));
-  Assert.ok(!manager.store.getRolloutForFeature("feature-b"));
-  Assert.equal(
-    manager.store.getRolloutForFeature("feature-c")?.slug,
-    "rollout-c"
+  // Remove experiment A and rollout A to cause them to unenroll. B should
+  // unenroll as a result and C should enroll.
+  assertEnrollments(
+    manager.store,
+    ["experiment-c", "rollout-c"],
+    ["experiment-a", "experiment-b", "rollout-a", "rollout-b"]
   );
 
   manager.unenroll("experiment-c");
   manager.unenroll("rollout-c");
 
-  await assertEmptyStore(manager.store, { cleanup: true });
   cleanupFeatures();
+  cleanup();
 });
 
 add_task(async function test_enrollment_targeting() {
-  const loader = ExperimentFakes.rsLoader();
-  const manager = loader.manager;
-
-  await manager.onStartup();
-  await manager.store.ready();
-  await loader.enable();
-
   const cleanupFeatures = ExperimentTestUtils.addTestFeatures(
     new ExperimentFeature("feature-a", {
       isEarlyStartup: false,
@@ -1547,6 +1345,8 @@ add_task(async function test_enrollment_targeting() {
   });
   const rolloutC = recipe("rollout-c", "feature-c", { isRollout: true });
 
+  const { loader, manager, cleanup } = await setupTest();
+
   async function check(current, past, unenrolled) {
     await loader.updateRecipes();
 
@@ -1576,9 +1376,10 @@ add_task(async function test_enrollment_targeting() {
     }
   }
 
-  sinon
-    .stub(loader.remoteSettingsClients.experiments, "get")
-    .resolves([experimentB, rolloutB]);
+  loader.remoteSettingsClients.experiments.get.resolves([
+    experimentB,
+    rolloutB,
+  ]);
   await check(
     [],
     [],
@@ -1663,80 +1464,74 @@ add_task(async function test_enrollment_targeting() {
     manager.unenroll(slug);
   }
 
-  await assertEmptyStore(manager.store, { cleanup: true });
   cleanupFeatures();
+  cleanup();
 });
 
 add_task(async function test_update_experiments_ordered_by_published_date() {
-  const manager = ExperimentFakes.manager();
-  const sandbox = sinon.createSandbox();
-  const loader = ExperimentFakes.rsLoader();
-  loader.manager = manager;
-  const RECIPE_NO_PUBLISHED_DATE_1 = ExperimentFakes.recipe("foo");
-  const RECIPE_NO_PUBLISHED_DATE_2 = ExperimentFakes.recipe("bar");
-  const RECIPE_PUBLISHED_DATE_1 = ExperimentFakes.recipe("baz", {
-    publishedDate: `2024-01-05T12:00:00Z`,
-  });
-  const RECIPE_PUBLISHED_DATE_2 = ExperimentFakes.recipe("qux", {
-    publishedDate: `2024-01-03T12:00:00Z`,
-  });
-  const onRecipe = sandbox.stub(manager, "onRecipe");
-  sinon
-    .stub(loader.remoteSettingsClients.experiments, "get")
-    .resolves([
-      RECIPE_NO_PUBLISHED_DATE_1,
-      RECIPE_PUBLISHED_DATE_1,
-      RECIPE_PUBLISHED_DATE_2,
-      RECIPE_NO_PUBLISHED_DATE_2,
-    ]);
-  sandbox.stub(manager.store, "ready").resolves();
+  // These are intentionally out of order so that we can test the order below.
+  const recipes = [
+    ExperimentFakes.recipe("published-date-2", {
+      publishedDate: "2024-01-05T12:00:00Z",
+    }),
+    ExperimentFakes.recipe("no-published-date-1"),
+    ExperimentFakes.recipe("published-date-1", {
+      publishedDate: "2024-01-03T12:00:00Z",
+    }),
+    ExperimentFakes.recipe("no-published-date-2"),
+  ];
 
-  await loader.enable();
+  const { sandbox, loader, manager, cleanup } = await setupTest();
 
-  ok(onRecipe.getCall(0).calledWithMatch({ slug: "foo" }, "rs-loader"));
-  ok(onRecipe.getCall(1).calledWithMatch({ slug: "bar" }, "rs-loader"));
-  ok(onRecipe.getCall(2).calledWithMatch({ slug: "qux" }, "rs-loader"));
-  ok(onRecipe.getCall(3).calledWithMatch({ slug: "baz" }, "rs-loader"));
+  sandbox.stub(manager, "onRecipe");
 
-  await assertEmptyStore(manager.store);
+  loader.remoteSettingsClients.experiments.get.resolves(recipes);
+  await loader.updateRecipes();
+
+  Assert.ok(
+    manager.onRecipe
+      .getCall(0)
+      .calledWith(sinon.match({ slug: "no-published-date-1" }), "rs-loader")
+  );
+  Assert.ok(
+    manager.onRecipe
+      .getCall(1)
+      .calledWith(sinon.match({ slug: "no-published-date-2" }), "rs-loader")
+  );
+  Assert.ok(
+    manager.onRecipe
+      .getCall(2)
+      .calledWith(sinon.match({ slug: "published-date-1" }), "rs-loader")
+  );
+  Assert.ok(
+    manager.onRecipe
+      .getCall(3)
+      .calledWith(sinon.match({ slug: "published-date-2" }), "rs-loader")
+  );
+
+  cleanup();
 });
 
 add_task(
   async function test_record_is_ready_no_value_for_nimbus_is_ready_feature() {
-    const sandbox = sinon.createSandbox();
-    const loader = ExperimentFakes.rsLoader();
-    const manager = loader.manager;
-
-    sandbox.stub(ExperimentAPI, "_manager").get(() => manager);
-
-    await manager.onStartup();
-    await manager.store.ready();
-    await loader.enable();
-
-    sandbox.stub(loader.remoteSettingsClients.experiments, "get").resolves([]);
+    const { loader, cleanup } = await NimbusTestUtils.setupTest({
+      clearTelemetry: true,
+    });
 
     await Services.fog.testFlushAllChildren();
     Services.fog.testResetFOG();
+
     await loader.updateRecipes();
-
     const isReadyEvents = Glean.nimbusEvents.isReady.testGetValue("events");
-
     Assert.equal(isReadyEvents.length, 1);
 
-    await assertEmptyStore(manager.store);
+    cleanup();
   }
 );
 
 add_task(
   async function test_record_is_ready_set_value_for_nimbus_is_ready_feature() {
-    const sandbox = sinon.createSandbox();
-    const loader = ExperimentFakes.rsLoader();
-    const manager = loader.manager;
-
-    sandbox.stub(ExperimentAPI, "_manager").get(() => manager);
-
-    const slug = "foo";
-    const EXPERIMENT = ExperimentFakes.recipe(slug, {
+    const recipe = ExperimentFakes.recipe("foo", {
       branches: [
         {
           slug: "wsup",
@@ -1755,32 +1550,23 @@ add_task(
       },
     });
 
-    await manager.onStartup();
-    await manager.store.ready();
-    await loader.enable();
-
-    sandbox
-      .stub(loader.remoteSettingsClients.experiments, "get")
-      .resolves([EXPERIMENT]);
+    const { loader, manager, cleanup } = await NimbusTestUtils.setupTest();
 
     await Services.fog.testFlushAllChildren();
     Services.fog.testResetFOG();
+
+    loader.remoteSettingsClients.experiments.get.resolves([recipe]);
     await loader.updateRecipes();
 
-    const enrollment = manager.store.get(slug);
-    Assert.equal(
-      enrollment?.active,
-      true,
-      `Enrollment exists for ${slug} and is active`
-    );
+    const enrollment = manager.store.get(recipe.slug);
+    Assert.equal(enrollment?.active, true, `Enrollment exists and is active`);
 
     const isReadyEvents = Glean.nimbusEvents.isReady.testGetValue("events");
 
     Assert.equal(isReadyEvents.length, 3);
-    manager.unenroll(EXPERIMENT.slug);
-    await assertEmptyStore(manager.store, { cleanup: true });
+    manager.unenroll(recipe.slug);
 
-    sandbox.restore();
+    cleanup();
   }
 );
 
@@ -1858,38 +1644,37 @@ add_task(async function test_updateRecipes_secure() {
   ] of TEST_CASES.entries()) {
     info(`Running test ${idx}`);
 
-    const loader = ExperimentFakes.rsLoader();
-    const manager = loader.manager;
+    const { sandbox, manager, initExperimentAPI, cleanup } = await setupTest({
+      init: false,
+      experiments,
+      secureExperiments,
+    });
 
-    const onRecipe = sinon.stub(manager, "onRecipe");
+    sandbox.stub(manager, "onRecipe");
 
-    await manager.onStartup();
-    await manager.store.ready();
-    await loader.enable();
+    await initExperimentAPI();
 
-    sinon
-      .stub(loader.remoteSettingsClients.experiments, "get")
-      .resolves(experiments);
-    sinon
-      .stub(loader.remoteSettingsClients.secureExperiments, "get")
-      .resolves(secureExperiments);
-    await loader.updateRecipes();
-
-    const enrolledSlugs = onRecipe.getCalls().map(call => call.args[0].slug);
+    const enrolledSlugs = manager.onRecipe
+      .getCalls()
+      .map(call => call.args[0].slug);
 
     Assert.equal(
-      onRecipe.callCount,
+      manager.onRecipe.callCount,
       shouldEnroll.length,
       `Should enroll in expected number of recipes (enrolled in ${enrolledSlugs})`
     );
 
     for (const expectedRecipe of shouldEnroll) {
-      onRecipe.calledWith(
-        expectedRecipe,
-        "rs-loader",
+      Assert.ok(
+        manager.onRecipe.calledWith(expectedRecipe, "rs-loader", {
+          ok: true,
+          status: MatchStatus.TARGETING_AND_BUCKETING,
+        }),
         `Should enroll in ${expectedRecipe.slug}`
       );
     }
+
+    cleanup();
   }
 });
 
@@ -1930,18 +1715,8 @@ add_task(async function test_updateRecipesClearsOptIns() {
     }),
   ];
 
-  const sandbox = sinon.createSandbox();
-
-  const loader = ExperimentFakes.rsLoader();
-  const manager = loader.manager;
-
-  await manager.onStartup();
-  await manager.store.ready();
-  await loader.enable();
-
-  sandbox
-    .stub(loader.remoteSettingsClients.experiments, "get")
-    .resolves(recipes);
+  const { loader, manager, cleanup } = await setupTest();
+  loader.remoteSettingsClients.experiments.get.resolves(recipes);
 
   await loader.updateRecipes();
 
@@ -1951,7 +1726,7 @@ add_task(async function test_updateRecipesClearsOptIns() {
 
   Assert.deepEqual(manager.optInRecipes, recipes);
 
-  await assertEmptyStore(manager.store);
+  cleanup();
 });
 
 add_task(async function test_updateRecipes_optInsStayEnrolled() {
@@ -1983,19 +1758,9 @@ add_task(async function test_updateRecipes_optInsStayEnrolled() {
     requiresRestart: false,
   });
 
-  const sandbox = sinon.createSandbox();
-  const loader = ExperimentFakes.rsLoader();
-  const manager = loader.manager;
-
-  await manager.onStartup();
-  await manager.store.ready();
-  await loader.enable();
-
-  sandbox
-    .stub(loader.remoteSettingsClients.experiments, "get")
-    .resolves([recipe]);
-
-  await loader.updateRecipes();
+  const { loader, manager, cleanup } = await setupTest({
+    experiments: [recipe],
+  });
 
   await manager.enroll(recipe, "rs-loader", { branchSlug: "branch-0" });
   Assert.ok(manager.store.get("opt-in")?.active, "Opt-in was enrolled");
@@ -2004,9 +1769,8 @@ add_task(async function test_updateRecipes_optInsStayEnrolled() {
   Assert.ok(manager.store.get("opt-in")?.active, "Opt-in stayed enrolled");
 
   manager.unenroll("opt-in");
-  manager.store._deleteForTests("opt-in");
 
-  await assertEmptyStore(manager.store);
+  cleanup();
 });
 
 add_task(async function test_updateRecipes_optInsUnerollOnFalseTargeting() {
@@ -2038,19 +1802,9 @@ add_task(async function test_updateRecipes_optInsUnerollOnFalseTargeting() {
     requiresRestart: false,
   });
 
-  const sandbox = sinon.createSandbox();
-  const loader = ExperimentFakes.rsLoader();
-  const manager = loader.manager;
-
-  await manager.onStartup();
-  await manager.store.ready();
-  await loader.enable();
-
-  sandbox
-    .stub(loader.remoteSettingsClients.experiments, "get")
-    .resolves([recipe]);
-
-  await loader.updateRecipes();
+  const { loader, manager, cleanup } = await setupTest({
+    experiments: [recipe],
+  });
 
   await manager.enroll(recipe, "rs-loader", { branchSlug: "branch-0" });
   Assert.ok(manager.store.get("opt-in")?.active, "Opt-in was enrolled");
@@ -2059,9 +1813,7 @@ add_task(async function test_updateRecipes_optInsUnerollOnFalseTargeting() {
   await loader.updateRecipes();
   Assert.ok(!manager.store.get("opt-in")?.active, "Opt-in unenrolled");
 
-  manager.store._deleteForTests("opt-in");
-
-  await assertEmptyStore(manager.store);
+  cleanup();
 });
 
 add_task(async function test_updateRecipes_bucketingCausesOptInUnenrollments() {
@@ -2088,19 +1840,9 @@ add_task(async function test_updateRecipes_bucketingCausesOptInUnenrollments() {
     requiresRestart: false,
   });
 
-  const sandbox = sinon.createSandbox();
-  const loader = ExperimentFakes.rsLoader();
-  const manager = loader.manager;
-
-  await manager.onStartup();
-  await manager.store.ready();
-  await loader.enable();
-
-  sandbox
-    .stub(loader.remoteSettingsClients.experiments, "get")
-    .resolves([recipe]);
-
-  await loader.updateRecipes();
+  const { loader, manager, cleanup } = await setupTest({
+    experiments: [recipe],
+  });
 
   await manager.enroll(recipe, "rs-loader", { branchSlug: "branch-0" });
   Assert.ok(manager.store.get("opt-in")?.active, "Opt-in was enrolled");
@@ -2109,9 +1851,7 @@ add_task(async function test_updateRecipes_bucketingCausesOptInUnenrollments() {
   await loader.updateRecipes();
   Assert.ok(!manager.store.get("opt-in")?.active, "Opt-in unenrolled");
 
-  manager.store._deleteForTests("opt-in");
-
-  await assertEmptyStore(manager.store);
+  cleanup();
 });
 
 add_task(async function test_updateRecipes_reEnrollRolloutOptin() {
@@ -2140,19 +1880,9 @@ add_task(async function test_updateRecipes_reEnrollRolloutOptin() {
     requiresRestart: false,
   });
 
-  const sandbox = sinon.createSandbox();
-  const loader = ExperimentFakes.rsLoader();
-  const manager = loader.manager;
-
-  await manager.onStartup();
-  await manager.store.ready();
-  await loader.enable();
-
-  sandbox
-    .stub(loader.remoteSettingsClients.experiments, "get")
-    .resolves([recipe]);
-
-  await loader.updateRecipes();
+  const { loader, manager, cleanup } = await setupTest({
+    experiments: [recipe],
+  });
 
   await manager.enroll(recipe, "rs-loader", { branchSlug: "branch-0" });
   Assert.ok(manager.store.get("opt-in")?.active, "Opt-in was enrolled");
@@ -2165,5 +1895,515 @@ add_task(async function test_updateRecipes_reEnrollRolloutOptin() {
   await loader.updateRecipes();
   Assert.ok(!manager.store.get("opt-in").active, "Opt-in not re-enrolled");
 
-  await assertEmptyStore(manager.store);
+  cleanup();
+});
+
+add_task(async function test_updateRecipes_enrollmentStatus_telemetry() {
+  // Create a feature for each experiment so that they aren't competing.
+  const features = [
+    new ExperimentFeature("test-feature-0", { variables: {} }),
+    new ExperimentFeature("test-feature-1", { variables: {} }),
+    new ExperimentFeature("test-feature-2", { variables: {} }),
+    new ExperimentFeature("test-feature-3", { variables: {} }),
+    new ExperimentFeature("test-feature-4", { variables: {} }),
+    new ExperimentFeature("test-feature-5", {
+      variables: {
+        foo: { type: "string" },
+      },
+    }),
+    new ExperimentFeature("test-feature-6", { variables: {} }),
+    new ExperimentFeature("test-feature-7", { variables: {} }),
+    new ExperimentFeature("test-feature-8", { variables: {} }),
+  ];
+
+  const cleanupFeatures = ExperimentTestUtils.addTestFeatures(...features);
+
+  function recipe(slug, featureId, value = null) {
+    return ExperimentFakes.recipe(slug, {
+      bucketConfig: {
+        ...ExperimentFakes.recipe.bucketConfig,
+        count: 1000,
+      },
+      branches: [
+        {
+          ratio: 1,
+          slug: "control",
+          features: [
+            {
+              featureId,
+              value: value ?? {},
+            },
+          ],
+        },
+      ],
+    });
+  }
+  const { loader, manager, cleanup } = await setupTest();
+
+  // Prime the store with currently valid recipes.
+  await manager.enroll(recipe("was-enrolled", "test-feature-0"), "rs-loader");
+  await manager.enroll(recipe("stays-enrolled", "test-feature-2"), "rs-loader");
+  await manager.enroll(
+    recipe("recipe-mismatch", "test-feature-3"),
+    "rs-loader"
+  );
+  await manager.enroll(recipe("invalid-recipe", "test-feature-4"), "rs-loader");
+  await manager.enroll(recipe("invalid-branch", "test-feature-5"), "rs-loader");
+  await manager.enroll(
+    recipe("invalid-feature", "test-feature-6"),
+    "rs-loader"
+  );
+  await manager.enroll(
+    recipe("l10n-missing-locale", "test-feature-7"),
+    "rs-loader"
+  );
+  await manager.enroll(
+    recipe("l10n-missing-entry", "test-feature-8"),
+    "rs-loader"
+  );
+
+  // Create another set of recipes, most of which are invalid, and trigger the
+  // RSEL with those recipes.
+  const recipes = [
+    recipe("enrolls", "test-feature-1"),
+    recipe("stays-enrolled", "test-feature-2"),
+    {
+      ...recipe("recipe-mismatch", "test-feature-3"),
+      targeting: "false",
+    },
+    {
+      ...recipe("invalid-recipe", "test-feature-4"),
+      isRollout: "true",
+    },
+    recipe("invalid-branch", "test-feature-5", {
+      foo: 1,
+    }),
+    recipe("invalid-feature", "unknown-feature"),
+    {
+      ...recipe("l10n-missing-locale", "test-feature-6"),
+      localizations: {},
+    },
+    {
+      ...recipe("l10n-missing-entry", "test-feature-7", {
+        foo: {
+          $l10n: {
+            id: "foo-string",
+            comment: "foo comment",
+            text: "foo text",
+          },
+        },
+      }),
+      localizations: {
+        "en-US": {},
+      },
+    },
+  ];
+
+  loader.remoteSettingsClients.experiments.get.resolves(recipes);
+
+  Services.fog.applyServerKnobsConfig(
+    JSON.stringify({
+      metrics_enabled: {
+        "nimbus_events.enrollment_status": true,
+      },
+    })
+  );
+
+  await loader.updateRecipes("test");
+
+  const events = Glean.nimbusEvents.enrollmentStatus.testGetValue("events");
+
+  Assert.deepEqual(events?.map(ev => ev.extra) ?? [], [
+    {
+      status: "WasEnrolled",
+      branch: "control",
+      slug: "was-enrolled",
+    },
+    {
+      status: "Enrolled",
+      reason: "Qualified",
+      branch: "control",
+      slug: "stays-enrolled",
+    },
+    {
+      status: "Disqualified",
+      reason: "NotTargeted",
+      branch: "control",
+      slug: "recipe-mismatch",
+    },
+    {
+      status: "Disqualified",
+      reason: "Error",
+      error_string: "invalid-recipe",
+      branch: "control",
+      slug: "invalid-recipe",
+    },
+    {
+      status: "Disqualified",
+      reason: "Error",
+      error_string: "invalid-branch",
+      branch: "control",
+      slug: "invalid-branch",
+    },
+    {
+      status: "Disqualified",
+      reason: "Error",
+      error_string: "invalid-feature",
+      branch: "control",
+      slug: "invalid-feature",
+    },
+    {
+      status: "Disqualified",
+      reason: "Error",
+      error_string: "l10n-missing-locale",
+      branch: "control",
+      slug: "l10n-missing-locale",
+    },
+    {
+      status: "Disqualified",
+      reason: "Error",
+      error_string: "l10n-missing-entry",
+      branch: "control",
+      slug: "l10n-missing-entry",
+    },
+    {
+      status: "Enrolled",
+      reason: "Qualified",
+      branch: "control",
+      slug: "enrolls",
+    },
+  ]);
+
+  manager.unenroll("stays-enrolled");
+  manager.unenroll("enrolls");
+
+  cleanupFeatures();
+  cleanup();
+});
+
+add_task(async function test_updateRecipes_enrollmentStatus_notEnrolled() {
+  const features = [
+    new ExperimentFeature("test-feature-0", { variables: {} }),
+    new ExperimentFeature("test-feature-1", { variables: {} }),
+    new ExperimentFeature("test-feature-2", { variables: {} }),
+    new ExperimentFeature("test-feature-3", { variables: {} }),
+    new ExperimentFeature("test-feature-4", { variables: {} }),
+    new ExperimentFeature("test-feature-5", { variables: {} }),
+    new ExperimentFeature("test-feature-6", { variables: {} }),
+    new ExperimentFeature("test-feature-7", { variables: {} }),
+    new ExperimentFeature("test-feature-8", { variables: {} }),
+  ];
+
+  const cleanupFeatures = ExperimentTestUtils.addTestFeatures(...features);
+
+  function recipe(slug, featureId) {
+    return ExperimentFakes.recipe(slug, {
+      bucketConfig: {
+        ...ExperimentFakes.recipe.bucketConfig,
+        count: 1000,
+      },
+      branches: [
+        {
+          ratio: 1,
+          slug: "control",
+          features: [
+            {
+              featureId,
+              value: {},
+            },
+          ],
+        },
+      ],
+    });
+  }
+
+  const recipes = [
+    {
+      ...recipe("enrollment-paused", "test-feature-0"),
+      isEnrollmentPaused: true,
+    },
+    {
+      ...recipe("no-match", "test-feature-1"),
+      targeting: "false",
+    },
+    {
+      ...recipe("targeting-only", "test-feature-2"),
+      bucketConfig: {
+        ...ExperimentFakes.recipe.bucketConfig,
+        count: 0,
+      },
+    },
+    {
+      ...recipe("already-enrolled-rollout", "test-feature-3"),
+      isRollout: true,
+    },
+    recipe("already-enrolled-experiment", "test-feature-3"),
+  ];
+
+  const { loader, manager, cleanup } = await setupTest();
+
+  await manager.enroll(
+    { ...recipe("enrolled-rollout", "test-feature-3"), isRollout: true },
+    "force-enrollment"
+  );
+  await manager.enroll(
+    recipe("enrolled-experiment", "test-feature-3"),
+    "force-enrollment"
+  );
+
+  loader.remoteSettingsClients.experiments.get.resolves(recipes);
+
+  Services.fog.applyServerKnobsConfig(
+    JSON.stringify({
+      metrics_enabled: {
+        "nimbus_events.enrollment_status": true,
+      },
+    })
+  );
+
+  await loader.updateRecipes("timer");
+
+  Assert.deepEqual(
+    Glean.nimbusEvents.enrollmentStatus
+      .testGetValue("events")
+      ?.map(ev => ev.extra),
+    [
+      {
+        slug: "enrollment-paused",
+        status: "NotEnrolled",
+        reason: "EnrollmentsPaused",
+      },
+      {
+        slug: "no-match",
+        status: "NotEnrolled",
+        reason: "NotTargeted",
+      },
+      {
+        slug: "targeting-only",
+        status: "NotEnrolled",
+        reason: "NotSelected",
+      },
+      {
+        slug: "already-enrolled-rollout",
+        status: "NotEnrolled",
+        reason: "FeatureConflict",
+        conflict_slug: "enrolled-rollout",
+      },
+      {
+        slug: "already-enrolled-experiment",
+        status: "NotEnrolled",
+        reason: "FeatureConflict",
+        conflict_slug: "enrolled-experiment",
+      },
+    ]
+  );
+
+  manager.unenroll("enrolled-experiment");
+  manager.unenroll("enrolled-rollout");
+
+  cleanupFeatures();
+  cleanup();
+});
+
+add_task(async function test_updateRecipesWithPausedEnrollment() {
+  const recipe = ExperimentFakes.recipe("foo", {
+    bucketConfig: {
+      ...ExperimentFakes.recipe.bucketConfig,
+      count: 1000,
+    },
+    isEnrollmentPaused: true,
+  });
+
+  const { sandbox, loader, manager, cleanup } = await setupTest();
+
+  sandbox.spy(manager, "onRecipe");
+  sandbox.spy(manager, "_enroll");
+  loader.remoteSettingsClients.experiments.get.resolves([recipe]);
+
+  await loader.updateRecipes("test");
+
+  Assert.ok(
+    manager.onRecipe.calledOnceWith(recipe, "rs-loader", {
+      ok: true,
+      status: MatchStatus.ENROLLMENT_PAUSED,
+    }),
+    "Should call onRecipe with enrollments paused"
+  );
+  Assert.ok(
+    manager._enroll.notCalled,
+    "Should not call enroll for paused recipe"
+  );
+
+  cleanup();
+});
+
+add_task(async function test_updateRecipesUnenrollsNotSeenRecipes() {
+  const { sandbox, loader, manager, cleanup } = await setupTest();
+
+  sandbox.spy(TelemetryEnvironment, "setExperimentActive");
+  sandbox.spy(TelemetryEnvironment, "setExperimentInactive");
+  sandbox.spy(manager, "updateEnrollment");
+
+  const recipe = ExperimentFakes.recipe("rollout", {
+    bucketConfig: {
+      ...ExperimentFakes.recipe.bucketConfig,
+      count: 1000,
+    },
+    branches: [ExperimentFakes.recipe.branches[0]],
+    isRollout: true,
+  });
+
+  loader.remoteSettingsClients.experiments.get.resolves([recipe]);
+  await loader.updateRecipes();
+
+  Assert.ok(manager.store.get("rollout")?.active, "rollout is active");
+  Assert.ok(
+    TelemetryEnvironment.setExperimentActive.calledOnceWith("rollout"),
+    "set experiment as active"
+  );
+
+  Assert.equal(
+    Glean.nimbusEvents.enrollFailed.testGetValue("events"),
+    undefined,
+    "no enrollment failure events"
+  );
+
+  loader.remoteSettingsClients.experiments.get.resolves([]);
+  await loader.updateRecipes();
+
+  Assert.ok(
+    manager.updateEnrollment.calledOnceWith(
+      sinon.match({ slug: "rollout" }),
+      undefined,
+      "rs-loader",
+      { ok: true, status: MatchStatus.NOT_SEEN }
+    ),
+    "Should call updateEnrollment with recipe-not-seen"
+  );
+
+  Assert.ok(!manager.store.get("rollout").active, "rollout is inactive");
+  Assert.equal(
+    manager.store.get("rollout").unenrollReason,
+    "recipe-not-seen",
+    "rollout unenrolled for correct reason"
+  );
+
+  Assert.ok(
+    TelemetryEnvironment.setExperimentInactive.calledOnceWith("rollout"),
+    "set experiment as active"
+  );
+
+  Assert.equal(
+    Glean.nimbusEvents.unenrollFailed.testGetValue("events"),
+    undefined,
+    "No unenrollment failure events"
+  );
+
+  Assert.deepEqual(
+    Glean.nimbusEvents.unenrollment.testGetValue("events").map(e => e.extra),
+    [
+      {
+        experiment: "rollout",
+        branch: "control",
+        reason: "recipe-not-seen",
+      },
+    ],
+    "One unenrollment event"
+  );
+
+  TelemetryTestUtils.assertEvents(
+    [
+      {
+        value: "rollout",
+        extra: {
+          reason: "recipe-not-seen",
+        },
+      },
+    ],
+    {
+      category: "normandy",
+      method: "unenroll",
+      object: "nimbus_experiment",
+    },
+    {
+      clear: true,
+    }
+  );
+
+  cleanup();
+});
+
+add_task(async function test_updateRecipesUnenrollsTargetingMismatch() {
+  const { loader, manager, cleanup } = await setupTest();
+
+  const recipe = ExperimentFakes.recipe("only-once", {
+    bucketConfig: {
+      ...ExperimentFakes.recipe.bucketConfig,
+      count: 1000,
+    },
+    targeting: "!(experiment.slug in activeExperiments)",
+  });
+
+  loader.remoteSettingsClients.experiments.get.resolves([recipe]);
+  await loader.updateRecipes();
+
+  Assert.ok(manager.store.get("only-once")?.active, "Enrolled");
+
+  await loader.updateRecipes();
+
+  Assert.ok(!manager.store.get("only-once").active, "Unenrolled");
+  Assert.equal(
+    manager.store.get("only-once").unenrollReason,
+    "targeting-mismatch",
+    "Unenroll reason matches"
+  );
+
+  cleanup();
+});
+
+add_task(async function testUnenrollsFirst() {
+  const e1 = NimbusTestUtils.factories.recipe("e1");
+  const e2 = NimbusTestUtils.factories.recipe("e2");
+  const e3 = NimbusTestUtils.factories.recipe("e3");
+  const r1 = NimbusTestUtils.factories.recipe("r1", { isRollout: true });
+  const r2 = NimbusTestUtils.factories.recipe("r2", { isRollout: true });
+  const r3 = NimbusTestUtils.factories.recipe("r3", { isRollout: true });
+
+  const { loader, manager, cleanup } = await setupTest();
+  loader.remoteSettingsClients.experiments.get.resolves([
+    e1,
+    e2,
+    e3,
+    r1,
+    r2,
+    r3,
+  ]);
+
+  // e1 and r1 should enroll. The rest cannot enroll because of feature conflicts.
+  await loader.updateRecipes();
+  assertEnrollments(manager.store, ["e1", "r1"], []);
+
+  // No change.
+  await loader.updateRecipes();
+  assertEnrollments(manager.store, ["e1", "r1"], []);
+
+  // Remove e1. e1 should unenroll. e2 should enroll.
+  loader.remoteSettingsClients.experiments.get.resolves([e2, e3, r1, r2, r3]);
+  await loader.updateRecipes();
+  assertEnrollments(manager.store, ["e2", "r1"], ["e1"]);
+
+  // Remove r1. r1 should unenroll. r2 should enroll.
+  loader.remoteSettingsClients.experiments.get.resolves([e2, e3, r2, r3]);
+  await loader.updateRecipes();
+  assertEnrollments(manager.store, ["e2", "r2"], ["e1", "r1"]);
+
+  // Remove e2 and r2. e2 and r2 should unenroll. e3 and r3 should enroll.
+  loader.remoteSettingsClients.experiments.get.resolves([e3, r3]);
+  await loader.updateRecipes();
+  assertEnrollments(manager.store, ["e3", "r3"], ["e1", "e2", "r1", "r2"]);
+
+  manager.unenroll("e3");
+  manager.unenroll("r3");
+
+  cleanup();
 });

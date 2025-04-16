@@ -445,8 +445,12 @@ this.AntiTracking = {
             ].getService(Ci.nsIURIClassifier);
             let feature = classifier.getFeatureByName("tracking-annotation");
             await TestUtils.waitForCondition(() => {
-              for (let x of item[1].toLowerCase().split(",")) {
-                if (feature.exceptionHostList.split(",").includes(x)) {
+              for (let x of item[1].split(",")) {
+                if (
+                  feature.exceptionList
+                    .testGetEntries()
+                    .some(e => e.urlPattern == x)
+                ) {
                   return true;
                 }
               }
@@ -988,6 +992,15 @@ this.AntiTracking = {
         await TestUtils.topicObserved("browser-delayed-startup-finished");
       }
 
+      // Enable SA heuristics for trackers because the test depends on it.
+      extraPrefs = [
+        ...(extraPrefs || []),
+        [
+          "privacy.restrict3rdpartystorage.heuristic.exclude_third_party_trackers",
+          false,
+        ],
+      ];
+
       await AntiTracking._setupTest(
         win,
         cookieBehavior,
@@ -1113,6 +1126,15 @@ this.AntiTracking = {
         win = OpenBrowserWindow({ private: true });
         await TestUtils.topicObserved("browser-delayed-startup-finished");
       }
+
+      // Enable SA heuristics for trackers because the test depends on it.
+      extraPrefs = [
+        ...(extraPrefs || []),
+        [
+          "privacy.restrict3rdpartystorage.heuristic.exclude_third_party_trackers",
+          false,
+        ],
+      ];
 
       await AntiTracking._setupTest(
         win,

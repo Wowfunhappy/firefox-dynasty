@@ -503,7 +503,8 @@ void DefaultVideoQualityAnalyzer::OnFrameRendered(
   auto frame_it = captured_frames_in_flight_.find(frame.id());
   if (frame_it == captured_frames_in_flight_.end() ||
       frame_it->second.HasRenderedTime(peer_index) ||
-      frame_it->second.IsDropped(peer_index)) {
+      frame_it->second.IsDropped(peer_index) ||
+      frame_it->second.IsSuperfluous(peer_index)) {
     // It means this frame was rendered or dropped before, so we can skip it.
     // It may happen when we have multiple simulcast streams in one track and
     // received the same frame from two different streams because SFU can't
@@ -514,7 +515,8 @@ void DefaultVideoQualityAnalyzer::OnFrameRendered(
     if (frame_it != captured_frames_in_flight_.end()) {
       if (frame_it->second.HasRenderedTime(peer_index)) {
         reason = kSkipRenderedFrameReasonRendered;
-      } else if (frame_it->second.IsDropped(peer_index)) {
+      } else if (frame_it->second.IsDropped(peer_index) ||
+                 frame_it->second.IsSuperfluous(peer_index)) {
         reason = kSkipRenderedFrameReasonDropped;
       }
     }
@@ -1320,7 +1322,7 @@ std::string DefaultVideoQualityAnalyzer::ToMetricName(
     // TODO(titovartem): remove this special case.
     return stream_label;
   }
-  rtc::StringBuilder out;
+  StringBuilder out;
   out << stream_label << "_" << peers_->name(key.sender) << "_"
       << peers_->name(key.receiver);
   return out.str();

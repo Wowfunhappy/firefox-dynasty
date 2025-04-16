@@ -75,10 +75,8 @@ async function waitForPageLoadTask(pageLoadTask, expectedUrl) {
   );
   await pageLoadTask();
   await promiseTabOpen;
-  await TestUtils.waitForCondition(
-    () => win.gBrowser.currentURI.spec === expectedUrl,
-    `Navigated to ${expectedUrl}.`
-  );
+  await BrowserTestUtils.browserLoaded(win.gBrowser, false, expectedUrl);
+  info(`Navigated to ${expectedUrl}.`);
 }
 
 add_task(async function test_history_cards_created() {
@@ -155,9 +153,10 @@ add_task(async function test_history_search() {
       component.lists.length === 1 &&
       component.shadowRoot.querySelector(
         "moz-card[data-l10n-id=sidebar-search-results-header]"
-      )
+      ) &&
+      component.lists[0]
   );
-  await TestUtils.waitForCondition(() => {
+  await BrowserTestUtils.waitForCondition(() => {
     const { rowEls } = component.lists[0];
     return rowEls.length === 1 && rowEls[0].mainEl.href === URLs[1];
   }, "There is one matching search result.");
@@ -189,16 +188,21 @@ add_task(async function test_history_sort() {
   const menu = component._menu;
   const sortByDateButton = component._menuSortByDate;
   const sortBySiteButton = component._menuSortBySite;
+  const sortByDateSiteButton = component._menuSortByDateSite;
+  const sortByLastVisitedButton = component._menuSortByLastVisited;
 
   info("Sort history by site.");
   let promiseMenuShown = BrowserTestUtils.waitForEvent(menu, "popupshown");
   EventUtils.synthesizeMouseAtCenter(menuButton, {}, contentWindow);
   await promiseMenuShown;
   menu.activateItem(sortBySiteButton);
-  await TestUtils.waitForCondition(
-    () => component.lists.length === URLs.length,
-    "There is a card for each site."
+  await BrowserTestUtils.waitForMutationCondition(
+    component.shadowRoot,
+    { childList: true, subtree: true },
+    () => component.lists.length === URLs.length
   );
+  ok(true, "There is a card for each site.");
+
   Assert.equal(
     sortBySiteButton.getAttribute("checked"),
     "true",
@@ -213,10 +217,12 @@ add_task(async function test_history_sort() {
   EventUtils.synthesizeMouseAtCenter(menuButton, {}, contentWindow);
   await promiseMenuShown;
   menu.activateItem(sortByDateButton);
-  await TestUtils.waitForCondition(
-    () => component.lists.length === dates.length,
-    "There is a card for each date."
+  await BrowserTestUtils.waitForMutationCondition(
+    component.shadowRoot,
+    { childList: true, subtree: true },
+    () => component.lists.length === dates.length
   );
+  ok(true, "There is a card for each date.");
   Assert.equal(
     sortByDateButton.getAttribute("checked"),
     "true",
@@ -229,54 +235,155 @@ add_task(async function test_history_sort() {
       "The cards for Today and Yesterday are expanded."
     );
   }
+
+  info("Sort history by date and site.");
+  promiseMenuShown = BrowserTestUtils.waitForEvent(menu, "popupshown");
+  EventUtils.synthesizeMouseAtCenter(menuButton, {}, contentWindow);
+  await promiseMenuShown;
+  menu.activateItem(sortByDateSiteButton);
+  await BrowserTestUtils.waitForMutationCondition(
+    component.shadowRoot,
+    { childList: true, subtree: true },
+    () => component.lists.length === dates.length * URLs.length
+  );
+  Assert.ok(
+    true,
+    "There is a card for each date, and a nested card for each site."
+  );
+  Assert.equal(
+    sortByDateSiteButton.getAttribute("checked"),
+    "true",
+    "Sort by date and site is checked."
+  );
+  const outerCards = [...component.cards].filter(
+    el => !el.classList.contains("nested-card")
+  );
+  for (const [i, card] of outerCards.entries()) {
+    Assert.equal(
+      card.expanded,
+      i === 0 || i === 1,
+      "The cards for Today and Yesterday are expanded."
+    );
+  }
+
+  info("Sort history by last visited.");
+  promiseMenuShown = BrowserTestUtils.waitForEvent(menu, "popupshown");
+  EventUtils.synthesizeMouseAtCenter(menuButton, {}, contentWindow);
+  await promiseMenuShown;
+  menu.activateItem(sortByLastVisitedButton);
+  await BrowserTestUtils.waitForMutationCondition(
+    component.shadowRoot,
+    { childList: true, subtree: true },
+    () => component.lists.length === 1
+  );
+  Assert.equal(
+    component.lists[0].tabItems.length,
+    URLs.length,
+    "There is a single card with a row for each site."
+  );
+  Assert.equal(
+    sortByLastVisitedButton.getAttribute("checked"),
+    "true",
+    "Sort by last visited is checked."
+  );
+
   win.SidebarController.hide();
 });
 
 add_task(async function test_history_keyboard_navigation() {
-  const {
-    component: { lists },
-    contentWindow,
-  } = await showHistorySidebar();
-
-  const rows = await TestUtils.waitForCondition(
-    () => lists[0].rowEls.length === URLs.length && lists[0].rowEls,
-    "History rows are shown."
+  const { component, contentWindow } = await showHistorySidebar();
+  const { lists, cards } = component;
+  await BrowserTestUtils.waitForMutationCondition(
+    component.shadowRoot,
+    { childList: true, subtree: true },
+    () => !!lists.length
   );
-  rows[0].focus();
+  await BrowserTestUtils.waitForMutationCondition(
+    lists[0].shadowRoot,
+    { subtree: true, childList: true },
+    () => lists[0].rowEls.length === URLs.length
+  );
+  ok(true, "History rows are shown.");
+  const rows = lists[0].rowEls;
+
+  cards[0].summaryEl.focus();
 
   info("Focus the next row.");
-  let focused = BrowserTestUtils.waitForEvent(rows[1], "focus", contentWindow);
+  let focused = BrowserTestUtils.waitForEvent(rows[0], "focus", contentWindow);
+  EventUtils.synthesizeKey("KEY_ArrowDown", {}, contentWindow);
+  await focused;
+
+  info("Focus the previous card.");
+  focused = BrowserTestUtils.waitForEvent(
+    cards[0].summaryEl,
+    "focus",
+    contentWindow
+  );
+  EventUtils.synthesizeKey("KEY_ArrowUp", {}, contentWindow);
+  await focused;
+
+  info("Focus the next row.");
+  focused = BrowserTestUtils.waitForEvent(rows[0], "focus", contentWindow);
+  EventUtils.synthesizeKey("KEY_ArrowDown", {}, contentWindow);
+  await focused;
+
+  info("Focus the next row.");
+  focused = BrowserTestUtils.waitForEvent(rows[1], "focus", contentWindow);
+  EventUtils.synthesizeKey("KEY_ArrowDown", {}, contentWindow);
+  await focused;
+
+  info("Focus the next row.");
+  focused = BrowserTestUtils.waitForEvent(rows[2], "focus", contentWindow);
+  EventUtils.synthesizeKey("KEY_ArrowDown", {}, contentWindow);
+  await focused;
+
+  info("Focus the next row.");
+  focused = BrowserTestUtils.waitForEvent(rows[3], "focus", contentWindow);
+  EventUtils.synthesizeKey("KEY_ArrowDown", {}, contentWindow);
+  await focused;
+
+  info("Focus the next card.");
+  focused = BrowserTestUtils.waitForEvent(
+    cards[1].summaryEl,
+    "focus",
+    contentWindow
+  );
   EventUtils.synthesizeKey("KEY_ArrowDown", {}, contentWindow);
   await focused;
 
   info("Focus the previous row.");
-  focused = BrowserTestUtils.waitForEvent(rows[0], "focus", contentWindow);
+  focused = BrowserTestUtils.waitForEvent(rows[3], "focus", contentWindow);
   EventUtils.synthesizeKey("KEY_ArrowUp", {}, contentWindow);
   await focused;
 
   info("Open the focused link.");
   await waitForPageLoadTask(
     () => EventUtils.synthesizeKey("KEY_Enter", {}, contentWindow),
-    URLs[0]
+    URLs[1]
   );
   win.SidebarController.hide();
 });
 
 add_task(async function test_history_hover_buttons() {
-  const {
-    component: { lists },
-    contentWindow,
-  } = await showHistorySidebar();
-
-  const rows = await TestUtils.waitForCondition(
-    () => lists[0].rowEls.length === URLs.length && lists[0].rowEls,
-    "History rows are shown."
+  const { component, contentWindow } = await showHistorySidebar();
+  const { lists } = component;
+  await BrowserTestUtils.waitForMutationCondition(
+    component.shadowRoot,
+    { childList: true, subtree: true },
+    () => !!lists.length
   );
+  await BrowserTestUtils.waitForMutationCondition(
+    lists[0].shadowRoot,
+    { subtree: true, childList: true },
+    () => lists[0].rowEls.length === URLs.length
+  );
+  ok(true, "History rows are shown.");
+  const rows = lists[0].rowEls;
 
   info("Open the first link.");
   await waitForPageLoadTask(
     () => EventUtils.synthesizeMouseAtCenter(rows[0].mainEl, {}, contentWindow),
-    URLs[0]
+    URLs[1]
   );
 
   info("Remove the first entry.");
@@ -295,15 +402,21 @@ add_task(async function test_history_hover_buttons() {
 });
 
 add_task(async function test_history_context_menu() {
-  const {
-    component: { lists },
-  } = await showHistorySidebar();
-  const contextMenu = win.SidebarController.currentContextMenu;
-
-  let rows = await TestUtils.waitForCondition(
-    () => lists[0].rowEls.length && lists[0].rowEls,
-    "History rows are shown."
+  const { component } = await showHistorySidebar();
+  const { lists } = component;
+  await BrowserTestUtils.waitForMutationCondition(
+    component.shadowRoot,
+    { childList: true, subtree: true },
+    () => !!lists.length
   );
+  await BrowserTestUtils.waitForMutationCondition(
+    lists[0].shadowRoot,
+    { subtree: true, childList: true },
+    () => !!lists[0].rowEls.length
+  );
+  ok(true, "History rows are shown.");
+  const contextMenu = win.SidebarController.currentContextMenu;
+  let rows = lists[0].rowEls;
 
   function getItem(item) {
     return win.document.getElementById("sidebar-history-context-" + item);
@@ -355,9 +468,15 @@ add_task(async function test_history_empty_state() {
   const { component } = await showHistorySidebar();
   info("Clear all history.");
   await PlacesUtils.history.clear();
-  const emptyState = await TestUtils.waitForCondition(
-    () => component.emptyState
+  info("Waiting for history empty state to be present");
+  await BrowserTestUtils.waitForMutationCondition(
+    component.shadowRoot,
+    { childList: true, subtree: true },
+    () => !!component.emptyState
   );
-  ok(BrowserTestUtils.isVisible(emptyState), "Empty state is displayed.");
+  ok(
+    BrowserTestUtils.isVisible(component.emptyState),
+    "Empty state is displayed."
+  );
   win.SidebarController.hide();
 });

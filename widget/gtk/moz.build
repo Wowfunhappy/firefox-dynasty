@@ -19,6 +19,10 @@ with Files("*IMContextWrapper*"):
 with Files("*nsGtkKeyUtils*"):
     BUG_COMPONENT = ("Core", "DOM: UI Events & Focus Handling")
 
+DIRS += [
+    "/third_party/gbm/libgbm",
+]
+
 if CONFIG["COMPILE_ENVIRONMENT"]:
     DIRS += ["mozgtk"]
 
@@ -52,7 +56,6 @@ EXPORTS.mozilla.widget += [
     "DMABufFormats.h",
     "DMABufLibWrapper.h",
     "DMABufSurface.h",
-    "gbm.h",
     "GtkCompositorWidget.h",
     "InProcessGtkCompositorWidget.h",
     "va_drmcommon.h",
@@ -115,6 +118,7 @@ if CONFIG["MOZ_WAYLAND"]:
         "nsWaylandDisplay.cpp",
         "WaylandBuffer.cpp",
         "WaylandSurface.cpp",
+        "WindowSurfaceCairo.cpp",
         "WindowSurfaceWaylandMultiBuffer.cpp",
     ]
     EXPORTS.mozilla.widget += [
@@ -156,12 +160,26 @@ LOCAL_INCLUDES += [
     "/layout/xul",
     "/other-licenses/atk-1.0",
     "/third_party/cups/include",
-    "/third_party/drm/",
-    "/third_party/drm/drm/include/libdrm/",
     "/widget",
     "/widget/headless",
     "/widget/x11",
 ]
+
+CXXFLAGS += CONFIG["MOZ_GBM_CFLAGS"]
+if not CONFIG["MOZ_SYSTEM_GBM"]:
+    LOCAL_INCLUDES += [
+        "/third_party/gbm/gbm/",
+    ]
+    DIRS += [
+        "/third_party/gbm/gbm/",
+    ]
+
+CXXFLAGS += CONFIG["MOZ_LIBDRM_CFLAGS"]
+if not CONFIG["MOZ_SYSTEM_LIBDRM"]:
+    LOCAL_INCLUDES += [
+        "/third_party/drm/drm/",
+        "/third_party/drm/drm/include/",
+    ]
 
 DEFINES["CAIRO_GFX"] = True
 

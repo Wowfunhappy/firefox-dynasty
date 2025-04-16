@@ -2,6 +2,7 @@
 subsuite = "a11y"
 support-files = [
   "head.js",
+  "doc_language.html",
   "doc_treeupdate_ariadialog.html",
   "doc_treeupdate_ariaowns.html",
   "doc_treeupdate_imagemap.html",
@@ -19,6 +20,7 @@ support-files = [
 ["browser_aria_activedescendant.js"]
 
 # Caching tests
+
 ["browser_caching_actions.js"]
 
 ["browser_caching_attributes.js"]
@@ -58,6 +60,7 @@ skip-if = ["os != 'win'"]
 ["browser_caching_value.js"]
 
 # Events tests
+
 ["browser_events_announcement.js"]
 skip-if = ["os == 'win'"] # Bug 1288839
 
@@ -80,6 +83,7 @@ skip-if = ["os == 'win'"] # Bug 1288839
 ["browser_obj_group_002.js"]
 
 # Tree update tests
+
 ["browser_treeupdate_ariadialog.js"]
 
 ["browser_treeupdate_ariaowns.js"]

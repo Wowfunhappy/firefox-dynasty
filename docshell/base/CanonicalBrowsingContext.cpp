@@ -1932,7 +1932,10 @@ nsresult CanonicalBrowsingContext::PendingRemotenessChange::FinishTopContent() {
     newBrowser->ResumeLoad(mPendingSwitchId);
   }
 
-  mPromise->Resolve(newBrowser, __func__);
+  mPromise->Resolve(
+      std::pair{newBrowser,
+                RefPtr{frameLoader->GetBrowsingContext()->Canonical()}},
+      __func__);
   return NS_OK;
 }
 
@@ -2007,7 +2010,7 @@ nsresult CanonicalBrowsingContext::PendingRemotenessChange::FinishSubframe() {
 
     target->SetCurrentBrowserParent(embedderBrowser);
     Unused << embedderWindow->SendMakeFrameLocal(target, mPendingSwitchId);
-    mPromise->Resolve(embedderBrowser, __func__);
+    mPromise->Resolve(std::pair{embedderBrowser, target}, __func__);
     return NS_OK;
   }
 
@@ -2077,7 +2080,7 @@ nsresult CanonicalBrowsingContext::PendingRemotenessChange::FinishSubframe() {
   }
 
   // We did it! The process switch is complete.
-  mPromise->Resolve(newBrowser, __func__);
+  mPromise->Resolve(std::pair{newBrowser, target}, __func__);
   return NS_OK;
 }
 
@@ -2395,18 +2398,18 @@ bool CanonicalBrowsingContext::SupportsLoadingInParent(
   // DocumentChannel currently only supports connecting channels into the
   // content process, so we can only support schemes that will always be loaded
   // there for now. Restrict to just http(s) for simplicity.
-  if (!net::SchemeIsHTTP(aLoadState->URI()) &&
-      !net::SchemeIsHTTPS(aLoadState->URI())) {
+  if (!net::SchemeIsHttpOrHttps(aLoadState->URI())) {
     return false;
   }
 
   if (WindowGlobalParent* global = GetCurrentWindowGlobal()) {
     nsCOMPtr<nsIURI> currentURI = global->GetDocumentURI();
     if (currentURI) {
+      nsCOMPtr<nsIURI> uri = aLoadState->URI();
       bool newURIHasRef = false;
-      aLoadState->URI()->GetHasRef(&newURIHasRef);
+      uri->GetHasRef(&newURIHasRef);
       bool equalsExceptRef = false;
-      aLoadState->URI()->EqualsExceptRef(currentURI, &equalsExceptRef);
+      uri->EqualsExceptRef(currentURI, &equalsExceptRef);
 
       if (equalsExceptRef && newURIHasRef) {
         // This navigation is same-doc WRT the current one, we should pass it
@@ -2451,7 +2454,7 @@ bool CanonicalBrowsingContext::LoadInParent(nsDocShellLoadState* aLoadState,
     return false;
   }
 
-  MOZ_ASSERT(!net::SchemeIsJavascript(aLoadState->URI()));
+  MOZ_ASSERT(!aLoadState->URI()->SchemeIs("javascript"));
 
   MOZ_ALWAYS_SUCCEEDS(
       SetParentInitiatedNavigationEpoch(++gParentInitiatedNavigationEpoch));
@@ -3130,10 +3133,15 @@ void CanonicalBrowsingContext::CloneDocumentTreeInto(
               GetMainThreadSerialEventTarget(), __func__,
               [source = MaybeDiscardedBrowsingContext{aSource},
                data = std::move(aPrintData)](
-                  BrowserParent* aBp) -> RefPtr<GenericNonExclusivePromise> {
+                  const std::pair<RefPtr<BrowserParent>,
+                                  RefPtr<CanonicalBrowsingContext>>& aResult)
+                  -> RefPtr<GenericNonExclusivePromise> {
+                const auto& [browserParent, browsingContext] = aResult;
+
                 RefPtr<BrowserBridgeParent> bridge =
-                    aBp->GetBrowserBridgeParent();
-                return aBp->SendCloneDocumentTreeIntoSelf(source, data)
+                    browserParent->GetBrowserBridgeParent();
+                return browserParent
+                    ->SendCloneDocumentTreeIntoSelf(source, data)
                     ->Then(
                         GetMainThreadSerialEventTarget(), __func__,
                         [bridge](

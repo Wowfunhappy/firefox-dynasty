@@ -65,6 +65,7 @@ Please note that some targeting attributes require stricter controls on the tele
 * [primaryResolution](#primaryresolution)
 * [profileAgeCreated](#profileagecreated)
 * [profileAgeReset](#profileagereset)
+* [profileGroupId](#profilegroupid)
 * [profileRestartCount](#profilerestartcount)
 * [providerCohorts](#providercohorts)
 * [recentBookmarks](#recentbookmarks)
@@ -130,6 +131,8 @@ interface AddonsInfoResponse {
     // When was it installed? e.g. "2018-03-10T03:41:06.000Z"
     installDate: string;
   };
+  // Has the user installed addons beyond the built in and system addons?
+  hasInstalledAddons: boolean;
 }
 ```
 ### `attributionData`
@@ -1090,3 +1093,8 @@ declare const systemArch: string | null;
 ### `totalSearches`
 
 Returns the number of times a user has completed a search in the URL Bar. The number is arbitrarily capped at 100.
+
+
+### `profileGroupId`
+
+Returns the stable profile group ID used for data reporting.

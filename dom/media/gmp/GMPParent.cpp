@@ -22,12 +22,13 @@
 #include "mozilla/ipc/GeckoChildProcessHost.h"
 #if defined(XP_LINUX) && defined(MOZ_SANDBOX)
 #  include "mozilla/SandboxInfo.h"
-#  include "mozilla/ipc/SharedMemory.h"
+#  include "mozilla/ipc/SharedMemoryHandle.h"
 #endif
 #include "mozilla/Services.h"
 #include "mozilla/SSE.h"
 #include "mozilla/StaticPrefs_media.h"
 #include "mozilla/SyncRunnable.h"
+#include "mozilla/glean/IpcMetrics.h"
 #include "mozilla/Telemetry.h"
 #include "mozilla/Unused.h"
 #include "nsComponentManagerUtils.h"
@@ -303,7 +304,7 @@ class NotifyGMPProcessLoadedTask : public Runnable {
 
 #if defined(XP_LINUX) && defined(MOZ_SANDBOX)
     if (SandboxInfo::Get().Test(SandboxInfo::kEnabledForMedia) &&
-        ipc::SharedMemory::UsingPosixShm()) {
+        ipc::shared_memory::UsingPosixShm()) {
       canProfile = false;
     }
 #endif
@@ -818,8 +819,7 @@ void GMPParent::ActorDestroy(ActorDestroyReason aWhy) {
                        uint32_t(GMPState(mState)));
 
   if (AbnormalShutdown == aWhy) {
-    Telemetry::Accumulate(Telemetry::SUBPROCESS_ABNORMAL_ABORT, "gmplugin"_ns,
-                          1);
+    glean::subprocess::abnormal_abort.Get("gmplugin"_ns).Add(1);
     nsString dumpID;
     GetCrashID(dumpID);
     if (dumpID.IsEmpty()) {

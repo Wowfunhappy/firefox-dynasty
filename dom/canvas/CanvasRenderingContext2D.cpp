@@ -106,7 +106,6 @@
 #include "mozilla/ServoBindings.h"
 #include "mozilla/StaticPrefs_browser.h"
 #include "mozilla/StaticPrefs_gfx.h"
-#include "mozilla/Telemetry.h"
 #include "mozilla/TimeStamp.h"
 #include "mozilla/UniquePtr.h"
 #include "mozilla/Unused.h"
@@ -1283,6 +1282,9 @@ void CanvasRenderingContext2D::OnRemoteCanvasLost() {
         // true.
         self->mAllowContextRestore = self->DispatchEvent(
             u"contextlost"_ns, CanBubble::eNo, Cancelable::eYes);
+        gfxCriticalNote << gfx::hexa(self.get())
+                        << " accel canvas lost, can restore: "
+                        << self->mAllowContextRestore;
       }));
 }
 
@@ -1308,6 +1310,8 @@ void CanvasRenderingContext2D::OnRemoteCanvasRestored() {
           // context's attributes and associating them with context. If this
           // fails, then abort these steps.
           if (!self->EnsureTarget()) {
+            gfxCriticalNote << gfx::hexa(self.get())
+                            << " accel canvas failed to restore";
             self->mIsContextLost = true;
             return;
           }
@@ -1315,6 +1319,7 @@ void CanvasRenderingContext2D::OnRemoteCanvasRestored() {
           // 8. Fire an event named contextrestored at canvas.
           self->DispatchEvent(u"contextrestored"_ns, CanBubble::eNo,
                               Cancelable::eNo);
+          gfxCriticalNote << gfx::hexa(self.get()) << " accel canvas restored";
         }
       }));
 }
@@ -1476,7 +1481,7 @@ void CanvasRenderingContext2D::RestoreClipsAndTransformToTarget() {
   for (auto& style : mStyleStack) {
     for (auto& clipOrTransform : style.clipsAndTransforms) {
       if (clipOrTransform.IsClip()) {
-        if (mClipsNeedConverting) {
+        if (clipOrTransform.clip->GetBackendType() != mPathType) {
           // We have possibly changed backends, so we need to convert the clips
           // in case they are no longer compatible with mTarget.
           RefPtr<PathBuilder> pathBuilder = mTarget->CreatePathBuilder();
@@ -1489,8 +1494,6 @@ void CanvasRenderingContext2D::RestoreClipsAndTransformToTarget() {
       }
     }
   }
-
-  mClipsNeedConverting = false;
 }
 
 bool CanvasRenderingContext2D::BorrowTarget(const IntRect& aPersistedRect,
@@ -1549,7 +1552,25 @@ bool CanvasRenderingContext2D::HasAnyClips() const {
   return false;
 }
 
-bool CanvasRenderingContext2D::HasErrorState(ErrorResult& aError) {
+bool CanvasRenderingContext2D::HasErrorState(ErrorResult& aError,
+                                             bool aInitProvider) {
+  // If there is no buffer provider, then attempt to initialize it to flush any
+  // error state. It also forces any backend resources (such as WebGL contexts)
+  // in the buffer provider to initialize as soon as possible, so that it may
+  // speed up initial page loads.
+  // It is normally beneficial to delay initialization of just the target until
+  // we encounter a drawing operation, since this may allow us to elide copying
+  // the old contents of the target to the new target if the drawing operation
+  // would overwrite the entire framebuffer contents.
+  // However, if there is no old target to copy from, there is no benefit to
+  // delaying it. It may incidentally delay creation of the buffer provider,
+  // which is an expensive operation that benefits from being scheduled as soon
+  // as possible. Thus, we only want to delay initialization of the target when
+  // a buffer provider already exists.
+  if (aInitProvider && !mBufferProvider && !EnsureTarget(aError)) {
+    return true;
+  }
+
   if (AlreadyShutDown()) {
     gfxCriticalNoteOnce << "Attempt to render into a Canvas2d after shutdown.";
     SetErrorState();
@@ -1581,7 +1602,7 @@ bool CanvasRenderingContext2D::EnsureTarget(ErrorResult& aError,
                                             const gfx::Rect* aCoveredRect,
                                             bool aWillClear,
                                             bool aSkipTransform) {
-  if (HasErrorState(aError)) {
+  if (HasErrorState(aError, false)) {
     return false;
   }
 
@@ -1612,7 +1633,7 @@ bool CanvasRenderingContext2D::EnsureTarget(ErrorResult& aError,
   bool canDiscardContent =
       aCoveredRect &&
       (aSkipTransform ? *aCoveredRect
-                      : CurrentState().transform.TransformBounds(*aCoveredRect))
+                      : GetCurrentTransform().TransformBounds(*aCoveredRect))
           .Contains(canvasRect) &&
       !HasAnyClips();
 
@@ -1667,7 +1688,7 @@ bool CanvasRenderingContext2D::EnsureTarget(ErrorResult& aError,
 
   // Ensure any Path state is compatible with the type of DrawTarget used. This
   // may require making a copy with the correct type if they (rarely) mismatch.
-  mPathType = newTarget->GetBackendType();
+  mPathType = newTarget->GetPathType();
   MOZ_ASSERT(mPathType != BackendType::NONE);
   if (mPathBuilder && mPathBuilder->GetBackendType() != mPathType) {
     RefPtr<Path> path = mPathBuilder->Finish();
@@ -1715,7 +1736,7 @@ void CanvasRenderingContext2D::SetInitialState() {
   mPathTransformDirty = false;
   mPathType =
       (mTarget ? mTarget : gfxPlatform::ThreadLocalScreenReferenceDrawTarget())
-          ->GetBackendType();
+          ->GetPathType();
   MOZ_ASSERT(mPathType != BackendType::NONE);
 
   mStyleStack.Clear();
@@ -1829,7 +1850,6 @@ bool CanvasRenderingContext2D::TrySharedTarget(
     // we are already using a shared buffer provider, we are allocating a new
     // one because the current one failed so let's just fall back to the basic
     // provider.
-    mClipsNeedConverting = true;
     return false;
   }
 
@@ -2239,7 +2259,7 @@ void CanvasRenderingContext2D::Save() {
 }
 
 void CanvasRenderingContext2D::Restore() {
-  if (MOZ_UNLIKELY(HasErrorState() || mStyleStack.Length() < 2)) {
+  if (MOZ_UNLIKELY(mStyleStack.Length() < 2 || HasErrorState())) {
     return;
   }
 
@@ -5529,10 +5549,6 @@ MaybeGetSurfaceDescriptorForRemoteCanvas(
             layers::RemoteDecoderVideoSubDescriptor::TSurfaceDescriptorD3D10 &&
         StaticPrefs::gfx_canvas_remote_use_draw_image_fast_path_d3d()) {
       auto& descD3D10 = subdesc.get_SurfaceDescriptorD3D10();
-      if (descD3D10.gpuProcessQueryId().isSome() &&
-          descD3D10.gpuProcessQueryId().ref().mOnlyForOverlay) {
-        return Nothing();
-      }
       // Clear FileHandleWrapper, since FileHandleWrapper::mHandle could not be
       // cross process delivered by using Shmem. Cross-process delivery of
       // FileHandleWrapper::mHandle is not possible simply by using shmen. When
@@ -6263,13 +6279,13 @@ already_AddRefed<ImageData> CanvasRenderingContext2D::GetImageData(
   // relevant direction.
   uint32_t w, h;
   if (aSw < 0) {
-    w = -aSw;
+    w = uint32_t(-aSw);
     aSx -= w;
   } else {
     w = aSw;
   }
   if (aSh < 0) {
-    h = -aSh;
+    h = uint32_t(-aSh);
     aSy -= h;
   } else {
     h = aSh;
@@ -6289,7 +6305,7 @@ already_AddRefed<ImageData> CanvasRenderingContext2D::GetImageData(
     return nullptr;
   }
   MOZ_ASSERT(array);
-  return MakeAndAddRef<ImageData>(w, h, *array);
+  return do_AddRef(new ImageData(GetParentObject(), w, h, array));
 }
 
 static IntRect ClipImageDataTransfer(IntRect& aSrc, const IntPoint& aDestOffset,
@@ -6626,13 +6642,13 @@ static already_AddRefed<ImageData> CreateImageData(
   }
 
   // Create the fast typed array; it's initialized to 0 by default.
-  JSObject* darray =
-      Uint8ClampedArray::Create(aCx, aContext, len.value(), aError);
+  JS::Rooted<JSObject*> darray(
+      aCx, Uint8ClampedArray::Create(aCx, aContext, len.value(), aError));
   if (aError.Failed()) {
     return nullptr;
   }
 
-  return do_AddRef(new ImageData(aW, aH, *darray));
+  return do_AddRef(new ImageData(aContext->GetParentObject(), aW, aH, darray));
 }
 
 already_AddRefed<ImageData> CanvasRenderingContext2D::CreateImageData(
@@ -6777,9 +6793,7 @@ void CanvasRenderingContext2D::SetWriteOnly() {
 }
 
 bool CanvasRenderingContext2D::UseSoftwareRendering() const {
-  return (StaticPrefs::gfx_canvas_willreadfrequently_enabled_AtStartup() &&
-          mWillReadFrequently) ||
-         mForceSoftwareRendering;
+  return mWillReadFrequently || mForceSoftwareRendering;
 }
 
 NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE(CanvasPath, mParent)
@@ -7073,13 +7087,10 @@ void CanvasPath::AddPath(CanvasPath& aCanvasPath, const DOMMatrix2DInit& aInit,
   RefPtr<gfx::Path> tempPath =
       aCanvasPath.GetPath(CanvasWindingRule::Nonzero, drawTarget.get());
 
-  RefPtr<DOMMatrixReadOnly> matrix =
-      DOMMatrixReadOnly::FromMatrix(GetParentObject(), aInit, aError);
+  Matrix transform(DOMMatrixReadOnly::ToValidatedMatrixDouble(aInit, aError));
   if (aError.Failed()) {
     return;
   }
-
-  Matrix transform(*(matrix->GetInternal2D()));
 
   if (!transform.IsFinite()) {
     return;

@@ -1,5 +1,4 @@
 "use strict";
-// Globals
 
 const { sinon } = ChromeUtils.importESModule(
   "resource://testing-common/Sinon.sys.mjs"
@@ -7,84 +6,59 @@ const { sinon } = ChromeUtils.importESModule(
 const { XPCOMUtils } = ChromeUtils.importESModule(
   "resource://gre/modules/XPCOMUtils.sys.mjs"
 );
+
+const { ExperimentAPI } = ChromeUtils.importESModule(
+  "resource://nimbus/ExperimentAPI.sys.mjs"
+);
+const { ExperimentFakes, ExperimentTestUtils, NimbusTestUtils } =
+  ChromeUtils.importESModule(
+    "resource://testing-common/NimbusTestUtils.sys.mjs"
+  );
+
 ChromeUtils.defineESModuleGetters(this, {
-  ExperimentFakes: "resource://testing-common/NimbusTestUtils.sys.mjs",
-  ExperimentTestUtils: "resource://testing-common/NimbusTestUtils.sys.mjs",
   ObjectUtils: "resource://gre/modules/ObjectUtils.sys.mjs",
   RegionTestUtils: "resource://testing-common/RegionTestUtils.sys.mjs",
 });
 
-RegionTestUtils.setNetworkRegion("US");
+NimbusTestUtils.init(this);
 
-// Sinon does not support Set or Map in spy.calledWith()
-function onFinalizeCalled(spyOrCallArgs, ...expectedArgs) {
-  function mapToObject(map) {
-    return Object.assign(
-      {},
-      ...Array.from(map.entries()).map(([k, v]) => ({ [k]: v }))
-    );
-  }
+add_setup(function () {
+  do_get_profile();
+});
 
-  function toPlainObjects(args) {
-    return [
-      args[0],
-      {
-        ...args[1],
-        invalidBranches: mapToObject(args[1].invalidBranches),
-        invalidFeatures: mapToObject(args[1].invalidFeatures),
-        missingLocale: Array.from(args[1].missingLocale),
-        missingL10nIds: mapToObject(args[1].missingL10nIds),
-      },
-    ];
-  }
-
-  const plainExpected = toPlainObjects(expectedArgs);
-
-  if (Array.isArray(spyOrCallArgs)) {
-    return ObjectUtils.deepEqual(toPlainObjects(spyOrCallArgs), plainExpected);
-  }
-
-  for (const args of spyOrCallArgs.args) {
-    if (ObjectUtils.deepEqual(toPlainObjects(args), plainExpected)) {
-      return true;
-    }
-  }
-
-  return false;
+function assertEmptyStore(store) {
+  NimbusTestUtils.assert.storeIsEmpty(store);
 }
 
 /**
- * Assert the store has no active experiments or rollouts.
+ * Assert the manager has no active pref observers.
  */
-async function assertEmptyStore(store, { cleanup = false } = {}) {
-  Assert.deepEqual(
-    store
-      .getAll()
-      .filter(e => e.active)
-      .map(e => e.slug),
-    [],
-    "Store should have no active enrollments"
+function assertNoObservers(manager) {
+  Assert.equal(
+    manager._prefs.size,
+    0,
+    "There should be no active pref observers"
   );
-
-  store
-    .getAll()
-    .filter(e => !e.active)
-    .forEach(e => store._deleteForTests(e.slug));
-
-  Assert.deepEqual(
-    store
-      .getAll()
-      .filter(e => !e.active)
-      .map(e => e.slug),
-    [],
-    "Store should have no inactive enrollments"
+  Assert.equal(
+    manager._prefsBySlug.size,
+    0,
+    "There should be no active pref observers"
   );
+  Assert.equal(
+    manager._prefFlips._prefs.size,
+    0,
+    "There should be no prefFlips feature observers"
+  );
+}
 
-  if (cleanup) {
-    // We need to call finalize first to ensure that any pending saves from
-    // JSONFile.saveSoon overwrite files on disk.
-    store._store.saveSoon();
-    await store._store.finalize();
-    await IOUtils.remove(store._store.path);
+/**
+ * Remove all pref observers on the given ExperimentManager.
+ */
+function removePrefObservers(manager) {
+  for (const [name, entry] of manager._prefs.entries()) {
+    Services.prefs.removeObserver(name, entry.observer);
   }
+
+  manager._prefs.clear();
+  manager._prefsBySlug.clear();
 }

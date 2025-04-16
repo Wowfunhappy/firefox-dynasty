@@ -185,6 +185,10 @@ size_t CustomSection::sizeOfExcludingThis(MallocSizeOf mallocSizeOf) const {
          payload->sizeOfExcludingThis(mallocSizeOf);
 }
 
+size_t NameSection::sizeOfExcludingThis(MallocSizeOf mallocSizeOf) const {
+  return funcNames.sizeOfExcludingThis(mallocSizeOf);
+}
+
 const char* wasm::ToString(LimitsKind kind) {
   switch (kind) {
     case LimitsKind::Memory:

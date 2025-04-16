@@ -10,7 +10,8 @@ const lazy = {};
 
 ChromeUtils.defineESModuleGetters(lazy, {
   ASRouter: "resource:///modules/asrouter/ASRouter.sys.mjs",
-  BrowserSearchTelemetry: "resource:///modules/BrowserSearchTelemetry.sys.mjs",
+  BrowserSearchTelemetry:
+    "moz-src:///browser/components/search/BrowserSearchTelemetry.sys.mjs",
   BrowserUIUtils: "resource:///modules/BrowserUIUtils.sys.mjs",
   BrowserUtils: "resource://gre/modules/BrowserUtils.sys.mjs",
   CustomizableUI: "resource:///modules/CustomizableUI.sys.mjs",
@@ -19,9 +20,9 @@ ChromeUtils.defineESModuleGetters(lazy, {
   ObjectUtils: "resource://gre/modules/ObjectUtils.sys.mjs",
   PartnerLinkAttribution: "resource:///modules/PartnerLinkAttribution.sys.mjs",
   PrivateBrowsingUtils: "resource://gre/modules/PrivateBrowsingUtils.sys.mjs",
-  ReaderMode: "resource://gre/modules/ReaderMode.sys.mjs",
+  ReaderMode: "moz-src:///toolkit/components/reader/ReaderMode.sys.mjs",
   SearchModeSwitcher: "resource:///modules/SearchModeSwitcher.sys.mjs",
-  SearchUIUtils: "resource:///modules/SearchUIUtils.sys.mjs",
+  SearchUIUtils: "moz-src:///browser/components/search/SearchUIUtils.sys.mjs",
   SearchUtils: "resource://gre/modules/SearchUtils.sys.mjs",
   UrlbarController: "resource:///modules/UrlbarController.sys.mjs",
   UrlbarEventBufferer: "resource:///modules/UrlbarEventBufferer.sys.mjs",
@@ -100,6 +101,7 @@ export class UrlbarInput {
     this.textbox.appendChild(
       this.window.MozXULElement.parseXULToFragment(`
         <vbox class="urlbarView"
+              context=""
               role="group"
               tooltip="aHTMLTooltip">
           <html:div class="urlbarView-body-outer">
@@ -212,7 +214,11 @@ export class UrlbarInput {
     // If the toolbar is not visible in this window or the urlbar is readonly,
     // we'll stop here, so that most properties of the input object are valid,
     // but we won't handle events.
-    if (!this.window.toolbar.visible || this.readOnly) {
+    if (
+      !this.window.toolbar.visible ||
+      this.window.document.documentElement.hasAttribute("taskbartab") ||
+      this.readOnly
+    ) {
       return;
     }
 
@@ -593,7 +599,13 @@ export class UrlbarInput {
 
     // The proxystate must be set before setting search mode below because
     // search mode depends on it.
-    this.setPageProxyState(valid ? "valid" : "invalid", dueToTabSwitch);
+    this.setPageProxyState(
+      valid ? "valid" : "invalid",
+      dueToTabSwitch,
+      dueToTabSwitch &&
+        this.getBrowserState(this.window.gBrowser.selectedBrowser)
+          .isUnifiedSearchButtonAvailable
+    );
 
     if (
       state.persist?.shouldPersist &&
@@ -836,9 +848,6 @@ export class UrlbarInput {
       return;
     }
 
-    let selectedResult = result || this.view.selectedResult;
-    this.controller.recordSelectedResult(event, selectedResult);
-
     let where = oneOffParams?.openWhere || this._whereToOpen(event);
     if (selectedPrivateResult) {
       where = "window";
@@ -847,6 +856,7 @@ export class UrlbarInput {
     openParams.allowInheritPrincipal = false;
     url = this._maybeCanonizeURL(event, url) || url.trim();
 
+    let selectedResult = result || this.view.selectedResult;
     this.controller.engagementEvent.record(event, {
       element,
       selType,
@@ -1094,8 +1104,6 @@ export class UrlbarInput {
     if (!this.#providesSearchMode(result)) {
       this.view.close({ elementPicked: true });
     }
-
-    this.controller.recordSelectedResult(event, result);
 
     if (isCanonized) {
       this.controller.engagementEvent.record(event, {
@@ -2125,12 +2133,9 @@ export class UrlbarInput {
   }
 
   startLayoutExtend() {
-    // Do not expand if:
-    // The Urlbar does not support being expanded or it is already expanded
-    if (
-      !this.hasAttribute("breakout") ||
-      this.hasAttribute("breakout-extend")
-    ) {
+    if (!this.#allowBreakout || this.hasAttribute("breakout-extend")) {
+      // Do not expand if the Urlbar does not support being expanded or it is
+      // already expanded.
       return;
     }
     if (!this.view.isOpen) {
@@ -2187,14 +2192,24 @@ export class UrlbarInput {
    *        Indicates whether we should update the PopupNotifications
    *        visibility due to this change, otherwise avoid doing so as it is
    *        being handled somewhere else.
+   * @param {boolean} [forceUnifiedSearchButtonAvailable]
+   *        If this parameter is true, force to make Unified Search Button available.
+   *        Otherwise, the availability will be depedent on the proxy state.
+   *        Default value is false.
    */
-  setPageProxyState(state, updatePopupNotifications) {
+  setPageProxyState(
+    state,
+    updatePopupNotifications,
+    forceUnifiedSearchButtonAvailable = false
+  ) {
     let prevState = this.getAttribute("pageproxystate");
 
     this.setAttribute("pageproxystate", state);
     this._inputContainer.setAttribute("pageproxystate", state);
     this._identityBox?.setAttribute("pageproxystate", state);
-    this.toggleAttribute("unifiedsearchbutton-available", state == "invalid");
+    this.setUnifiedSearchButtonAvailability(
+      forceUnifiedSearchButtonAvailable || state == "invalid"
+    );
 
     if (state == "valid") {
       this._lastValidURLStr = this.value;
@@ -2960,7 +2975,7 @@ export class UrlbarInput {
       "browser.search.totalSearches"
     );
     const totalSearchesCap = 100;
-    if (totalSearches <= totalSearchesCap) {
+    if (totalSearches < totalSearchesCap) {
       Services.prefs.setIntPref(
         "browser.search.totalSearches",
         totalSearches + 1
@@ -3780,14 +3795,18 @@ export class UrlbarInput {
         { name: engineName }
       );
     } else if (source) {
+      const messageIDs = {
+        actions: "urlbar-placeholder-search-mode-other-actions",
+        bookmarks: "urlbar-placeholder-search-mode-other-bookmarks",
+        engine: "urlbar-placeholder-search-mode-other-engine",
+        history: "urlbar-placeholder-search-mode-other-history",
+        tabs: "urlbar-placeholder-search-mode-other-tabs",
+      };
       let sourceName = lazy.UrlbarUtils.getResultSourceName(source);
       let l10nID = `urlbar-search-mode-${sourceName}`;
       this.document.l10n.setAttributes(this._searchModeIndicatorTitle, l10nID);
       this.document.l10n.setAttributes(this._searchModeLabel, l10nID);
-      this.document.l10n.setAttributes(
-        this.inputField,
-        `urlbar-placeholder-search-mode-other-${sourceName}`
-      );
+      this.document.l10n.setAttributes(this.inputField, messageIDs[sourceName]);
     }
 
     this.toggleAttribute("searchmode", true);
@@ -3880,6 +3899,18 @@ export class UrlbarInput {
     );
 
     this._addObservers();
+  }
+
+  /**
+   * Set Unified Search Button availability.
+   *
+   * @param {boolean} available If true Unified Search Button will be available.
+   */
+  setUnifiedSearchButtonAvailability(available) {
+    this.toggleAttribute("unifiedsearchbutton-available", available);
+    this.getBrowserState(
+      this.window.gBrowser.selectedBrowser
+    ).isUnifiedSearchButtonAvailable = available;
   }
 
   /**
@@ -4454,7 +4485,7 @@ export class UrlbarInput {
       event.stopImmediatePropagation();
 
       const value = oldStart + pasteData + oldEnd;
-      this._setValue(value);
+      this._setValue(value, { valueIsTyped: true });
       this.window.gBrowser.userTypedValue = value;
 
       this.toggleAttribute("usertyping", this._untrimmedValue);
@@ -5063,6 +5094,10 @@ function losslessDecodeURI(aURI) {
     }
   }
 
+  // IMPORTANT: The following regular expressions are Unicode-aware due to /v.
+  // Avoid matching high or low surrogate pairs directly, always work with
+  // full Unicode scalar values.
+
   // Encode potentially invisible characters:
   //   U+0000-001F: C0/C1 control characters
   //   U+007F-009F: commands
@@ -5081,7 +5116,7 @@ function losslessDecodeURI(aURI) {
   // preserve them encoded.
   value = value.replace(
     // eslint-disable-next-line no-control-regex
-    /[[\p{Separator}--\u0020]\p{Control}\u2800\ufffc]|\u0020(?=[\p{Other}\p{Separator}])|\s$/gv,
+    /[[\p{Separator}--\u{0020}]\p{Control}\u{2800}\u{FFFC}]|\u{0020}(?=[\p{Other}\p{Separator}])|\s$/gv,
     encodeURIComponent
   );
 
@@ -5092,21 +5127,18 @@ function losslessDecodeURI(aURI) {
   // per bug 582186:
   //   U+00AD, U+034F, U+06DD, U+070F, U+115F-1160, U+17B4, U+17B5, U+180B-180E,
   //   U+2060, U+FEFF, U+200B, U+2060-206F, U+3164, U+FE00-FE0F, U+FFA0,
-  //   U+FFF0-FFFB, U+1D173-1D17A (U+D834 + DD73-DD7A),
-  //   U+E0000-E0FFF (U+DB40-DB43 + U+DC00-DFFF)
+  //   U+FFF0-FFFB, U+1D173-1D17A, U+E0000-E0FFF
   // Bidi control characters (RFC 3987 sections 3.2 and 4.1 paragraph 6):
   //   U+061C, U+200E, U+200F, U+202A-202E, U+2066-2069
   // Other format characters in the Cf category that are unlikely to be rendered
   // usefully:
-  //   U+0600-0605, U+08E2, U+110BD (U+D804 + U+DCBD),
-  //   U+110CD (U+D804 + U+DCCD), U+13430-13438 (U+D80D + U+DC30-DC38),
-  //   U+1BCA0-1BCA3 (U+D82F + U+DCA0-DCA3)
+  //   U+0600-0605, U+08E2, U+110BD, U+110CD, U+13430-13438, U+1BCA0-1BCA3
   // Mimicking UI parts:
-  //   U+1F50F-1F513 (U+D83D + U+DD0F-DD13), U+1F6E1 (U+D83D + U+DEE1)
+  //   U+1F50F-1F513, U+1F6E1
   // Unassigned codepoints, sometimes shown as empty glyphs.
   value = value.replace(
     // eslint-disable-next-line no-misleading-character-class
-    /[\u00ad\u034f\u061c\u06dd\u070f\u115f\u1160\u17b4\u17b5\u180b-\u180e\u200b\u200e\u200f\u202a-\u202e\u2060-\u206f\u3164\u0600-\u0605\u08e2\ufe00-\ufe0f\ufeff\uffa0\ufff0-\ufffb\p{Unassigned}\p{Private_Use}]|\ud804[\udcbd\udccd]|\ud80d[\udc30-\udc38]|\ud82f[\udca0-\udca3]|\ud834[\udd73-\udd7a]|[\udb40-\udb43][\udc00-\udfff]|\ud83d[\udd0f-\udd13\udee1]/gv,
+    /[[\p{Format}--[\u{200C}\u{200D}]]\u{034F}\u{115F}\u{1160}\u{17B4}\u{17B5}\u{180B}-\u{180D}\u{3164}\u{FE00}-\u{FE0F}\u{FFA0}\u{FFF0}-\u{FFFB}\p{Unassigned}\p{Private_Use}\u{E0000}-\u{E0FFF}\u{1F50F}-\u{1F513}\u{1F6E1}]/gv,
     encodeURIComponent
   );
   return value;

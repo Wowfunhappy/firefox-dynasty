@@ -77,6 +77,9 @@
         android:id="@+id/action_global_turn_on_sync"
         app:destination="@id/turnOnSyncFragment" />
     <action
+        android:id="@+id/action_global_customizationFragment"
+        app:destination="@id/customizationFragment" />
+    <action
         android:id="@+id/action_global_searchEngineFragment"
         app:destination="@id/search_engine_graph" />
     <action
@@ -1010,6 +1013,9 @@
             android:name="url"
             app:argType="string" />
         <argument
+            android:name="isLocalPdf"
+            app:argType="boolean" />
+        <argument
             android:name="isSecured"
             app:argType="boolean" />
         <argument
@@ -1086,6 +1092,9 @@
         <argument
             android:name="url"
             app:argType="string" />
+        <argument
+            android:name="isLocalPdf"
+            app:argType="boolean" />
         <argument
             android:name="isSecured"
             app:argType="boolean" />

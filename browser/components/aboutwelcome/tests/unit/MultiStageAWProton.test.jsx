@@ -247,6 +247,134 @@ describe("MultiStageAboutWelcomeProton module", () => {
       assert.isTrue(wrapper.find("button.secondary[disabled]").exists());
     });
 
+    it("Primary button with disabled: hasActiveMultiSelect property", () => {
+      const MULTI_SELECT_SCREEN_PROPS = {
+        content: {
+          title: "Test MultiSelect",
+          tiles: {
+            type: "multiselect",
+            data: [
+              {
+                id: "checkbox-1",
+                label: "Option 1",
+              },
+              {
+                id: "checkbox-2",
+                label: "Option 2",
+              },
+            ],
+          },
+          primary_button: {
+            label: "Continue",
+            disabled: "hasActiveMultiSelect",
+            action: {
+              navigate: true,
+            },
+          },
+        },
+        navigate: null,
+        setScreenMultiSelects: sandbox.stub(),
+        setActiveMultiSelect: sandbox.stub(),
+      };
+
+      it("should be disabled when no checkboxes are selected", () => {
+        const wrapper = mount(
+          <MultiStageProtonScreen
+            {...MULTI_SELECT_SCREEN_PROPS}
+            activeMultiSelect={{}}
+          />
+        );
+        const primaryButton = wrapper.find("button.primary");
+        assert.isTrue(
+          primaryButton.prop("disabled"),
+          "disabled when no checkboxes are selected"
+        );
+      });
+
+      it("should be disabled when activeMultiSelect tile has an empty array", () => {
+        const wrapper = mount(
+          <MultiStageProtonScreen
+            {...MULTI_SELECT_SCREEN_PROPS}
+            activeMultiSelect={{ "tile-0": [] }}
+          />
+        );
+        const primaryButton = wrapper.find("button.primary");
+        assert.isTrue(
+          primaryButton.prop("disabled"),
+          "disabled when tile has empty array"
+        );
+      });
+
+      it("should be enabled when checkboxes are selected", () => {
+        const wrapper = mount(
+          <MultiStageProtonScreen
+            {...MULTI_SELECT_SCREEN_PROPS}
+            activeMultiSelect={{ "tile-0": ["checkbox-1"] }}
+          />
+        );
+        const primaryButton = wrapper.find("button.primary");
+        assert.isFalse(
+          primaryButton.prop("disabled"),
+          "enabled when checkboxes are selected"
+        );
+      });
+
+      it("should be enabled when a checkbox is selected in any tile", () => {
+        const wrapper = mount(
+          <MultiStageProtonScreen
+            {...MULTI_SELECT_SCREEN_PROPS}
+            activeMultiSelect={{
+              "tile-0": [],
+              "tile-1": ["checkbox-2"],
+            }}
+          />
+        );
+        const primaryButton = wrapper.find("button.primary");
+        assert.isFalse(
+          primaryButton.prop("disabled"),
+          "Button should be enabled when any tile has selections"
+        );
+      });
+    });
+
+    it("Primary button should be disabled when activeMultiSelect is null", () => {
+      const SCREEN_PROPS = {
+        content: {
+          title: "test title",
+          primary_button: {
+            label: "test primary button",
+            disabled: "hasActiveMultiSelect",
+          },
+        },
+        activeMultiSelect: null,
+      };
+      const wrapper = mount(<MultiStageProtonScreen {...SCREEN_PROPS} />);
+      assert.ok(wrapper.exists());
+      assert.isTrue(
+        wrapper.find("button.primary[disabled]").exists(),
+        "Button is disabled when activeMultiSelect is null"
+      );
+    });
+
+    it("Primary button should be disabled when activeMultiSelect is undefined", () => {
+      const SCREEN_PROPS = {
+        content: {
+          title: "test title",
+          primary_button: {
+            label: "test primary button",
+            disabled: "hasActiveMultiSelect",
+          },
+        },
+        // activeMultiSelect is intentionally not defined
+      };
+      const wrapper = mount(<MultiStageProtonScreen {...SCREEN_PROPS} />);
+      assert.ok(wrapper.exists());
+      assert.isTrue(
+        wrapper.find("button.primary[disabled]").exists(),
+        "Button is disabled when activeMultiSelect is undefined"
+      );
+    });
+
     it("should not render a progress bar if there is 1 step", () => {
       const SCREEN_PROPS = {
         content: {
@@ -291,6 +419,37 @@ describe("MultiStageAboutWelcomeProton module", () => {
       const stepsDOMNode = stepsIndicator.getDOMNode();
       const siblingElement = stepsDOMNode.nextElementSibling;
       assert.equal(siblingElement.classList.contains("action-buttons"), true);
+    });
+
+    it("should render the steps indicator in main inner content if fullscreen and not progress bar style", () => {
+      const SCREEN_PROPS = {
+        content: {
+          title: "Test Fullscreen Dot Steps",
+          fullscreen: true,
+          position: "split",
+          progress_bar: false,
+          totalNumberOfScreens: 2,
+        },
+      };
+
+      const wrapper = mount(<MultiStageProtonScreen {...SCREEN_PROPS} />);
+
+      const stepsIndicators = wrapper.find(".steps");
+      assert.equal(
+        stepsIndicators.length,
+        1,
+        "Only one steps indicator should be rendered"
+      );
+
+      assert.isTrue(
+        wrapper.find(".main-content-inner .steps").exists(),
+        "Steps indicator is inside main-content-inner"
+      );
+
+      assert.isFalse(
+        stepsIndicators.first().hasClass("progress-bar"),
+        "Steps indicator should not have progress-bar class"
+      );
     });
 
     it("should render a progress bar if there are 2 steps", () => {
@@ -562,7 +721,7 @@ describe("MultiStageAboutWelcomeProton module", () => {
         );
     });
     it("should have a multi action primary button by default", async () => {
-      const data = await prepConfig({}, ["AW_WELCOME_BACK"]);
+      const data = await prepConfig({}, ["AW_WELCOME_BACK", "RETURN_TO_AMO"]);
       assert.propertyVal(
         data.screens[0].content.primary_button.action,
         "type",

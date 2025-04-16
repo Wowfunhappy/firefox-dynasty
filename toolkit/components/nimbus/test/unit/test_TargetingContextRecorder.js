@@ -2,9 +2,6 @@
  * http://creativecommons.org/publicdomain/zero/1.0/
  */
 
-const { ExperimentAPI } = ChromeUtils.importESModule(
-  "resource://nimbus/ExperimentAPI.sys.mjs"
-);
 const { NewTabUtils } = ChromeUtils.importESModule(
   "resource://gre/modules/NewTabUtils.sys.mjs"
 );
@@ -23,18 +20,11 @@ const TARGETING_CONTEXT_METRICS = Object.keys(ATTRIBUTE_TRANSFORMS).map(
   normalizeAttributeName
 );
 
-/**
- * Setup a test environment with a fake ExperimentManager and mock out
- * ExperimentAPI to use that manager.
- */
-async function setupNimbusForTest() {
-  const sandbox = sinon.createSandbox();
-  const manager = ExperimentFakes.manager();
-
-  sandbox.stub(ExperimentAPI, "_manager").get(() => manager);
-
-  await manager.onStartup();
-  await manager.store.ready();
+async function setupTest({ ...args } = {}) {
+  const { cleanup: baseCleanup, ...ctx } = await NimbusTestUtils.setupTest({
+    ...args,
+    clearTelemetry: true,
+  });
 
   const localeService = Services.locale;
   const mockLocaleService = new Proxy(localeService, {
@@ -49,15 +39,13 @@ async function setupNimbusForTest() {
 
   Services.locale = mockLocaleService;
 
-  const cleanup = async () => {
-    Services.locale = localeService;
-    sandbox.restore();
-    await assertEmptyStore(manager.store, { cleanup: true });
-
-    Services.fog.testResetFOG();
+  return {
+    ...ctx,
+    cleanup() {
+      baseCleanup();
+      Services.locale = localeService;
+    },
   };
-
-  return { cleanup, manager, sandbox };
 }
 
 /**
@@ -152,7 +140,6 @@ async function recordAndTestPingSubmission(testFn) {
 }
 
 add_setup(async function test_setup() {
-  do_get_profile();
   Services.fog.initializeFOG();
 });
 
@@ -173,7 +160,7 @@ add_task(async function testNimbusTargetingContextAllKeysPresent() {
     "testing nimbus_targeting_context metrics contain all keys in the Nimbus targeting context"
   );
 
-  const { cleanup, manager, sandbox } = await setupNimbusForTest();
+  const { cleanup, manager, sandbox } = await setupTest();
 
   // Glean doesn't serializer empty arrays, so lets put some entries into activeExperiments and
   // activeRollouts so that they appear in the context.
@@ -206,13 +193,13 @@ add_task(async function testNimbusTargetingContextAllKeysPresent() {
   manager.store._deleteForTests("experiment");
   manager.store._deleteForTests("rollout");
 
-  await cleanup();
+  cleanup();
 });
 
 add_task(async function testNimbusTargetingEnvironmentUserSetPrefs() {
   info("testing nimbus.targetingContext.pref_is_user_set");
 
-  const { cleanup } = await setupNimbusForTest();
+  const { cleanup } = await setupTest();
 
   await recordAndTestPingSubmission(() => {
     assertRecordingFailures();
@@ -252,13 +239,13 @@ add_task(async function testNimbusTargetingEnvironmentUserSetPrefs() {
   Services.prefs.deleteBranch("nimbus.testing.testInt");
   Services.prefs.deleteBranch("nimbus.testing.testSetString");
 
-  await cleanup();
+  cleanup();
 });
 
 add_task(async function testNimbusTargetingEnvironmentPrefValues() {
   info("testing nimbus.targetingContext.pref_values collects pref values");
 
-  const { cleanup } = await setupNimbusForTest();
+  const { cleanup } = await setupTest();
   const PREF = "messaging-system-action.testday";
   const PREF_KEY = "messaging_system_action__testday";
 
@@ -300,7 +287,7 @@ add_task(async function testNimbusTargetingEnvironmentPrefValues() {
 
   Services.prefs.deleteBranch(PREF);
 
-  await cleanup();
+  cleanup();
 });
 
 add_task(async function testExperimentMetrics() {
@@ -308,7 +295,7 @@ add_task(async function testExperimentMetrics() {
     "testing values.activeExperiments, values.activeEnrollments, and values.enrollmentsMap"
   );
 
-  const { cleanup, manager } = await setupNimbusForTest();
+  const { cleanup, manager } = await setupTest();
 
   await recordAndTestPingSubmission(() => {
     assertRecordingFailures();
@@ -384,7 +371,7 @@ add_task(async function testExperimentMetrics() {
   manager.store._deleteForTests("experiment-2");
   manager.store._deleteForTests("rollout-1");
 
-  await cleanup();
+  cleanup();
 });
 
 add_task(async function testErrorMetrics() {
@@ -392,7 +379,7 @@ add_task(async function testErrorMetrics() {
     "testing nimbus_targeting_environment.{attr_eval_errors,pref_type_errors} telemetry"
   );
 
-  const { cleanup, manager, sandbox } = await setupNimbusForTest();
+  const { cleanup, manager, sandbox } = await setupTest();
   const PREF = "messaging-system-action.testday";
   const PREF_KEY = "messaging_system_action__testday";
 
@@ -457,7 +444,7 @@ add_task(async function testErrorMetrics() {
     });
   });
 
-  await cleanup();
+  cleanup();
 
   Services.prefs.deleteBranch(PREF);
 });
@@ -465,7 +452,7 @@ add_task(async function testErrorMetrics() {
 add_task(async function testRecordingErrors() {
   info("testing failures recording nimbus_targeting_context metrics");
 
-  const { cleanup, manager, sandbox } = await setupNimbusForTest();
+  const { cleanup, manager, sandbox } = await setupTest();
 
   sandbox.stub(manager, "createTargetingContext").callsFake(function () {
     return {
@@ -564,5 +551,5 @@ add_task(async function testRecordingErrors() {
     );
   });
 
-  await cleanup();
+  cleanup();
 });

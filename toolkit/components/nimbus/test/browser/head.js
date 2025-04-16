@@ -3,16 +3,21 @@
 
 "use strict";
 
-// Globals
 const { sinon } = ChromeUtils.importESModule(
   "resource://testing-common/Sinon.sys.mjs"
 );
 
+const { ExperimentFakes, ExperimentTestUtils, NimbusTestUtils } =
+  ChromeUtils.importESModule(
+    "resource://testing-common/NimbusTestUtils.sys.mjs"
+  );
+
 ChromeUtils.defineESModuleGetters(this, {
+  ExperimentAPI: "resource://nimbus/ExperimentAPI.sys.mjs",
   ExperimentManager: "resource://nimbus/lib/ExperimentManager.sys.mjs",
-  ExperimentTestUtils: "resource://testing-common/NimbusTestUtils.sys.mjs",
-  ExperimentFakes: "resource://testing-common/NimbusTestUtils.sys.mjs",
 });
+
+NimbusTestUtils.init(this);
 
 add_setup(function () {
   let sandbox = sinon.createSandbox();
@@ -36,3 +41,25 @@ add_setup(function () {
     sandbox.restore();
   });
 });
+
+async function setupTest() {
+  await ExperimentAPI.ready();
+  await ExperimentAPI._rsLoader.finishedUpdating();
+
+  await ExperimentAPI._rsLoader.remoteSettingsClients.experiments.db.importChanges(
+    {},
+    Date.now(),
+    [],
+    { clear: true }
+  );
+
+  await ExperimentAPI._rsLoader.updateRecipes("test");
+
+  return async function cleanup() {
+    await NimbusTestUtils.removeStore(ExperimentAPI._manager.store);
+  };
+}
+
+async function assertEmptyStore(store) {
+  await NimbusTestUtils.removeStore(store);
+}

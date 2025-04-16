@@ -615,7 +615,8 @@ pub fn map_buffer_usage_to_barrier(
     ) {
         stages |= vk::PipelineStageFlags::ACCELERATION_STRUCTURE_BUILD_KHR;
         access |= vk::AccessFlags::ACCELERATION_STRUCTURE_READ_KHR
-            | vk::AccessFlags::ACCELERATION_STRUCTURE_WRITE_KHR;
+            | vk::AccessFlags::ACCELERATION_STRUCTURE_WRITE_KHR
+            | vk::AccessFlags::SHADER_READ;
     }
     if usage.contains(wgt::BufferUses::ACCELERATION_STRUCTURE_QUERY) {
         stages |= vk::PipelineStageFlags::TRANSFER;
@@ -771,7 +772,9 @@ pub fn map_binding_type(ty: wgt::BindingType) -> vk::DescriptorType {
         wgt::BindingType::Sampler { .. } => vk::DescriptorType::SAMPLER,
         wgt::BindingType::Texture { .. } => vk::DescriptorType::SAMPLED_IMAGE,
         wgt::BindingType::StorageTexture { .. } => vk::DescriptorType::STORAGE_IMAGE,
-        wgt::BindingType::AccelerationStructure => vk::DescriptorType::ACCELERATION_STRUCTURE_KHR,
+        wgt::BindingType::AccelerationStructure { .. } => {
+            vk::DescriptorType::ACCELERATION_STRUCTURE_KHR
+        }
     }
 }
 
@@ -951,6 +954,10 @@ pub fn map_acceleration_structure_flags(
 
     if flags.contains(crate::AccelerationStructureBuildFlags::ALLOW_COMPACTION) {
         vk_flags |= vk::BuildAccelerationStructureFlagsKHR::ALLOW_COMPACTION
+    }
+
+    if flags.contains(crate::AccelerationStructureBuildFlags::ALLOW_RAY_HIT_VERTEX_RETURN) {
+        vk_flags |= vk::BuildAccelerationStructureFlagsKHR::ALLOW_DATA_ACCESS
     }
 
     vk_flags

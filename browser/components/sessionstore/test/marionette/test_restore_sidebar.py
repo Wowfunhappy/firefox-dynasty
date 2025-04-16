@@ -12,9 +12,7 @@ from session_store_test_case import SessionStoreTestCase
 
 
 def inline(title):
-    return "data:text/html;charset=utf-8,<html><head><title>{}</title></head><body></body></html>".format(
-        title
-    )
+    return f"data:text/html;charset=utf-8,<html><head><title>{title}</title></head><body></body></html>"
 
 
 class TestSessionRestore(SessionStoreTestCase):
@@ -43,12 +41,14 @@ class TestSessionRestore(SessionStoreTestCase):
             1,
             msg="Should have 1 window open.",
         )
-        self.marionette.execute_script(
+        self.marionette.execute_async_script(
             """
+            const resolve = arguments[0];
             let window = BrowserWindowTracker.getTopWindow()
-            window.SidebarController.show("viewHistorySidebar");
-            let sidebarBox = window.document.getElementById("sidebar-box")
-            sidebarBox.style.width = "100px";
+            window.SidebarController.show("viewHistorySidebar").then(() => {
+              let sidebarBox = window.document.getElementById("sidebar-box")
+              sidebarBox.style.width = "100px";
+            }).then(resolve);
             """
         )
 
@@ -110,13 +110,15 @@ class TestSessionRestore(SessionStoreTestCase):
         )
 
     def test_restore_sidebar_closed(self):
-        self.marionette.execute_script(
+        self.marionette.execute_async_script(
             """
+            const resolve = arguments[0];
             let window = BrowserWindowTracker.getTopWindow()
-            window.SidebarController.show("viewHistorySidebar");
-            let sidebarBox = window.document.getElementById("sidebar-box")
-            sidebarBox.style.width = "100px";
-            window.SidebarController.toggle();
+            window.SidebarController.show("viewHistorySidebar").then(() => {
+             let sidebarBox = window.document.getElementById("sidebar-box")
+             sidebarBox.style.width = "100px";
+             window.SidebarController.toggle();
+            }).then(resolve);
             """
         )
 

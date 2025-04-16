@@ -16,7 +16,7 @@ for (let metric of METRICS) {
 
 const perfMetadata = {
   owner: "GenAI Team",
-  name: "ML Suggest Inference Model",
+  name: "browser_ml_suggest_inference.js",
   description: "Template test for ML suggest Inference Model",
   options: {
     default: {
@@ -25,15 +25,23 @@ const perfMetadata = {
         {
           name: "inference-pipeline-ready-latency",
           unit: "ms",
-          shouldAlert: true,
+          shouldAlert: false,
         },
         {
           name: "inference-initialization-latency",
           unit: "ms",
-          shouldAlert: true,
+          shouldAlert: false,
         },
-        { name: "inference-model-run-latency", unit: "ms", shouldAlert: true },
-        { name: "inference-total-memory-usage", unit: "ms", shouldAlert: true },
+        {
+          name: "inference-model-run-latency",
+          unit: "ms",
+          shouldAlert: false,
+        },
+        {
+          name: "inference-total-memory-usage",
+          unit: "ms",
+          shouldAlert: false,
+        },
       ],
       verbose: true,
       manifest: "perftest.toml",

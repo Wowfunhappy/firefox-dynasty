@@ -51,11 +51,6 @@ loader.lazyRequireGetter(
 );
 loader.lazyRequireGetter(
   this,
-  "ExtensionSidebar",
-  "resource://devtools/client/inspector/extensions/extension-sidebar.js"
-);
-loader.lazyRequireGetter(
-  this,
   "PICKER_TYPES",
   "resource://devtools/shared/picker-constants.js"
 );
@@ -184,7 +179,6 @@ function Inspector(toolbox, commands) {
   this.onSidebarSelect = this.onSidebarSelect.bind(this);
   this.onSidebarShown = this.onSidebarShown.bind(this);
   this.onSidebarToggle = this.onSidebarToggle.bind(this);
-  this.onReflowInSelection = this.onReflowInSelection.bind(this);
   this.listenForSearchEvents = this.listenForSearchEvents.bind(this);
 
   this.prefObserver = new PrefObserver("devtools.");
@@ -200,8 +194,13 @@ Inspector.prototype = {
    * InspectorPanel.open() is effectively an asynchronous constructor.
    * Set any attributes or listeners that rely on the document being loaded or fronts
    * from the InspectorFront and Target here.
+   *
+   * @param {Object} options
+   * @param {NodeFront|undefined} options.defaultStartupNode: Optional node front that
+   *        will be selected when the first root node is available.
+   * @returns {Inspector}
    */
-  async init() {
+  async init(options = {}) {
     // Localize all the nodes containing a data-localization attribute.
     localizeMarkup(this.panelDoc);
 
@@ -220,6 +219,15 @@ Inspector.prototype = {
     // iframe if it had already been initialized.
     this.setupSplitter();
 
+    // Optional NodeFront set on inspector startup, to be selected once the first root
+    // node is available.
+    this._defaultStartupNode = options.defaultStartupNode;
+
+    // NodeFront for the DOM Element selected when opening the inspector, or after each
+    // navigation (i.e. each time a new Root Node is available)
+    // This is used as a fallback if the currently selected node is removed.
+    this._defaultNode = null;
+
     await this.commands.targetCommand.watchTargets({
       types: [this.commands.targetCommand.TYPES.FRAME],
       onAvailable: this._onTargetAvailable,
@@ -232,6 +240,7 @@ Inspector.prototype = {
       // To observe CSS change before opening changes view.
       TYPES.CSS_CHANGE,
       TYPES.DOCUMENT_EVENT,
+      TYPES.REFLOW,
     ];
     // The root node is retrieved from onTargetSelected which is now called
     // on startup as well as on any navigation (= new top level target).
@@ -358,6 +367,16 @@ Inspector.prototype = {
       ) {
         this._onWillNavigate();
       }
+
+      if (resource.resourceType === this.toolbox.resourceCommand.TYPES.REFLOW) {
+        this.emit("reflow");
+        if (resource.targetFront === this.selection?.nodeFront?.targetFront) {
+          // This event will be fired whenever a reflow is detected in the target front of the
+          // selected node front (so when a reflow is detected inside any of the windows that
+          // belong to the BrowsingContext where the currently selected node lives).
+          this.emit("reflow-in-selected-target");
+        }
+      }
     }
 
     return Promise.all(rootNodeAvailablePromises);
@@ -370,7 +389,6 @@ Inspector.prototype = {
     // Record new-root timing for telemetry
     this._newRootStart = this.panelWin.performance.now();
 
-    this._defaultNode = null;
     this.selection.setNodeFront(null);
     this._destroyMarkup();
 
@@ -592,8 +610,10 @@ Inspector.prototype = {
    *        The current root node front for the top walker.
    */
   async _getDefaultNodeForSelection(rootNodeFront) {
-    if (this._defaultNode) {
-      return this._defaultNode;
+    if (this._defaultStartupNode) {
+      const node = this._defaultStartupNode;
+      this._defaultStartupNode = null;
+      return node;
     }
 
     // Save the _pendingSelectionUnique on the current inspector instance.
@@ -1320,6 +1340,11 @@ Inspector.prototype = {
       );
     }
 
+    // Load the ExtensionSidebar component via the Browser Loader as it ultimately loads Reps and Object Inspector,
+    // which are expected to be loaded in a document scope.
+    const ExtensionSidebar = this.browserRequire(
+      "resource://devtools/client/inspector/extensions/extension-sidebar.js"
+    );
     const extensionSidebar = new ExtensionSidebar(this, { id, title });
 
     // TODO(rpl): pass some extension metadata (e.g. extension name and icon) to customize
@@ -1349,6 +1374,9 @@ Inspector.prototype = {
 
     const panel = this._panels.get(id);
 
+    const ExtensionSidebar = this.browserRequire(
+      "resource://devtools/client/inspector/extensions/extension-sidebar.js"
+    );
     if (!(panel instanceof ExtensionSidebar)) {
       throw new Error(
         `The sidebar panel with id "${id}" is not an ExtensionSidebar`
@@ -1570,7 +1598,6 @@ Inspector.prototype = {
 
     this.updateAddElementButton();
     this.updateSelectionCssSelectors();
-    this.trackReflowsInSelection();
 
     const selfUpdate = this.updating("inspector-panel");
     executeSoon(() => {
@@ -1581,56 +1608,6 @@ Inspector.prototype = {
         console.error(ex);
       }
     });
-  },
-
-  /**
-   * Starts listening for reflows in the targetFront of the currently selected nodeFront.
-   */
-  async trackReflowsInSelection() {
-    this.untrackReflowsInSelection();
-    if (!this.selection.nodeFront) {
-      return;
-    }
-
-    if (this._destroyed) {
-      return;
-    }
-
-    try {
-      await this.commands.resourceCommand.watchResources(
-        [this.commands.resourceCommand.TYPES.REFLOW],
-        {
-          onAvailable: this.onReflowInSelection,
-        }
-      );
-    } catch (e) {
-      // it can happen that watchResources fails as the client closes while we're processing
-      // some asynchronous call.
-      // In order to still get valid exceptions, we re-throw the exception if the inspector
-      // isn't destroyed.
-      if (!this._destroyed) {
-        throw e;
-      }
-    }
-  },
-
-  /**
-   * Stops listening for reflows.
-   */
-  untrackReflowsInSelection() {
-    this.commands.resourceCommand.unwatchResources(
-      [this.commands.resourceCommand.TYPES.REFLOW],
-      {
-        onAvailable: this.onReflowInSelection,
-      }
-    );
-  },
-
-  onReflowInSelection() {
-    // This event will be fired whenever a reflow is detected in the target front of the
-    // selected node front (so when a reflow is detected inside any of the windows that
-    // belong to the BrowsingContext when the currently selected node lives).
-    this.emit("reflow-in-selected-target");
   },
 
   /**
@@ -1770,7 +1747,6 @@ Inspector.prototype = {
     resourceCommand.unwatchResources(this._watchedResources, {
       onAvailable: this.onResourceAvailable,
     });
-    this.untrackReflowsInSelection();
 
     this._InspectorTabPanel = null;
     this._TabBar = null;

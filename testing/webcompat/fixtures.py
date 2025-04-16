@@ -30,6 +30,8 @@ SHIMS_PREF = "extensions.webcompat.enable_shims"
 STRICT_ETP_PREF = "privacy.trackingprotection.enabled"
 UA_OVERRIDES_PREF = "extensions.webcompat.perform_ua_overrides"
 SYSTEM_ADDON_UPDATES_PREF = "extensions.systemAddon.update.enabled"
+DOWNLOAD_TO_TEMP_PREF = "browser.download.start_downloads_in_tmp_dir"
+DELETE_DOWNLOADS_PREF = "browser.helperApps.deleteTempFileOnExit"
 
 
 class WebDriver:
@@ -110,12 +112,17 @@ class FirefoxWebDriver(WebDriver):
         # default permission for notificaitons to PERM_DENY_ACTION.
         prefs[NOTIFICATIONS_PERMISSIONS_PREF] = 2
 
-        fx_options = {"prefs": prefs}
+        # if any downloads happen, put them in a temporary folder.
+        prefs[DOWNLOAD_TO_TEMP_PREF] = True
+        # also delete those files afterward.
+        prefs[DELETE_DOWNLOADS_PREF] = True
+
+        fx_options = {"args": ["--remote-allow-system-access"], "prefs": prefs}
 
         if self.browser_binary:
             fx_options["binary"] = self.browser_binary
             if self.headless:
-                fx_options["args"] = ["--headless"]
+                fx_options["args"].append("--headless")
 
         if self.device_serial:
             fx_options["androidDeviceSerial"] = self.device_serial
@@ -321,7 +328,10 @@ async def session(driver, test_config):
     yield session
 
     await session.bidi_session.end()
-    session.end()
+    try:
+        session.end()
+    except webdriver.error.UnknownErrorException:
+        pass
 
 
 @pytest.fixture(autouse=True)
@@ -334,6 +344,18 @@ def firefox_version(session):
 @pytest.fixture(autouse=True)
 def platform(session):
     return session.capabilities["platformName"]
+
+
+@pytest.fixture(autouse=True)
+def channel(session):
+    ver = session.capabilities["browserVersion"]
+    if "a" in ver:
+        return "nightly"
+    elif "b" in ver:
+        return "beta"
+    elif "esr" in ver:
+        return "esr"
+    return "stable"
 
 
 @pytest.fixture(autouse=True)
@@ -379,10 +401,11 @@ def only_firefox_versions(bug_number, firefox_version, request):
 
 @pytest.fixture(autouse=True)
 def only_platforms(bug_number, platform, request, session):
+    is_fenix = "org.mozilla.fenix" in session.capabilities.get("moz:profile", "")
     if request.node.get_closest_marker("only_platforms"):
         plats = request.node.get_closest_marker("only_platforms").args
         for only in plats:
-            if only == platform:
+            if only == platform or (only == "fenix" and is_fenix):
                 return
         pytest.skip(
             f"Bug #{bug_number} skipped on platform ({platform}, test only for {' or '.join(plats)})"
@@ -391,10 +414,34 @@ def only_platforms(bug_number, platform, request, session):
 
 @pytest.fixture(autouse=True)
 def skip_platforms(bug_number, platform, request, session):
+    is_fenix = "org.mozilla.fenix" in session.capabilities.get("moz:profile", "")
     if request.node.get_closest_marker("skip_platforms"):
         plats = request.node.get_closest_marker("skip_platforms").args
         for skipped in plats:
-            if skipped == platform:
+            if skipped == platform or (skipped == "fenix" and is_fenix):
                 pytest.skip(
                     f"Bug #{bug_number} skipped on platform ({platform}, test skipped for {' and '.join(plats)})"
+                )
+
+
+@pytest.fixture(autouse=True)
+def only_channels(bug_number, channel, request, session):
+    if request.node.get_closest_marker("only_channels"):
+        channels = request.node.get_closest_marker("only_channels").args
+        for only in channels:
+            if only == channel:
+                return
+        pytest.skip(
+            f"Bug #{bug_number} skipped on channel ({channel}, test only for {' or '.join(channels)})"
+        )
+
+
+@pytest.fixture(autouse=True)
+def skip_channels(bug_number, channel, request, session):
+    if request.node.get_closest_marker("skip_channels"):
+        channels = request.node.get_closest_marker("skip_channels").args
+        for skipped in channels:
+            if skipped == channel:
+                pytest.skip(
+                    f"Bug #{bug_number} skipped on channel ({channel}, test skipped for {' and '.join(channels)})"
                 )

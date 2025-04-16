@@ -39,7 +39,9 @@ const VirtualizedTree = require("resource://devtools/client/shared/components/Vi
 const FrameView = createFactory(
   require("resource://devtools/client/shared/components/Frame.js")
 );
-import Reps from "devtools/client/shared/components/reps/index";
+const Reps = ChromeUtils.importESModule(
+  "resource://devtools/client/shared/components/reps/index.mjs"
+);
 const {
   REPS: { Rep },
   MODE,
@@ -51,10 +53,10 @@ const {
   HTMLTooltip,
 } = require("resource://devtools/client/shared/widgets/tooltip/HTMLTooltip.js");
 
-const {
-  TabPanel,
-  Tabs,
-} = require("resource://devtools/client/shared/components/tabs/Tabs.js");
+const { TabPanel, Tabs } = ChromeUtils.importESModule(
+  "resource://devtools/client/shared/components/tabs/Tabs.mjs",
+  { global: "current" }
+);
 
 import actions from "../../actions/index";
 
@@ -808,11 +810,12 @@ export class Tracer extends Component {
       this.props;
     return [
       React.createElement(SearchInput, {
-        // <SearchInput> only use `count` to show the arrow icons,
-        // force it to always display them with such count.
-        count: 2,
+        count: tracesMatchingSearch.length,
 
-        placeholder: `Search for function call argument values ("foo", 42, $0, $("canvas"), …)`,
+        placeholder: this.props.traceValues
+          ? `Search for function call argument values ("foo", 42, $0, $("canvas"), …)`
+          : "Enable tracing values to search for values",
+        disabled: !this.props.traceValues,
         size: "small",
         showClose: false,
         onChange: this.searchInputOnChange,
@@ -830,13 +833,6 @@ export class Tracer extends Component {
       // and show the exception, if one was thrown
       searchExceptionMessage
         ? div({ className: "search-exception" }, searchExceptionMessage)
-        : null,
-
-      this.props.allTraces.length && !this.props.traceValues
-        ? div(
-            { className: "search-exception" },
-            "Need to enable tracing values to search for values"
-          )
         : null,
 
       // When we have a valid search string, either matching a primitive type or an object,

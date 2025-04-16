@@ -148,15 +148,22 @@ static bool IsFindableNode(const nsINode* aNode) {
     // display: contents
     return true;
   }
-
-  if (frame->StyleUI()->IsInert() ||
-      frame->HidesContent(nsIFrame::IncludeContentVisibility::Hidden) ||
-      frame->IsHiddenByContentVisibilityOnAnyAncestor(
-          nsIFrame::IncludeContentVisibility::Hidden)) {
+  if (frame->StyleUI()->IsInert()) {
+    return false;
+  }
+  if (!frame->StyleVisibility()->IsVisible()) {
     return false;
   }
 
-  return frame->StyleVisibility()->IsVisible();
+  const bool isContentVisibilityHidden =
+      frame->HidesContent(nsIFrame::IncludeContentVisibility::Hidden) ||
+      frame->IsHiddenByContentVisibilityOnAnyAncestor(
+          nsIFrame::IncludeContentVisibility::Hidden);
+  if (isContentVisibilityHidden) {
+    return frame->IsHiddenUntilFoundOrClosedDetails();
+  }
+
+  return true;
 }
 
 static bool ShouldFindAnonymousContent(const nsIContent& aContent) {
@@ -611,6 +618,10 @@ nsFind::Find(const nsAString& aPatText, nsRange* aSearchRange,
 already_AddRefed<nsRange> nsFind::FindFromRangeBoundaries(
     const nsAString& aPatText, const mozilla::RangeBoundary& aStartPoint,
     const mozilla::RangeBoundary& aEndPoint) {
+  if (!aStartPoint.IsSetAndInComposedDoc() ||
+      !aEndPoint.IsSetAndInComposedDoc()) {
+    return nullptr;
+  }
   MOZ_ASSERT(aStartPoint.IsSetAndValid());
   MOZ_ASSERT(aEndPoint.IsSetAndValid());
   // set up node index cache. If there is no cache given from the outside
@@ -999,6 +1010,15 @@ already_AddRefed<nsRange> nsFind::FindFromRangeBoundaries(
           if (!rv.Failed()) {
             range->SetEnd(*endParent, matchEndOffset, rv);
           }
+          // https://html.spec.whatwg.org/#interaction-with-details-and-hidden=until-found
+          NS_DispatchToMainThread(NS_NewRunnableFunction(
+              "RevealHiddenUntilFound",
+              [node = RefPtr(startParent)]()
+                  MOZ_CAN_RUN_SCRIPT_BOUNDARY_LAMBDA {
+                    node->RevealAncestorClosedDetails();
+                    node->RevealAncestorHiddenUntilFoundAndFireBeforematchEvent(
+                        IgnoreErrors());
+                  }));
           if (!rv.Failed()) {
             return range.forget();
           }

@@ -1,12 +1,7 @@
 "use strict";
 
-const { ExperimentAPI, _ExperimentFeature: ExperimentFeature } =
-  ChromeUtils.importESModule("resource://nimbus/ExperimentAPI.sys.mjs");
-const { ExperimentManager } = ChromeUtils.importESModule(
-  "resource://nimbus/lib/ExperimentManager.sys.mjs"
-);
-const { ExperimentFakes } = ChromeUtils.importESModule(
-  "resource://testing-common/NimbusTestUtils.sys.mjs"
+const { _ExperimentFeature: ExperimentFeature } = ChromeUtils.importESModule(
+  "resource://nimbus/ExperimentAPI.sys.mjs"
 );
 const { TelemetryTestUtils } = ChromeUtils.importESModule(
   "resource://testing-common/TelemetryTestUtils.sys.mjs"
@@ -68,7 +63,7 @@ add_task(async function test_experiment_enroll_unenroll_Telemetry() {
         object: TELEMETRY_OBJECT,
         value: experiment.slug,
         extra: {
-          reason: "cleanup",
+          reason: "unknown",
           branch: experiment.branch.slug,
         },
       },

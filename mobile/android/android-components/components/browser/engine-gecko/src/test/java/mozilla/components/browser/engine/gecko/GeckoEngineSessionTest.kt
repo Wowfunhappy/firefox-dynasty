@@ -622,6 +622,11 @@ class GeckoEngineSessionTest {
             GeckoSession.Loader().uri("http://www.mozilla.org").additionalHeaders(extraHeaders)
                 .headerFilter(GeckoSession.HEADER_FILTER_CORS_SAFELISTED),
         )
+
+        engineSession.loadUrl("http://mozilla.org", textDirectiveUserActivation = true)
+        verify(geckoSession).load(
+            GeckoSession.Loader().uri("http://mozilla.org").textDirectiveUserActivation(true),
+        )
     }
 
     @Test
@@ -1884,6 +1889,19 @@ class GeckoEngineSessionTest {
     }
 
     @Test
+    fun `onPipModeChanged sets same enabled value`() {
+        whenever(geckoSession.compositorController).thenReturn(mock())
+        val engineSession = GeckoEngineSession(
+            mock(),
+            geckoSessionProvider = geckoSessionProvider,
+        )
+        engineSession.onPipModeChanged(true)
+        verify(geckoSession.compositorController).onPipModeChanged(true)
+        engineSession.onPipModeChanged(false)
+        verify(geckoSession.compositorController).onPipModeChanged(false)
+    }
+
+    @Test
     fun unsupportedSettings() {
         val settings = GeckoEngineSession(
             runtime,
@@ -2485,9 +2503,23 @@ class GeckoEngineSessionTest {
         val nonMobileUrl = "https://example.com"
         val engineSession = spy(GeckoEngineSession(runtime, geckoSessionProvider = geckoSessionProvider))
         engineSession.currentUrl = mobileUrl
+        engineSession.pageLoadingUrl = "https://before-redirection.com"
 
         engineSession.toggleDesktopMode(true, reload = true)
         verify(engineSession, atLeastOnce()).loadUrl(nonMobileUrl, null, LoadUrlFlags.select(LoadUrlFlags.LOAD_FLAGS_REPLACE_HISTORY), null)
+
+        engineSession.toggleDesktopMode(false, reload = true)
+        verify(engineSession, atLeastOnce()).reload()
+    }
+
+    @Test
+    fun `toggleDesktopMode should reload a pageLoadingUrl when set to desktop mode if it is different from currentUrl`() {
+        val engineSession = spy(GeckoEngineSession(runtime, geckoSessionProvider = geckoSessionProvider))
+        engineSession.currentUrl = "https://redirected.com"
+        engineSession.pageLoadingUrl = "https://example.com"
+
+        engineSession.toggleDesktopMode(true, reload = true)
+        verify(engineSession, atLeastOnce()).loadUrl("https://example.com", null, LoadUrlFlags.select(LoadUrlFlags.LOAD_FLAGS_REPLACE_HISTORY), null)
 
         engineSession.toggleDesktopMode(false, reload = true)
         verify(engineSession, atLeastOnce()).reload()
@@ -2618,6 +2650,39 @@ class GeckoEngineSessionTest {
             )
         }
         ruleResult.complete(json)
+        shadowOf(getMainLooper()).idle()
+
+        assertTrue(onResultCalled)
+        assertFalse(onExceptionCalled)
+    }
+
+    @Test
+    fun `sendMoreWebCompatInfo should correctly process a GV response`() {
+        val engineSession = GeckoEngineSession(mock(), geckoSessionProvider = geckoSessionProvider)
+        var onResultCalled = false
+        var onExceptionCalled = false
+
+        val testInfo = JSONObject().apply {
+            put("reason", "test-reason")
+            put("description", "test-description")
+            put("endpointUrl", "https://webcompat.com/issues/new")
+            put("reportUrl", "https://example.com")
+        }
+
+        val ruleResult = GeckoResult<Void>()
+        whenever(geckoSession.sendMoreWebCompatInfo(any())).thenReturn(ruleResult)
+
+        engineSession.sendMoreWebCompatInfo(
+            info = testInfo,
+            onResult = {
+                onResultCalled = true
+            },
+            onException = {
+                onExceptionCalled = true
+            },
+        )
+
+        ruleResult.complete(null)
         shadowOf(getMainLooper()).idle()
 
         assertTrue(onResultCalled)

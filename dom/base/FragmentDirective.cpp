@@ -20,6 +20,7 @@
 #include "mozilla/dom/FragmentOrElement.h"
 #include "mozilla/dom/Promise.h"
 #include "mozilla/dom/Selection.h"
+#include "mozilla/glean/DomMetrics.h"
 #include "mozilla/PresShell.h"
 #include "nsContentUtils.h"
 #include "nsDocShell.h"
@@ -442,11 +443,14 @@ already_AddRefed<Promise> FragmentDirective::CreateTextDirective(
     return resultPromise.forget();
   }
 
+  const TimeStamp start = TimeStamp::Now();
+
   Result<nsCString, ErrorResult> textDirective =
       TextDirectiveCreator::CreateTextDirectiveFromRange(*mDocument, &aRange);
   if (textDirective.isOk()) {
     nsCString textDirectiveString = textDirective.unwrap();
     if (textDirectiveString.IsEmpty()) {
+      mDocument->SetUseCounter(eUseCounter_custom_TextDirectiveNotCreated);
       resultPromise->MaybeResolve(JS::NullHandleValue);
     } else {
       resultPromise->MaybeResolve(std::move(textDirectiveString));
@@ -455,6 +459,9 @@ already_AddRefed<Promise> FragmentDirective::CreateTextDirective(
     ErrorResult rv = textDirective.unwrapErr();
     resultPromise->MaybeReject(std::move(rv));
   }
+
+  glean::dom_textfragment::create_directive.AccumulateRawDuration(
+      TimeStamp::Now() - start);
 
   return resultPromise.forget();
 }

@@ -76,7 +76,8 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(ModuleLoaderBase)
 NS_INTERFACE_MAP_END
 
 NS_IMPL_CYCLE_COLLECTION(ModuleLoaderBase, mFetchingModules, mFetchedModules,
-                         mDynamicImportRequests, mGlobalObject, mLoader)
+                         mDynamicImportRequests, mGlobalObject, mOverriddenBy,
+                         mLoader)
 
 NS_IMPL_CYCLE_COLLECTING_ADDREF(ModuleLoaderBase)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(ModuleLoaderBase)
@@ -466,7 +467,16 @@ nsresult ModuleLoaderBase::StartOrRestartModuleLoad(ModuleLoadRequest* aRequest,
   MOZ_ASSERT(aRequest->mLoader == this);
   MOZ_ASSERT(aRequest->IsFetching() || aRequest->IsPendingFetchingError());
 
-  aRequest->SetUnknownDataType();
+  // NOTE: The LoadedScript::mDataType field used by the IsStencil call can be
+  //       modified asynchronously after the StartFetch call.
+  //       In order to avoid the race condition, cache the value here.
+  bool isStencil = aRequest->IsStencil();
+
+  MOZ_ASSERT_IF(isStencil, aRestart == RestartRequest::No);
+
+  if (!isStencil) {
+    aRequest->SetUnknownDataType();
+  }
 
   // If we're restarting the request, the module should already be in the
   // "fetching" map.
@@ -482,23 +492,27 @@ nsresult ModuleLoaderBase::StartOrRestartModuleLoad(ModuleLoadRequest* aRequest,
 
   // Check whether the module has been fetched or is currently being fetched,
   // and if so wait for it rather than starting a new fetch.
-  ModuleLoadRequest* request = aRequest->AsModuleRequest();
-
   if (aRestart == RestartRequest::No &&
       ModuleMapContainsURL(
-          ModuleMapKey(request->mURI, aRequest->mModuleType))) {
+          ModuleMapKey(aRequest->mURI, aRequest->mModuleType))) {
     LOG(("ScriptLoadRequest (%p): Waiting for module fetch", aRequest));
-    WaitForModuleFetch(request);
+    WaitForModuleFetch(aRequest);
     return NS_OK;
   }
 
   rv = StartFetch(aRequest);
   NS_ENSURE_SUCCESS(rv, rv);
 
+  if (isStencil) {
+    MOZ_ASSERT(
+        IsModuleFetched(ModuleMapKey(aRequest->mURI, aRequest->mModuleType)));
+    return NS_OK;
+  }
+
   // We successfully started fetching a module so put its URL in the module
   // map and mark it as fetching.
   if (aRestart == RestartRequest::No) {
-    SetModuleFetchStarted(aRequest->AsModuleRequest());
+    SetModuleFetchStarted(aRequest);
   }
 
   return NS_OK;
@@ -717,10 +731,29 @@ nsresult ModuleLoaderBase::CreateModuleScript(ModuleLoadRequest* aRequest) {
     }
 
     MOZ_ASSERT(aRequest->mLoadedScript->IsModuleScript());
-    MOZ_ASSERT(aRequest->mLoadedScript->GetFetchOptions() ==
-               aRequest->mFetchOptions);
-    MOZ_ASSERT(aRequest->mLoadedScript->GetURI() == aRequest->mURI);
-    aRequest->mLoadedScript->SetBaseURL(aRequest->mBaseURL);
+    MOZ_ASSERT(aRequest->mFetchOptions->IsCompatible(
+        aRequest->mLoadedScript->GetFetchOptions()));
+#ifdef DEBUG
+    {
+      bool equals = false;
+      aRequest->mURI->Equals(aRequest->mLoadedScript->GetURI(), &equals);
+      MOZ_ASSERT(equals);
+    }
+#endif
+
+    if (!aRequest->mLoadedScript->BaseURL()) {
+      // If this script is not cached, the BaseURL should be copied from
+      // request to script for later use.
+      aRequest->mLoadedScript->SetBaseURL(aRequest->mBaseURL);
+    } else {
+      // If this script is cached, the BaseURL should match, which is
+      // checked when looking for the cache.
+#ifdef DEBUG
+      bool equals = false;
+      aRequest->mBaseURL->Equals(aRequest->mLoadedScript->BaseURL(), &equals);
+      MOZ_ASSERT(equals);
+#endif
+    }
     RefPtr<ModuleScript> moduleScript =
         aRequest->mLoadedScript->AsModuleScript();
     aRequest->mModuleScript = moduleScript;
@@ -953,10 +986,37 @@ void ModuleLoaderBase::StartFetchingModuleDependencies(
   }
 }
 
+bool ModuleLoaderBase::GetImportMapSRI(
+    nsIURI* aURI, nsIURI* aSourceURI, nsIConsoleReportCollector* aReporter,
+    mozilla::dom::SRIMetadata* aMetadataOut) {
+  MOZ_ASSERT(aMetadataOut->IsEmpty());
+  MOZ_ASSERT(aURI);
+
+  if (!HasImportMapRegistered()) {
+    return false;
+  }
+
+  mozilla::Maybe<nsString> entry =
+      ImportMap::LookupIntegrity(mImportMap.get(), aURI);
+  if (entry.isNothing()) {
+    return false;
+  }
+
+  mozilla::dom::SRICheck::IntegrityMetadata(
+      *entry, aSourceURI->GetSpecOrDefault(), aReporter, aMetadataOut);
+  return true;
+}
+
 void ModuleLoaderBase::StartFetchingModuleAndDependencies(
     ModuleLoadRequest* aParent, const ModuleMapKey& aRequestedModule) {
-  RefPtr<ModuleLoadRequest> childRequest = CreateStaticImport(
-      aRequestedModule.mUri, aRequestedModule.mModuleType, aParent);
+  // Check import map for integrity information
+  mozilla::dom::SRIMetadata sriMetadata;
+  GetImportMapSRI(aRequestedModule.mUri, aParent->mURI,
+                  mLoader->GetConsoleReportCollector(), &sriMetadata);
+
+  RefPtr<ModuleLoadRequest> childRequest =
+      CreateStaticImport(aRequestedModule.mUri, aRequestedModule.mModuleType,
+                         aParent, sriMetadata);
 
   aParent->mImports.AppendElement(childRequest);
 
@@ -1329,20 +1389,19 @@ nsresult ModuleLoaderBase::EvaluateModuleInContext(
                             MarkerInnerWindowIdFromJSContext(aCx),
                             profilerLabelString);
 
-  ModuleLoadRequest* request = aRequest->AsModuleRequest();
-  MOZ_ASSERT(request->mModuleScript);
-  MOZ_ASSERT_IF(request->HasScriptLoadContext(),
-                !request->GetScriptLoadContext()->mCompileOrDecodeTask);
+  MOZ_ASSERT(aRequest->mModuleScript);
+  MOZ_ASSERT_IF(aRequest->HasScriptLoadContext(),
+                !aRequest->GetScriptLoadContext()->mCompileOrDecodeTask);
 
-  ModuleScript* moduleScript = request->mModuleScript;
+  ModuleScript* moduleScript = aRequest->mModuleScript;
   if (moduleScript->HasErrorToRethrow()) {
     LOG(("ScriptLoadRequest (%p):   module has error to rethrow", aRequest));
     JS::Rooted<JS::Value> error(aCx, moduleScript->ErrorToRethrow());
     JS_SetPendingException(aCx, error);
     // For a dynamic import, the promise is rejected.  Otherwise an error
     // is either reported by AutoEntryScript.
-    if (request->IsDynamicImport()) {
-      FinishDynamicImport(aCx, request, NS_OK, nullptr);
+    if (aRequest->IsDynamicImport()) {
+      FinishDynamicImport(aCx, aRequest, NS_OK, nullptr);
     }
     return NS_OK;
   }
@@ -1355,16 +1414,16 @@ nsresult ModuleLoaderBase::EvaluateModuleInContext(
     return NS_OK;
   }
 
-  nsresult rv = InitDebuggerDataForModuleGraph(aCx, request);
+  nsresult rv = InitDebuggerDataForModuleGraph(aCx, aRequest);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  if (request->HasScriptLoadContext()) {
+  if (aRequest->HasScriptLoadContext()) {
     TRACE_FOR_TEST(aRequest, "scriptloader_evaluate_module");
   }
 
   JS::Rooted<JS::Value> rval(aCx);
 
-  mLoader->MaybePrepareModuleForBytecodeEncodingBeforeExecute(aCx, request);
+  mLoader->MaybePrepareModuleForBytecodeEncodingBeforeExecute(aCx, aRequest);
 
   bool ok = JS::ModuleEvaluate(aCx, module, &rval);
 
@@ -1372,7 +1431,7 @@ nsresult ModuleLoaderBase::EvaluateModuleInContext(
   // unless the user cancels execution.
   MOZ_ASSERT_IF(ok, !JS_IsExceptionPending(aCx));
 
-  if (!ok || IsModuleEvaluationAborted(request)) {
+  if (!ok || IsModuleEvaluationAborted(aRequest)) {
     LOG(("ScriptLoadRequest (%p):   evaluation failed", aRequest));
     // For a dynamic import, the promise is rejected. Otherwise an error is
     // reported by AutoEntryScript.
@@ -1387,11 +1446,11 @@ nsresult ModuleLoaderBase::EvaluateModuleInContext(
     evaluationPromise.set(&rval.toObject());
   }
 
-  if (request->IsDynamicImport()) {
+  if (aRequest->IsDynamicImport()) {
     if (NS_FAILED(rv)) {
-      FinishDynamicImportAndReject(request, rv);
+      FinishDynamicImportAndReject(aRequest, rv);
     } else {
-      FinishDynamicImport(aCx, request, NS_OK, evaluationPromise);
+      FinishDynamicImport(aCx, aRequest, NS_OK, evaluationPromise);
     }
   } else {
     // If this is not a dynamic import, and if the promise is rejected,
@@ -1404,7 +1463,7 @@ nsresult ModuleLoaderBase::EvaluateModuleInContext(
     }
   }
 
-  rv = mLoader->MaybePrepareModuleForBytecodeEncodingAfterExecute(request,
+  rv = mLoader->MaybePrepareModuleForBytecodeEncodingAfterExecute(aRequest,
                                                                   NS_OK);
 
   mLoader->MaybeTriggerBytecodeEncoding();

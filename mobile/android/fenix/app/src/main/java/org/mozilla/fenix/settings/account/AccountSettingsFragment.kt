@@ -14,6 +14,7 @@ import android.text.InputFilter
 import android.text.format.DateUtils
 import android.view.View
 import androidx.appcompat.app.AlertDialog
+import androidx.core.content.edit
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.fragment.findNavController
 import androidx.preference.CheckBoxPreference
@@ -74,7 +75,7 @@ class AccountSettingsFragment : PreferenceFragmentCompat() {
                 // Remove the device name when we log out.
                 context?.let {
                     val deviceNameKey = it.getPreferenceKey(R.string.pref_key_sync_device_name)
-                    preferenceManager.sharedPreferences?.edit()?.remove(deviceNameKey)?.apply()
+                    preferenceManager.sharedPreferences?.edit { remove(deviceNameKey) }
                 }
             }
         }
@@ -427,6 +428,7 @@ class AccountSettingsFragment : PreferenceFragmentCompat() {
 
         override fun onStarted() {
             viewLifecycleOwner.lifecycleScope.launch {
+                @Suppress("DEPRECATION")
                 view?.announceForAccessibility(getString(R.string.sync_syncing_in_progress))
                 pref.title = getString(R.string.sync_syncing_in_progress)
                 pref.isEnabled = false

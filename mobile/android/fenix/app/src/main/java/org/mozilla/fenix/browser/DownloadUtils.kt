@@ -9,6 +9,7 @@ import mozilla.components.browser.state.state.content.DownloadState.Status
 import mozilla.components.concept.toolbar.ScrollableToolbar
 import mozilla.components.feature.downloads.AbstractFetchDownloadService
 import org.mozilla.fenix.downloads.dialog.DynamicDownloadDialog
+import org.mozilla.fenix.ext.requireComponents
 
 internal fun BaseBrowserFragment.handleOnDownloadFinished(
     downloadState: DownloadState,
@@ -25,7 +26,9 @@ internal fun BaseBrowserFragment.handleOnDownloadFinished(
         if (downloadState.openInApp && downloadJobStatus == Status.COMPLETED) {
             val fileWasOpened = AbstractFetchDownloadService.openFile(
                 applicationContext = safeContext.applicationContext,
-                download = downloadState,
+                downloadFileName = downloadState.fileName,
+                downloadFilePath = downloadState.filePath,
+                downloadContentType = downloadState.contentType,
             )
             if (!fileWasOpened) {
                 onCannotOpenFile(downloadState)
@@ -39,6 +42,7 @@ internal fun BaseBrowserFragment.handleOnDownloadFinished(
 
             val dynamicDownloadDialog = DynamicDownloadDialog(
                 context = safeContext,
+                fileSizeFormatter = requireComponents.core.fileSizeFormatter,
                 downloadState = downloadState,
                 didFail = downloadJobStatus == Status.FAILED,
                 tryAgain = tryAgain,

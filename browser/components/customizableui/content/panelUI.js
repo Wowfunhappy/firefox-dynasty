@@ -8,6 +8,7 @@ ChromeUtils.defineESModuleGetters(this, {
   MenuMessage: "resource:///modules/asrouter/MenuMessage.sys.mjs",
   NewTabUtils: "resource://gre/modules/NewTabUtils.sys.mjs",
   PanelMultiView: "resource:///modules/PanelMultiView.sys.mjs",
+  updateZoomUI: "resource:///modules/ZoomUI.sys.mjs",
 });
 
 /**
@@ -661,6 +662,7 @@ const PanelUI = {
       let message = ASRouter.getMessageById(messageId);
       ASRouter.addImpression(message);
     }
+    updateZoomUI(gBrowser.selectedBrowser);
   },
 
   _onHelpViewShow() {
@@ -744,9 +746,6 @@ const PanelUI = {
         break;
       case "appMenu_troubleShooting":
         openTroubleshootingPage();
-        break;
-      case "appMenu_help_reportSiteIssue":
-        ReportSiteIssue();
         break;
       case "appMenu_menu_HelpPopup_reportPhishingtoolmenu":
         openUILink(gSafeBrowsing.getReportURL("Phish"), aEvent, {
@@ -1076,8 +1075,18 @@ const PanelUI = {
       this._panelBannerItem = this.mainView.querySelector(".panel-banner-item");
     }
 
-    let l10nId = "appmenuitem-banner-" + notification.id;
-    document.l10n.setAttributes(this._panelBannerItem, l10nId);
+    const messageIDs = {
+      "update-downloading": "appmenuitem-banner-update-downloading",
+      "update-available": "appmenuitem-banner-update-available",
+      "update-manual": "appmenuitem-banner-update-manual",
+      "update-unsupported": "appmenuitem-banner-update-unsupported",
+      "update-restart": "appmenuitem-banner-update-restart",
+    };
+
+    document.l10n.setAttributes(
+      this._panelBannerItem,
+      messageIDs[notification.id]
+    );
 
     this._panelBannerItem.setAttribute("notificationid", notification.id);
     this._panelBannerItem.hidden = false;

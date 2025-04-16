@@ -284,7 +284,10 @@ class Raptor(
                     "dest": "gecko_profile",
                     "action": "store_true",
                     "default": False,
-                    "help": "Whether to profile the test run and save the profile results.",
+                    "help": (
+                        "Whether to profile the test run and save the profile results. "
+                        "Copy paste the parameters used in this profiling run directly from about:profiling in Nightly."
+                    ),
                 },
             ],
             [
@@ -1079,13 +1082,9 @@ class Raptor(
         if self.config.get("verbose", False):
             options.extend(["--verbose"])
         if self.config.get("extra_prefs"):
-            options.extend(
-                ["--setpref={}".format(i) for i in self.config.get("extra_prefs")]
-            )
+            options.extend([f"--setpref={i}" for i in self.config.get("extra_prefs")])
         if self.config.get("environment"):
-            options.extend(
-                ["--setenv={}".format(i) for i in self.config.get("environment")]
-            )
+            options.extend([f"--setenv={i}" for i in self.config.get("environment")])
         if self.config.get("enable_marionette_trace", False):
             options.extend(["--enable-marionette-trace"])
         if self.config.get("browser_cycles"):
@@ -1099,7 +1098,7 @@ class Raptor(
         if self.config.get("extra_summary_methods"):
             options.extend(
                 [
-                    "--extra-summary-methods={}".format(method)
+                    f"--extra-summary-methods={method}"
                     for method in self.config.get("extra_summary_methods")
                 ]
             )
@@ -1236,7 +1235,8 @@ class Raptor(
 
         modules = ["pip>=1.5"]
 
-        # Add modules required for visual metrics
+        # Add modules required for visual metrics. Packages with non-Python
+        # components are particularly fussy about python version.
         py3_minor = sys.version_info.minor
         if py3_minor <= 7:
             modules.extend(
@@ -1248,7 +1248,7 @@ class Raptor(
                     "opencv-python==4.5.4.60",
                 ]
             )
-        else:  # python version >= 3.8
+        elif py3_minor <= 11:
             modules.extend(
                 [
                     "numpy==1.23.5",
@@ -1256,6 +1256,16 @@ class Raptor(
                     "scipy==1.9.3",
                     "pyssim==0.4",
                     "opencv-python==4.6.0.66",
+                ]
+            )
+        else:  # python version >= 3.12
+            modules.extend(
+                [
+                    "numpy==2.2.3",
+                    "Pillow==11.1.0",
+                    "scipy==1.15.2",
+                    "pyssim==0.7",
+                    "opencv-python==4.11.0.86",
                 ]
             )
 

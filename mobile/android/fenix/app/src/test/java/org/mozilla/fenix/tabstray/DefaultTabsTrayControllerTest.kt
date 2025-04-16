@@ -69,11 +69,13 @@ import org.mozilla.fenix.collections.show
 import org.mozilla.fenix.components.AppStore
 import org.mozilla.fenix.components.TabCollectionStorage
 import org.mozilla.fenix.components.appstate.AppAction
+import org.mozilla.fenix.components.usecases.FenixBrowserUseCases
 import org.mozilla.fenix.ext.maxActiveTime
 import org.mozilla.fenix.ext.potentialInactiveTabs
 import org.mozilla.fenix.helpers.FenixGleanTestRule
 import org.mozilla.fenix.helpers.FenixRobolectricTestRunner
-import org.mozilla.fenix.home.HomeFragment
+import org.mozilla.fenix.home.HomeScreenViewModel.Companion.ALL_NORMAL_TABS
+import org.mozilla.fenix.home.HomeScreenViewModel.Companion.ALL_PRIVATE_TABS
 import org.mozilla.fenix.utils.Settings
 import java.util.concurrent.TimeUnit
 
@@ -99,6 +101,9 @@ class DefaultTabsTrayControllerTest {
 
     @MockK(relaxed = true)
     private lateinit var tabsUseCases: TabsUseCases
+
+    @MockK(relaxed = true)
+    private lateinit var fenixBrowserUseCases: FenixBrowserUseCases
 
     @MockK(relaxed = true)
     private lateinit var activity: HomeActivity
@@ -164,9 +169,7 @@ class DefaultTabsTrayControllerTest {
 
         verifyOrder {
             profiler.getProfilerTime()
-            tabsUseCases.addTab.invoke(
-                url = "about:home",
-                startLoading = false,
+            fenixBrowserUseCases.addNewHomepageTab(
                 private = true,
             )
             navController.navigate(
@@ -213,9 +216,7 @@ class DefaultTabsTrayControllerTest {
 
         verifyOrder {
             profiler.getProfilerTime()
-            tabsUseCases.addTab.invoke(
-                url = "about:home",
-                startLoading = false,
+            fenixBrowserUseCases.addNewHomepageTab(
                 private = false,
             )
             navController.navigate(
@@ -468,7 +469,7 @@ class DefaultTabsTrayControllerTest {
 
             controller.deleteMultipleTabs(listOf(privateTab, mockk()))
 
-            verify { controller.dismissTabsTrayAndNavigateHome(HomeFragment.ALL_PRIVATE_TABS) }
+            verify { controller.dismissTabsTrayAndNavigateHome(ALL_PRIVATE_TABS) }
             assertTrue(showUndoSnackbarForTabInvoked)
             verify(exactly = 0) { tabsUseCases.removeTabs(any()) }
         } finally {
@@ -497,7 +498,7 @@ class DefaultTabsTrayControllerTest {
 
             controller.deleteMultipleTabs(listOf(normalTab, normalTab))
 
-            verify { controller.dismissTabsTrayAndNavigateHome(HomeFragment.ALL_NORMAL_TABS) }
+            verify { controller.dismissTabsTrayAndNavigateHome(ALL_NORMAL_TABS) }
             verify(exactly = 0) { tabsUseCases.removeTabs(any()) }
             assertTrue(showUndoSnackbarForTabInvoked)
         } finally {
@@ -1345,6 +1346,7 @@ class DefaultTabsTrayControllerTest {
             profiler = profiler,
             navigationInteractor = navigationInteractor,
             tabsUseCases = tabsUseCases,
+            fenixBrowserUseCases = fenixBrowserUseCases,
             bookmarksStorage = bookmarksStorage,
             closeSyncedTabsUseCases = closeSyncedTabsUseCases,
             collectionStorage = collectionStorage,

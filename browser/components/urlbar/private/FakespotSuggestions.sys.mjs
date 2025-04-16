@@ -92,6 +92,10 @@ export class FakespotSuggestions extends SuggestProvider {
     ];
   }
 
+  get primaryUserControlledPreference() {
+    return "suggest.fakespot";
+  }
+
   get rustSuggestionType() {
     return "Fakespot";
   }
@@ -206,7 +210,7 @@ export class FakespotSuggestions extends SuggestProvider {
       commands.push({
         name: RESULT_MENU_COMMAND.SHOW_LESS_FREQUENTLY,
         l10n: {
-          id: "firefox-suggest-command-show-less-frequently",
+          id: "urlbar-result-menu-show-less-frequently",
         },
       });
     }

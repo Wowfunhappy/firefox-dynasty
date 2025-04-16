@@ -22,7 +22,6 @@
 #include "mozilla/StaticPrefs_privacy.h"
 #include "mozilla/StoragePrincipalHelper.h"
 #include "mozilla/TaskQueue.h"
-#include "mozilla/Telemetry.h"
 #include "nsAboutProtocolUtils.h"
 #include "nsBufferedStreams.h"
 #include "nsCategoryCache.h"
@@ -102,6 +101,7 @@
 #endif
 #include "nsAboutProtocolHandler.h"
 #include "nsResProtocolHandler.h"
+#include "mozilla/net/MozSrcProtocolHandler.h"
 #include "mozilla/net/ExtensionProtocolHandler.h"
 #include "mozilla/net/PageThumbProtocolHandler.h"
 #include "mozilla/net/SFVService.h"
@@ -1912,6 +1912,15 @@ nsresult NS_NewURI(nsIURI** aURI, const nsACString& aSpec,
     return handler->NewURI(aSpec, aCharset, aBaseURI, aURI);
   }
 
+  if (scheme.EqualsLiteral("moz-src")) {
+    RefPtr<MozSrcProtocolHandler> handler =
+        MozSrcProtocolHandler::GetSingleton();
+    if (!handler) {
+      return NS_ERROR_NOT_AVAILABLE;
+    }
+    return handler->NewURI(aSpec, aCharset, aBaseURI, aURI);
+  }
+
   if (scheme.EqualsLiteral("indexeddb") || scheme.EqualsLiteral("uuid")) {
     return NS_MutateURI(new nsStandardURL::Mutator())
         .Apply(&nsIStandardURLMutator::Init, nsIStandardURL::URLTYPE_AUTHORITY,
@@ -3356,59 +3365,9 @@ bool ChannelIsPost(nsIChannel* aChannel) {
   return false;
 }
 
-bool SchemeIsHTTP(nsIURI* aURI) {
+bool SchemeIsHttpOrHttps(nsIURI* aURI) {
   MOZ_ASSERT(aURI);
-  return aURI->SchemeIs("http");
-}
-
-bool SchemeIsHTTPS(nsIURI* aURI) {
-  MOZ_ASSERT(aURI);
-  return aURI->SchemeIs("https");
-}
-
-bool SchemeIsJavascript(nsIURI* aURI) {
-  MOZ_ASSERT(aURI);
-  return aURI->SchemeIs("javascript");
-}
-
-bool SchemeIsChrome(nsIURI* aURI) {
-  MOZ_ASSERT(aURI);
-  return aURI->SchemeIs("chrome");
-}
-
-bool SchemeIsAbout(nsIURI* aURI) {
-  MOZ_ASSERT(aURI);
-  return aURI->SchemeIs("about");
-}
-
-bool SchemeIsBlob(nsIURI* aURI) {
-  MOZ_ASSERT(aURI);
-  return aURI->SchemeIs("blob");
-}
-
-bool SchemeIsFile(nsIURI* aURI) {
-  MOZ_ASSERT(aURI);
-  return aURI->SchemeIs("file");
-}
-
-bool SchemeIsData(nsIURI* aURI) {
-  MOZ_ASSERT(aURI);
-  return aURI->SchemeIs("data");
-}
-
-bool SchemeIsViewSource(nsIURI* aURI) {
-  MOZ_ASSERT(aURI);
-  return aURI->SchemeIs("view-source");
-}
-
-bool SchemeIsResource(nsIURI* aURI) {
-  MOZ_ASSERT(aURI);
-  return aURI->SchemeIs("resource");
-}
-
-bool SchemeIsFTP(nsIURI* aURI) {
-  MOZ_ASSERT(aURI);
-  return aURI->SchemeIs("ftp");
+  return aURI->SchemeIs("http") || aURI->SchemeIs("https");
 }
 
 bool SchemeIsSpecial(const nsACString& aScheme) {

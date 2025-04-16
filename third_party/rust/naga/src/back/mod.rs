@@ -1,9 +1,15 @@
 /*!
 Backend functions that export shader [`Module`](super::Module)s into binary and text formats.
 */
-#![allow(dead_code)] // can be dead if none of the enabled backends need it
+#![cfg_attr(
+    not(any(dot_out, glsl_out, hlsl_out, msl_out, spv_out, wgsl_out)),
+    allow(
+        dead_code,
+        reason = "shared helpers can be dead if none of the enabled backends need it"
+    )
+)]
 
-use crate::proc::ExpressionKindTracker;
+use alloc::string::String;
 
 #[cfg(dot_out)]
 pub mod dot;
@@ -35,15 +41,15 @@ pub type NeedBakeExpressions = crate::FastHashSet<crate::Handle<crate::Expressio
 /// A type for displaying expression handles as baking identifiers.
 ///
 /// Given an [`Expression`] [`Handle`] `h`, `Baked(h)` implements
-/// [`std::fmt::Display`], showing the handle's index prefixed by
+/// [`core::fmt::Display`], showing the handle's index prefixed by
 /// `_e`.
 ///
 /// [`Expression`]: crate::Expression
 /// [`Handle`]: crate::Handle
 struct Baked(crate::Handle<crate::Expression>);
 
-impl std::fmt::Display for Baked {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl core::fmt::Display for Baked {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         self.0.write_prefixed(f, "_e")
     }
 }
@@ -62,13 +68,13 @@ pub type PipelineConstants = hashbrown::HashMap<String, f64>;
 pub struct Level(pub usize);
 
 impl Level {
-    const fn next(&self) -> Self {
+    pub const fn next(&self) -> Self {
         Level(self.0 + 1)
     }
 }
 
-impl std::fmt::Display for Level {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
+impl core::fmt::Display for Level {
+    fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> Result<(), core::fmt::Error> {
         (0..self.0).try_for_each(|_| formatter.write_str(INDENT))
     }
 }
@@ -120,8 +126,6 @@ pub struct FunctionCtx<'a> {
     pub expressions: &'a crate::Arena<crate::Expression>,
     /// Map of expressions that have associated variable names
     pub named_expressions: &'a crate::NamedExpressions,
-    /// For constness checks
-    pub expr_kind_tracker: ExpressionKindTracker,
 }
 
 impl FunctionCtx<'_> {
@@ -248,22 +252,13 @@ pub const fn binary_operation_str(op: crate::BinaryOperator) -> &'static str {
     }
 }
 
-/// Helper function that returns the string corresponding to the [`VectorSize`](crate::VectorSize)
-const fn vector_size_str(size: crate::VectorSize) -> &'static str {
-    match size {
-        crate::VectorSize::Bi => "2",
-        crate::VectorSize::Tri => "3",
-        crate::VectorSize::Quad => "4",
-    }
-}
-
 impl crate::TypeInner {
     /// Returns true if this is a handle to a type rather than the type directly.
     pub const fn is_handle(&self) -> bool {
         match *self {
             crate::TypeInner::Image { .. }
             | crate::TypeInner::Sampler { .. }
-            | crate::TypeInner::AccelerationStructure => true,
+            | crate::TypeInner::AccelerationStructure { .. } => true,
             _ => false,
         }
     }

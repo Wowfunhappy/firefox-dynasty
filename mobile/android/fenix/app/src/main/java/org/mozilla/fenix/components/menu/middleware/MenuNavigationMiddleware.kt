@@ -20,7 +20,6 @@ import mozilla.components.service.fxa.manager.AccountState.Authenticated
 import mozilla.components.service.fxa.manager.AccountState.Authenticating
 import mozilla.components.service.fxa.manager.AccountState.AuthenticationProblem
 import mozilla.components.service.fxa.manager.AccountState.NotAuthenticated
-import org.mozilla.fenix.FeatureFlags
 import org.mozilla.fenix.R
 import org.mozilla.fenix.browser.BrowserFragmentDirections
 import org.mozilla.fenix.browser.browsingmode.BrowsingMode
@@ -32,6 +31,7 @@ import org.mozilla.fenix.components.menu.store.MenuAction
 import org.mozilla.fenix.components.menu.store.MenuState
 import org.mozilla.fenix.components.menu.store.MenuStore
 import org.mozilla.fenix.components.menu.toFenixFxAEntryPoint
+import org.mozilla.fenix.components.usecases.FenixBrowserUseCases
 import org.mozilla.fenix.ext.nav
 import org.mozilla.fenix.settings.SupportUtils
 import org.mozilla.fenix.settings.SupportUtils.AMO_HOMEPAGE_FOR_ANDROID
@@ -47,6 +47,7 @@ import org.mozilla.fenix.webcompat.WEB_COMPAT_REPORTER_URL
  * @param browsingModeManager [BrowsingModeManager] used for setting the browsing mode.
  * @param openToBrowser Callback to open the provided [BrowserNavigationParams]
  * in a new browser tab.
+ * @param fenixBrowserUseCases [FenixBrowserUseCases] used for adding new homepage tabs.
  * @param webAppUseCases [WebAppUseCases] used for adding items to the home screen.
  * @param settings Used to check [Settings] when adding items to the home screen.
  * @param onDismiss Callback invoked to dismiss the menu dialog.
@@ -58,6 +59,7 @@ class MenuNavigationMiddleware(
     private val navController: NavController,
     private val browsingModeManager: BrowsingModeManager,
     private val openToBrowser: (params: BrowserNavigationParams) -> Unit,
+    private val fenixBrowserUseCases: FenixBrowserUseCases,
     private val webAppUseCases: WebAppUseCases,
     private val settings: Settings,
     private val onDismiss: suspend () -> Unit,
@@ -253,7 +255,7 @@ class MenuNavigationMiddleware(
                 is MenuAction.Navigate.WebCompatReporter -> {
                     val session = customTab ?: currentState.browserMenuState?.selectedTab
                     session?.content?.url?.let { tabUrl ->
-                        if (FeatureFlags.webCompatReporter && settings.isTelemetryEnabled) {
+                        if (settings.isTelemetryEnabled) {
                             navController.nav(
                                 id = R.id.menuDialogFragment,
                                 directions = MenuDialogFragmentDirections
@@ -276,6 +278,10 @@ class MenuNavigationMiddleware(
 
     private fun openNewTab(isPrivate: Boolean) {
         browsingModeManager.mode = BrowsingMode.fromBoolean(isPrivate)
+
+        if (settings.enableHomepageAsNewTab) {
+            fenixBrowserUseCases.addNewHomepageTab(private = isPrivate)
+        }
 
         navController.nav(
             R.id.menuDialogFragment,

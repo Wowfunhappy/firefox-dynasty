@@ -102,6 +102,19 @@ export const INITIAL_STATE = {
     isUserLoggedIn: false,
     recentSavesEnabled: false,
     showTopicSelection: false,
+    report: {
+      visible: false,
+      data: {},
+    },
+  },
+  // Messages received from ASRouter to render in newtab
+  Messages: {
+    // messages received from ASRouter are initially visible
+    isHidden: false,
+    // portID for that tab that was sent the message
+    portID: "",
+    // READONLY Message data received from ASRouter
+    messageData: {},
   },
   Notifications: {
     showNotifications: false,
@@ -128,6 +141,7 @@ export const INITIAL_STATE = {
     wallpaperList: [],
     highlightSeenCounter: 0,
     categories: [],
+    uploadedWallpaper: "",
   },
   Weather: {
     initialized: false,
@@ -533,6 +547,24 @@ function Sections(prevState = INITIAL_STATE.Sections, action) {
   }
 }
 
+function Messages(prevState = INITIAL_STATE.Messages, action) {
+  switch (action.type) {
+    case at.MESSAGE_SET:
+      if (prevState.messageData.messageType) {
+        return prevState;
+      }
+      return {
+        ...prevState,
+        messageData: action.data.message,
+        portID: action.data.portID || "",
+      };
+    case at.MESSAGE_TOGGLE_VISIBILITY:
+      return { ...prevState, isHidden: action.data };
+    default:
+      return prevState;
+  }
+}
+
 function Pocket(prevState = INITIAL_STATE.Pocket, action) {
   switch (action.type) {
     case at.POCKET_WAITING_FOR_SPOC:
@@ -864,6 +896,48 @@ function DiscoveryStream(prevState = INITIAL_STATE.DiscoveryStream, action) {
         showBlockSectionConfirmation: true,
         sectionData: action.data,
       };
+    case at.REPORT_AD_OPEN:
+      return {
+        ...prevState,
+        report: {
+          ...prevState.report,
+          card_type: action.data?.card_type,
+          position: action.data?.position,
+          placement_id: action.data?.placement_id,
+          reporting_url: action.data?.reporting_url,
+          url: action.data?.url,
+          visible: true,
+        },
+      };
+    case at.REPORT_CONTENT_OPEN:
+      return {
+        ...prevState,
+        report: {
+          ...prevState.report,
+          card_type: action.data?.card_type,
+          corpus_item_id: action.data?.corpus_item_id,
+          is_section_followed: action.data?.is_section_followed,
+          received_rank: action.data?.received_rank,
+          recommended_at: action.data?.recommended_at,
+          scheduled_corpus_item_id: action.data?.scheduled_corpus_item_id,
+          section_position: action.data?.section_position,
+          section: action.data?.section,
+          title: action.data?.title,
+          topic: action.data?.topic,
+          url: action.data?.url,
+          visible: true,
+        },
+      };
+    case at.REPORT_CLOSE:
+    case at.REPORT_AD_SUBMIT:
+    case at.REPORT_CONTENT_SUBMIT:
+      return {
+        ...prevState,
+        report: {
+          ...prevState.report,
+          visible: false,
+        },
+      };
     default:
       return prevState;
   }
@@ -896,6 +970,8 @@ function Wallpapers(prevState = INITIAL_STATE.Wallpapers, action) {
       };
     case at.WALLPAPERS_CATEGORY_SET:
       return { ...prevState, categories: action.data };
+    case at.WALLPAPERS_CUSTOM_SET:
+      return { ...prevState, uploadedWallpaper: action.data };
     default:
       return prevState;
   }
@@ -976,6 +1052,7 @@ export const reducers = {
   Prefs,
   Dialog,
   Sections,
+  Messages,
   Notifications,
   Pocket,
   Personalization,

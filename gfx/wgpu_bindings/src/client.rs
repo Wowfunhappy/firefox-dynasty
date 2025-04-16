@@ -502,11 +502,16 @@ pub extern "C" fn wgpu_client_serialize_device_descriptor(
     let label = wgpu_string(desc.label);
     let required_features =
         wgt::Features::from_internal_flags(wgt::FeaturesWGPU::empty(), desc.required_features);
+    let trace = std::env::var("WGPU_TRACE")
+        .ok()
+        .map(|p| wgt::Trace::Directory(p.into()))
+        .unwrap_or(wgt::Trace::Off);
     let desc = wgt::DeviceDescriptor {
         label,
         required_features,
         required_limits: desc.required_limits.clone(),
         memory_hints: wgt::MemoryHints::MemoryUsage,
+        trace,
     };
     *bb = make_byte_buf(&desc);
 }
@@ -1370,10 +1375,34 @@ pub unsafe extern "C" fn wgpu_queue_write_texture(
     *bb = make_byte_buf(&action);
 }
 
-/// Returns the block size or zero if the format has multiple aspects (for example depth+stencil).
+#[repr(C)]
+pub struct TextureFormatBlockInfo {
+    copy_size: u32,
+    width: u32,
+    height: u32,
+}
+
+/// Obtain the block size and dimensions for a single aspect.
+///
+/// Populates `info` and returns true on success. Returns false if `format` has
+/// multiple aspects and `aspect` is `All`.
 #[no_mangle]
-pub extern "C" fn wgpu_texture_format_block_size_single_aspect(format: wgt::TextureFormat) -> u32 {
-    format.block_copy_size(None).unwrap_or(0)
+pub extern "C" fn wgpu_texture_format_get_block_info(
+    format: wgt::TextureFormat,
+    aspect: wgt::TextureAspect,
+    info: &mut TextureFormatBlockInfo,
+) -> bool {
+    let (width, height) = format.block_dimensions();
+    let (copy_size, ret) = match format.block_copy_size(Some(aspect)) {
+        Some(size) => (size, true),
+        None => (0, false),
+    };
+    *info = TextureFormatBlockInfo {
+        width,
+        height,
+        copy_size,
+    };
+    ret
 }
 
 #[no_mangle]
@@ -1419,10 +1448,14 @@ pub extern "C" fn wgpu_render_bundle_set_vertex_buffer(
     slot: u32,
     buffer_id: id::BufferId,
     offset: BufferAddress,
-    size: Option<BufferSize>,
+    size: Option<&BufferSize>,
 ) {
     wgc::command::bundle_ffi::wgpu_render_bundle_set_vertex_buffer(
-        bundle, slot, buffer_id, offset, size,
+        bundle,
+        slot,
+        buffer_id,
+        offset,
+        size.copied(),
     )
 }
 
@@ -1432,14 +1465,14 @@ pub extern "C" fn wgpu_render_bundle_set_index_buffer(
     buffer: id::BufferId,
     index_format: IndexFormat,
     offset: BufferAddress,
-    size: Option<BufferSize>,
+    size: Option<&BufferSize>,
 ) {
     wgc::command::bundle_ffi::wgpu_render_bundle_set_index_buffer(
         encoder,
         buffer,
         index_format,
         offset,
-        size,
+        size.copied(),
     )
 }
 

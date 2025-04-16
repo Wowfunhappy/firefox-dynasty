@@ -6,7 +6,6 @@
 // NOTE: Toggling prefs for testing features should happen in
 // unittest-features/user.js or in harness/test manifests, not here!
 /* globals user_pref */
-user_pref("accessibility.typeaheadfind.autostart", false);
 // Make sure Shield doesn't hit the network.
 user_pref("app.normandy.api_url", "");
 // Make sure the notification permission migration test doesn't hit the network.
@@ -220,7 +219,7 @@ user_pref("ui.caretBlinkTime", -1);
 // Disable scrollbar animations. Tests that count paints / refresh driver ticks
 // shouldn't need to account for them.
 user_pref("ui.scrollbarFadeDuration", 0);
-user_pref("webextensions.tests", true);
+
 // Disable intermittent telemetry collection
 user_pref("toolkit.telemetry.initDelay", 99999999);
 

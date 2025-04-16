@@ -45,10 +45,9 @@ class VisibilityLifeCycleCallback(private val context: Context) : ActivityLifecy
     override fun onActivityResumed(activity: Activity) {}
     override fun onActivityPaused(activity: Activity) {}
     override fun onActivityCreated(activity: Activity, bundle: Bundle?) {
-        if (!appInForeground) {
-            appInForeground = true
-            AppReviewUtils.addAppOpenings(context)
-        }
+        if (appInForeground) return
+        appInForeground = true
+        AppReviewUtils.addAppOpenings(context)
     }
 
     override fun onActivitySaveInstanceState(activity: Activity, bundle: Bundle) {}
@@ -60,6 +59,8 @@ class VisibilityLifeCycleCallback(private val context: Context) : ActivityLifecy
     }
 
     override fun onConfigurationChanged(newConfig: Configuration) {}
+
+    @Suppress("OVERRIDE_DEPRECATION")
     override fun onLowMemory() {}
 
     companion object {

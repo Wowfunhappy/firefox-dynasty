@@ -11,7 +11,6 @@ use core::{
     num::NonZeroU32,
     sync::atomic::{AtomicBool, Ordering},
 };
-use std::sync::OnceLock;
 
 use arrayvec::ArrayVec;
 use bitflags::Flags;
@@ -36,7 +35,7 @@ use crate::{
         BufferInitTracker, BufferInitTrackerAction, MemoryInitKind, TextureInitRange,
         TextureInitTrackerAction,
     },
-    instance::Adapter,
+    instance::{Adapter, RequestDeviceError},
     lock::{rank, Mutex, RwLock},
     pipeline,
     pool::ResourcePool,
@@ -46,10 +45,11 @@ use crate::{
     },
     resource_log,
     snatch::{SnatchGuard, SnatchLock, Snatchable},
+    timestamp_normalization::TIMESTAMP_NORMALIZATION_BUFFER_USES,
     track::{BindGroupStates, DeviceTracker, TrackerIndexAllocators, UsageScope, UsageScopePool},
     validation::{self, validate_color_attachment_bytes_per_sample},
     weak_vec::WeakVec,
-    FastHashMap, LabelHelpers,
+    FastHashMap, LabelHelpers, OnceCellOrLock,
 };
 
 use super::{
@@ -62,18 +62,7 @@ use core::sync::atomic::AtomicU64;
 #[cfg(not(supports_64bit_atomics))]
 use portable_atomic::AtomicU64;
 
-/// Structure describing a logical device. Some members are internally mutable,
-/// stored behind mutexes.
-pub struct Device {
-    raw: Box<dyn hal::DynDevice>,
-    pub(crate) adapter: Arc<Adapter>,
-    pub(crate) queue: OnceLock<Weak<Queue>>,
-    pub(crate) zero_buffer: ManuallyDrop<Box<dyn hal::DynBuffer>>,
-    /// The `label` from the descriptor used to create the resource.
-    label: String,
-
-    pub(crate) command_allocator: command::CommandAllocator,
-
+pub(crate) struct CommandIndices {
     /// The index of the last command submission that was attempted.
     ///
     /// Note that `fence` may never be signalled with this value, if the command
@@ -81,7 +70,23 @@ pub struct Device {
     /// `Queue` to complete, wait for [`last_successful_submission_index`].
     ///
     /// [`last_successful_submission_index`]: Device::last_successful_submission_index
-    pub(crate) active_submission_index: hal::AtomicFenceValue,
+    pub(crate) active_submission_index: hal::FenceValue,
+    pub(crate) next_acceleration_structure_build_command_index: u64,
+}
+
+/// Structure describing a logical device. Some members are internally mutable,
+/// stored behind mutexes.
+pub struct Device {
+    raw: Box<dyn hal::DynDevice>,
+    pub(crate) adapter: Arc<Adapter>,
+    pub(crate) queue: OnceCellOrLock<Weak<Queue>>,
+    pub(crate) zero_buffer: ManuallyDrop<Box<dyn hal::DynBuffer>>,
+    /// The `label` from the descriptor used to create the resource.
+    label: String,
+
+    pub(crate) command_allocator: command::CommandAllocator,
+
+    pub(crate) command_indices: RwLock<CommandIndices>,
 
     /// The index of the last successful submission to this device's
     /// [`hal::Queue`].
@@ -91,7 +96,7 @@ pub struct Device {
     /// so waiting for this value won't hang waiting for work that was never
     /// submitted.
     ///
-    /// [`active_submission_index`]: Device::active_submission_index
+    /// [`active_submission_index`]: CommandIndices::active_submission_index
     pub(crate) last_successful_submission_index: hal::AtomicFenceValue,
 
     // NOTE: if both are needed, the `snatchable_lock` must be consistently acquired before the
@@ -129,9 +134,10 @@ pub struct Device {
     pub(crate) instance_flags: wgt::InstanceFlags,
     pub(crate) deferred_destroy: Mutex<Vec<DeferredDestroy>>,
     pub(crate) usage_scopes: UsageScopePool,
-    pub(crate) last_acceleration_structure_build_command_index: AtomicU64,
-    #[cfg(feature = "indirect-validation")]
     pub(crate) indirect_validation: Option<crate::indirect_validation::IndirectValidation>,
+    // Optional so that we can late-initialize this after the queue is created.
+    pub(crate) timestamp_normalizer:
+        OnceCellOrLock<crate::timestamp_normalization::TimestampNormalizer>,
     // needs to be dropped last
     #[cfg(feature = "trace")]
     pub(crate) trace: Mutex<Option<trace::Trace>>,
@@ -161,9 +167,11 @@ impl Drop for Device {
         let zero_buffer = unsafe { ManuallyDrop::take(&mut self.zero_buffer) };
         // SAFETY: We are in the Drop impl and we don't use self.fence anymore after this point.
         let fence = unsafe { ManuallyDrop::take(&mut self.fence.write()) };
-        #[cfg(feature = "indirect-validation")]
         if let Some(indirect_validation) = self.indirect_validation.take() {
             indirect_validation.dispose(self.raw.as_ref());
+        }
+        if let Some(timestamp_normalizer) = self.timestamp_normalizer.take() {
+            timestamp_normalizer.dispose(self.raw.as_ref());
         }
         unsafe {
             self.raw.destroy_buffer(zero_buffer);
@@ -201,13 +209,27 @@ impl Device {
         raw_device: Box<dyn hal::DynDevice>,
         adapter: &Arc<Adapter>,
         desc: &DeviceDescriptor,
-        trace_dir_name: Option<&str>,
         instance_flags: wgt::InstanceFlags,
     ) -> Result<Self, DeviceError> {
         #[cfg(not(feature = "trace"))]
-        if let Some(_) = trace_dir_name {
-            log::error!("Feature 'trace' is not enabled");
-        }
+        match &desc.trace {
+            wgt::Trace::Off => {}
+            _ => {
+                log::error!("wgpu-core feature 'trace' is not enabled");
+            }
+        };
+        #[cfg(feature = "trace")]
+        let trace_dir_name: Option<&std::path::PathBuf> = match &desc.trace {
+            wgt::Trace::Off => None,
+            wgt::Trace::Directory(d) => Some(d),
+            // The enum is non_exhaustive, so we must have a fallback arm (that should be
+            // unreachable in practice).
+            t => {
+                log::error!("unimplemented wgpu_types::Trace variant {t:?}");
+                None
+            }
+        };
+
         let fence = unsafe { raw_device.create_fence() }.map_err(DeviceError::from_hal)?;
 
         let command_allocator = command::CommandAllocator::new();
@@ -235,21 +257,18 @@ impl Device {
         let alignments = adapter.raw.capabilities.alignments.clone();
         let downlevel = adapter.raw.capabilities.downlevel.clone();
 
-        #[cfg(feature = "indirect-validation")]
-        let indirect_validation = if downlevel
-            .flags
-            .contains(wgt::DownlevelFlags::INDIRECT_EXECUTION)
-        {
-            match crate::indirect_validation::IndirectValidation::new(
+        let enable_indirect_validation = instance_flags
+            .contains(wgt::InstanceFlags::VALIDATION_INDIRECT_CALL)
+            && downlevel
+                .flags
+                .contains(wgt::DownlevelFlags::INDIRECT_EXECUTION);
+
+        let indirect_validation = if enable_indirect_validation {
+            Some(crate::indirect_validation::IndirectValidation::new(
                 raw_device.as_ref(),
                 &desc.required_limits,
-            ) {
-                Ok(indirect_validation) => Some(indirect_validation),
-                Err(e) => {
-                    log::error!("indirect-validation error: {e:?}");
-                    return Err(DeviceError::Lost);
-                }
-            }
+                &desc.required_features,
+            )?)
         } else {
             None
         };
@@ -257,11 +276,18 @@ impl Device {
         Ok(Self {
             raw: raw_device,
             adapter: adapter.clone(),
-            queue: OnceLock::new(),
+            queue: OnceCellOrLock::new(),
             zero_buffer: ManuallyDrop::new(zero_buffer),
             label: desc.label.to_string(),
             command_allocator,
-            active_submission_index: AtomicU64::new(0),
+            command_indices: RwLock::new(
+                rank::DEVICE_COMMAND_INDICES,
+                CommandIndices {
+                    active_submission_index: 0,
+                    // By starting at one, we can put the result in a NonZeroU64.
+                    next_acceleration_structure_build_command_index: 1,
+                },
+            ),
             last_successful_submission_index: AtomicU64::new(0),
             fence: RwLock::new(rank::DEVICE_FENCE, ManuallyDrop::new(fence)),
             snatchable_lock: unsafe { SnatchLock::new(rank::DEVICE_SNATCHABLE_LOCK) },
@@ -273,16 +299,19 @@ impl Device {
             #[cfg(feature = "trace")]
             trace: Mutex::new(
                 rank::DEVICE_TRACE,
-                trace_dir_name.and_then(|dir_path_name| match trace::Trace::new(dir_path_name) {
+                trace_dir_name.and_then(|path| match trace::Trace::new(path.clone()) {
                     Ok(mut trace) => {
                         trace.add(trace::Action::Init {
-                            desc: desc.clone(),
+                            desc: wgt::DeviceDescriptor {
+                                trace: wgt::Trace::Off,
+                                ..desc.clone()
+                            },
                             backend: adapter.backend(),
                         });
                         Some(trace)
                     }
                     Err(e) => {
-                        log::error!("Unable to start a trace in '{dir_path_name:?}': {e}");
+                        log::error!("Unable to start a trace in '{path:?}': {e}");
                         None
                     }
                 }),
@@ -294,11 +323,24 @@ impl Device {
             instance_flags,
             deferred_destroy: Mutex::new(rank::DEVICE_DEFERRED_DESTROY, Vec::new()),
             usage_scopes: Mutex::new(rank::DEVICE_USAGE_SCOPES, Default::default()),
-            // By starting at one, we can put the result in a NonZeroU64.
-            last_acceleration_structure_build_command_index: AtomicU64::new(1),
-            #[cfg(feature = "indirect-validation")]
+            timestamp_normalizer: OnceCellOrLock::new(),
             indirect_validation,
         })
+    }
+
+    pub fn late_init_resources_with_queue(&self) -> Result<(), RequestDeviceError> {
+        let queue = self.get_queue().unwrap();
+
+        let timestamp_normalizer = crate::timestamp_normalization::TimestampNormalizer::new(
+            self,
+            queue.get_timestamp_period(),
+        )?;
+
+        self.timestamp_normalizer
+            .set(timestamp_normalizer)
+            .unwrap_or_else(|_| panic!("Called late_init_resources_with_queue twice"));
+
+        Ok(())
     }
 
     /// Returns the backend this device is using.
@@ -596,6 +638,10 @@ impl Device {
             usage |= wgt::BufferUses::STORAGE_READ_ONLY | wgt::BufferUses::STORAGE_READ_WRITE;
         }
 
+        if desc.usage.contains(wgt::BufferUsages::QUERY_RESOLVE) {
+            usage |= TIMESTAMP_NORMALIZATION_BUFFER_USES;
+        }
+
         if desc.mapped_at_creation {
             if desc.size % wgt::COPY_BUFFER_ALIGNMENT != 0 {
                 return Err(resource::CreateBufferError::UnalignedSize);
@@ -635,9 +681,21 @@ impl Device {
         let buffer =
             unsafe { self.raw().create_buffer(&hal_desc) }.map_err(|e| self.handle_hal_error(e))?;
 
-        #[cfg(feature = "indirect-validation")]
-        let raw_indirect_validation_bind_group =
-            self.create_indirect_validation_bind_group(buffer.as_ref(), desc.size, desc.usage)?;
+        let timestamp_normalization_bind_group = Snatchable::new(
+            self.timestamp_normalizer
+                .get()
+                .unwrap()
+                .create_normalization_bind_group(
+                    self,
+                    &*buffer,
+                    desc.label.as_deref(),
+                    desc.size,
+                    desc.usage,
+                )?,
+        );
+
+        let indirect_validation_bind_groups =
+            self.create_indirect_validation_bind_groups(buffer.as_ref(), desc.size, desc.usage)?;
 
         let buffer = Buffer {
             raw: Snatchable::new(buffer),
@@ -652,8 +710,8 @@ impl Device {
             label: desc.label.to_string(),
             tracking_data: TrackingData::new(self.tracker_indices.buffers.clone()),
             bind_groups: Mutex::new(rank::BUFFER_BIND_GROUPS, WeakVec::new()),
-            #[cfg(feature = "indirect-validation")]
-            raw_indirect_validation_bind_group,
+            timestamp_normalization_bind_group,
+            indirect_validation_bind_groups,
         };
 
         let buffer = Arc::new(buffer);
@@ -735,8 +793,27 @@ impl Device {
         hal_buffer: Box<dyn hal::DynBuffer>,
         desc: &resource::BufferDescriptor,
     ) -> (Fallible<Buffer>, Option<resource::CreateBufferError>) {
-        #[cfg(feature = "indirect-validation")]
-        let raw_indirect_validation_bind_group = match self.create_indirect_validation_bind_group(
+        let timestamp_normalization_bind_group = match self
+            .timestamp_normalizer
+            .get()
+            .unwrap()
+            .create_normalization_bind_group(
+                self,
+                &*hal_buffer,
+                desc.label.as_deref(),
+                desc.size,
+                desc.usage,
+            ) {
+            Ok(bg) => Snatchable::new(bg),
+            Err(e) => {
+                return (
+                    Fallible::Invalid(Arc::new(desc.label.to_string())),
+                    Some(e.into()),
+                )
+            }
+        };
+
+        let indirect_validation_bind_groups = match self.create_indirect_validation_bind_groups(
             hal_buffer.as_ref(),
             desc.size,
             desc.usage,
@@ -760,8 +837,8 @@ impl Device {
             label: desc.label.to_string(),
             tracking_data: TrackingData::new(self.tracker_indices.buffers.clone()),
             bind_groups: Mutex::new(rank::BUFFER_BIND_GROUPS, WeakVec::new()),
-            #[cfg(feature = "indirect-validation")]
-            raw_indirect_validation_bind_group,
+            timestamp_normalization_bind_group,
+            indirect_validation_bind_groups,
         };
 
         let buffer = Arc::new(buffer);
@@ -774,22 +851,31 @@ impl Device {
         (Fallible::Valid(buffer), None)
     }
 
-    #[cfg(feature = "indirect-validation")]
-    fn create_indirect_validation_bind_group(
+    fn create_indirect_validation_bind_groups(
         &self,
         raw_buffer: &dyn hal::DynBuffer,
         buffer_size: u64,
         usage: wgt::BufferUsages,
-    ) -> Result<Snatchable<Box<dyn hal::DynBindGroup>>, resource::CreateBufferError> {
-        if usage.contains(wgt::BufferUsages::INDIRECT) {
-            let indirect_validation = self.indirect_validation.as_ref().unwrap();
-            let bind_group = indirect_validation
-                .create_src_bind_group(self.raw(), &self.limits, buffer_size, raw_buffer)
-                .map_err(resource::CreateBufferError::IndirectValidationBindGroup)?;
-            match bind_group {
-                Some(bind_group) => Ok(Snatchable::new(bind_group)),
-                None => Ok(Snatchable::empty()),
-            }
+    ) -> Result<Snatchable<crate::indirect_validation::BindGroups>, resource::CreateBufferError>
+    {
+        if !usage.contains(wgt::BufferUsages::INDIRECT) {
+            return Ok(Snatchable::empty());
+        }
+
+        let Some(ref indirect_validation) = self.indirect_validation else {
+            return Ok(Snatchable::empty());
+        };
+
+        let bind_groups = crate::indirect_validation::BindGroups::new(
+            indirect_validation,
+            self,
+            buffer_size,
+            raw_buffer,
+        )
+        .map_err(resource::CreateBufferError::IndirectValidationBindGroup)?;
+
+        if let Some(bind_groups) = bind_groups {
+            Ok(Snatchable::new(bind_groups))
         } else {
             Ok(Snatchable::empty())
         }
@@ -1170,9 +1256,8 @@ impl Device {
             }
         };
 
-        let allowed_format_usages = self
-            .describe_format_features(resolved_format)?
-            .allowed_usages;
+        let format_features = self.describe_format_features(resolved_format)?;
+        let allowed_format_usages = format_features.allowed_usages;
         if resolved_usage.contains(wgt::TextureUsages::RENDER_ATTACHMENT)
             && !allowed_format_usages.contains(wgt::TextureUsages::RENDER_ATTACHMENT)
         {
@@ -1348,6 +1433,11 @@ impl Device {
 
         // filter the usages based on the other criteria
         let usage = {
+            let resolved_hal_usage = conv::map_texture_usage(
+                resolved_usage,
+                resolved_format.into(),
+                format_features.flags,
+            );
             let mask_copy = !(wgt::TextureUses::COPY_SRC | wgt::TextureUses::COPY_DST);
             let mask_dimension = match resolved_dimension {
                 TextureViewDimension::Cube | TextureViewDimension::CubeArray => {
@@ -1366,7 +1456,7 @@ impl Device {
             } else {
                 wgt::TextureUses::RESOURCE
             };
-            texture.hal_usage & mask_copy & mask_dimension & mask_mip_level
+            resolved_hal_usage & mask_copy & mask_dimension & mask_mip_level
         };
 
         // use the combined depth-stencil format for the view
@@ -1669,19 +1759,31 @@ impl Device {
     }
 
     #[allow(unused_unsafe)]
-    pub(crate) unsafe fn create_shader_module_spirv<'a>(
+    pub(crate) unsafe fn create_shader_module_passthrough<'a>(
         self: &Arc<Self>,
-        desc: &pipeline::ShaderModuleDescriptor<'a>,
-        source: &'a [u32],
+        descriptor: &pipeline::ShaderModuleDescriptorPassthrough<'a>,
     ) -> Result<Arc<pipeline::ShaderModule>, pipeline::CreateShaderModuleError> {
         self.check_is_valid()?;
-
-        self.require_features(wgt::Features::SPIRV_SHADER_PASSTHROUGH)?;
-        let hal_desc = hal::ShaderModuleDescriptor {
-            label: desc.label.to_hal(self.instance_flags),
-            runtime_checks: desc.runtime_checks,
+        let hal_shader = match descriptor {
+            pipeline::ShaderModuleDescriptorPassthrough::SpirV(inner) => {
+                self.require_features(wgt::Features::SPIRV_SHADER_PASSTHROUGH)?;
+                hal::ShaderInput::SpirV(&inner.source)
+            }
+            pipeline::ShaderModuleDescriptorPassthrough::Msl(inner) => {
+                self.require_features(wgt::Features::MSL_SHADER_PASSTHROUGH)?;
+                hal::ShaderInput::Msl {
+                    shader: inner.source.to_string(),
+                    entry_point: inner.entry_point.to_string(),
+                    num_workgroups: inner.num_workgroups,
+                }
+            }
         };
-        let hal_shader = hal::ShaderInput::SpirV(source);
+
+        let hal_desc = hal::ShaderModuleDescriptor {
+            label: descriptor.label().to_hal(self.instance_flags),
+            runtime_checks: wgt::ShaderRuntimeChecks::unchecked(),
+        };
+
         let raw = match unsafe { self.raw().create_shader_module(&hal_desc, hal_shader) } {
             Ok(raw) => raw,
             Err(error) => {
@@ -1701,12 +1803,10 @@ impl Device {
             raw: ManuallyDrop::new(raw),
             device: self.clone(),
             interface: None,
-            label: desc.label.to_string(),
+            label: descriptor.label().to_string(),
         };
 
-        let module = Arc::new(module);
-
-        Ok(module)
+        Ok(Arc::new(module))
     }
 
     pub(crate) fn create_command_encoder(
@@ -1905,7 +2005,7 @@ impl Device {
                         },
                     )
                 }
-                Bt::AccelerationStructure => (None, WritableStorage::No),
+                Bt::AccelerationStructure { .. } => (None, WritableStorage::No),
             };
 
             // Validate the count parameter
@@ -1986,7 +2086,7 @@ impl Device {
             device: self.clone(),
             entries: entry_map,
             origin,
-            exclusive_pipeline: OnceLock::new(),
+            exclusive_pipeline: OnceCellOrLock::new(),
             binding_count_validator: count_validator,
             label: label.to_string(),
         };
@@ -2249,7 +2349,15 @@ impl Device {
         tlas.same_device(self)?;
 
         match decl.ty {
-            wgt::BindingType::AccelerationStructure => (),
+            wgt::BindingType::AccelerationStructure { vertex_return } => {
+                if vertex_return
+                    && !tlas.flags.contains(
+                        wgpu_types::AccelerationStructureFlags::ALLOW_RAY_HIT_VERTEX_RETURN,
+                    )
+                {
+                    return Err(Error::MissingTLASVertexReturn { binding });
+                }
+            }
             _ => {
                 return Err(Error::WrongBindingType {
                     binding,
@@ -2734,7 +2842,7 @@ impl Device {
             .map(|bgl| bgl.raw())
             .collect::<ArrayVec<_, { hal::MAX_BIND_GROUPS }>>();
 
-        let additional_flags = if cfg!(feature = "indirect-validation") {
+        let additional_flags = if self.indirect_validation.is_some() {
             hal::PipelineLayoutFlags::INDIRECT_BUILTIN_UPDATE
         } else {
             hal::PipelineLayoutFlags::empty()

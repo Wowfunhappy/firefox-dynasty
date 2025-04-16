@@ -12,7 +12,6 @@
 #include "mozilla/a11y/Platform.h"
 #include "mozilla/Assertions.h"
 #include "mozilla/mscom/ProcessRuntime.h"
-#include "mozilla/StaticPrefs_accessibility.h"
 #include "mozilla/UniquePtr.h"
 #include "mozilla/WinHeaderOnlyUtils.h"
 #include "MsaaRootAccessible.h"
@@ -111,7 +110,7 @@ already_AddRefed<IAccessible> LazyInstantiator::GetRootAccessible(HWND aHwnd) {
 /* static */
 already_AddRefed<IRawElementProviderSimple> LazyInstantiator::GetRootUia(
     HWND aHwnd) {
-  if (!StaticPrefs::accessibility_uia_enable()) {
+  if (!Compatibility::IsUiaEnabled()) {
     return nullptr;
   }
   return GetRoot<IRawElementProviderSimple>(aHwnd);
@@ -192,10 +191,11 @@ DWORD LazyInstantiator::GetRemoteMsaaClientPid() {
  * This is the blocklist for known "bad" remote clients that instantiate a11y.
  */
 static const char* gBlockedRemoteClients[] = {
-    "tbnotifier.exe",  // Ask.com Toolbar, bug 1453876
-    "flow.exe",        // Conexant Flow causes performance issues, bug 1569712
-    "rtop_bg.exe",     // ByteFence Anti-Malware, bug 1713383
-    "osk.exe",         // Windows On-Screen Keyboard, bug 1424505
+    "tbnotifier.exe",   // Ask.com Toolbar, bug 1453876
+    "flow.exe",         // Conexant Flow causes performance issues, bug 1569712
+    "rtop_bg.exe",      // ByteFence Anti-Malware, bug 1713383
+    "osk.exe",          // Windows On-Screen Keyboard, bug 1424505
+    "corplink-uc.exe",  // Feilian CorpLink, bug 1951571
 };
 
 /**
@@ -351,11 +351,11 @@ void LazyInstantiator::TransplantRefCnt() {
 
 HRESULT
 LazyInstantiator::MaybeResolveRoot() {
-  if (mWeakAccessible) {
-    return S_OK;
+  if (!GetAccService() && !ShouldInstantiate()) {
+    return E_FAIL;
   }
 
-  if (GetAccService() || ShouldInstantiate()) {
+  if (!mWeakAccessible) {
     mWeakMsaaRoot = ResolveMsaaRoot();
     if (!mWeakMsaaRoot) {
       return E_POINTER;
@@ -372,7 +372,7 @@ LazyInstantiator::MaybeResolveRoot() {
     TransplantRefCnt();
 
     // Now obtain mWeakAccessible which we use to forward our incoming calls
-    // to the real accesssible.
+    // to the real accessible.
     HRESULT hr =
         mRealRootUnk->QueryInterface(IID_IAccessible, (void**)&mWeakAccessible);
     if (FAILED(hr)) {
@@ -380,23 +380,26 @@ LazyInstantiator::MaybeResolveRoot() {
     }
     // mWeakAccessible is weak, so don't hold a strong ref
     mWeakAccessible->Release();
-    if (StaticPrefs::accessibility_uia_enable()) {
-      hr = mRealRootUnk->QueryInterface(IID_IRawElementProviderSimple,
-                                        (void**)&mWeakUia);
-      if (FAILED(hr)) {
-        return hr;
-      }
-      mWeakUia->Release();
-    }
 
     // Now that a11y is running, we don't need to remain registered with our
     // HWND anymore.
     ClearProp();
-
-    return S_OK;
   }
 
-  return E_FAIL;
+  // If the UIA pref is changed during the session, this method might be first
+  // called with UIA disabled and then called again later with UIA enabled.
+  // Thus, we handle mWeakUia separately from mWeakAccessible.
+  if (!mWeakUia && Compatibility::IsUiaEnabled()) {
+    MOZ_ASSERT(mWeakAccessible);
+    HRESULT hr = mRealRootUnk->QueryInterface(IID_IRawElementProviderSimple,
+                                              (void**)&mWeakUia);
+    if (FAILED(hr)) {
+      return hr;
+    }
+    mWeakUia->Release();
+  }
+
+  return S_OK;
 }
 
 #define RESOLVE_ROOT                 \
@@ -417,7 +420,7 @@ IMPL_IUNKNOWN_QUERY_IFACE_AMBIGIOUS(IUnknown, IAccessible)
 IMPL_IUNKNOWN_QUERY_IFACE(IAccessible)
 IMPL_IUNKNOWN_QUERY_IFACE(IDispatch)
 IMPL_IUNKNOWN_QUERY_IFACE(IServiceProvider)
-if (StaticPrefs::accessibility_uia_enable()) {
+if (Compatibility::IsUiaEnabled()) {
   IMPL_IUNKNOWN_QUERY_IFACE(IRawElementProviderSimple)
 }
 // See EnableBlindAggregation for comments.

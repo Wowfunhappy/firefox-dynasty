@@ -143,6 +143,11 @@ class ScrollAnchorContainer;
  * presentation context, the style manager, the style set and the root frame.
  */
 
+struct SingleCanvasBackground {
+  nscolor mColor = 0;
+  bool mCSSSpecified = false;
+};
+
 class PresShell final : public nsStubDocumentObserver,
                         public nsISelectionController,
                         public nsIObserver,
@@ -352,11 +357,11 @@ class PresShell final : public nsStubDocumentObserver,
       ResizeReflowOptions = ResizeReflowOptions::NoOption);
   MOZ_CAN_RUN_SCRIPT void ForceResizeReflowWithCurrentDimensions();
 
-  /**
-   * Add this pres shell to the refresh driver to be observed for resize
-   * event if applicable.
-   */
-  void AddResizeEventFlushObserverIfNeeded();
+  /** Schedule a resize event if applicable. */
+  enum class ResizeEventKind : uint8_t { Regular, Visual };
+  void ScheduleResizeEventIfNeeded(ResizeEventKind = ResizeEventKind::Regular);
+
+  void PostScrollEvent(mozilla::Runnable*);
 
   /**
    * Returns true if the document hosted by this presShell is in a devtools
@@ -412,6 +417,8 @@ class PresShell final : public nsStubDocumentObserver,
    * general role.)
    */
   bool UsesMobileViewportSizing() const;
+
+  void ResetWasLastReflowInterrupted() { mWasLastReflowInterrupted = false; }
 
   /**
    * Get the MobileViewportManager used to manage the document's mobile
@@ -539,28 +546,7 @@ class PresShell final : public nsStubDocumentObserver,
    */
   void NotifyFontFaceSetOnRefresh();
 
-  // Removes ourself from the list of style and resize refresh driver observers.
-  //
-  // Right now this is only used for documents in the BFCache, so if you want to
-  // use this for anything else you need to ensure we don't end up in those
-  // lists after calling this, but before calling StartObservingRefreshDriver
-  // again.
-  //
-  // That is handled by the mDocument->GetBFCacheEntry checks in
-  // DoObserveStyleFlushes, though that could conceivably become a boolean
-  // member in the shell if needed.
-  //
-  // Callers are responsible of manually calling StartObservingRefreshDriver
-  // again.
-  void StopObservingRefreshDriver();
   void StartObservingRefreshDriver();
-
-  bool ObservingStyleFlushes() const { return mObservingStyleFlushes; }
-  void ObserveStyleFlushes() {
-    if (!ObservingStyleFlushes()) {
-      DoObserveStyleFlushes();
-    }
-  }
 
   /**
    * Callbacks will be called even if reflow itself fails for
@@ -574,11 +560,16 @@ class PresShell final : public nsStubDocumentObserver,
 
   void ClearFrameRefs(nsIFrame* aFrame);
 
+  enum class CanMoveLastSelectionForToString { No, Yes };
   // Clears the selection of the older focused frame selection if any.
-  void FrameSelectionWillTakeFocus(nsFrameSelection&);
+  void FrameSelectionWillTakeFocus(nsFrameSelection&,
+                                   CanMoveLastSelectionForToString);
 
   // Clears and repaint mFocusedFrameSelection if it matches the argument.
   void FrameSelectionWillLoseFocus(nsFrameSelection&);
+
+  // Update mLastSelectionForToString to the given frame selection.
+  void UpdateLastSelectionForToString(const nsFrameSelection*);
 
   /**
    * Get a reference rendering context. This is a context that should not
@@ -651,6 +642,10 @@ class PresShell final : public nsStubDocumentObserver,
    * the frame selection that's visible to the user.
    */
   nsFrameSelection* GetLastFocusedFrameSelection();
+
+  const nsFrameSelection* GetLastSelectionForToString() const {
+    return mLastSelectionForToString;
+  }
 
   /**
    * Interface to dispatch events via the presshell
@@ -890,20 +885,23 @@ class PresShell final : public nsStubDocumentObserver,
    * bug 488242, bug 476557 and other bugs mentioned there.
    */
   void SetCanvasBackground(nscolor aColor) {
-    mCanvasBackground.mViewportColor = aColor;
+    mCanvasBackground.mViewport.mColor = aColor;
   }
   nscolor GetCanvasBackground() const {
-    return mCanvasBackground.mViewportColor;
+    return mCanvasBackground.mViewport.mColor;
+  }
+
+  const SingleCanvasBackground& GetCanvasBackground(bool aForPage) const {
+    return aForPage ? mCanvasBackground.mPage : mCanvasBackground.mViewport;
   }
 
   struct CanvasBackground {
     // The canvas frame background for the whole viewport.
-    nscolor mViewportColor = 0;
+    SingleCanvasBackground mViewport;
     // The canvas frame background for a printed page. Note that when
     // print-previewing / in paged mode we have multiple canvas frames (one for
     // the viewport, one for each page).
-    nscolor mPageColor = 0;
-    bool mCSSSpecified = false;
+    SingleCanvasBackground mPage;
   };
 
   // Use the current frame tree (if it exists) to update the background color of
@@ -1159,8 +1157,8 @@ class PresShell final : public nsStubDocumentObserver,
    */
   bool HasHandledUserInput() const { return mHasHandledUserInput; }
 
-  MOZ_CAN_RUN_SCRIPT void FireResizeEvent();
-  MOZ_CAN_RUN_SCRIPT void FireResizeEventSync();
+  MOZ_CAN_RUN_SCRIPT void RunResizeSteps();
+  MOZ_CAN_RUN_SCRIPT void RunScrollSteps();
 
   void NativeAnonymousContentWillBeRemoved(nsIContent* aAnonContent);
 
@@ -1231,7 +1229,9 @@ class PresShell final : public nsStubDocumentObserver,
     mIsNeverPainting = aNeverPainting;
   }
 
-  bool MightHavePendingFontLoads() const { return ObservingStyleFlushes(); }
+  bool MightHavePendingFontLoads() const {
+    return mNeedLayoutFlush || mNeedStyleFlush;
+  }
 
   void SyncWindowProperties(bool aSync);
   struct WindowSizeConstraints {
@@ -1260,9 +1260,9 @@ class PresShell final : public nsStubDocumentObserver,
 
   NS_IMETHOD SetDisplaySelection(int16_t aToggle) override;
   NS_IMETHOD GetDisplaySelection(int16_t* aToggle) override;
-  NS_IMETHOD ScrollSelectionIntoView(RawSelectionType aRawSelectionType,
-                                     SelectionRegion aRegion,
-                                     ControllerScrollFlags aFlags) override;
+  MOZ_CAN_RUN_SCRIPT NS_IMETHOD ScrollSelectionIntoView(
+      RawSelectionType aRawSelectionType, SelectionRegion aRegion,
+      ControllerScrollFlags aFlags) override;
   using nsISelectionController::ScrollSelectionIntoView;
   NS_IMETHOD RepaintSelection(RawSelectionType aRawSelectionType) override;
   void SelectionWillTakeFocus() override;
@@ -1327,12 +1327,7 @@ class PresShell final : public nsStubDocumentObserver,
    * widget geometry.
    */
   MOZ_CAN_RUN_SCRIPT void WillPaint();
-
-  /**
-   * Ensures that the refresh driver is running, and schedules a view
-   * manager flush on the next tick.
-   */
-  void ScheduleViewManagerFlush();
+  void SchedulePaint();
 
   // caret handling
   NS_IMETHOD SetCaretEnabled(bool aInEnable) override;
@@ -1360,16 +1355,16 @@ class PresShell final : public nsStubDocumentObserver,
 
   // nsISelectionController
 
-  NS_IMETHOD PhysicalMove(int16_t aDirection, int16_t aAmount,
-                          bool aExtend) override;
-  NS_IMETHOD CharacterMove(bool aForward, bool aExtend) override;
-  MOZ_CAN_RUN_SCRIPT_BOUNDARY NS_IMETHOD WordMove(bool aForward,
-                                                  bool aExtend) override;
-  MOZ_CAN_RUN_SCRIPT_BOUNDARY NS_IMETHOD LineMove(bool aForward,
-                                                  bool aExtend) override;
-  NS_IMETHOD IntraLineMove(bool aForward, bool aExtend) override;
-  MOZ_CAN_RUN_SCRIPT
-  NS_IMETHOD PageMove(bool aForward, bool aExtend) override;
+  MOZ_CAN_RUN_SCRIPT NS_IMETHOD PhysicalMove(int16_t aDirection,
+                                             int16_t aAmount,
+                                             bool aExtend) override;
+  MOZ_CAN_RUN_SCRIPT NS_IMETHOD CharacterMove(bool aForward,
+                                              bool aExtend) override;
+  MOZ_CAN_RUN_SCRIPT NS_IMETHOD WordMove(bool aForward, bool aExtend) override;
+  MOZ_CAN_RUN_SCRIPT NS_IMETHOD LineMove(bool aForward, bool aExtend) override;
+  MOZ_CAN_RUN_SCRIPT NS_IMETHOD IntraLineMove(bool aForward,
+                                              bool aExtend) override;
+  MOZ_CAN_RUN_SCRIPT NS_IMETHOD PageMove(bool aForward, bool aExtend) override;
   NS_IMETHOD ScrollPage(bool aForward) override;
   NS_IMETHOD ScrollLine(bool aForward) override;
   NS_IMETHOD ScrollCharacter(bool aRight) override;
@@ -1784,10 +1779,8 @@ class PresShell final : public nsStubDocumentObserver,
   MOZ_CAN_RUN_SCRIPT
   void PaintInternal(nsView* aViewToPaint, PaintInternalFlags aFlags);
 
-  /**
-   * Refresh observer management.
-   */
-  void DoObserveStyleFlushes();
+  // Refresh observer management.
+  void ScheduleFlush();
 
   /**
    * Does the actual work of figuring out the current state of font size
@@ -1855,7 +1848,6 @@ class PresShell final : public nsStubDocumentObserver,
   void PopCurrentEventInfo();
   nsIContent* GetCurrentEventContent();
 
-  friend class ::nsRefreshDriver;
   friend class ::nsAutoCauseReflowNotifier;
 
   void WillCauseReflow();
@@ -2999,6 +2991,11 @@ class PresShell final : public nsStubDocumentObserver,
   // hide if we focus another selection. May or may not be the same as
   // `mSelection`.
   RefPtr<nsFrameSelection> mFocusedFrameSelection;
+
+  // This the frame selection that will be used when getSelection().toString()
+  // is called. See nsIContent::CanStartSelection for its reasoning.
+  RefPtr<const nsFrameSelection> mLastSelectionForToString;
+
   RefPtr<nsCaret> mCaret;
   RefPtr<nsCaret> mOriginalCaret;
   RefPtr<AccessibleCaretEventHub> mAccessibleCaretEventHub;
@@ -3082,6 +3079,8 @@ class PresShell final : public nsStubDocumentObserver,
   nsTHashSet<ScrollContainerFrame*> mPendingScrollAnchorSelection;
   nsTHashSet<ScrollContainerFrame*> mPendingScrollAnchorAdjustment;
   nsTHashSet<ScrollContainerFrame*> mPendingScrollResnap;
+  // Pending list of scroll/scrollend/etc events.
+  nsTArray<RefPtr<Runnable>> mPendingScrollEvents;
 
   nsTHashSet<nsIContent*> mHiddenContentInForcedLayout;
 
@@ -3219,10 +3218,8 @@ class PresShell final : public nsStubDocumentObserver,
   // Whether the most recent interruptible reflow was actually interrupted:
   bool mWasLastReflowInterrupted : 1;
 
-  // True if we're observing the refresh driver for style flushes.
-  bool mObservingStyleFlushes : 1;
-
   bool mResizeEventPending : 1;
+  bool mVisualViewportResizeEventPending : 1;
 
   bool mFontSizeInflationForceEnabled : 1;
   bool mFontSizeInflationDisabledInMasterProcess : 1;

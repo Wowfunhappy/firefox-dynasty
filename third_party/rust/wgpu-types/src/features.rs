@@ -53,6 +53,9 @@ mod webgpu_impl {
 
     #[doc(hidden)]
     pub const WEBGPU_FEATURE_FLOAT32_FILTERABLE: u64 = 1 << 11;
+
+    #[doc(hidden)]
+    pub const WEBGPU_FEATURE_DUAL_SOURCE_BLENDING: u64 = 1 << 12;
 }
 
 macro_rules! bitflags_array_impl {
@@ -917,6 +920,15 @@ bitflags_array! {
         ///
         /// This is a native only feature.
         const CLEAR_TEXTURE = 1 << 23;
+        /// Enables creating shader modules from Metal MSL computer shaders (unsafe).
+        ///
+        /// Metal data is not parsed or interpreted in any way
+        ///
+        /// Supported platforms:
+        /// - Metal
+        ///
+        /// This is a native only feature.
+        const MSL_SHADER_PASSTHROUGH = 1 << 24;
         /// Enables creating shader modules from SPIR-V binary data (unsafe).
         ///
         /// SPIR-V data is not parsed or interpreted in any way; you can use
@@ -930,7 +942,7 @@ bitflags_array! {
         /// This is a native only feature.
         ///
         /// [`wgpu::make_spirv_raw!`]: https://docs.rs/wgpu/latest/wgpu/macro.include_spirv_raw.html
-        const SPIRV_SHADER_PASSTHROUGH = 1 << 24;
+        const SPIRV_SHADER_PASSTHROUGH = 1 << 25;
         /// Enables multiview render passes and `builtin(view_index)` in vertex shaders.
         ///
         /// Supported platforms:
@@ -938,7 +950,7 @@ bitflags_array! {
         /// - OpenGL (web only)
         ///
         /// This is a native only feature.
-        const MULTIVIEW = 1 << 25;
+        const MULTIVIEW = 1 << 26;
         /// Enables using 64-bit types for vertex attributes.
         ///
         /// Requires SHADER_FLOAT64.
@@ -946,7 +958,7 @@ bitflags_array! {
         /// Supported Platforms: N/A
         ///
         /// This is a native only feature.
-        const VERTEX_ATTRIBUTE_64BIT = 1 << 26;
+        const VERTEX_ATTRIBUTE_64BIT = 1 << 27;
         /// Enables image atomic fetch add, and, xor, or, min, and max for R32Uint and R32Sint textures.
         ///
         /// Supported platforms:
@@ -955,7 +967,7 @@ bitflags_array! {
         /// - Metal (with MSL 3.1+)
         ///
         /// This is a native only feature.
-        const TEXTURE_ATOMIC = 1 << 27;
+        const TEXTURE_ATOMIC = 1 << 28;
         /// Allows for creation of textures of format [`TextureFormat::NV12`]
         ///
         /// Supported platforms:
@@ -965,7 +977,7 @@ bitflags_array! {
         /// This is a native only feature.
         ///
         /// [`TextureFormat::NV12`]: super::TextureFormat::NV12
-        const TEXTURE_FORMAT_NV12 = 1 << 28;
+        const TEXTURE_FORMAT_NV12 = 1 << 29;
         /// ***THIS IS EXPERIMENTAL:*** Features enabled by this may have
         /// major bugs in them and are expected to be subject to breaking changes, suggestions
         /// for the API exposed by this should be posted on [the ray-tracing issue](https://github.com/gfx-rs/wgpu/issues/1040)
@@ -977,7 +989,7 @@ bitflags_array! {
         /// - Vulkan
         ///
         /// This is a native-only feature.
-        const EXPERIMENTAL_RAY_TRACING_ACCELERATION_STRUCTURE = 1 << 29;
+        const EXPERIMENTAL_RAY_TRACING_ACCELERATION_STRUCTURE = 1 << 30;
 
         // Shader:
 
@@ -991,7 +1003,7 @@ bitflags_array! {
         /// - Vulkan
         ///
         /// This is a native-only feature.
-        const EXPERIMENTAL_RAY_QUERY = 1 << 30;
+        const EXPERIMENTAL_RAY_QUERY = 1 << 31;
         /// Enables 64-bit floating point types in SPIR-V shaders.
         ///
         /// Note: even when supported by GPU hardware, 64-bit floating point operations are
@@ -1001,14 +1013,14 @@ bitflags_array! {
         /// - Vulkan
         ///
         /// This is a native only feature.
-        const SHADER_F64 = 1 << 31;
+        const SHADER_F64 = 1 << 32;
         /// Allows shaders to use i16. Not currently supported in `naga`, only available through `spirv-passthrough`.
         ///
         /// Supported platforms:
         /// - Vulkan
         ///
         /// This is a native only feature.
-        const SHADER_I16 = 1 << 32;
+        const SHADER_I16 = 1 << 33;
         /// Enables `builtin(primitive_index)` in fragment shaders.
         ///
         /// Note: enables geometry processing for pipelines using the builtin.
@@ -1022,25 +1034,14 @@ bitflags_array! {
         /// - OpenGL (some)
         ///
         /// This is a native only feature.
-        const SHADER_PRIMITIVE_INDEX = 1 << 33;
+        const SHADER_PRIMITIVE_INDEX = 1 << 34;
         /// Allows shaders to use the `early_depth_test` attribute.
         ///
         /// Supported platforms:
         /// - GLES 3.1+
         ///
         /// This is a native only feature.
-        const SHADER_EARLY_DEPTH_TEST = 1 << 34;
-        /// Allows two outputs from a shader to be used for blending.
-        /// Note that dual-source blending doesn't support multiple render targets.
-        ///
-        /// For more info see the OpenGL ES extension GL_EXT_blend_func_extended.
-        ///
-        /// Supported platforms:
-        /// - OpenGL ES (with GL_EXT_blend_func_extended)
-        /// - Metal (with MSL 1.2+)
-        /// - Vulkan (with dualSrcBlend)
-        /// - DX12
-        const DUAL_SOURCE_BLENDING = 1 << 35;
+        const SHADER_EARLY_DEPTH_TEST = 1 << 35;
         /// Allows shaders to use i64 and u64.
         ///
         /// Supported platforms:
@@ -1153,6 +1154,45 @@ bitflags_array! {
         ///
         /// This is a native only feature.
         const UNIFORM_BUFFER_BINDING_ARRAYS = 1 << 46;
+
+        /// Enables mesh shaders and task shaders in mesh shader pipelines.
+        ///
+        /// Supported platforms:
+        /// - Vulkan (with [VK_EXT_mesh_shader](https://registry.khronos.org/vulkan/specs/latest/man/html/VK_EXT_mesh_shader.html))
+        ///
+        /// Potential Platforms:
+        /// - DX12
+        /// - Metal
+        ///
+        /// This is a native only feature.
+        const EXPERIMENTAL_MESH_SHADER = 1 << 47;
+
+        /// ***THIS IS EXPERIMENTAL:*** Features enabled by this may have
+        /// major bugs in them and are expected to be subject to breaking changes, suggestions
+        /// for the API exposed by this should be posted on [the ray-tracing issue](https://github.com/gfx-rs/wgpu/issues/6762)
+        ///
+        /// Allows for returning of the hit triangle's vertex position when tracing with an
+        /// acceleration structure marked with [`AccelerationStructureFlags::ALLOW_RAY_HIT_VERTEX_RETURN`].
+        ///
+        /// Supported platforms:
+        /// - Vulkan
+        ///
+        /// This is a native only feature
+        ///
+        /// [`AccelerationStructureFlags::ALLOW_RAY_HIT_VERTEX_RETURN`]: super::AccelerationStructureFlags::ALLOW_RAY_HIT_VERTEX_RETURN
+        const EXPERIMENTAL_RAY_HIT_VERTEX_RETURN = 1 << 48;
+
+        /// Enables multiview in mesh shader pipelines
+        ///
+        /// Supported platforms:
+        /// - Vulkan (with [VK_EXT_mesh_shader](https://registry.khronos.org/vulkan/specs/latest/man/html/VK_EXT_mesh_shader.html))
+        ///
+        /// Potential Platforms:
+        /// - DX12
+        /// - Metal
+        ///
+        /// This is a native only feature.
+        const EXPERIMENTAL_MESH_SHADER_MULTIVIEW = 1 << 49;
     }
 
     /// Features that are not guaranteed to be supported.
@@ -1309,17 +1349,19 @@ bitflags_array! {
         /// This is a web and native feature.
         const INDIRECT_FIRST_INSTANCE = WEBGPU_FEATURE_INDIRECT_FIRST_INSTANCE;
 
-        /// Allows shaders to acquire the FP16 ability
+        /// Allows shaders to use 16-bit floating point types. You may use them uniform buffers,
+        /// storage buffers, and local variables. You may not use them in push constants.
         ///
-        /// Note: this is not supported in `naga` yet, only through `spirv-passthrough` right now.
+        /// In order to use this in WGSL shaders, you must add `enable f16;` to the top of your shader,
+        /// before any global items.
         ///
         /// Supported Platforms:
         /// - Vulkan
         /// - Metal
+        /// - DX12
         ///
         /// This is a web and native feature.
         const SHADER_F16 = WEBGPU_FEATURE_SHADER_F16;
-
 
         /// Allows for usage of textures of format [`TextureFormat::Rg11b10Ufloat`] as a render target
         ///
@@ -1357,6 +1399,18 @@ bitflags_array! {
         ///
         /// This is a web and native feature.
         const FLOAT32_FILTERABLE = WEBGPU_FEATURE_FLOAT32_FILTERABLE;
+
+        /// Allows two outputs from a shader to be used for blending.
+        /// Note that dual-source blending doesn't support multiple render targets.
+        ///
+        /// For more info see the OpenGL ES extension GL_EXT_blend_func_extended.
+        ///
+        /// Supported platforms:
+        /// - OpenGL ES (with GL_EXT_blend_func_extended)
+        /// - Metal (with MSL 1.2+)
+        /// - Vulkan (with dualSrcBlend)
+        /// - DX12
+        const DUAL_SOURCE_BLENDING = WEBGPU_FEATURE_DUAL_SOURCE_BLENDING;
     }
 }
 

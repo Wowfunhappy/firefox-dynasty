@@ -45,19 +45,29 @@ to output a [`Module`](crate::Module) into glsl
 
 pub use features::Features;
 
-use crate::{
-    back::{self, Baked},
-    proc::{self, ExpressionKindTracker, NameKey},
-    valid, Handle, ShaderStage, TypeInner,
+use alloc::{
+    borrow::ToOwned,
+    format,
+    string::{String, ToString},
+    vec,
+    vec::Vec,
 };
-use features::FeaturesManager;
-use hashbrown::hash_map;
-use std::{
+use core::{
     cmp::Ordering,
     fmt::{self, Error as FmtError, Write},
     mem,
 };
+
+use hashbrown::hash_map;
 use thiserror::Error;
+
+use crate::{
+    back::{self, Baked},
+    common,
+    proc::{self, NameKey},
+    valid, Handle, ShaderStage, TypeInner,
+};
+use features::FeaturesManager;
 
 /// Contains the features related code and the features querying method
 mod features;
@@ -79,6 +89,7 @@ pub(crate) const FREXP_FUNCTION: &str = "naga_frexp";
 // Must match code in glsl_built_in
 pub const FIRST_INSTANCE_BINDING: &str = "naga_vs_first_instance";
 
+#[cfg(any(feature = "serialize", feature = "deserialize"))]
 #[cfg_attr(feature = "serialize", derive(serde::Serialize))]
 #[cfg_attr(feature = "deserialize", derive(serde::Deserialize))]
 struct BindingMapSerialization {
@@ -102,7 +113,7 @@ where
 }
 
 /// Mapping between resources and bindings.
-pub type BindingMap = std::collections::BTreeMap<crate::ResourceBinding, u8>;
+pub type BindingMap = alloc::collections::BTreeMap<crate::ResourceBinding, u8>;
 
 impl crate::AtomicFunction {
     const fn to_glsl(self) -> &'static str {
@@ -120,13 +131,6 @@ impl crate::AtomicFunction {
 }
 
 impl crate::AddressSpace {
-    const fn is_buffer(&self) -> bool {
-        match *self {
-            crate::AddressSpace::Uniform | crate::AddressSpace::Storage { .. } => true,
-            _ => false,
-        }
-    }
-
     /// Whether a variable with this address space can be initialized
     const fn initializable(&self) -> bool {
         match *self {
@@ -226,6 +230,30 @@ impl Version {
     fn supports_derivative_control(&self) -> bool {
         *self >= Version::Desktop(450)
     }
+
+    // For supports_pack_unpack_4x8, supports_pack_unpack_snorm_2x16, supports_pack_unpack_unorm_2x16
+    // see:
+    // https://registry.khronos.org/OpenGL-Refpages/gl4/html/unpackUnorm.xhtml
+    // https://registry.khronos.org/OpenGL-Refpages/es3/html/unpackUnorm.xhtml
+    // https://registry.khronos.org/OpenGL-Refpages/gl4/html/packUnorm.xhtml
+    // https://registry.khronos.org/OpenGL-Refpages/es3/html/packUnorm.xhtml
+    fn supports_pack_unpack_4x8(&self) -> bool {
+        *self >= Version::Desktop(400) || *self >= Version::new_gles(310)
+    }
+    fn supports_pack_unpack_snorm_2x16(&self) -> bool {
+        *self >= Version::Desktop(420) || *self >= Version::new_gles(300)
+    }
+    fn supports_pack_unpack_unorm_2x16(&self) -> bool {
+        *self >= Version::Desktop(400) || *self >= Version::new_gles(300)
+    }
+
+    // https://registry.khronos.org/OpenGL-Refpages/gl4/html/unpackHalf2x16.xhtml
+    // https://registry.khronos.org/OpenGL-Refpages/gl4/html/packHalf2x16.xhtml
+    // https://registry.khronos.org/OpenGL-Refpages/es3/html/unpackHalf2x16.xhtml
+    // https://registry.khronos.org/OpenGL-Refpages/es3/html/packHalf2x16.xhtml
+    fn supports_pack_unpack_half_2x16(&self) -> bool {
+        *self >= Version::Desktop(420) || *self >= Version::new_gles(300)
+    }
 }
 
 impl PartialOrd for Version {
@@ -320,7 +348,7 @@ pub struct PipelineOptions {
     /// If no entry point that matches is found while creating a [`Writer`], a error will be thrown.
     pub entry_point: String,
     /// How many views to render to, if doing multiview rendering.
-    pub multiview: Option<std::num::NonZeroU32>,
+    pub multiview: Option<core::num::NonZeroU32>,
 }
 
 #[derive(Debug)]
@@ -455,8 +483,7 @@ impl fmt::Display for VaryingName<'_> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self.binding {
             crate::Binding::Location {
-                second_blend_source: true,
-                ..
+                blend_src: Some(1), ..
             } => {
                 write!(f, "_fs2p_location1",)
             }
@@ -469,6 +496,7 @@ impl fmt::Display for VaryingName<'_> {
                     (ShaderStage::Vertex, true) | (ShaderStage::Fragment, false) => "vs2fs",
                     // fragment to pipeline
                     (ShaderStage::Fragment, true) => "fs2p",
+                    (ShaderStage::Task | ShaderStage::Mesh, _) => unreachable!(),
                 };
                 write!(f, "_{prefix}_location{location}",)
             }
@@ -485,6 +513,7 @@ impl ShaderStage {
             ShaderStage::Compute => "cs",
             ShaderStage::Fragment => "fs",
             ShaderStage::Vertex => "vs",
+            ShaderStage::Task | ShaderStage::Mesh => unreachable!(),
         }
     }
 }
@@ -529,6 +558,8 @@ pub enum Error {
     /// [`crate::Sampling::First`] is unsupported.
     #[error("`{:?}` sampling is unsupported", crate::Sampling::First)]
     FirstSamplingNotSupported,
+    #[error(transparent)]
+    ResolveArraySizeError(#[from] proc::ResolveArraySizeError),
 }
 
 /// Binary operation with a different logic on the GLSL side.
@@ -582,7 +613,7 @@ pub struct Writer<'a, W> {
     /// transformed to `do {} while(false);` loops.
     continue_ctx: back::continue_forward::ContinueCtx,
     /// How many views to render to, if doing multiview rendering.
-    multiview: Option<std::num::NonZeroU32>,
+    multiview: Option<core::num::NonZeroU32>,
     /// Mapping of varying variables to their location. Needed for reflections.
     varying: crate::FastHashMap<String, VaryingLocation>,
 }
@@ -602,10 +633,6 @@ impl<'a, W: Write> Writer<'a, W> {
         pipeline_options: &'a PipelineOptions,
         policies: proc::BoundsCheckPolicies,
     ) -> Result<Self, Error> {
-        if !module.overrides.is_empty() {
-            return Err(Error::Override);
-        }
-
         // Check if the requested version is supported
         if !options.version.is_supported() {
             log::error!("Version {}", options.version);
@@ -626,8 +653,7 @@ impl<'a, W: Write> Writer<'a, W> {
         let mut namer = proc::Namer::default();
         namer.reset(
             module,
-            keywords::RESERVED_KEYWORDS,
-            &[],
+            &keywords::RESERVED_KEYWORD_SET,
             &[],
             &[
                 "gl_",                     // all GL built-in variables
@@ -1003,13 +1029,12 @@ impl<'a, W: Write> Writer<'a, W> {
         write!(self.out, "[")?;
 
         // Write the array size
-        // Writes nothing if `ArraySize::Dynamic`
-        match size {
-            crate::ArraySize::Constant(size) => {
+        // Writes nothing if `IndexableLength::Dynamic`
+        match size.resolve(self.module.to_ctx())? {
+            proc::IndexableLength::Known(size) => {
                 write!(self.out, "{size}")?;
             }
-            crate::ArraySize::Pending(_) => unreachable!(),
-            crate::ArraySize::Dynamic => (),
+            proc::IndexableLength::Dynamic => (),
         }
 
         write!(self.out, "]")?;
@@ -1073,8 +1098,8 @@ impl<'a, W: Write> Writer<'a, W> {
             | TypeInner::Struct { .. }
             | TypeInner::Image { .. }
             | TypeInner::Sampler { .. }
-            | TypeInner::AccelerationStructure
-            | TypeInner::RayQuery
+            | TypeInner::AccelerationStructure { .. }
+            | TypeInner::RayQuery { .. }
             | TypeInner::BindingArray { .. } => {
                 return Err(Error::Custom(format!("Unable to write type {inner:?}")))
             }
@@ -1252,7 +1277,7 @@ impl<'a, W: Write> Writer<'a, W> {
         if global.space.initializable() && is_value_init_supported(self.module, global.ty) {
             write!(self.out, " = ")?;
             if let Some(init) = global.init {
-                self.write_const_expr(init)?;
+                self.write_const_expr(init, &self.module.global_expressions)?;
             } else {
                 self.write_zero_init_value(global.ty)?;
             }
@@ -1361,11 +1386,40 @@ impl<'a, W: Write> Writer<'a, W> {
                             self.need_bake_expressions.insert(arg1.unwrap());
                         }
                     }
+                    crate::MathFunction::Dot4U8Packed | crate::MathFunction::Dot4I8Packed => {
+                        self.need_bake_expressions.insert(arg);
+                        self.need_bake_expressions.insert(arg1.unwrap());
+                    }
                     crate::MathFunction::Pack4xI8
                     | crate::MathFunction::Pack4xU8
                     | crate::MathFunction::Unpack4xI8
                     | crate::MathFunction::Unpack4xU8
                     | crate::MathFunction::QuantizeToF16 => {
+                        self.need_bake_expressions.insert(arg);
+                    }
+                    /* crate::MathFunction::Pack4x8unorm | */
+                    crate::MathFunction::Unpack4x8snorm
+                        if !self.options.version.supports_pack_unpack_4x8() =>
+                    {
+                        // We have a fallback if the platform doesn't natively support these
+                        self.need_bake_expressions.insert(arg);
+                    }
+                    /* crate::MathFunction::Pack4x8unorm | */
+                    crate::MathFunction::Unpack4x8unorm
+                        if !self.options.version.supports_pack_unpack_4x8() =>
+                    {
+                        self.need_bake_expressions.insert(arg);
+                    }
+                    /* crate::MathFunction::Pack2x16snorm |  */
+                    crate::MathFunction::Unpack2x16snorm
+                        if !self.options.version.supports_pack_unpack_snorm_2x16() =>
+                    {
+                        self.need_bake_expressions.insert(arg);
+                    }
+                    /* crate::MathFunction::Pack2x16unorm | */
+                    crate::MathFunction::Unpack2x16unorm
+                        if !self.options.version.supports_pack_unpack_unorm_2x16() =>
+                    {
                         self.need_bake_expressions.insert(arg);
                     }
                     crate::MathFunction::ExtractBits => {
@@ -1491,13 +1545,13 @@ impl<'a, W: Write> Writer<'a, W> {
             Some(binding) => binding,
         };
 
-        let (location, interpolation, sampling, second_blend_source) = match *binding {
+        let (location, interpolation, sampling, blend_src) = match *binding {
             crate::Binding::Location {
                 location,
                 interpolation,
                 sampling,
-                second_blend_source,
-            } => (location, interpolation, sampling, second_blend_source),
+                blend_src,
+            } => (location, interpolation, sampling, blend_src),
             crate::Binding::BuiltIn(built_in) => {
                 if let crate::BuiltIn::Position { invariant: true } = built_in {
                     match (self.options.version, self.entry_point.stage) {
@@ -1537,6 +1591,7 @@ impl<'a, W: Write> Writer<'a, W> {
             ShaderStage::Vertex => output,
             ShaderStage::Fragment => !output,
             ShaderStage::Compute => false,
+            ShaderStage::Task | ShaderStage::Mesh => unreachable!(),
         };
 
         // Write the I/O locations, if allowed
@@ -1544,8 +1599,11 @@ impl<'a, W: Write> Writer<'a, W> {
             || !emit_interpolation_and_auxiliary
         {
             if self.options.version.supports_io_locations() {
-                if second_blend_source {
-                    write!(self.out, "layout(location = {location}, index = 1) ")?;
+                if let Some(blend_src) = blend_src {
+                    write!(
+                        self.out,
+                        "layout(location = {location}, index = {blend_src}) "
+                    )?;
                 } else {
                     write!(self.out, "layout(location = {location}) ")?;
                 }
@@ -1553,7 +1611,7 @@ impl<'a, W: Write> Writer<'a, W> {
             } else {
                 Some(VaryingLocation {
                     location,
-                    index: second_blend_source as u32,
+                    index: blend_src.unwrap_or(0),
                 })
             }
         } else {
@@ -1594,7 +1652,7 @@ impl<'a, W: Write> Writer<'a, W> {
                 location,
                 interpolation: None,
                 sampling: None,
-                second_blend_source,
+                blend_src,
             },
             stage: self.entry_point.stage,
             options: VaryingOptions::from_writer_options(self.options, output),
@@ -1624,7 +1682,6 @@ impl<'a, W: Write> Writer<'a, W> {
             info,
             expressions: &func.expressions,
             named_expressions: &func.named_expressions,
-            expr_kind_tracker: ExpressionKindTracker::from_arena(&func.expressions),
         };
 
         self.named_expressions.clear();
@@ -1897,7 +1954,7 @@ impl<'a, W: Write> Writer<'a, W> {
             self.write_array_size(base, size)?;
         }
         write!(self.out, " = ")?;
-        self.write_const_expr(constant.init)?;
+        self.write_const_expr(constant.init, &self.module.global_expressions)?;
         writeln!(self.out, ";")?;
         Ok(())
     }
@@ -2203,8 +2260,7 @@ impl<'a, W: Write> Writer<'a, W> {
                             self.write_stmt(sta, ctx, l2.next())?;
                         }
 
-                        if !case.fall_through
-                            && case.body.last().map_or(true, |s| !s.is_terminator())
+                        if !case.fall_through && case.body.last().is_none_or(|s| !s.is_terminator())
                         {
                             writeln!(self.out, "{}break;", l2.next())?;
                         }
@@ -2648,12 +2704,16 @@ impl<'a, W: Write> Writer<'a, W> {
     ///
     /// [`Expression`]: crate::Expression
     /// [`Module`]: crate::Module
-    fn write_const_expr(&mut self, expr: Handle<crate::Expression>) -> BackendResult {
+    fn write_const_expr(
+        &mut self,
+        expr: Handle<crate::Expression>,
+        arena: &crate::Arena<crate::Expression>,
+    ) -> BackendResult {
         self.write_possibly_const_expr(
             expr,
-            &self.module.global_expressions,
+            arena,
             |expr| &self.info[expr],
-            |writer, expr| writer.write_const_expr(expr),
+            |writer, expr| writer.write_const_expr(expr, arena),
         )
     }
 
@@ -2695,6 +2755,9 @@ impl<'a, W: Write> Writer<'a, W> {
                     // decimal part even it's zero which is needed for a valid glsl float constant
                     crate::Literal::F64(value) => write!(self.out, "{value:?}LF")?,
                     crate::Literal::F32(value) => write!(self.out, "{value:?}")?,
+                    crate::Literal::F16(_) => {
+                        return Err(Error::Custom("GLSL has no 16-bit float type".into()));
+                    }
                     // Unsigned integers need a `u` at the end
                     //
                     // While `core` doesn't necessarily need it, it's allowed and since `es` needs it we
@@ -2720,7 +2783,7 @@ impl<'a, W: Write> Writer<'a, W> {
                 if constant.name.is_some() {
                     write!(self.out, "{}", self.names[&NameKey::Constant(handle)])?;
                 } else {
-                    self.write_const_expr(constant.init)?;
+                    self.write_const_expr(constant.init, &self.module.global_expressions)?;
                 }
             }
             Expression::ZeroValue(ty) => {
@@ -2750,7 +2813,9 @@ impl<'a, W: Write> Writer<'a, W> {
                 write_expression(self, value)?;
                 write!(self.out, ")")?
             }
-            _ => unreachable!(),
+            _ => {
+                return Err(Error::Override);
+            }
         }
 
         Ok(())
@@ -3025,7 +3090,7 @@ impl<'a, W: Write> Writer<'a, W> {
                     if tex_1d_hack {
                         write!(self.out, "ivec2(")?;
                     }
-                    self.write_const_expr(constant)?;
+                    self.write_const_expr(constant, ctx.expressions)?;
                     if tex_1d_hack {
                         write!(self.out, ", 0)")?;
                     }
@@ -3438,7 +3503,7 @@ impl<'a, W: Write> Writer<'a, W> {
                             TypeInner::Vector { size, .. } => write!(
                                 self.out,
                                 ", vec{}(0.0), vec{0}(1.0)",
-                                back::vector_size_str(size)
+                                common::vector_size_str(size)
                             )?,
                             _ => write!(self.out, ", 0.0, 1.0")?,
                         }
@@ -3497,6 +3562,40 @@ impl<'a, W: Write> Writer<'a, W> {
                             "Correct TypeInner for dot product should be already validated"
                         ),
                     },
+                    fun @ (Mf::Dot4I8Packed | Mf::Dot4U8Packed) => {
+                        let conversion = match fun {
+                            Mf::Dot4I8Packed => "int",
+                            Mf::Dot4U8Packed => "",
+                            _ => unreachable!(),
+                        };
+
+                        let arg1 = arg1.unwrap();
+
+                        // Write parentheses around the dot product expression to prevent operators
+                        // with different precedences from applying earlier.
+                        write!(self.out, "(")?;
+                        for i in 0..4 {
+                            // Since `bitfieldExtract` only sign extends if the value is signed, we
+                            // need to convert the inputs to `int` in case of `Dot4I8Packed`. For
+                            // `Dot4U8Packed`, the code below only introduces parenthesis around
+                            // each factor, which aren't strictly needed because both operands are
+                            // baked, but which don't hurt either.
+                            write!(self.out, "bitfieldExtract({}(", conversion)?;
+                            self.write_expr(arg, ctx)?;
+                            write!(self.out, "), {}, 8)", i * 8)?;
+
+                            write!(self.out, " * bitfieldExtract({}(", conversion)?;
+                            self.write_expr(arg1, ctx)?;
+                            write!(self.out, "), {}, 8)", i * 8)?;
+
+                            if i != 3 {
+                                write!(self.out, " + ")?;
+                            }
+                        }
+                        write!(self.out, ")")?;
+
+                        return Ok(());
+                    }
                     Mf::Outer => "outerProduct",
                     Mf::Cross => "cross",
                     Mf::Distance => "distance",
@@ -3585,7 +3684,7 @@ impl<'a, W: Write> Writer<'a, W> {
                     Mf::CountTrailingZeros => {
                         match *ctx.resolve_type(arg, &self.module.types) {
                             TypeInner::Vector { size, scalar, .. } => {
-                                let s = back::vector_size_str(size);
+                                let s = common::vector_size_str(size);
                                 if let crate::ScalarKind::Uint = scalar.kind {
                                     write!(self.out, "min(uvec{s}(findLSB(")?;
                                     self.write_expr(arg, ctx)?;
@@ -3615,7 +3714,7 @@ impl<'a, W: Write> Writer<'a, W> {
                         if self.options.version.supports_integer_functions() {
                             match *ctx.resolve_type(arg, &self.module.types) {
                                 TypeInner::Vector { size, scalar } => {
-                                    let s = back::vector_size_str(size);
+                                    let s = common::vector_size_str(size);
 
                                     if let crate::ScalarKind::Uint = scalar.kind {
                                         write!(self.out, "uvec{s}(ivec{s}(31) - findMSB(")?;
@@ -3646,7 +3745,7 @@ impl<'a, W: Write> Writer<'a, W> {
                         } else {
                             match *ctx.resolve_type(arg, &self.module.types) {
                                 TypeInner::Vector { size, scalar } => {
-                                    let s = back::vector_size_str(size);
+                                    let s = common::vector_size_str(size);
 
                                     if let crate::ScalarKind::Uint = scalar.kind {
                                         write!(self.out, "uvec{s}(")?;
@@ -3743,11 +3842,43 @@ impl<'a, W: Write> Writer<'a, W> {
                     Mf::FirstTrailingBit => "findLSB",
                     Mf::FirstLeadingBit => "findMSB",
                     // data packing
-                    Mf::Pack4x8snorm => "packSnorm4x8",
-                    Mf::Pack4x8unorm => "packUnorm4x8",
-                    Mf::Pack2x16snorm => "packSnorm2x16",
-                    Mf::Pack2x16unorm => "packUnorm2x16",
-                    Mf::Pack2x16float => "packHalf2x16",
+                    Mf::Pack4x8snorm => {
+                        if self.options.version.supports_pack_unpack_4x8() {
+                            "packSnorm4x8"
+                        } else {
+                            // polyfill should go here. Needs a corresponding entry in `need_bake_expression`
+                            return Err(Error::UnsupportedExternal("packSnorm4x8".into()));
+                        }
+                    }
+                    Mf::Pack4x8unorm => {
+                        if self.options.version.supports_pack_unpack_4x8() {
+                            "packUnorm4x8"
+                        } else {
+                            return Err(Error::UnsupportedExternal("packUnorm4x8".to_owned()));
+                        }
+                    }
+                    Mf::Pack2x16snorm => {
+                        if self.options.version.supports_pack_unpack_snorm_2x16() {
+                            "packSnorm2x16"
+                        } else {
+                            return Err(Error::UnsupportedExternal("packSnorm2x16".to_owned()));
+                        }
+                    }
+                    Mf::Pack2x16unorm => {
+                        if self.options.version.supports_pack_unpack_unorm_2x16() {
+                            "packUnorm2x16"
+                        } else {
+                            return Err(Error::UnsupportedExternal("packUnorm2x16".to_owned()));
+                        }
+                    }
+                    Mf::Pack2x16float => {
+                        if self.options.version.supports_pack_unpack_half_2x16() {
+                            "packHalf2x16"
+                        } else {
+                            return Err(Error::UnsupportedExternal("packHalf2x16".to_owned()));
+                        }
+                    }
+
                     fun @ (Mf::Pack4xI8 | Mf::Pack4xU8) => {
                         let was_signed = match fun {
                             Mf::Pack4xI8 => true,
@@ -3774,11 +3905,77 @@ impl<'a, W: Write> Writer<'a, W> {
                         return Ok(());
                     }
                     // data unpacking
-                    Mf::Unpack4x8snorm => "unpackSnorm4x8",
-                    Mf::Unpack4x8unorm => "unpackUnorm4x8",
-                    Mf::Unpack2x16snorm => "unpackSnorm2x16",
-                    Mf::Unpack2x16unorm => "unpackUnorm2x16",
-                    Mf::Unpack2x16float => "unpackHalf2x16",
+                    Mf::Unpack2x16float => {
+                        if self.options.version.supports_pack_unpack_half_2x16() {
+                            "unpackHalf2x16"
+                        } else {
+                            return Err(Error::UnsupportedExternal("unpackHalf2x16".into()));
+                        }
+                    }
+                    Mf::Unpack2x16snorm => {
+                        if self.options.version.supports_pack_unpack_snorm_2x16() {
+                            "unpackSnorm2x16"
+                        } else {
+                            let scale = 32767;
+
+                            write!(self.out, "(vec2(ivec2(")?;
+                            self.write_expr(arg, ctx)?;
+                            write!(self.out, " << 16, ")?;
+                            self.write_expr(arg, ctx)?;
+                            write!(self.out, ") >> 16) / {scale}.0)")?;
+                            return Ok(());
+                        }
+                    }
+                    Mf::Unpack2x16unorm => {
+                        if self.options.version.supports_pack_unpack_unorm_2x16() {
+                            "unpackUnorm2x16"
+                        } else {
+                            let scale = 65535;
+
+                            write!(self.out, "(vec2(")?;
+                            self.write_expr(arg, ctx)?;
+                            write!(self.out, " & 0xFFFFu, ")?;
+                            self.write_expr(arg, ctx)?;
+                            write!(self.out, " >> 16) / {scale}.0)")?;
+                            return Ok(());
+                        }
+                    }
+                    Mf::Unpack4x8snorm => {
+                        if self.options.version.supports_pack_unpack_4x8() {
+                            "unpackSnorm4x8"
+                        } else {
+                            let scale = 127;
+
+                            write!(self.out, "(vec4(ivec4(")?;
+                            self.write_expr(arg, ctx)?;
+                            write!(self.out, " << 24, ")?;
+                            self.write_expr(arg, ctx)?;
+                            write!(self.out, " << 16, ")?;
+                            self.write_expr(arg, ctx)?;
+                            write!(self.out, " << 8, ")?;
+                            self.write_expr(arg, ctx)?;
+                            write!(self.out, ") >> 24) / {scale}.0)")?;
+                            return Ok(());
+                        }
+                    }
+                    Mf::Unpack4x8unorm => {
+                        if self.options.version.supports_pack_unpack_4x8() {
+                            "unpackUnorm4x8"
+                        } else {
+                            let scale = 255;
+
+                            write!(self.out, "(vec4(")?;
+                            self.write_expr(arg, ctx)?;
+                            write!(self.out, " & 0xFFu, ")?;
+                            self.write_expr(arg, ctx)?;
+                            write!(self.out, " >> 8 & 0xFFu, ")?;
+                            self.write_expr(arg, ctx)?;
+                            write!(self.out, " >> 16 & 0xFFu, ")?;
+                            self.write_expr(arg, ctx)?;
+                            write!(self.out, " >> 24) / {scale}.0)")?;
+                            return Ok(());
+                        }
+                    }
                     fun @ (Mf::Unpack4xI8 | Mf::Unpack4xU8) => {
                         let sign_prefix = match fun {
                             Mf::Unpack4xI8 => 'i',
@@ -4009,7 +4206,8 @@ impl<'a, W: Write> Writer<'a, W> {
                 write!(self.out, ".length())")?
             }
             // not supported yet
-            Expression::RayQueryGetIntersection { .. } => unreachable!(),
+            Expression::RayQueryGetIntersection { .. }
+            | Expression::RayQueryVertexPositions { .. } => unreachable!(),
         }
 
         Ok(())
@@ -4564,12 +4762,8 @@ impl<'a, W: Write> Writer<'a, W> {
                 write!(self.out, ")")?;
             }
             TypeInner::Array { base, size, .. } => {
-                let count = match size
-                    .to_indexable_length(self.module)
-                    .expect("Bad array size")
-                {
+                let count = match size.resolve(self.module.to_ctx())? {
                     proc::IndexableLength::Known(count) => count,
-                    proc::IndexableLength::Pending => unreachable!(),
                     proc::IndexableLength::Dynamic => return Ok(()),
                 };
                 self.write_type(base)?;
@@ -4628,6 +4822,9 @@ impl<'a, W: Write> Writer<'a, W> {
         }
         if flags.contains(crate::Barrier::SUB_GROUP) {
             writeln!(self.out, "{level}subgroupMemoryBarrier();")?;
+        }
+        if flags.contains(crate::Barrier::TEXTURE) {
+            writeln!(self.out, "{level}memoryBarrierImage();")?;
         }
         writeln!(self.out, "{level}barrier();")?;
         Ok(())

@@ -30,12 +30,18 @@ sidebar-history-date-prev-month =
 sidebar-history-delete =
   .title = Delete from History
 
-sidebar-history-sort-by-date =
-  .label = Sort by date
-sidebar-history-sort-by-site =
-  .label = Sort by site
 sidebar-history-clear =
   .label = Clear history
+
+sidebar-history-sort-by-heading = Sort by:
+sidebar-history-sort-option-date =
+  .label = Date
+sidebar-history-sort-option-site =
+  .label = Site
+sidebar-history-sort-option-date-and-site =
+  .label = Date and site
+sidebar-history-sort-option-last-visited =
+  .label = Last visited
 
 ## Labels for sidebar search
 
@@ -65,9 +71,6 @@ sidebar-show-on-the-left =
 # hovers over it.
 expand-sidebar-on-hover =
   .label = Expand sidebar on hover
-expand-on-hover-message =
-  .heading = Expand on hover coming soon
-  .message = In a future update, you’ll be able to expand the sidebar on hover.
 
 ## Labels for sidebar context menu items
 
@@ -161,8 +164,6 @@ sidebar-menu-history-header =
   .heading = History
 sidebar-menu-syncedtabs-header =
   .heading = Tabs from other devices
-sidebar-menu-bookmarks-header =
-  .heading = Bookmarks
 sidebar-menu-cpm-header =
   .heading = Passwords
 

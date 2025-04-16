@@ -11,6 +11,7 @@
 #include "mozilla/dom/ipc/IdType.h"
 #include "mozilla/dom/MessageManagerCallback.h"
 #include "mozilla/dom/MediaSessionBinding.h"
+#include "mozilla/dom/ProcessIsolation.h"
 #include "mozilla/dom/RemoteBrowser.h"
 #include "mozilla/dom/RemoteType.h"
 #include "mozilla/dom/JSProcessActorParent.h"
@@ -22,7 +23,7 @@
 #include "mozilla/ipc/BackgroundUtils.h"
 #include "mozilla/ipc/GeckoChildProcessHost.h"
 #include "mozilla/ipc/InputStreamUtils.h"
-#include "mozilla/ipc/SharedMemory.h"
+#include "mozilla/ipc/SharedMemoryHandle.h"
 #include "mozilla/Attributes.h"
 #include "mozilla/DataMutex.h"
 #include "mozilla/HalTypes.h"
@@ -65,6 +66,10 @@ class ParentIdleListener;
 class nsIWidget;
 class nsIX509Cert;
 
+namespace CrashReporter {
+class CrashReporterInitArgs;
+}
+
 namespace mozilla {
 class PClipboardWriteRequestParent;
 class PRemoteSpellcheckEngineParent;
@@ -99,6 +104,7 @@ class MemoryReport;
 class TabContext;
 class GetFilesHelper;
 class MemoryReportRequestHost;
+class RemoteWorkerDebuggerManagerParent;
 class RemoteWorkerManager;
 class RemoteWorkerServiceParent;
 class ThreadsafeContentParentHandle;
@@ -483,7 +489,7 @@ class ContentParent final : public PContentParent,
   void FriendlyName(nsAString& aName, bool aAnonymize = false);
 
   mozilla::ipc::IPCResult RecvInitCrashReporter(
-      const NativeThreadId& aThreadId);
+      const CrashReporter::CrashReporterInitArgs& aInitArgs);
 
   already_AddRefed<PNeckoParent> AllocPNeckoParent();
 
@@ -653,11 +659,6 @@ class ContentParent final : public PContentParent,
 
   // Whenever receiving a Principal we need to validate that Principal case
   // by case, where we grant individual callsites to customize the checks!
-  enum class ValidatePrincipalOptions {
-    AllowNullPtr,  // Not a NullPrincipal but a nullptr as Principal.
-    AllowSystem,
-    AllowExpanded,
-  };
   bool ValidatePrincipal(
       nsIPrincipal* aPrincipal,
       const EnumSet<ValidatePrincipalOptions>& aOptions = {});
@@ -1125,7 +1126,7 @@ class ContentParent final : public PContentParent,
 
   mozilla::ipc::IPCResult RecvGetFontListShmBlock(
       const uint32_t& aGeneration, const uint32_t& aIndex,
-      mozilla::ipc::SharedMemory::Handle* aOut);
+      mozilla::ipc::ReadOnlySharedMemoryHandle* aOut);
 
   mozilla::ipc::IPCResult RecvInitializeFamily(const uint32_t& aGeneration,
                                                const uint32_t& aFamilyIndex,
@@ -1149,8 +1150,7 @@ class ContentParent final : public PContentParent,
                                                const uint32_t& aStartIndex);
 
   mozilla::ipc::IPCResult RecvGetHyphDict(
-      nsIURI* aURIParams, mozilla::ipc::SharedMemory::Handle* aOutHandle,
-      uint32_t* aOutSize);
+      nsIURI* aURIParams, mozilla::ipc::ReadOnlySharedMemoryHandle* aOutHandle);
 
   mozilla::ipc::IPCResult RecvNotifyBenchmarkResult(const nsAString& aCodecName,
                                                     const uint32_t& aDecodeFPS);
@@ -1561,6 +1561,8 @@ class ContentParent final : public PContentParent,
 
   RefPtr<RemoteWorkerServiceParent> mRemoteWorkerServiceActor;
 
+  RefPtr<RemoteWorkerDebuggerManagerParent> mRemoteWorkerDebuggerManagerActor;
+
   UniquePtr<gfx::DriverCrashGuard> mDriverCrashGuard;
   UniquePtr<MemoryReportRequestHost> mMemoryReportRequest;
 
@@ -1576,8 +1578,6 @@ class ContentParent final : public PContentParent,
 
   nsTHashSet<nsCString> mActivePermissionKeys;
   nsTHashSet<nsCString> mActiveSecondaryPermissionKeys;
-
-  nsTArray<nsCString> mBlobURLs;
 
   nsTArray<nsCOMPtr<nsIPrincipal>> mCookieInContentListCache;
 

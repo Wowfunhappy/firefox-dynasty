@@ -94,6 +94,14 @@
 #  include "sys/sysinfo.h"
 #  include <sys/wait.h>
 #  include <unistd.h>
+
+#  if defined(MOZ_OXIDIZED_BREAKPAD)
+#    include "mozilla/toolkit/crashreporter/rust_minidump_writer_linux_ffi_generated.h"
+#    include <unordered_map>
+#    include <mutex>
+#    include <sys/auxv.h>
+#  endif  // defined(MOZ_OXIDIZED_BREAKPAD)
+
 #else
 #  error "Not yet implemented for this platform"
 #endif  // defined(XP_WIN)
@@ -197,6 +205,51 @@ typedef std::string xpstring;
 #else
 #  define MAYBE_UNUSED
 #endif  // defined(__GNUC__)
+
+#if defined(XP_LINUX) && defined(MOZ_OXIDIZED_BREAKPAD)
+class ChildProcessAuxvStore {
+ public:
+  static ChildProcessAuxvStore& global() {
+    static ChildProcessAuxvStore instance;
+    return instance;
+  }
+  void Add(pid_t aChildPid, const DirectAuxvDumpInfo& aAuxvInfo) {
+    std::lock_guard lock(mMutex);
+    mMap.emplace(aChildPid, aAuxvInfo);
+  }
+  void Remove(pid_t aChildPid) {
+    std::lock_guard lock(mMutex);
+    mMap.erase(aChildPid);
+  }
+  bool Get(pid_t aChildPid, DirectAuxvDumpInfo* aAuxvInfo) {
+    std::lock_guard lock(mMutex);
+    auto entry = mMap.find(aChildPid);
+    if (entry == mMap.end()) {
+      return false;
+    }
+    *aAuxvInfo = entry->second;
+    return true;
+  }
+
+ private:
+  std::mutex mMutex;
+  std::unordered_map<pid_t, DirectAuxvDumpInfo> mMap;
+};
+
+void GetCurrentProcessAuxvInfo(DirectAuxvDumpInfo* aAuxvInfo) {
+  aAuxvInfo->program_header_count = getauxval(AT_PHNUM);
+  aAuxvInfo->program_header_address = getauxval(AT_PHDR);
+  aAuxvInfo->linux_gate_address = getauxval(AT_SYSINFO_EHDR);
+  aAuxvInfo->entry_address = getauxval(AT_ENTRY);
+}
+void RegisterChildAuxvInfo(pid_t aChildPid,
+                           const DirectAuxvDumpInfo& aAuxvInfo) {
+  ChildProcessAuxvStore::global().Add(aChildPid, aAuxvInfo);
+}
+void UnregisterChildAuxvInfo(pid_t aChildPid) {
+  ChildProcessAuxvStore::global().Remove(aChildPid);
+}
+#endif  // defined(XP_LINUX) && defined(MOZ_OXIDIZED_BREAKPAD)
 
 #ifndef XP_LINUX
 static const XP_CHAR dumpFileExtension[] = XP_TEXT(".dmp");
@@ -427,8 +480,7 @@ static void CreateFileFromPath(const xpstring& path, nsIFile** file) {
       DependentPathString(path.c_str(), path.size()), file);
 }
 
-[[nodiscard]]
-static std::optional<xpstring> CreatePathFromFile(nsIFile* file) {
+[[nodiscard]] static std::optional<xpstring> CreatePathFromFile(nsIFile* file) {
   AutoPathString path;
 #ifdef XP_WIN
   nsresult rv = file->GetPath(path);
@@ -1425,6 +1477,9 @@ static void WriteAnnotationsForMainProcessCrash(PlatformWriter& pw,
         case AnnotationType::USize:
           writer.Write(
               key, static_cast<uint64_t>(*reinterpret_cast<size_t*>(address)));
+          break;
+        case AnnotationType::Object:
+          // Object annotations are only produced later by minidump-analyzer.
           break;
       }
     }
@@ -3245,6 +3300,9 @@ static void AddSharedAnnotations(AnnotationTable& aAnnotations) {
 #endif
           }
           break;
+        case AnnotationType::Object:
+          // Object annotations are only produced later by minidump-analyzer.
+          break;
       }
 
       if (!value.IsEmpty() && aAnnotations[key].IsEmpty() &&
@@ -3321,6 +3379,9 @@ static void AddChildProcessAnnotations(
           value.AppendInt(*reinterpret_cast<const size_t*>(buffer));
 #endif
         }
+        break;
+      case AnnotationType::Object:
+        // Object annotations are only produced later by minidump-analyzer.
         break;
     }
 
@@ -3489,6 +3550,11 @@ void OOPInit() {
       gExceptionHandler->minidump_descriptor().directory();
   crashServer = new CrashGenerationServer(
       serverSocketFd,
+#  if defined(MOZ_OXIDIZED_BREAKPAD)
+      [](pid_t aPid, DirectAuxvDumpInfo* aAuxvInfo) {
+        return ChildProcessAuxvStore::global().Get(aPid, aAuxvInfo);
+      },
+#  endif  // defined(MOZ_OXIDIZED_BREAKPAD)
       [](const ClientInfo& aClientInfo, const xpstring& aFilePath) {
         OnChildProcessDumpRequested(nullptr, aClientInfo, aFilePath);
       },
@@ -3841,12 +3907,21 @@ bool CreateMinidumpsAndPair(ProcessHandle aTargetHandle,
   // callback when generating a dump of the calling process.
   XP_CHAR minidumpPath[XP_PATH_MAX] = {};
 
+#if defined(XP_LINUX) && defined(MOZ_OXIDIZED_BREAKPAD)
+  DirectAuxvDumpInfo auxvInfo = {};
+  bool auxvInfoValid =
+      ChildProcessAuxvStore::global().Get(aTargetHandle, &auxvInfo);
+#endif  // defined(XP_LINUX) && defined(MOZ_OXIDIZED_BREAKPAD)
+
   // dump the target
   if (!google_breakpad::ExceptionHandler::WriteMinidumpForChild(
-          aTargetHandle, targetThread, dump_path, PairedDumpCallback,
-          static_cast<void*>(minidumpPath)
+          aTargetHandle, targetThread,
+#if defined(XP_LINUX) && defined(MOZ_OXIDIZED_BREAKPAD)
+          auxvInfoValid ? &auxvInfo : nullptr,
+#endif  // defined(XP_LINUX) && defined(MOZ_OXIDIZED_BREAKPAD)
+          dump_path, PairedDumpCallback, static_cast<void*>(minidumpPath)
 #ifdef XP_WIN
-              ,
+                                             ,
           GetMinidumpType()
 #endif
               )) {

@@ -155,11 +155,12 @@ class Module : public JS::WasmModule {
   const Code& code() const { return *code_; }
   const ModuleMetadata& moduleMeta() const { return *moduleMeta_; }
   const CodeMetadata& codeMeta() const { return code_->codeMeta(); }
+  const CodeTailMetadata& codeTailMeta() const { return code_->codeTailMeta(); }
   const CodeMetadataForAsmJS* codeMetaForAsmJS() const {
     return code_->codeMetaForAsmJS();
   }
-  const Bytes& debugBytecode() const {
-    return codeMeta().debugBytecode->vector;
+  const BytecodeSource& debugBytecode() const {
+    return codeTailMeta().debugBytecode.source();
   }
   uint32_t tier1CodeMemoryUsed() const { return code_->tier1CodeMemoryUsed(); }
 
@@ -174,10 +175,10 @@ class Module : public JS::WasmModule {
   // finishTier2() from a helper thread, passing tier-variant data which will
   // be installed and made visible.
 
-  void startTier2(const ShareableBytes& bytecode,
+  void startTier2(const ShareableBytes* codeSection,
                   JS::OptimizedEncodingListener* listener);
-  bool finishTier2(UniqueCodeBlock tier2CodeBlock,
-                   UniqueLinkData tier2LinkData) const;
+  bool finishTier2(UniqueCodeBlock tier2CodeBlock, UniqueLinkData tier2LinkData,
+                   const TierStats& tier2Stats) const;
 
   void testingBlockOnTier2Complete() const;
   bool testingTier2Active() const { return testingTier2Active_; }

@@ -142,36 +142,8 @@ void nsHttpTransaction::SetClassOfService(ClassOfService cos) {
   }
 }
 
-class ReleaseOnSocketThread final : public mozilla::Runnable {
- public:
-  explicit ReleaseOnSocketThread(nsTArray<nsCOMPtr<nsISupports>>&& aDoomed)
-      : Runnable("ReleaseOnSocketThread"), mDoomed(std::move(aDoomed)) {}
-
-  NS_IMETHOD
-  Run() override {
-    mDoomed.Clear();
-    return NS_OK;
-  }
-
-  void Dispatch() {
-    nsCOMPtr<nsIEventTarget> sts =
-        do_GetService("@mozilla.org/network/socket-transport-service;1");
-    Unused << sts->Dispatch(this, nsIEventTarget::DISPATCH_NORMAL);
-  }
-
- private:
-  virtual ~ReleaseOnSocketThread() = default;
-
-  nsTArray<nsCOMPtr<nsISupports>> mDoomed;
-};
-
 nsHttpTransaction::~nsHttpTransaction() {
   LOG(("Destroying nsHttpTransaction @%p\n", this));
-
-  if (mPushedStream) {
-    mPushedStream->OnPushFailed();
-    mPushedStream = nullptr;
-  }
 
   if (mTokenBucketCancel) {
     mTokenBucketCancel->Cancel(NS_ERROR_ABORT);
@@ -189,17 +161,6 @@ nsHttpTransaction::~nsHttpTransaction() {
   delete mResponseHead;
   delete mChunkedDecoder;
   ReleaseBlockingTransaction();
-
-  nsTArray<nsCOMPtr<nsISupports>> arrayToRelease;
-  if (mConnection) {
-    arrayToRelease.AppendElement(mConnection.forget());
-  }
-
-  if (!arrayToRelease.IsEmpty()) {
-    RefPtr<ReleaseOnSocketThread> r =
-        new ReleaseOnSocketThread(std::move(arrayToRelease));
-    r->Dispatch();
-  }
 }
 
 nsresult nsHttpTransaction::Init(
@@ -231,7 +192,6 @@ nsresult nsHttpTransaction::Init(
 
   mChannelId = channelId;
   mTransactionObserver = std::move(transactionObserver);
-  mOnPushCallback = std::move(aOnPushCallback);
   mBrowserId = browserId;
 
   mTrafficCategory = trafficCategory;
@@ -251,6 +211,7 @@ nsresult nsHttpTransaction::Init(
   if (NS_FAILED(rv)) return rv;
 
   mConnInfo = cinfo;
+  mFinalizedConnInfo = cinfo;
   mCallbacks = callbacks;
   mConsumerTarget = target;
   mCaps = caps;
@@ -356,13 +317,6 @@ nsresult nsHttpTransaction::Init(
   NS_NewPipe2(getter_AddRefs(mPipeIn), getter_AddRefs(mPipeOut), true, true,
               nsIOService::gDefaultSegmentSize,
               nsIOService::gDefaultSegmentCount);
-
-  if (transWithPushedStream && aPushedStreamId) {
-    RefPtr<nsHttpTransaction> trans =
-        transWithPushedStream->AsHttpTransaction();
-    MOZ_ASSERT(trans);
-    mPushedStream = trans->TakePushedStreamById(aPushedStreamId);
-  }
 
   bool forceUseHTTPSRR = StaticPrefs::network_dns_force_use_https_rr();
   if ((StaticPrefs::network_dns_use_https_rr_as_altsvc() &&
@@ -472,11 +426,17 @@ void nsHttpTransaction::SetH2WSConnRefTaken() {
   }
 }
 
-UniquePtr<nsHttpResponseHead> nsHttpTransaction::TakeResponseHead() {
+UniquePtr<nsHttpResponseHead> nsHttpTransaction::TakeResponseHeadAndConnInfo(
+    nsHttpConnectionInfo** aOut) {
   MOZ_ASSERT(!mResponseHeadTaken, "TakeResponseHead called 2x");
 
   // Lock TakeResponseHead() against main thread
   MutexAutoLock lock(mLock);
+
+  if (aOut) {
+    RefPtr<nsHttpConnectionInfo> connInfo = mFinalizedConnInfo;
+    connInfo.forget(aOut);
+  }
 
   mResponseHeadTaken = true;
 
@@ -557,6 +517,7 @@ void nsHttpTransaction::OnActivated() {
 
   mActivated = true;
   gHttpHandler->ConnMgr()->AddActiveTransaction(this);
+  FinalizeConnInfo();
 }
 
 void nsHttpTransaction::GetSecurityCallbacks(nsIInterfaceRequestor** cb) {
@@ -1023,51 +984,6 @@ already_AddRefed<nsHttpConnectionInfo> nsHttpTransaction::GetConnInfo() const {
   return connInfo.forget();
 }
 
-already_AddRefed<Http2PushedStreamWrapper>
-nsHttpTransaction::TakePushedStreamById(uint32_t aStreamId) {
-  MOZ_ASSERT(mConsumerTarget->IsOnCurrentThread());
-  MOZ_ASSERT(aStreamId);
-
-  auto entry = mIDToStreamMap.Lookup(aStreamId);
-  if (entry) {
-    RefPtr<Http2PushedStreamWrapper> stream = entry.Data();
-    entry.Remove();
-    return stream.forget();
-  }
-
-  return nullptr;
-}
-
-void nsHttpTransaction::OnPush(Http2PushedStreamWrapper* aStream) {
-  LOG(("nsHttpTransaction::OnPush %p aStream=%p", this, aStream));
-  MOZ_ASSERT(aStream);
-  MOZ_ASSERT(mOnPushCallback);
-  MOZ_ASSERT(mConsumerTarget);
-
-  RefPtr<Http2PushedStreamWrapper> stream = aStream;
-  if (!mConsumerTarget->IsOnCurrentThread()) {
-    RefPtr<nsHttpTransaction> self = this;
-    if (NS_FAILED(mConsumerTarget->Dispatch(
-            NS_NewRunnableFunction("nsHttpTransaction::OnPush",
-                                   [self, stream]() { self->OnPush(stream); }),
-            NS_DISPATCH_NORMAL))) {
-      stream->OnPushFailed();
-    }
-    return;
-  }
-
-  mIDToStreamMap.WithEntryHandle(stream->StreamID(), [&](auto&& entry) {
-    MOZ_ASSERT(!entry);
-    entry.OrInsert(stream);
-  });
-
-  if (NS_FAILED(mOnPushCallback(stream->StreamID(), stream->GetResourceUrl(),
-                                stream->GetRequestString(), this))) {
-    stream->OnPushFailed();
-    mIDToStreamMap.Remove(stream->StreamID());
-  }
-}
-
 nsHttpTransaction* nsHttpTransaction::AsHttpTransaction() { return this; }
 
 HttpTransactionParent* nsHttpTransaction::AsHttpTransactionParent() {
@@ -1193,7 +1109,7 @@ void nsHttpTransaction::PrepareConnInfoForRetry(nsresult aReason) {
   RefPtr<nsHttpConnectionInfo> failedConnInfo = mConnInfo->Clone();
   mConnInfo = nullptr;
   bool echConfigUsed =
-      gHttpHandler->EchConfigEnabled(failedConnInfo->IsHttp3()) &&
+      nsHttpHandler::EchConfigEnabled(failedConnInfo->IsHttp3()) &&
       !failedConnInfo->GetEchConfig().IsEmpty();
 
   if (mFastFallbackTriggered) {
@@ -1319,8 +1235,8 @@ void nsHttpTransaction::MaybeReportFailedSVCDomain(
     return;
   }
 
-  Telemetry::Accumulate(Telemetry::DNS_HTTPSSVC_CONNECTION_FAILED_REASON,
-                        ErrorCodeToFailedReason(aReason));
+  glean::http::dns_httpssvc_connection_failed_reason.AccumulateSingleSample(
+      ErrorCodeToFailedReason(aReason));
 
   nsCOMPtr<nsIDNSService> dns = do_GetService(NS_DNSSERVICE_CONTRACTID);
   if (dns) {
@@ -1367,12 +1283,6 @@ const int64_t TELEMETRY_REQUEST_SIZE_100M =
 void nsHttpTransaction::Close(nsresult reason) {
   LOG(("nsHttpTransaction::Close [this=%p reason=%" PRIx32 "]\n", this,
        static_cast<uint32_t>(reason)));
-
-  {
-    MutexAutoLock lock(mLock);
-    mEarlyHintObserver = nullptr;
-    mWebTransportSessionEventListener = nullptr;
-  }
 
   if (!mClosed) {
     gHttpHandler->ConnMgr()->RemoveActiveTransaction(this);
@@ -1676,8 +1586,8 @@ void nsHttpTransaction::Close(nsresult reason) {
     // Use mOrigConnInfo as an indicator that this transaction is completed
     // successfully with an HTTPSSVC record.
     if (mOrigConnInfo) {
-      Telemetry::Accumulate(Telemetry::DNS_HTTPSSVC_CONNECTION_FAILED_REASON,
-                            HTTPSSVC_CONNECTION_OK);
+      glean::http::dns_httpssvc_connection_failed_reason.AccumulateSingleSample(
+          HTTPSSVC_CONNECTION_OK);
     }
   }
 
@@ -1778,11 +1688,6 @@ void nsHttpTransaction::Close(nsresult reason) {
     }
   }
 
-  if (relConn && mConnection) {
-    MutexAutoLock lock(mLock);
-    mConnection = nullptr;
-  }
-
   if (isHttp2or3 &&
       reason == psm::GetXPCOMFromNSSError(SSL_ERROR_PROTOCOL_VERSION_ALERT)) {
     // Change reason to NS_ERROR_ABORT, so we avoid showing a missleading
@@ -1797,6 +1702,16 @@ void nsHttpTransaction::Close(nsresult reason) {
     mResolver->Close();
     mResolver = nullptr;
   }
+
+  {
+    MutexAutoLock lock(mLock);
+    mEarlyHintObserver = nullptr;
+    mWebTransportSessionEventListener = nullptr;
+    if (relConn && mConnection) {
+      mConnection = nullptr;
+    }
+  }
+
   ReleaseBlockingTransaction();
 
   // release some resources that we no longer need
@@ -1861,6 +1776,14 @@ static inline void RemoveAlternateServiceUsedHeader(
     DebugOnly<nsresult> rv =
         aRequestHead->SetHeader(nsHttp::Alternate_Service_Used, "0"_ns);
     MOZ_ASSERT(NS_SUCCEEDED(rv));
+  }
+}
+
+void nsHttpTransaction::FinalizeConnInfo() {
+  RefPtr<nsHttpConnectionInfo> cloned = mConnInfo->Clone();
+  {
+    MutexAutoLock lock(mLock);
+    mFinalizedConnInfo.swap(cloned);
   }
 }
 
@@ -2270,10 +2193,8 @@ bool nsHttpTransaction::HandleWebTransportResponse(uint16_t aStatus) {
   if (!(aStatus >= 200 && aStatus < 300)) {
     return false;
   }
-
-  // TODO: Add support for Http2WebTransportSession here.
-
-  RefPtr<Http3WebTransportSession> wtSession =
+  LOG(("HandleWebTransportResponse mConnection=%p", mConnection.get()));
+  RefPtr<WebTransportSessionBase> wtSession =
       mConnection->GetWebTransportSession(this);
   if (!wtSession) {
     return false;
@@ -2994,6 +2915,10 @@ class DeleteHttpTransaction : public Runnable {
 void nsHttpTransaction::DeleteSelfOnConsumerThread() {
   LOG(("nsHttpTransaction::DeleteSelfOnConsumerThread [this=%p]\n", this));
 
+  if (mConnection && OnSocketThread()) {
+    mConnection = nullptr;
+  }
+
   bool val;
   if (!mConsumerTarget ||
       (NS_SUCCEEDED(mConsumerTarget->IsOnCurrentThread(&val)) && val)) {
@@ -3354,10 +3279,9 @@ nsresult nsHttpTransaction::OnHTTPSRRAvailable(
     nsCOMPtr<nsIDNSService> dns = do_GetService(NS_DNSSERVICE_CONTRACTID);
     bool allRecordsExcluded = false;
     Unused << record->GetAllRecordsExcluded(&allRecordsExcluded);
-    Telemetry::Accumulate(Telemetry::DNS_HTTPSSVC_CONNECTION_FAILED_REASON,
-                          allRecordsExcluded
-                              ? HTTPSSVC_CONNECTION_ALL_RECORDS_EXCLUDED
-                              : HTTPSSVC_CONNECTION_NO_USABLE_RECORD);
+    glean::http::dns_httpssvc_connection_failed_reason.AccumulateSingleSample(
+        allRecordsExcluded ? HTTPSSVC_CONNECTION_ALL_RECORDS_EXCLUDED
+                           : HTTPSSVC_CONNECTION_NO_USABLE_RECORD);
     if (allRecordsExcluded &&
         StaticPrefs::network_dns_httpssvc_reset_exclustion_list() && dns) {
       Unused << dns->ResetExcludedSVCDomainName(mConnInfo->GetOrigin());
@@ -3552,7 +3476,7 @@ void nsHttpTransaction::OnFastFallbackTimer() {
     return;
   }
 
-  bool echConfigUsed = gHttpHandler->EchConfigEnabled(mConnInfo->IsHttp3()) &&
+  bool echConfigUsed = nsHttpHandler::EchConfigEnabled(mConnInfo->IsHttp3()) &&
                        !mConnInfo->GetEchConfig().IsEmpty();
   mBackupConnInfo = PrepareFastFallbackConnInfo(echConfigUsed);
   if (!mBackupConnInfo) {

@@ -255,9 +255,6 @@ pref("extensions.webextOptionalPermissionPrompts", true);
 // GeckoView can trigger requests without opening geckoview.xhtml.
 pref("extensions.webextensions.early_background_wakeup_on_request", true);
 
-// Disable userScripts until double-confirmation is implemented (bug 1931556).
-pref("extensions.userScripts.mv3.enabled", false);
-
 // Scroll and zoom into editable form fields (bug 834613)
 pref("formhelper.autozoom", true);
 
@@ -372,6 +369,12 @@ pref("network.protocol-handler.warn-external.vnd.youtube", false);
 // network reads and on wifi to mitigate 802.11 Power Save Polling delays
 // (bug 888268)
 pref("network.tickle-wifi.enabled", true);
+
+// Controls OHTTP config URL
+pref("network.ohttp.configURL", "https://prod.ohttp-gateway.prod.webservices.mozgcp.net/ohttp-configs");
+
+// Controls OHTTP relay URL
+pref("network.ohttp.relayURL", "https://mozilla-ohttp.fastly-edge.com/");
 
 // Complete the page load progress bar at different places according to this pref.
 // See the possible values below:

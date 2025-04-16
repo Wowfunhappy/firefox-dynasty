@@ -43,9 +43,11 @@ import org.mozilla.fenix.collections.show
 import org.mozilla.fenix.components.AppStore
 import org.mozilla.fenix.components.TabCollectionStorage
 import org.mozilla.fenix.components.appstate.AppAction
+import org.mozilla.fenix.components.usecases.FenixBrowserUseCases
 import org.mozilla.fenix.ext.DEFAULT_ACTIVE_DAYS
 import org.mozilla.fenix.ext.potentialInactiveTabs
-import org.mozilla.fenix.home.HomeFragment
+import org.mozilla.fenix.home.HomeScreenViewModel.Companion.ALL_NORMAL_TABS
+import org.mozilla.fenix.home.HomeScreenViewModel.Companion.ALL_PRIVATE_TABS
 import org.mozilla.fenix.tabstray.browser.InactiveTabsController
 import org.mozilla.fenix.tabstray.browser.TabsTrayFabController
 import org.mozilla.fenix.tabstray.ext.getTabSessionState
@@ -189,6 +191,7 @@ interface TabsTrayController : SyncedTabsController, InactiveTabsController, Tab
  * @param profiler [Profiler] used to add profiler markers.
  * @param navigationInteractor [NavigationInteractor] used to perform navigation actions with side effects.
  * @param tabsUseCases Use case wrapper for interacting with tabs.
+ * @param fenixBrowserUseCases [FenixBrowserUseCases] used for adding new homepage tabs.
  * @param bookmarksStorage Storage layer for retrieving and saving bookmarks.
  * @param closeSyncedTabsUseCases Use cases for closing synced tabs.
  * @param ioDispatcher [CoroutineContext] used for storage operations.
@@ -215,6 +218,7 @@ class DefaultTabsTrayController(
     private val profiler: Profiler?,
     private val navigationInteractor: NavigationInteractor,
     private val tabsUseCases: TabsUseCases,
+    private val fenixBrowserUseCases: FenixBrowserUseCases,
     private val bookmarksStorage: BookmarksStorage,
     private val closeSyncedTabsUseCases: CloseTabsUseCases,
     private val ioDispatcher: CoroutineContext,
@@ -255,9 +259,7 @@ class DefaultTabsTrayController(
         browsingModeManager.mode = BrowsingMode.fromBoolean(isPrivate)
 
         if (settings.enableHomepageAsNewTab) {
-            tabsUseCases.addTab.invoke(
-                url = "about:home",
-                startLoading = false,
+            fenixBrowserUseCases.addNewHomepageTab(
                 private = isPrivate,
             )
         }
@@ -361,7 +363,7 @@ class DefaultTabsTrayController(
         // If user closes all the tabs from selected tabs page dismiss tray and navigate home.
         if (tabs.size == browserStore.state.getNormalOrPrivateTabs(isPrivate).size) {
             dismissTabsTrayAndNavigateHome(
-                if (isPrivate) HomeFragment.ALL_PRIVATE_TABS else HomeFragment.ALL_NORMAL_TABS,
+                if (isPrivate) ALL_PRIVATE_TABS else ALL_NORMAL_TABS,
             )
         } else {
             tabs.map { it.id }.let {

@@ -150,6 +150,8 @@ class WaylandSurfaceLock;
 }  // namespace widget
 }  // namespace mozilla
 
+class gfxImageSurface;
+
 class nsWindow final : public nsBaseWidget {
  public:
   typedef mozilla::gfx::DrawTarget DrawTarget;
@@ -209,6 +211,7 @@ class nsWindow final : public nsBaseWidget {
   LayoutDeviceIntPoint GetClientOffset() override {
     return LayoutDeviceIntPoint(mClientMargin.left, mClientMargin.top);
   }
+  GdkPoint GetCsdOffsetInGdkCoords();
   LayoutDeviceIntPoint GetScreenEdgeSlop() override;
   nsresult GetRestoredBounds(LayoutDeviceIntRect&) override;
   bool PersistClientBounds() const override { return true; }
@@ -300,8 +303,7 @@ class nsWindow final : public nsBaseWidget {
   LayoutDeviceIntRegion GetOpaqueRegion() const;
 
   already_AddRefed<mozilla::gfx::DrawTarget> StartRemoteDrawingInRegion(
-      const LayoutDeviceIntRegion& aInvalidRegion,
-      mozilla::layers::BufferMode* aBufferMode) override;
+      const LayoutDeviceIntRegion& aInvalidRegion) override;
   void EndRemoteDrawingInRegion(
       mozilla::gfx::DrawTarget* aDrawTarget,
       const LayoutDeviceIntRegion& aInvalidRegion) override;
@@ -462,7 +464,6 @@ class nsWindow final : public nsBaseWidget {
   static void TransferFocusToWaylandWindow(nsWindow* aWindow);
   void FocusWaylandWindow(const char* aTokenID);
 
-  bool GetCSDDecorationOffset(int* aDx, int* aDy);
   bool SetEGLNativeWindowSize(const LayoutDeviceIntSize& aEGLWindowSize);
   void WaylandDragWorkaround(GdkEventButton* aEvent);
 
@@ -498,6 +499,9 @@ class nsWindow final : public nsBaseWidget {
   void DispatchActivateEventAccessible();
 
   void GtkWidgetDestroyHandler(GtkWidget* aWidget);
+
+  void SetDragPopupSurface(RefPtr<gfxImageSurface> aDragPopupSurface,
+                           const LayoutDeviceIntRegion& aInvalidRegion);
 
  protected:
   virtual ~nsWindow();
@@ -577,6 +581,8 @@ class nsWindow final : public nsBaseWidget {
 #ifdef MOZ_WAYLAND
   RefPtr<mozilla::widget::WaylandSurface> mSurface;
 #endif
+  RefPtr<gfxImageSurface> mDragPopupSurface;
+  LayoutDeviceIntRegion mDragPopupSurfaceRegion;
 
   PlatformCompositorWidgetDelegate* mCompositorWidgetDelegate = nullptr;
 
@@ -607,9 +613,7 @@ class nsWindow final : public nsBaseWidget {
   // Margin from outer bounds to inner bounds _including CSD decorations_.
   LayoutDeviceIntMargin mClientMargin;
   // The part of mClientMargin that comes from our CSD decorations.
-  static constexpr auto kCsdMarginUnknown =
-      LayoutDeviceIntMargin{-1, -1, -1, -1};
-  LayoutDeviceIntMargin mCsdMargin = kCsdMarginUnknown;
+  LayoutDeviceIntMargin mCsdMargin;
 
   // This field omits duplicate scroll events caused by GNOME bug 726878.
   guint32 mLastScrollEventTime = GDK_CURRENT_TIME;
@@ -699,10 +703,6 @@ class nsWindow final : public nsBaseWidget {
   bool mPendingBoundsChangeMayChangeCsdMargin : 1;
   // Draw titlebar with :backdrop css state (inactive/unfocused).
   bool mTitlebarBackdropState : 1;
-  // It's child window, i.e. window which is nested in parent window.
-  // This is obsoleted and should not be used.
-  // We use GdkWindow hierarchy for such windows.
-  bool mIsChildWindow : 1;
   bool mAlwaysOnTop : 1;
   bool mNoAutoHide : 1;
   bool mIsTransparent : 1;
@@ -1017,6 +1017,8 @@ class nsWindow final : public nsBaseWidget {
   void EmulateResizeDrag(GdkEventMotion* aEvent);
 
   void RequestRepaint(LayoutDeviceIntRegion& aRepaintRegion);
+
+  bool DrawDragPopupSurface(cairo_t* cr);
 
 #ifdef MOZ_X11
   typedef enum {

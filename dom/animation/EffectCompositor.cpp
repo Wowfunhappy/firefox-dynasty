@@ -25,6 +25,7 @@
 #include "mozilla/StaticPrefs_layers.h"
 #include "mozilla/StyleAnimationValue.h"
 #include "mozilla/SVGObserverUtils.h"
+#include "nsComputedDOMStyle.h"
 #include "nsContentUtils.h"
 #include "nsCSSPropertyIDSet.h"
 #include "nsCSSProps.h"
@@ -318,18 +319,20 @@ void EffectCompositor::UpdateEffectProperties(
 
 namespace {
 class EffectCompositeOrderComparator {
+  mutable nsContentUtils::NodeIndexCache mCache;
+
  public:
   bool Equals(const KeyframeEffect* a, const KeyframeEffect* b) const {
     return a == b;
   }
 
   bool LessThan(const KeyframeEffect* a, const KeyframeEffect* b) const {
-    MOZ_ASSERT(a->GetAnimation() && b->GetAnimation());
-    MOZ_ASSERT(
-        Equals(a, b) ||
-        a->GetAnimation()->HasLowerCompositeOrderThan(*b->GetAnimation()) !=
-            b->GetAnimation()->HasLowerCompositeOrderThan(*a->GetAnimation()));
-    return a->GetAnimation()->HasLowerCompositeOrderThan(*b->GetAnimation());
+    MOZ_ASSERT(a->GetAnimation());
+    MOZ_ASSERT(b->GetAnimation());
+    const int32_t cmp =
+        a->GetAnimation()->CompareCompositeOrder(*b->GetAnimation(), mCache);
+    MOZ_ASSERT(Equals(a, b) || cmp != 0);
+    return cmp < 0;
   }
 };
 }  // namespace
@@ -337,7 +340,9 @@ class EffectCompositeOrderComparator {
 static void ComposeSortedEffects(
     const nsTArray<KeyframeEffect*>& aSortedEffects,
     const EffectSet* aEffectSet, EffectCompositor::CascadeLevel aCascadeLevel,
-    StyleAnimationValueMap* aAnimationValues) {
+    StyleAnimationValueMap* aAnimationValues,
+    dom::EndpointBehavior aEndpointBehavior =
+        dom::EndpointBehavior::Exclusive) {
   const bool isTransition =
       aCascadeLevel == EffectCompositor::CascadeLevel::Transitions;
   InvertibleAnimatedPropertyIDSet propertiesToSkip;
@@ -364,7 +369,8 @@ static void ComposeSortedEffects(
   for (KeyframeEffect* effect : aSortedEffects) {
     auto* animation = effect->GetAnimation();
     MOZ_ASSERT(!isTransition || animation->CascadeLevel() == aCascadeLevel);
-    animation->ComposeStyle(*aAnimationValues, propertiesToSkip);
+    animation->ComposeStyle(*aAnimationValues, propertiesToSkip,
+                            aEndpointBehavior);
   }
 }
 
@@ -416,7 +422,8 @@ bool EffectCompositor::GetServoAnimationRule(
 
 bool EffectCompositor::ComposeServoAnimationRuleForEffect(
     KeyframeEffect& aEffect, CascadeLevel aCascadeLevel,
-    StyleAnimationValueMap* aAnimationValues) {
+    StyleAnimationValueMap* aAnimationValues,
+    dom::EndpointBehavior aEndpointBehavior) {
   MOZ_ASSERT(aAnimationValues);
   MOZ_ASSERT(mPresContext && mPresContext->IsDynamic(),
              "Should not be in print preview");
@@ -438,6 +445,16 @@ bool EffectCompositor::ComposeServoAnimationRuleForEffect(
   // need to ensure the cascade results are up-to-date manually.
   MaybeUpdateCascadeResults(target.mElement, target.mPseudoRequest);
 
+  // We may need to update the base styles cached on the keyframes for |aEffect|
+  // since they won't be updated as part of the regular animation processing if
+  // |aEffect| has finished but doesn't have an appropriate fill mode.
+  // We can get computed style without flush, because |CommitStyles| should have
+  // already flushed styles.
+  RefPtr<const ComputedStyle> style =
+      nsComputedDOMStyle::GetComputedStyleNoFlush(target.mElement,
+                                                  target.mPseudoRequest);
+  aEffect.UpdateBaseStyle(style);
+
   EffectSet* effectSet = EffectSet::Get(target);
 
   // Get a list of effects sorted by composite order up to and including
@@ -456,7 +473,7 @@ bool EffectCompositor::ComposeServoAnimationRuleForEffect(
   sortedEffectList.AppendElement(&aEffect);
 
   ComposeSortedEffects(sortedEffectList, effectSet, aCascadeLevel,
-                       aAnimationValues);
+                       aAnimationValues, aEndpointBehavior);
 
   MOZ_ASSERT(effectSet == EffectSet::Get(target),
              "EffectSet should not change while composing style");

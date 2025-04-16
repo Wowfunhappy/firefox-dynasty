@@ -29,6 +29,7 @@ const platformSpecificInterfaces = new Map([
   ["nsIWindowsRegKey", "windows"],
   ["nsIWindowsPackageManager", "windows"],
   ["nsIWindowsShellService", "windows"],
+  ["nsIWindowsUIUtils", "windows"],
   ["nsIAccessibleMacEvent", "darwin"],
   ["nsIAccessibleMacInterface", "darwin"],
   ["nsILocalFileMac", "darwin"],
@@ -56,6 +57,7 @@ const platformSpecificInterfaces = new Map([
   // Can't easily detect android builds from ESLint at the moment.
   ["nsIGeckoViewBridge", "any"],
   ["nsIGeckoViewView", "any"],
+  ["nsIOhttpClientTest", "any"],
   // Code coverage is enabled only for certain builds (MOZ_CODE_COVERAGE).
   ["nsICodeCoverage", "any"],
   // Layout debugging is enabled only for certain builds (MOZ_LAYOUT_DEBUGGER).

@@ -11,6 +11,7 @@ MOCHITEST_MANIFESTS += [
     "mochitest/mochitest-no-pref.toml",
     "mochitest/mochitest-resistfingerprinting.toml",
     "mochitest/mochitest.toml",
+    "mochitest/perftest.toml",
 ]
 
 DIRS += []
@@ -35,6 +36,7 @@ h_and_cpp = [
     "InternalError",
     "ObjectModel",
     "OutOfMemoryError",
+    "PipelineError",
     "PipelineLayout",
     "QuerySet",
     "Queue",
@@ -79,7 +81,7 @@ if CONFIG["MOZ_WIDGET_TOOLKIT"] == "windows":
         "ExternalTextureD3D11.cpp",
     ]
 
-if CONFIG["MOZ_WIDGET_TOOLKIT"] == "gtk":
+if CONFIG["OS_TARGET"] == "Linux":
     EXPORTS.mozilla.webgpu += [
         "ExternalTextureDMABuf.h",
     ]

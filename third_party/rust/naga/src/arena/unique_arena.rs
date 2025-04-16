@@ -1,10 +1,10 @@
 //! The [`UniqueArena`] type and supporting definitions.
 
-use crate::{FastIndexSet, Span};
+use alloc::vec::Vec;
+use core::{fmt, hash, ops};
 
 use super::handle::{BadHandle, Handle, Index};
-
-use std::{fmt, hash, ops};
+use crate::{FastIndexSet, Span};
 
 /// An arena whose elements are guaranteed to be unique.
 ///
@@ -16,7 +16,8 @@ use std::{fmt, hash, ops};
 /// The element type must implement `Eq` and `Hash`. Insertions of equivalent
 /// elements, according to `Eq`, all return the same `Handle`.
 ///
-/// Once inserted, elements may not be mutated.
+/// Once inserted, elements generally may not be mutated, although a `replace`
+/// method exists to support rare cases.
 ///
 /// `UniqueArena` is similar to [`Arena`]: If `Arena` is vector-like,
 /// `UniqueArena` is `HashSet`-like.
@@ -84,7 +85,7 @@ impl<T> UniqueArena<T> {
 #[cfg(feature = "compact")]
 pub struct UniqueArenaDrain<'a, T> {
     inner_elts: indexmap::set::Drain<'a, T>,
-    inner_spans: std::vec::Drain<'a, Span>,
+    inner_spans: alloc::vec::Drain<'a, Span>,
     index: Index,
 }
 
@@ -224,7 +225,7 @@ where
         D: serde::Deserializer<'de>,
     {
         let set = FastIndexSet::deserialize(deserializer)?;
-        let span_info = std::iter::repeat(Span::default()).take(set.len()).collect();
+        let span_info = core::iter::repeat_n(Span::default(), set.len()).collect();
 
         Ok(Self { set, span_info })
     }

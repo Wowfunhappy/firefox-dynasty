@@ -5,6 +5,9 @@
 
 // Test for Fakespot suggestions.
 
+// Trying to avoid CI timeouts in verify (TV) mode, especially on Mac.
+requestLongerTimeout(5);
+
 const REMOTE_SETTINGS_RECORDS = [
   {
     type: "icon",
@@ -131,7 +134,10 @@ const HELP_URL =
 
 add_setup(async function () {
   await SpecialPowers.pushPrefEnv({
-    set: [["browser.search.suggest.enabled", false]],
+    set: [
+      ["browser.search.suggest.enabled", false],
+      ["browser.urlbar.suggest.quickactions", false],
+    ],
   });
 
   await QuickSuggestTestUtils.ensureQuickSuggestInit({
@@ -393,7 +399,7 @@ add_task(async function resultMenu_not_relevant() {
     },
   });
 
-  await QuickSuggest.blockedSuggestions.clear();
+  await QuickSuggest.clearDismissedSuggestions();
 });
 
 // Tests the "Not interested" result menu dismissal command.

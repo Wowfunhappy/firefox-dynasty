@@ -23,12 +23,12 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.tooling.preview.PreviewLightDark
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import mozilla.components.compose.base.button.TertiaryButton
 import mozilla.telemetry.glean.private.NoExtras
 import org.mozilla.fenix.GleanMetrics.History
 import org.mozilla.fenix.GleanMetrics.RecentlyVisitedHomepage
 import org.mozilla.fenix.R
 import org.mozilla.fenix.compose.MessageCard
-import org.mozilla.fenix.compose.button.TertiaryButton
 import org.mozilla.fenix.compose.home.HomeSectionHeader
 import org.mozilla.fenix.home.bookmarks.Bookmark
 import org.mozilla.fenix.home.bookmarks.interactor.BookmarksInteractor
@@ -55,6 +55,7 @@ import org.mozilla.fenix.home.sessioncontrol.CustomizeHomeIteractor
 import org.mozilla.fenix.home.sessioncontrol.MessageCardInteractor
 import org.mozilla.fenix.home.sessioncontrol.viewholders.FeltPrivacyModeInfoCard
 import org.mozilla.fenix.home.sessioncontrol.viewholders.PrivateBrowsingDescription
+import org.mozilla.fenix.home.setup.ui.SetupChecklist
 import org.mozilla.fenix.home.store.HomepageState
 import org.mozilla.fenix.home.store.NimbusMessageState
 import org.mozilla.fenix.home.topsites.TopSiteColors
@@ -116,6 +117,19 @@ internal fun Homepage(
                             topSiteColors = topSiteColors,
                             interactor = interactor,
                             onTopSitesItemBound = onTopSitesItemBound,
+                        )
+                    }
+
+                    if (showSearchBar) {
+                        SearchBar(
+                            onClick = interactor::onNavigateSearch,
+                        )
+                    }
+
+                    if (setupChecklistState != null) {
+                        SetupChecklist(
+                            setupChecklistState = setupChecklistState,
+                            interactor = interactor,
                         )
                     }
 
@@ -385,32 +399,40 @@ private fun CustomizeHomeButton(buttonBackgroundColor: Color, interactor: Custom
 @PreviewLightDark
 private fun HomepagePreview() {
     FirefoxTheme {
-        Homepage(
-            HomepageState.Normal(
-                nimbusMessage = FakeHomepagePreview.nimbusMessageState(),
-                topSites = FakeHomepagePreview.topSites(),
-                recentTabs = FakeHomepagePreview.recentTabs(),
-                syncedTab = FakeHomepagePreview.recentSyncedTab(),
-                bookmarks = FakeHomepagePreview.bookmarks(),
-                recentlyVisited = FakeHomepagePreview.recentHistory(),
-                collectionsState = FakeHomepagePreview.collectionsPlaceholder(),
-                pocketState = FakeHomepagePreview.pocketState(),
-                showTopSites = true,
-                showRecentTabs = true,
-                showRecentSyncedTab = true,
-                showBookmarks = true,
-                showRecentlyVisited = true,
-                showPocketStories = true,
-                topSiteColors = TopSiteColors.colors(),
-                cardBackgroundColor = WallpaperState.default.cardBackgroundColor,
-                buttonTextColor = WallpaperState.default.buttonTextColor,
-                buttonBackgroundColor = WallpaperState.default.buttonBackgroundColor,
-                customizeHomeButtonBackgroundColor = FirefoxTheme.colors.actionTertiary,
-                bottomSpacerHeight = 188.dp,
-            ),
-            interactor = FakeHomepagePreview.homepageInteractor,
-            onTopSitesItemBound = {},
-        )
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(color = FirefoxTheme.colors.layer1),
+        ) {
+            Homepage(
+                HomepageState.Normal(
+                    nimbusMessage = FakeHomepagePreview.nimbusMessageState(),
+                    topSites = FakeHomepagePreview.topSites(),
+                    recentTabs = FakeHomepagePreview.recentTabs(),
+                    syncedTab = FakeHomepagePreview.recentSyncedTab(),
+                    bookmarks = FakeHomepagePreview.bookmarks(),
+                    recentlyVisited = FakeHomepagePreview.recentHistory(),
+                    collectionsState = FakeHomepagePreview.collectionsPlaceholder(),
+                    pocketState = FakeHomepagePreview.pocketState(),
+                    showTopSites = true,
+                    showRecentTabs = true,
+                    showRecentSyncedTab = true,
+                    showBookmarks = true,
+                    showRecentlyVisited = true,
+                    showPocketStories = true,
+                    showSearchBar = true,
+                    setupChecklistState = null,
+                    topSiteColors = TopSiteColors.colors(),
+                    cardBackgroundColor = WallpaperState.default.cardBackgroundColor,
+                    buttonTextColor = WallpaperState.default.buttonTextColor,
+                    buttonBackgroundColor = WallpaperState.default.buttonBackgroundColor,
+                    customizeHomeButtonBackgroundColor = FirefoxTheme.colors.actionTertiary,
+                    bottomSpacerHeight = 188.dp,
+                ),
+                interactor = FakeHomepagePreview.homepageInteractor,
+                onTopSitesItemBound = {},
+            )
+        }
     }
 }
 
@@ -434,6 +456,8 @@ private fun HomepagePreviewCollections() {
                 showBookmarks = false,
                 showRecentlyVisited = true,
                 showPocketStories = true,
+                showSearchBar = true,
+                setupChecklistState = null,
                 topSiteColors = TopSiteColors.colors(),
                 cardBackgroundColor = WallpaperState.default.cardBackgroundColor,
                 buttonTextColor = WallpaperState.default.buttonTextColor,

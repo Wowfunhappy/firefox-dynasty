@@ -49,7 +49,8 @@
 #include "mozilla/dom/FormData.h"
 #include "mozilla/dom/FormDataEvent.h"
 #include "mozilla/dom/SubmitEvent.h"
-#include "mozilla/Telemetry.h"
+#include "mozilla/intl/Localization.h"
+#include "mozilla/glean/DomSecurityMetrics.h"
 #include "mozilla/StaticPrefs_dom.h"
 #include "mozilla/StaticPrefs_prompts.h"
 #include "nsCategoryManagerUtils.h"
@@ -63,7 +64,6 @@
 #include "nsIDocShell.h"
 #include "nsIPromptService.h"
 #include "nsISecurityUITelemetry.h"
-#include "nsIStringBundle.h"
 
 // radio buttons
 #include "mozilla/dom/HTMLInputElement.h"
@@ -983,51 +983,45 @@ nsresult HTMLFormElement::DoSecureToInsecureSubmitCheck(nsIURI* aActionURL,
     return rv;
   }
 
-  nsCOMPtr<nsIStringBundle> stringBundle;
-  nsCOMPtr<nsIStringBundleService> stringBundleService =
-      mozilla::components::StringBundle::Service();
-  if (!stringBundleService) {
-    return NS_ERROR_FAILURE;
-  }
-  rv = stringBundleService->CreateBundle(
-      "chrome://global/locale/browser.properties",
-      getter_AddRefs(stringBundle));
-  if (NS_FAILED(rv)) {
-    return rv;
-  }
-  nsAutoString title;
-  nsAutoString message;
-  nsAutoString cont;
-  stringBundle->GetStringFromName("formPostSecureToInsecureWarning.title",
-                                  title);
-  stringBundle->GetStringFromName("formPostSecureToInsecureWarning.message",
-                                  message);
-  stringBundle->GetStringFromName("formPostSecureToInsecureWarning.continue",
-                                  cont);
+  nsTArray<nsCString> resIds = {"toolkit/global/htmlForm.ftl"_ns};
+  RefPtr<intl::Localization> l10n = intl::Localization::Create(resIds, true);
+  nsAutoCString title;
+  nsAutoCString message;
+  nsAutoCString cont;
+  ErrorResult error;
+  l10n->FormatValueSync("form-post-secure-to-insecure-warning-title"_ns, {},
+                        title, error);
+  NS_ENSURE_TRUE(!error.Failed(), error.StealNSResult());
+  l10n->FormatValueSync("form-post-secure-to-insecure-warning-message"_ns, {},
+                        message, error);
+  NS_ENSURE_TRUE(!error.Failed(), error.StealNSResult());
+  l10n->FormatValueSync("form-post-secure-to-insecure-warning-continue"_ns, {},
+                        cont, error);
+  NS_ENSURE_TRUE(!error.Failed(), error.StealNSResult());
   int32_t buttonPressed;
   bool checkState =
       false;  // this is unused (ConfirmEx requires this parameter)
   rv = promptSvc->ConfirmExBC(
       docShell->GetBrowsingContext(),
-      StaticPrefs::prompts_modalType_insecureFormSubmit(), title.get(),
-      message.get(),
+      StaticPrefs::prompts_modalType_insecureFormSubmit(),
+      NS_ConvertUTF8toUTF16(title).get(), NS_ConvertUTF8toUTF16(message).get(),
       (nsIPromptService::BUTTON_TITLE_IS_STRING *
        nsIPromptService::BUTTON_POS_0) +
           (nsIPromptService::BUTTON_TITLE_CANCEL *
            nsIPromptService::BUTTON_POS_1),
-      cont.get(), nullptr, nullptr, nullptr, &checkState, &buttonPressed);
+      NS_ConvertUTF8toUTF16(cont).get(), nullptr, nullptr, nullptr, &checkState,
+      &buttonPressed);
   if (NS_FAILED(rv)) {
     return rv;
   }
   *aCancelSubmit = (buttonPressed == 1);
   uint32_t telemetryBucket =
       nsISecurityUITelemetry::WARNING_CONFIRM_POST_TO_INSECURE_FROM_SECURE;
-  mozilla::Telemetry::Accumulate(mozilla::Telemetry::SECURITY_UI,
-                                 telemetryBucket);
+  mozilla::glean::security_ui::events.AccumulateSingleSample(telemetryBucket);
   if (!*aCancelSubmit) {
     // The user opted to continue, so note that in the next telemetry bucket.
-    mozilla::Telemetry::Accumulate(mozilla::Telemetry::SECURITY_UI,
-                                   telemetryBucket + 1);
+    mozilla::glean::security_ui::events.AccumulateSingleSample(telemetryBucket +
+                                                               1);
   }
   return NS_OK;
 }
@@ -1831,6 +1825,7 @@ namespace {
 
 struct PositionComparator {
   nsIContent* const mElement;
+  mutable nsContentUtils::NodeIndexCache mCache;
   explicit PositionComparator(nsIContent* const aElement)
       : mElement(aElement) {}
 
@@ -1838,10 +1833,8 @@ struct PositionComparator {
     if (mElement == aElement) {
       return 0;
     }
-    if (nsContentUtils::PositionIsBefore(mElement, aElement)) {
-      return -1;
-    }
-    return 1;
+    return nsContentUtils::CompareTreePosition<TreeKind::DOM>(
+        mElement, aElement, nullptr, &mCache);
   }
 };
 
@@ -1905,28 +1898,27 @@ nsresult HTMLFormElement::AddElementToTableInternal(
             list->Length() > 1,
             "List should have been converted back to a single element");
 
+        PositionComparator cmp(aChild);
+
         // Fast-path appends; this check is ok even if the child is
         // already in the list, since if it tests true the child would
         // have come at the end of the list, and the PositionIsBefore
         // will test false.
-        if (nsContentUtils::PositionIsBefore(list->Item(list->Length() - 1),
-                                             aChild)) {
+        if (cmp(list->Item(list->Length() - 1)) > 0) {
           list->AppendElement(aChild);
           return NS_OK;
         }
 
-        // If a control has a name equal to its id, it could be in the
-        // list already.
-        if (list->IndexOf(aChild) != -1) {
+        size_t idx;
+        const bool found = BinarySearchIf(RadioNodeListAdaptor(list), 0,
+                                          list->Length(), cmp, &idx);
+        if (found &&
+            (list->Item(idx) == aChild || list->IndexOf(aChild) != -1)) {
+          // If a control has a name equal to its id, it could be in the list
+          // already. Also, found could be true mid-unbind even though the node
+          // is not the same. That's a temporarily-broken state.
           return NS_OK;
         }
-
-        size_t idx;
-        DebugOnly<bool> found =
-            BinarySearchIf(RadioNodeListAdaptor(list), 0, list->Length(),
-                           PositionComparator(aChild), &idx);
-        MOZ_ASSERT(!found, "should not have found an element");
-
         list->InsertElementAt(aChild, idx);
       }
     }

@@ -1196,6 +1196,11 @@ bool JSStructuredCloneWriter::parseTransferable() {
   RootedValue v(context());
   RootedObject tObj(context());
 
+  Rooted<GCHashSet<js::HeapPtr<JSObject*>,
+                   js::StableCellHasher<js::HeapPtr<JSObject*>>,
+                   SystemAllocPolicy>>
+      seen(context());
+
   for (uint32_t i = 0; i < length; ++i) {
     if (!CheckForInterrupt(cx)) {
       return false;
@@ -1256,10 +1261,36 @@ bool JSStructuredCloneWriter::parseTransferable() {
       }
     }
 
-    // No duplicates allowed
-    if (std::find(transferableObjects.begin(), transferableObjects.end(),
-                  tObj) != transferableObjects.end()) {
-      return reportDataCloneError(JS_SCERR_DUP_TRANSFERABLE);
+    // No duplicates allowed. Normally the transferable list is very short, but
+    // some users are passing >10k. Switch to a hash-based lookup when the
+    // linear list starts getting long.
+    constexpr uint32_t MAX_LINEAR = 10;
+
+    // Switch from a linear scan to a set lookup, initializing the set with all
+    // objects seen so far.
+    if (i == MAX_LINEAR) {
+      for (JSObject* obj : transferableObjects) {
+        if (!seen.putNew(obj)) {
+          seen.clear();  // Fall back to linear scan on OOM.
+          break;
+        }
+      }
+    }
+
+    if (seen.empty()) {
+      if (std::find(transferableObjects.begin(), transferableObjects.end(),
+                    tObj) != transferableObjects.end()) {
+        return reportDataCloneError(JS_SCERR_DUP_TRANSFERABLE);
+      }
+    } else {
+      MOZ_ASSERT(seen.count() == i);  // All objs are distinct up to this point.
+      auto p = seen.lookupForAdd(tObj);
+      if (p) {
+        return reportDataCloneError(JS_SCERR_DUP_TRANSFERABLE);
+      }
+      if (!seen.add(p, tObj)) {
+        seen.clear();  // Fall back to linear scan on OOM.
+      }
     }
 
     if (!transferableObjects.append(tObj)) {
@@ -4071,11 +4102,16 @@ bool JSStructuredCloneReader::read(MutableHandleValue vp, size_t nbytes) {
   }
 #endif
 
+// See Bugs 1957731 and 1898515.
+#ifndef MOZ_WIDGET_ANDROID
   JSRuntime* rt = context()->runtime();
   rt->metrics().DESERIALIZE_BYTES(nbytes);
   rt->metrics().DESERIALIZE_ITEMS(numItemsRead);
   mozilla::TimeDuration elapsed = mozilla::TimeStamp::Now() - startTime;
   rt->metrics().DESERIALIZE_US(elapsed);
+#else
+  (void)startTime;
+#endif
 
   return true;
 }

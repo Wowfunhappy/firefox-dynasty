@@ -89,6 +89,7 @@ mod view;
 use std::{borrow::ToOwned as _, ffi, fmt, mem, num::NonZeroU32, ops::Deref, sync::Arc, vec::Vec};
 
 use arrayvec::ArrayVec;
+use gpu_allocator::d3d12::Allocator;
 use parking_lot::{Mutex, RwLock};
 use windows::{
     core::{Free, Interface},
@@ -158,7 +159,8 @@ impl D3D12Lib {
             riid: *const windows_core::GUID,
             ppdevice: *mut *mut core::ffi::c_void,
         ) -> windows_core::HRESULT;
-        let func: libloading::Symbol<Fun> = unsafe { self.lib.get(b"D3D12CreateDevice\0") }?;
+        let func: libloading::Symbol<Fun> =
+            unsafe { self.lib.get(c"D3D12CreateDevice".to_bytes()) }?;
 
         let mut result__: Option<Direct3D12::ID3D12Device> = None;
 
@@ -199,7 +201,7 @@ impl D3D12Lib {
             pperrorblob: *mut *mut core::ffi::c_void,
         ) -> windows_core::HRESULT;
         let func: libloading::Symbol<Fun> =
-            unsafe { self.lib.get(b"D3D12SerializeRootSignature\0") }?;
+            unsafe { self.lib.get(c"D3D12SerializeRootSignature".to_bytes()) }?;
 
         let desc = Direct3D12::D3D12_ROOT_SIGNATURE_DESC {
             NumParameters: parameters.len() as _,
@@ -238,7 +240,8 @@ impl D3D12Lib {
             riid: *const windows_core::GUID,
             ppvdebug: *mut *mut core::ffi::c_void,
         ) -> windows_core::HRESULT;
-        let func: libloading::Symbol<Fun> = unsafe { self.lib.get(b"D3D12GetDebugInterface\0") }?;
+        let func: libloading::Symbol<Fun> =
+            unsafe { self.lib.get(c"D3D12GetDebugInterface".to_bytes()) }?;
 
         let mut result__ = None;
 
@@ -275,7 +278,8 @@ impl DxgiLib {
             riid: *const windows_core::GUID,
             pdebug: *mut *mut core::ffi::c_void,
         ) -> windows_core::HRESULT;
-        let func: libloading::Symbol<Fun> = unsafe { self.lib.get(b"DXGIGetDebugInterface1\0") }?;
+        let func: libloading::Symbol<Fun> =
+            unsafe { self.lib.get(c"DXGIGetDebugInterface1".to_bytes()) }?;
 
         let mut result__ = None;
 
@@ -304,7 +308,8 @@ impl DxgiLib {
             riid: *const windows_core::GUID,
             ppfactory: *mut *mut core::ffi::c_void,
         ) -> windows_core::HRESULT;
-        let func: libloading::Symbol<Fun> = unsafe { self.lib.get(b"CreateDXGIFactory2\0") }?;
+        let func: libloading::Symbol<Fun> =
+            unsafe { self.lib.get(c"CreateDXGIFactory2".to_bytes()) }?;
 
         let mut result__ = None;
 
@@ -326,7 +331,8 @@ impl DxgiLib {
             riid: *const windows_core::GUID,
             ppfactory: *mut *mut core::ffi::c_void,
         ) -> windows_core::HRESULT;
-        let func: libloading::Symbol<Fun> = unsafe { self.lib.get(b"CreateDXGIFactory1\0") }?;
+        let func: libloading::Symbol<Fun> =
+            unsafe { self.lib.get(c"CreateDXGIFactory1".to_bytes()) }?;
 
         let mut result__ = None;
 
@@ -541,6 +547,12 @@ pub struct Surface {
 unsafe impl Send for Surface {}
 unsafe impl Sync for Surface {}
 
+impl Surface {
+    pub fn swap_chain(&self) -> Option<Dxgi::IDXGISwapChain3> {
+        Some(self.swap_chain.read().as_ref()?.raw.clone())
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 enum MemoryArchitecture {
     Unified {
@@ -619,6 +631,7 @@ struct DeviceShared {
     cmd_signatures: CommandSignatures,
     heap_views: descriptor::GeneralHeap,
     sampler_heap: sampler::SamplerHeap,
+    private_caps: PrivateCapabilities,
 }
 
 unsafe impl Send for DeviceShared {}
@@ -628,7 +641,7 @@ pub struct Device {
     raw: Direct3D12::ID3D12Device,
     present_queue: Direct3D12::ID3D12CommandQueue,
     idler: Idler,
-    private_caps: PrivateCapabilities,
+    features: wgt::Features,
     shared: Arc<DeviceShared>,
     // CPU only pools
     rtv_pool: Mutex<descriptor::CpuPool>,
@@ -639,7 +652,7 @@ pub struct Device {
     #[cfg(feature = "renderdoc")]
     render_doc: auxil::renderdoc::RenderDoc,
     null_rtv_handle: descriptor::Handle,
-    mem_allocator: Mutex<suballocation::GpuAllocatorWrapper>,
+    mem_allocator: Arc<Mutex<Allocator>>,
     dxc_container: Option<Arc<shader_compilation::DxcContainer>>,
     counters: Arc<wgt::HalCounters>,
 }
@@ -648,6 +661,7 @@ impl Drop for Device {
     fn drop(&mut self) {
         self.rtv_pool.lock().free_handle(self.null_rtv_handle);
         if self
+            .shared
             .private_caps
             .instance_flags
             .contains(wgt::InstanceFlags::VALIDATION)
@@ -663,6 +677,12 @@ unsafe impl Sync for Device {}
 pub struct Queue {
     raw: Direct3D12::ID3D12CommandQueue,
     temp_lists: Mutex<Vec<Option<Direct3D12::ID3D12CommandList>>>,
+}
+
+impl Queue {
+    pub fn as_raw(&self) -> &Direct3D12::ID3D12CommandQueue {
+        &self.raw
+    }
 }
 
 unsafe impl Send for Queue {}
@@ -774,6 +794,8 @@ pub struct CommandEncoder {
     allocator: Direct3D12::ID3D12CommandAllocator,
     device: Direct3D12::ID3D12Device,
     shared: Arc<DeviceShared>,
+    mem_allocator: Arc<Mutex<Allocator>>,
+
     null_rtv_handle: descriptor::Handle,
     list: Option<Direct3D12::ID3D12GraphicsCommandList>,
     free_lists: Vec<Direct3D12::ID3D12GraphicsCommandList>,
@@ -812,8 +834,11 @@ unsafe impl Sync for CommandBuffer {}
 #[derive(Debug)]
 pub struct Buffer {
     resource: Direct3D12::ID3D12Resource,
+    // While the allocation also has _a_ size, it may not
+    // be the same as the original size of the buffer,
+    // as the allocation size varies for assorted reasons.
     size: wgt::BufferAddress,
-    allocation: Option<suballocation::AllocationWrapper>,
+    allocation: suballocation::Allocation,
 }
 
 unsafe impl Send for Buffer {}
@@ -843,7 +868,7 @@ pub struct Texture {
     size: wgt::Extent3d,
     mip_level_count: u32,
     sample_count: u32,
-    allocation: Option<suballocation::AllocationWrapper>,
+    allocation: suballocation::Allocation,
 }
 
 impl Texture {
@@ -962,7 +987,7 @@ enum DynamicBuffer {
 #[derive(Debug)]
 struct SamplerIndexBuffer {
     buffer: Direct3D12::ID3D12Resource,
-    allocation: Option<suballocation::AllocationWrapper>,
+    allocation: suballocation::Allocation,
 }
 
 #[derive(Debug)]
@@ -1099,7 +1124,7 @@ impl crate::DynPipelineCache for PipelineCache {}
 #[derive(Debug)]
 pub struct AccelerationStructure {
     resource: Direct3D12::ID3D12Resource,
-    allocation: Option<suballocation::AllocationWrapper>,
+    allocation: suballocation::Allocation,
 }
 
 impl crate::DynAccelerationStructure for AccelerationStructure {}
@@ -1353,7 +1378,10 @@ impl crate::Surface for Surface {
             size: sc.size,
             mip_level_count: 1,
             sample_count: 1,
-            allocation: None,
+            allocation: suballocation::Allocation::none(
+                suballocation::AllocationType::Texture,
+                sc.format.theoretical_memory_footprint(sc.size),
+            ),
         };
         Ok(Some(crate::AcquiredSurfaceTexture {
             texture,

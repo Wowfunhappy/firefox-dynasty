@@ -33,6 +33,7 @@
 #include "jit/ShuffleAnalysis.h"
 #include "js/GCAPI.h"       // JS::AutoSuppressGCAnalysis
 #include "js/ScalarType.h"  // js::Scalar::Type
+#include "util/DifferentialTesting.h"
 #include "wasm/WasmBaselineCompile.h"
 #include "wasm/WasmBuiltinModule.h"
 #include "wasm/WasmBuiltins.h"
@@ -270,7 +271,6 @@ using IonOpIter = OpIter<IonCompilePolicy>;
 
 // Statistics for inlining (at all depths) into the root function.
 struct InliningStats {
-  size_t rootBytecodeSize = 0;            // size of root function
   size_t inlinedDirectBytecodeSize = 0;   // sum of sizes of inlinees
   size_t inlinedDirectFunctions = 0;      // number of inlinees
   size_t inlinedCallRefBytecodeSize = 0;  // sum of sizes of inlinees
@@ -282,6 +282,7 @@ struct InliningStats {
 class RootCompiler {
   const CompilerEnvironment& compilerEnv_;
   const CodeMetadata& codeMeta_;
+  const CodeTailMetadata* codeTailMeta_;
 
   const ValTypeVector& locals_;
   const FuncCompileInput& func_;
@@ -305,11 +306,14 @@ class RootCompiler {
   // A copy of the above stack for efficient sharing.
   SharedBytecodeOffsetVector inlinedCallerOffsetsVector_;
 
+  // Accumulated statistics about this tier.
+  TierStats tierStats_;
+
   // Accumulated inlining statistics for this function.
   InliningStats inliningStats_;
   // The remaining inlining budget, in terms of bytecode bytes. This may go
   // negative and so is signed.
-  int64_t inliningBudget_;
+  int64_t localInliningBudget_;
 
   // All jit::CompileInfo objects created during this compilation. This must
   // be kept alive for as long as the MIR graph is alive.
@@ -323,11 +327,13 @@ class RootCompiler {
 
  public:
   RootCompiler(const CompilerEnvironment& compilerEnv,
-               const CodeMetadata& codeMeta, TempAllocator& alloc,
+               const CodeMetadata& codeMeta,
+               const CodeTailMetadata* codeTailMeta, TempAllocator& alloc,
                const ValTypeVector& locals, const FuncCompileInput& func,
                Decoder& decoder, wasm::TryNoteVector& tryNotes)
       : compilerEnv_(compilerEnv),
         codeMeta_(codeMeta),
+        codeTailMeta_(codeTailMeta),
         locals_(locals),
         func_(func),
         decoder_(decoder),
@@ -336,18 +342,20 @@ class RootCompiler {
         alloc_(alloc),
         mirGraph_(&alloc),
         mirGen_(nullptr, options_, &alloc_, &mirGraph_, &compileInfo_,
-                IonOptimizations.get(OptimizationLevel::Wasm)),
+                IonOptimizations.get(OptimizationLevel::Wasm), &codeMeta),
         loopDepth_(0),
-        inliningBudget_(0),
+        localInliningBudget_(0),
         tryNotes_(tryNotes) {}
 
   const CompilerEnvironment& compilerEnv() const { return compilerEnv_; }
   const CodeMetadata& codeMeta() const { return codeMeta_; }
+  const CodeTailMetadata* codeTailMeta() const { return codeTailMeta_; }
   TempAllocator& alloc() { return alloc_; }
   MIRGraph& mirGraph() { return mirGraph_; }
   MIRGenerator& mirGen() { return mirGen_; }
-  int64_t inliningBudget() const { return inliningBudget_; }
+  int64_t inliningBudget() const { return localInliningBudget_; }
   FeatureUsage observedFeatures() const { return observedFeatures_; }
+  const TierStats& tierStats() const { return tierStats_; }
 
   uint32_t loopDepth() const { return loopDepth_; }
   void startLoop() { loopDepth_++; }
@@ -414,6 +422,7 @@ class FunctionCompiler {
   const ValTypeVector& locals_;
   size_t lastReadCallSite_;
   size_t numCallRefs_;
+  size_t numAllocSites_;
 
   // CompileInfo for compiling the MIR for this function. Allocated inside of
   // RootCompiler::compileInfos, and kept alive for the duration of the
@@ -469,6 +478,7 @@ class FunctionCompiler {
         locals_(locals),
         lastReadCallSite_(0),
         numCallRefs_(0),
+        numAllocSites_(0),
         info_(compileInfo),
         curBlock_(nullptr),
         maxStackArgBytes_(0),
@@ -490,6 +500,7 @@ class FunctionCompiler {
         locals_(locals),
         lastReadCallSite_(0),
         numCallRefs_(0),
+        numAllocSites_(0),
         info_(compileInfo),
         curBlock_(nullptr),
         maxStackArgBytes_(0),
@@ -500,6 +511,9 @@ class FunctionCompiler {
 
   RootCompiler& rootCompiler() { return rootCompiler_; }
   const CodeMetadata& codeMeta() const { return rootCompiler_.codeMeta(); }
+  const CodeTailMetadata* codeTailMeta() const {
+    return rootCompiler_.codeTailMeta();
+  }
 
   IonOpIter& iter() { return iter_; }
   uint32_t relativeBytecodeOffset() {
@@ -533,7 +547,8 @@ class FunctionCompiler {
 
     // Prepare the entry block for MIR generation:
 
-    const ArgTypeVector args(funcType());
+    const FuncType& ft = funcType();
+    const ArgTypeVector args(ft);
 
     if (!mirGen().ensureBallast()) {
       return false;
@@ -543,7 +558,15 @@ class FunctionCompiler {
     }
 
     for (WasmABIArgIter i(args); !i.done(); i++) {
-      MWasmParameter* ins = MWasmParameter::New(alloc(), *i, i.mirType());
+      MaybeRefType argRefType;
+      if (!args.isSyntheticStackResultPointerArg(i.index())) {
+        ValType argType = ft.arg(i.index());
+        argRefType = argType.isRefType() ? MaybeRefType(argType.refType())
+                                         : MaybeRefType();
+      }
+
+      MWasmParameter* ins =
+          MWasmParameter::New(alloc(), *i, i.mirType(), argRefType);
       curBlock_->add(ins);
       if (args.isSyntheticStackResultPointerArg(i.index())) {
         MOZ_ASSERT(stackResultPointer_ == nullptr);
@@ -642,7 +665,10 @@ class FunctionCompiler {
     MOZ_ASSERT(func_.callSiteLineNums.length() == lastReadCallSite_);
     MOZ_ASSERT_IF(
         compilerEnv().mode() == CompileMode::LazyTiering,
-        codeMeta().getFuncDefCallRefs(funcIndex()).length == numCallRefs_);
+        codeTailMeta()->getFuncDefCallRefs(funcIndex()).length == numCallRefs_);
+    MOZ_ASSERT_IF(codeTailMeta(),
+                  codeTailMeta()->getFuncDefAllocSites(funcIndex()).length ==
+                      numAllocSites_);
     MOZ_ASSERT_IF(!isInlined(),
                   pendingInlineReturns_.empty() && !pendingInlineCatchBlock_);
     MOZ_ASSERT(bodyRethrowPadPatches_.empty());
@@ -735,12 +761,12 @@ class FunctionCompiler {
   MDefinition* constantV128(T) = delete;
 #endif
 
-  MDefinition* constantNullRef() {
+  MDefinition* constantNullRef(MaybeRefType type) {
     if (inDeadCode()) {
       return nullptr;
     }
     // MConstant has a lot of baggage so we don't use that here.
-    MWasmNullConstant* constant = MWasmNullConstant::New(alloc());
+    MWasmNullConstant* constant = MWasmNullConstant::New(alloc(), type);
     curBlock_->add(constant);
     return constant;
   }
@@ -761,7 +787,7 @@ class FunctionCompiler {
       case ValType::F64:
         return constantF64(0.0);
       case ValType::Ref:
-        return constantNullRef();
+        return constantNullRef(MaybeRefType(valType.refType()));
       default:
         MOZ_CRASH();
     }
@@ -1137,7 +1163,7 @@ class FunctionCompiler {
   }
 
   MDefinition* compareIsNull(MDefinition* ref, JSOp compareOp) {
-    MDefinition* nullVal = constantNullRef();
+    MDefinition* nullVal = constantNullRef(MaybeRefType());
     if (!nullVal) {
       return nullptr;
     }
@@ -1439,6 +1465,20 @@ class FunctionCompiler {
     return load;
   }
 
+  MDefinition* maybeCanonicalizeNaN(Scalar::Type accessType,
+                                    MDefinition* value) {
+    MOZ_ASSERT(codeMeta().isAsmJS());
+
+    // Canonicalize floating point values for differential testing.
+    if (Scalar::isFloatingType(accessType) &&
+        js::SupportDifferentialTesting()) {
+      auto* canonicalize = MCanonicalizeNaN::New(alloc(), value);
+      curBlock_->add(canonicalize);
+      return canonicalize;
+    }
+    return value;
+  }
+
   // Return true if the access requires an alignment check.  If so, sets
   // *mustAdd to true if the offset must be added to the pointer before
   // checking.
@@ -1713,6 +1753,7 @@ class FunctionCompiler {
       MOZ_ASSERT(access->offset64() == 0);
       MWasmLoadInstance* boundsCheckLimit =
           maybeLoadBoundsCheckLimit(access->memoryIndex(), MIRType::Int32);
+      v = maybeCanonicalizeNaN(access->type(), v);
       store = MAsmJSStoreHeap::New(alloc(), memoryBase, base, boundsCheckLimit,
                                    access->type(), v);
     } else {
@@ -1959,14 +2000,13 @@ class FunctionCompiler {
 
   /************************************************ Global variable accesses */
 
-  MDefinition* loadGlobalVar(unsigned instanceDataOffset, bool isConst,
-                             bool isIndirect, MIRType type) {
+  MDefinition* loadGlobalVar(const GlobalDesc& global) {
     if (inDeadCode()) {
       return nullptr;
     }
 
     MInstruction* load;
-    if (isIndirect) {
+    if (global.isIndirect()) {
       // Pull a pointer to the value out of Instance::globalArea, then
       // load from that pointer.  Note that the pointer is immutable
       // even though the value it points at may change, hence the use of
@@ -1974,14 +2014,17 @@ class FunctionCompiler {
       // the |isConst| formal parameter to this method.  The latter
       // applies to the denoted value as a whole.
       auto* cellPtr = MWasmLoadInstanceDataField::New(
-          alloc(), MIRType::Pointer, instanceDataOffset,
+          alloc(), MIRType::Pointer, global.offset(),
           /*isConst=*/true, instancePointer_);
       curBlock_->add(cellPtr);
-      load = MWasmLoadGlobalCell::New(alloc(), type, cellPtr);
+      load = MWasmLoadGlobalCell::New(alloc(), global.type().toMIRType(),
+                                      cellPtr, global.type().toMaybeRefType());
     } else {
       // Pull the value directly out of Instance::globalArea.
-      load = MWasmLoadInstanceDataField::New(alloc(), type, instanceDataOffset,
-                                             isConst, instancePointer_);
+      load = MWasmLoadInstanceDataField::New(
+          alloc(), global.type().toMIRType(), global.offset(),
+          !global.isMutable(), instancePointer_,
+          global.type().toMaybeRefType());
     }
     curBlock_->add(load);
     return load;
@@ -2108,6 +2151,8 @@ class FunctionCompiler {
   }
 
   MDefinition* tableGetAnyRef(uint32_t tableIndex, MDefinition* address) {
+    const TableDesc& table = codeMeta().tables[tableIndex];
+
     // Load the table length and perform a bounds check with spectre index
     // masking
     auto* length = loadTableLength(tableIndex);
@@ -2120,7 +2165,8 @@ class FunctionCompiler {
 
     // Load the table elements and load the element
     auto* elements = loadTableElements(tableIndex);
-    auto* element = MWasmLoadTableElement::New(alloc(), elements, address);
+    auto* element =
+        MWasmLoadTableElement::New(alloc(), elements, address, table.elemType);
     curBlock_->add(element);
     return element;
   }
@@ -2128,6 +2174,8 @@ class FunctionCompiler {
   [[nodiscard]] bool tableSetAnyRef(uint32_t tableIndex, MDefinition* address,
                                     MDefinition* value,
                                     uint32_t lineOrBytecode) {
+    const TableDesc& table = codeMeta().tables[tableIndex];
+
     // Load the table length and perform a bounds check with spectre index
     // masking
     auto* length = loadTableLength(tableIndex);
@@ -2142,7 +2190,8 @@ class FunctionCompiler {
     auto* elements = loadTableElements(tableIndex);
 
     // Load the previous value
-    auto* prevValue = MWasmLoadTableElement::New(alloc(), elements, address);
+    auto* prevValue =
+        MWasmLoadTableElement::New(alloc(), elements, address, table.elemType);
     curBlock_->add(prevValue);
 
     // Compute the value's location for the post barrier
@@ -2483,7 +2532,8 @@ class FunctionCompiler {
             break;
           case wasm::ValType::Ref:
             def = MWasmRegisterResult::New(alloc(), MIRType::WasmAnyRef,
-                                           result.gpr());
+                                           result.gpr(),
+                                           result.type().toMaybeRefType());
             break;
           case wasm::ValType::V128:
 #ifdef ENABLE_WASM_SIMD
@@ -2593,14 +2643,15 @@ class FunctionCompiler {
       }
 
       // We do not support inlining a callee which uses tail calls
-      FeatureUsage funcFeatureUsage = codeMeta().funcDefFeatureUsage(funcIndex);
+      FeatureUsage funcFeatureUsage =
+          codeTailMeta()->funcDefFeatureUsage(funcIndex);
       if (funcFeatureUsage & FeatureUsage::ReturnCall) {
         continue;
       }
 
       // Ask the heuristics system if we're allowed to inline a function of
       // this size and kind at the current inlining depth.
-      uint32_t inlineeBodySize = codeMeta().funcDefRange(funcIndex).size;
+      uint32_t inlineeBodySize = codeTailMeta()->funcDefRange(funcIndex).size;
       if (!InliningHeuristics::isSmallEnoughToInline(kind, inliningDepth(),
                                                      inlineeBodySize)) {
         continue;
@@ -4231,7 +4282,7 @@ class FunctionCompiler {
     loadPendingExceptionState(pendingException, pendingExceptionTag);
 
     // Clear the pending exception and tag
-    auto* null = constantNullRef();
+    auto* null = constantNullRef(MaybeRefType());
     if (!setPendingExceptionState(null, null)) {
       return false;
     }
@@ -4430,7 +4481,8 @@ class FunctionCompiler {
       auto* load =
           MWasmLoadField::New(alloc(), data, exception, offsets[i],
                               mozilla::Nothing(), params[i].toMIRType(),
-                              MWideningOp::None, AliasSet::Load(AliasSet::Any));
+                              MWideningOp::None, AliasSet::Load(AliasSet::Any),
+                              mozilla::Nothing(), params[i].toMaybeRefType());
       if (!load || !values->append(load)) {
         return false;
       }
@@ -4870,9 +4922,10 @@ class FunctionCompiler {
       maybeTrap.emplace(trapSiteDesc());
     }
 
-    auto* load = MWasmLoadField::New(
-        alloc(), base, keepAlive, offset, mozilla::Some(fieldIndex), mirType,
-        mirWideningOp, AliasSet::Load(aliasBitset), maybeTrap);
+    auto* load = MWasmLoadField::New(alloc(), base, keepAlive, offset,
+                                     mozilla::Some(fieldIndex), mirType,
+                                     mirWideningOp, AliasSet::Load(aliasBitset),
+                                     maybeTrap, type.toMaybeRefType());
     if (!load) {
       return nullptr;
     }
@@ -4896,7 +4949,8 @@ class FunctionCompiler {
     Scale scale = scaleFromFieldType(type);
     auto* load = MWasmLoadElement::New(
         alloc(), base, keepAlive, index, mirType, mirWideningOp, scale,
-        AliasSet::Load(aliasBitset), mozilla::Some(trapSiteDesc()));
+        AliasSet::Load(aliasBitset), mozilla::Some(trapSiteDesc()),
+        type.toMaybeRefType());
     if (!load) {
       return nullptr;
     }
@@ -4920,10 +4974,31 @@ class FunctionCompiler {
     return load;
   }
 
-  [[nodiscard]] MDefinition* loadTypeDefInstanceData(uint32_t typeIndex) {
-    size_t offset = Instance::offsetInData(
-        codeMeta().offsetOfTypeDefInstanceData(typeIndex));
-    auto* result = MWasmDerivedPointer::New(alloc(), instancePointer_, offset);
+  uint32_t readAllocSiteIndex(uint32_t typeIndex) {
+    if (!codeTailMeta() || !codeTailMeta()->hasFuncDefAllocSites()) {
+      // For single tier of optimized compilation, there are no assigned alloc
+      // sites, using type index as alloc site.
+      return typeIndex;
+    }
+    AllocSitesRange rangeInModule =
+        codeTailMeta()->getFuncDefAllocSites(funcIndex());
+    uint32_t localIndex = numAllocSites_++;
+    MOZ_RELEASE_ASSERT(localIndex < rangeInModule.length);
+    return rangeInModule.begin + localIndex;
+  }
+
+  [[nodiscard]] MDefinition* loadAllocSiteInstanceData(
+      uint32_t allocSiteIndex) {
+    auto* allocSites = MWasmLoadInstance::New(
+        alloc(), instancePointer_, Instance::offsetOfAllocSites(),
+        MIRType::Pointer, AliasSet::None());
+    if (!allocSites) {
+      return nullptr;
+    }
+    curBlock_->add(allocSites);
+
+    auto* result = MWasmDerivedPointer::New(
+        alloc(), allocSites, allocSiteIndex * sizeof(gc::AllocSite));
     if (!result) {
       return nullptr;
     }
@@ -4934,22 +5009,18 @@ class FunctionCompiler {
   /********************************************** WasmGC: struct helpers ***/
 
   [[nodiscard]] MDefinition* createStructObject(uint32_t typeIndex,
+                                                uint32_t allocSiteIndex,
                                                 bool zeroFields) {
-    const TypeDef& typeDef = (*codeMeta().types)[typeIndex];
-    gc::AllocKind allocKind = WasmStructObject::allocKindForTypeDef(&typeDef);
-    bool isOutline =
-        WasmStructObject::requiresOutlineBytes(typeDef.structType().size_);
-
-    // Allocate an uninitialized struct.  This requires the type definition
-    // for the struct.
-    MDefinition* typeDefData = loadTypeDefInstanceData(typeIndex);
-    if (!typeDefData) {
+    // Allocate an uninitialized struct.
+    MDefinition* allocSite = loadAllocSiteInstanceData(allocSiteIndex);
+    if (!allocSite) {
       return nullptr;
     }
 
-    auto* structObject = MWasmNewStructObject::New(
-        alloc(), instancePointer_, typeDefData, typeDef.structType(), isOutline,
-        zeroFields, allocKind, trapSiteDesc());
+    const TypeDef* typeDef = &(*codeMeta().types)[typeIndex];
+    auto* structObject =
+        MWasmNewStructObject::New(alloc(), instancePointer_, allocSite, typeDef,
+                                  zeroFields, trapSiteDesc());
     if (!structObject) {
       return nullptr;
     }
@@ -5135,20 +5206,19 @@ class FunctionCompiler {
   // Given a JIT-time-known type index `typeIndex` and a run-time known number
   // of elements `numElements`, create MIR to allocate a new wasm array,
   // possibly initialized with `typeIndex`s default value.
-  [[nodiscard]] MDefinition* createArrayObject(uint32_t lineOrBytecode,
-                                               uint32_t typeIndex,
+  [[nodiscard]] MDefinition* createArrayObject(uint32_t typeIndex,
+                                               uint32_t allocSiteIndex,
                                                MDefinition* numElements,
-                                               uint32_t elemSize,
                                                bool zeroFields) {
-    // Get the type definition for the array as a whole.
-    MDefinition* typeDefData = loadTypeDefInstanceData(typeIndex);
-    if (!typeDefData) {
+    MDefinition* allocSite = loadAllocSiteInstanceData(allocSiteIndex);
+    if (!allocSite) {
       return nullptr;
     }
 
+    const TypeDef* typeDef = &(*codeMeta().types)[typeIndex];
     auto* arrayObject = MWasmNewArrayObject::New(
-        alloc(), instancePointer_, numElements, typeDefData, elemSize,
-        zeroFields, trapSiteDesc());
+        alloc(), instancePointer_, numElements, allocSite, typeDef, zeroFields,
+        trapSiteDesc());
     if (!arrayObject) {
       return nullptr;
     }
@@ -5320,14 +5390,13 @@ class FunctionCompiler {
   // value is for the newly created array.
   [[nodiscard]] MDefinition* createArrayNewCallAndLoop(uint32_t lineOrBytecode,
                                                        uint32_t typeIndex,
+                                                       uint32_t allocSiteIndex,
                                                        MDefinition* numElements,
                                                        MDefinition* fillValue) {
-    const ArrayType& arrayType = (*codeMeta().types)[typeIndex].arrayType();
-
     // Create the array object, uninitialized.
     MDefinition* arrayObject =
-        createArrayObject(lineOrBytecode, typeIndex, numElements,
-                          arrayType.elementType().size(), /*zeroFields=*/false);
+        createArrayObject(typeIndex, allocSiteIndex, numElements,
+                          /*zeroFields=*/false);
     if (!arrayObject) {
       return nullptr;
     }
@@ -5338,6 +5407,7 @@ class FunctionCompiler {
     // reftyped case, that would be a big win since each iteration requires a
     // call to the post-write barrier routine.
 
+    const ArrayType& arrayType = (*codeMeta().types)[typeIndex].arrayType();
     if (!fillArray(lineOrBytecode, arrayType, arrayObject, constantI32(0),
                    numElements, fillValue, WasmPreBarrierKind::None)) {
       return nullptr;
@@ -5640,6 +5710,16 @@ class FunctionCompiler {
     return true;
   }
 
+  [[nodiscard]] MDefinition* convertAnyExtern(MDefinition* ref,
+                                              wasm::RefType::Kind kind) {
+    auto* converted = MWasmRefConvertAnyExtern::New(alloc(), ref, kind);
+    if (!converted) {
+      return nullptr;
+    }
+    curBlock_->add(converted);
+    return converted;
+  }
+
   /************************************************************ DECODING ***/
 
   // AsmJS adds a line number to `callSiteLineNums` for certain operations that
@@ -5668,11 +5748,11 @@ class FunctionCompiler {
     }
 
     CallRefMetricsRange rangeInModule =
-        codeMeta().getFuncDefCallRefs(funcIndex());
+        codeTailMeta()->getFuncDefCallRefs(funcIndex());
     uint32_t localIndex = numCallRefs_++;
     MOZ_RELEASE_ASSERT(localIndex < rangeInModule.length);
     uint32_t moduleIndex = rangeInModule.begin + localIndex;
-    return codeMeta().getCallRefHint(moduleIndex);
+    return codeTailMeta()->getCallRefHint(moduleIndex);
   }
 
 #if DEBUG
@@ -6377,8 +6457,8 @@ bool FunctionCompiler::emitInlineCall(const FuncType& funcType,
                                       const DefVector& args,
                                       DefVector* results) {
   UniqueChars error;
-  const BytecodeRange& funcRange = codeMeta().funcDefRange(funcIndex);
-  BytecodeSpan funcBytecode = codeMeta().funcDefBody(funcIndex);
+  const BytecodeRange& funcRange = codeTailMeta()->funcDefRange(funcIndex);
+  BytecodeSpan funcBytecode = codeTailMeta()->funcDefBody(funcIndex);
   FuncCompileInput func(funcIndex, funcRange.start, funcBytecode.data(),
                         funcBytecode.data() + funcBytecode.size(),
                         Uint32Vector());
@@ -6643,9 +6723,7 @@ bool FunctionCompiler::emitGetGlobal() {
 
   const GlobalDesc& global = codeMeta().globals[id];
   if (!global.isConstant()) {
-    iter().setResult(loadGlobalVar(global.offset(), !global.isMutable(),
-                                   global.isIndirect(),
-                                   global.type().toMIRType()));
+    iter().setResult(loadGlobalVar(global));
     return true;
   }
 
@@ -6674,7 +6752,7 @@ bool FunctionCompiler::emitGetGlobal() {
 #endif
     case ValType::Ref:
       MOZ_ASSERT(value.ref().isNull());
-      result = constantNullRef();
+      result = constantNullRef(MaybeRefType(value.type().refType()));
       break;
     default:
       MOZ_CRASH("unexpected type in EmitGetGlobal");
@@ -8126,7 +8204,7 @@ bool FunctionCompiler::emitRefNull() {
     return true;
   }
 
-  MDefinition* nullVal = constantNullRef();
+  MDefinition* nullVal = constantNullRef(MaybeRefType(type));
   if (!nullVal) {
     return false;
   }
@@ -8144,7 +8222,7 @@ bool FunctionCompiler::emitRefIsNull() {
     return true;
   }
 
-  MDefinition* nullVal = constantNullRef();
+  MDefinition* nullVal = constantNullRef(MaybeRefType());
   if (!nullVal) {
     return false;
   }
@@ -8534,6 +8612,8 @@ bool FunctionCompiler::emitStructNew() {
     return false;
   }
 
+  uint32_t allocSiteIndex = readAllocSiteIndex(typeIndex);
+
   if (inDeadCode()) {
     return true;
   }
@@ -8542,7 +8622,8 @@ bool FunctionCompiler::emitStructNew() {
   const StructType& structType = typeDef.structType();
   MOZ_ASSERT(args.length() == structType.fields_.length());
 
-  MDefinition* structObject = createStructObject(typeIndex, false);
+  MDefinition* structObject =
+      createStructObject(typeIndex, allocSiteIndex, false);
   if (!structObject) {
     return false;
   }
@@ -8570,11 +8651,14 @@ bool FunctionCompiler::emitStructNewDefault() {
     return false;
   }
 
+  uint32_t allocSiteIndex = readAllocSiteIndex(typeIndex);
+
   if (inDeadCode()) {
     return true;
   }
 
-  MDefinition* structObject = createStructObject(typeIndex, true);
+  MDefinition* structObject =
+      createStructObject(typeIndex, allocSiteIndex, true);
   if (!structObject) {
     return false;
   }
@@ -8644,6 +8728,8 @@ bool FunctionCompiler::emitArrayNew() {
     return false;
   }
 
+  uint32_t allocSiteIndex = readAllocSiteIndex(typeIndex);
+
   if (inDeadCode()) {
     return true;
   }
@@ -8651,7 +8737,7 @@ bool FunctionCompiler::emitArrayNew() {
   // If the requested size exceeds MaxArrayPayloadBytes, the MIR generated by
   // this helper will trap.
   MDefinition* arrayObject = createArrayNewCallAndLoop(
-      lineOrBytecode, typeIndex, numElements, fillValue);
+      lineOrBytecode, typeIndex, allocSiteIndex, numElements, fillValue);
   if (!arrayObject) {
     return false;
   }
@@ -8663,23 +8749,22 @@ bool FunctionCompiler::emitArrayNew() {
 bool FunctionCompiler::emitArrayNewDefault() {
   // This is almost identical to EmitArrayNew, except we skip the
   // initialisation loop.
-  uint32_t lineOrBytecode = readCallSiteLineOrBytecode();
-
   uint32_t typeIndex;
   MDefinition* numElements;
   if (!iter().readArrayNewDefault(&typeIndex, &numElements)) {
     return false;
   }
 
+  uint32_t allocSiteIndex = readAllocSiteIndex(typeIndex);
+
   if (inDeadCode()) {
     return true;
   }
 
   // Create the array object, default-initialized.
-  const ArrayType& arrayType = (*codeMeta().types)[typeIndex].arrayType();
   MDefinition* arrayObject =
-      createArrayObject(lineOrBytecode, typeIndex, numElements,
-                        arrayType.elementType().size(), /*zeroFields=*/true);
+      createArrayObject(typeIndex, allocSiteIndex, numElements,
+                        /*zeroFields=*/true);
   if (!arrayObject) {
     return false;
   }
@@ -8699,6 +8784,8 @@ bool FunctionCompiler::emitArrayNewFixed() {
   }
   MOZ_ASSERT(values.length() == numElements);
 
+  uint32_t allocSiteIndex = readAllocSiteIndex(typeIndex);
+
   if (inDeadCode()) {
     return true;
   }
@@ -8713,7 +8800,7 @@ bool FunctionCompiler::emitArrayNewFixed() {
   StorageType elemType = arrayType.elementType();
   uint32_t elemSize = elemType.size();
   MDefinition* arrayObject =
-      createArrayObject(lineOrBytecode, typeIndex, numElementsDef, elemSize,
+      createArrayObject(typeIndex, allocSiteIndex, numElementsDef,
                         /*zeroFields=*/false);
   if (!arrayObject) {
     return false;
@@ -8765,13 +8852,19 @@ bool FunctionCompiler::emitArrayNewData() {
     return false;
   }
 
+  uint32_t allocSiteIndex = readAllocSiteIndex(typeIndex);
+
   if (inDeadCode()) {
     return true;
   }
 
-  // Get the type definition data for the array as a whole.
-  MDefinition* typeDefData = loadTypeDefInstanceData(typeIndex);
-  if (!typeDefData) {
+  MDefinition* typeIndexValue = constantI32(int32_t(typeIndex));
+  if (!typeIndexValue) {
+    return false;
+  }
+
+  MDefinition* allocSite = loadAllocSiteInstanceData(allocSiteIndex);
+  if (!allocSite) {
     return false;
   }
 
@@ -8787,8 +8880,9 @@ bool FunctionCompiler::emitArrayNewData() {
   // If the requested size exceeds MaxArrayPayloadBytes, the MIR generated by
   // this call will trap.
   MDefinition* arrayObject;
-  if (!emitInstanceCall4(lineOrBytecode, SASigArrayNewData, segByteOffset,
-                         numElements, typeDefData, segIndexM, &arrayObject)) {
+  if (!emitInstanceCall5(lineOrBytecode, SASigArrayNewData, segByteOffset,
+                         numElements, typeIndexValue, allocSite, segIndexM,
+                         &arrayObject)) {
     return false;
   }
 
@@ -8807,14 +8901,19 @@ bool FunctionCompiler::emitArrayNewElem() {
     return false;
   }
 
+  uint32_t allocSiteIndex = readAllocSiteIndex(typeIndex);
+
   if (inDeadCode()) {
     return true;
   }
 
-  // Get the type definition for the array as a whole.
-  // Get the type definition data for the array as a whole.
-  MDefinition* typeDefData = loadTypeDefInstanceData(typeIndex);
-  if (!typeDefData) {
+  MDefinition* typeIndexValue = constantI32(int32_t(typeIndex));
+  if (!typeIndexValue) {
+    return false;
+  }
+
+  MDefinition* allocSite = loadAllocSiteInstanceData(allocSiteIndex);
+  if (!allocSite) {
     return false;
   }
 
@@ -8830,8 +8929,9 @@ bool FunctionCompiler::emitArrayNewElem() {
   // If the requested size exceeds MaxArrayPayloadBytes, the MIR generated by
   // this call will trap.
   MDefinition* arrayObject;
-  if (!emitInstanceCall4(lineOrBytecode, SASigArrayNewElem, segElemIndex,
-                         numElements, typeDefData, segIndexM, &arrayObject)) {
+  if (!emitInstanceCall5(lineOrBytecode, SASigArrayNewElem, segElemIndex,
+                         numElements, typeIndexValue, allocSite, segIndexM,
+                         &arrayObject)) {
     return false;
   }
 
@@ -8887,9 +8987,8 @@ bool FunctionCompiler::emitArrayInitElem() {
     return true;
   }
 
-  // Get the type definition data for the array as a whole.
-  MDefinition* typeDefData = loadTypeDefInstanceData(typeIndex);
-  if (!typeDefData) {
+  MDefinition* typeIndexValue = constantI32(int32_t(typeIndex));
+  if (!typeIndexValue) {
     return false;
   }
 
@@ -8904,7 +9003,7 @@ bool FunctionCompiler::emitArrayInitElem() {
   // numElements:u32, typeDefData:word, segIndex:u32) If the requested size
   // exceeds MaxArrayPayloadBytes, the MIR generated by this call will trap.
   return emitInstanceCall6(lineOrBytecode, SASigArrayInitElem, array,
-                           arrayIndex, segOffset, length, typeDefData,
+                           arrayIndex, segOffset, length, typeIndexValue,
                            segIndexM);
 }
 
@@ -9151,26 +9250,40 @@ bool FunctionCompiler::emitBrOnCast(bool onSuccess) {
 }
 
 bool FunctionCompiler::emitAnyConvertExtern() {
-  // any.convert_extern is a no-op because anyref and extern share the same
-  // representation
   MDefinition* ref;
   if (!iter().readRefConversion(RefType::extern_(), RefType::any(), &ref)) {
     return false;
   }
 
-  iter().setResult(ref);
+  if (inDeadCode()) {
+    return true;
+  }
+
+  MDefinition* conversion = convertAnyExtern(ref, wasm::RefType::Kind::Any);
+  if (!conversion) {
+    return false;
+  }
+
+  iter().setResult(conversion);
   return true;
 }
 
 bool FunctionCompiler::emitExternConvertAny() {
-  // extern.convert_any is a no-op because anyref and extern share the same
-  // representation
   MDefinition* ref;
   if (!iter().readRefConversion(RefType::any(), RefType::extern_(), &ref)) {
     return false;
   }
 
-  iter().setResult(ref);
+  if (inDeadCode()) {
+    return true;
+  }
+
+  MDefinition* conversion = convertAnyExtern(ref, wasm::RefType::Kind::Extern);
+  if (!conversion) {
+    return false;
+  }
+
+  iter().setResult(conversion);
   return true;
 }
 
@@ -10412,18 +10525,20 @@ bool RootCompiler::generate() {
   // Figure out what the inlining budget for this function is.  If we've
   // already exceeded the module-level limit, the budget is zero.  See
   // "[SMDOC] Per-function and per-module inlining limits" (WasmHeuristics.h)
-  {
-    auto guard = codeMeta_.stats.readLock();
-    inliningStats_.rootBytecodeSize = func_.end - func_.begin;
-    if (guard->inliningBudget > 0) {
-      inliningBudget_ = int64_t(inliningStats_.rootBytecodeSize) *
-                        PerFunctionMaxInliningRatio;
-      inliningBudget_ =
-          std::min<int64_t>(inliningBudget_, guard->inliningBudget);
+  if (codeTailMeta_) {
+    auto guard = codeTailMeta_->inliningBudget.lock();
+
+    if (guard.get() > 0) {
+      localInliningBudget_ =
+          int64_t(codeMeta_.codeSectionSize()) * PerFunctionMaxInliningRatio;
+      localInliningBudget_ =
+          std::min<int64_t>(localInliningBudget_, guard.get());
     } else {
-      inliningBudget_ = 0;
+      localInliningBudget_ = 0;
     }
-    MOZ_ASSERT(inliningBudget_ >= 0);
+    MOZ_ASSERT(localInliningBudget_ >= 0);
+  } else {
+    localInliningBudget_ = 0;
   }
 
   // Build the MIR graph
@@ -10437,27 +10552,24 @@ bool RootCompiler::generate() {
 
   MOZ_ASSERT(loopDepth_ == 0);
 
-  {
-    auto guard = codeMeta_.stats.writeLock();
-    guard->partialNumFuncs += 1;
-    guard->partialBCSize += inliningStats_.rootBytecodeSize;
-    guard->partialNumFuncsInlinedDirect +=
-        inliningStats_.inlinedDirectFunctions;
-    guard->partialBCInlinedSizeDirect +=
-        inliningStats_.inlinedDirectBytecodeSize;
-    guard->partialNumFuncsInlinedCallRef +=
-        inliningStats_.inlinedCallRefFunctions;
-    guard->partialBCInlinedSizeCallRef +=
-        inliningStats_.inlinedCallRefBytecodeSize;
+  tierStats_.numFuncs += 1;
+  tierStats_.bytecodeSize += func_.end - func_.begin;
+  tierStats_.inlinedDirectCallCount += inliningStats_.inlinedDirectFunctions;
+  tierStats_.inlinedCallRefCount += inliningStats_.inlinedCallRefFunctions;
+  tierStats_.inlinedDirectCallBytecodeSize +=
+      inliningStats_.inlinedDirectBytecodeSize;
+  tierStats_.inlinedCallRefBytecodeSize +=
+      inliningStats_.inlinedCallRefBytecodeSize;
+
+  if (codeTailMeta_) {
+    auto guard = codeTailMeta_->inliningBudget.lock();
     // Update the module's inlining budget accordingly.  If it is already
     // negative, no more inlining for the module can happen, so there's no
     // point in updating it further.
-    if (guard->inliningBudget >= 0) {
-      guard->inliningBudget -=
-          int64_t(inliningStats_.inlinedDirectBytecodeSize);
-      guard->inliningBudget -=
-          int64_t(inliningStats_.inlinedCallRefBytecodeSize);
-      if (guard->inliningBudget < 0) {
+    if (guard.get() >= 0) {
+      guard.get() -= int64_t(inliningStats_.inlinedDirectBytecodeSize);
+      guard.get() -= int64_t(inliningStats_.inlinedCallRefBytecodeSize);
+      if (guard.get() < 0) {
         JS_LOG(wasmPerf, Info,
                "CM=..%06lx  RC::generate            "
                "Inlining budget for entire module exceeded",
@@ -10466,8 +10578,8 @@ bool RootCompiler::generate() {
     }
     // If this particular root function overran the function-level
     // limit, note that in the module too.
-    if (inliningBudget_ < 0) {
-      guard->partialInlineBudgetOverruns++;
+    if (localInliningBudget_ < 0) {
+      tierStats_.numInliningBudgetOverruns += 1;
     }
   }
 
@@ -10478,8 +10590,6 @@ CompileInfo* RootCompiler::startInlineCall(
     uint32_t callerFuncIndex, BytecodeOffset callerOffset,
     uint32_t calleeFuncIndex, uint32_t numLocals, size_t inlineeBytecodeSize,
     InliningHeuristics::CallKind callKind) {
-  // Update the inlining counters accordingly.
-  MOZ_ASSERT(inliningStats_.rootBytecodeSize > 0);
   if (callKind == InliningHeuristics::CallKind::Direct) {
     inliningStats_.inlinedDirectBytecodeSize += inlineeBytecodeSize;
     inliningStats_.inlinedDirectFunctions += 1;
@@ -10492,10 +10602,10 @@ CompileInfo* RootCompiler::startInlineCall(
   // Update the inlining budget accordingly.  If it is already negative, no
   // more inlining within this root function can happen, so there's no
   // point in updating it further.
-  if (inliningBudget_ >= 0) {
-    inliningBudget_ -= int64_t(inlineeBytecodeSize);
+  if (localInliningBudget_ >= 0) {
+    localInliningBudget_ -= int64_t(inlineeBytecodeSize);
 #ifdef JS_JITSPEW
-    if (inliningBudget_ <= 0) {
+    if (localInliningBudget_ <= 0) {
       JS_LOG(wasmPerf, Info,
              "CM=..%06lx  RC::startInlineCall     "
              "Inlining budget for fI=%u exceeded",
@@ -10529,12 +10639,14 @@ CompileInfo* RootCompiler::startInlineCall(
 void RootCompiler::finishInlineCall() { inlinedCallerOffsets_.popBack(); }
 
 bool wasm::IonCompileFunctions(const CodeMetadata& codeMeta,
+                               const CodeTailMetadata* codeTailMeta,
                                const CompilerEnvironment& compilerEnv,
                                LifoAlloc& lifo,
                                const FuncCompileInputVector& inputs,
                                CompiledCode* code, UniqueChars* error) {
   MOZ_ASSERT(compilerEnv.tier() == Tier::Optimized);
   MOZ_ASSERT(compilerEnv.debug() == DebugEnabled::False);
+  MOZ_ASSERT_IF(compilerEnv.mode() == CompileMode::LazyTiering, !!codeTailMeta);
 
   // We should not interact with the GC heap, nor allocate from it when we are
   // compiling wasm code. Ion data structures have some fields for GC objects
@@ -10580,8 +10692,8 @@ bool wasm::IonCompileFunctions(const CodeMetadata& codeMeta,
     }
 
     // Set up for Ion compilation.
-    RootCompiler rootCompiler(compilerEnv, codeMeta, alloc, locals, func, d,
-                              masm.tryNotes());
+    RootCompiler rootCompiler(compilerEnv, codeMeta, codeTailMeta, alloc,
+                              locals, func, d, masm.tryNotes());
     if (!rootCompiler.generate()) {
       return false;
     }
@@ -10589,6 +10701,9 @@ bool wasm::IonCompileFunctions(const CodeMetadata& codeMeta,
     // Record observed feature usage
     FeatureUsage observedFeatures = rootCompiler.observedFeatures();
     code->featureUsage |= observedFeatures;
+
+    // Record our tier stats
+    code->tierStats.merge(rootCompiler.tierStats());
 
     // Compile MIR graph
     {
@@ -10606,7 +10721,7 @@ bool wasm::IonCompileFunctions(const CodeMetadata& codeMeta,
 
       size_t unwindInfoBefore = masm.codeRangeUnwindInfos().length();
 
-      CodeGenerator codegen(&rootCompiler.mirGen(), lir, &masm);
+      CodeGenerator codegen(&rootCompiler.mirGen(), lir, &masm, &codeMeta);
 
       TrapSiteDesc prologueTrapSiteDesc(
           wasm::BytecodeOffset(func.lineOrBytecode));
@@ -10676,8 +10791,8 @@ bool wasm::IonDumpFunction(const CompilerEnvironment& compilerEnv,
   }
 
   TryNoteVector tryNotes;
-  RootCompiler rootCompiler(compilerEnv, codeMeta, alloc, locals, func, d,
-                            tryNotes);
+  RootCompiler rootCompiler(compilerEnv, codeMeta, nullptr, alloc, locals, func,
+                            d, tryNotes);
   if (!rootCompiler.generate()) {
     return false;
   }

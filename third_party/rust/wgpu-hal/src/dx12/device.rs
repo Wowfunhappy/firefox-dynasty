@@ -1,15 +1,15 @@
 use std::{
     borrow::Cow,
-    ffi,
-    mem::{self, size_of, size_of_val},
+    ffi, mem,
     num::NonZeroU32,
-    ptr, slice,
+    ptr,
     string::{String, ToString as _},
     sync::Arc,
     time::{Duration, Instant},
     vec::Vec,
 };
 
+use bytemuck::TransparentWrapper;
 use parking_lot::Mutex;
 use windows::{
     core::Interface as _,
@@ -22,21 +22,26 @@ use windows::{
 
 use super::{conv, descriptor, D3D12Lib};
 use crate::{
-    auxil::{self, dxgi::result::HResult},
+    auxil::{
+        self,
+        dxgi::{name::ObjectExt, result::HResult},
+    },
     dx12::{
-        borrow_optional_interface_temporarily, shader_compilation, DynamicStorageBufferOffsets,
-        Event,
+        borrow_optional_interface_temporarily, shader_compilation, suballocation,
+        DynamicStorageBufferOffsets, Event,
     },
     AccelerationStructureEntries, TlasInstance,
 };
 
 // this has to match Naga's HLSL backend, and also needs to be null-terminated
-const NAGA_LOCATION_SEMANTIC: &[u8] = b"LOC\0";
+const NAGA_LOCATION_SEMANTIC: &[u8] = c"LOC".to_bytes();
 
 impl super::Device {
+    #[allow(clippy::too_many_arguments)]
     pub(super) fn new(
         raw: Direct3D12::ID3D12Device,
         present_queue: Direct3D12::ID3D12CommandQueue,
+        features: wgt::Features,
         limits: &wgt::Limits,
         memory_hints: &wgt::MemoryHints,
         private_caps: super::PrivateCapabilities,
@@ -50,7 +55,7 @@ impl super::Device {
             auxil::dxgi::exception::register_exception_handler();
         }
 
-        let mem_allocator = super::suballocation::create_allocator_wrapper(&raw, memory_hints)?;
+        let mem_allocator = Arc::new(suballocation::create_allocator(&raw, memory_hints)?);
 
         let idle_fence: Direct3D12::ID3D12Fence = unsafe {
             profiling::scope!("ID3D12Device::CreateFence");
@@ -147,6 +152,7 @@ impl super::Device {
                 capacity_views,
             )?,
             sampler_heap: super::sampler::SamplerHeap::new(&raw, &private_caps)?,
+            private_caps,
         };
 
         let mut rtv_pool =
@@ -178,7 +184,7 @@ impl super::Device {
                 fence: idle_fence,
                 event: Event::create(false, false)?,
             },
-            private_caps,
+            features,
             shared: Arc::new(shared),
             rtv_pool: Mutex::new(rtv_pool),
             dsv_pool: Mutex::new(descriptor::CpuPool::new(
@@ -380,7 +386,10 @@ impl super::Device {
             size,
             mip_level_count,
             sample_count,
-            allocation: None,
+            allocation: suballocation::Allocation::none(
+                suballocation::AllocationType::Texture,
+                format.theoretical_memory_footprint(size),
+            ),
         }
     }
 
@@ -391,7 +400,10 @@ impl super::Device {
         super::Buffer {
             resource,
             size,
-            allocation: None,
+            allocation: suballocation::Allocation::none(
+                suballocation::AllocationType::Buffer,
+                size,
+            ),
         }
     }
 }
@@ -403,53 +415,29 @@ impl crate::Device for super::Device {
         &self,
         desc: &crate::BufferDescriptor,
     ) -> Result<super::Buffer, crate::DeviceError> {
-        let mut size = desc.size;
-        if desc.usage.contains(wgt::BufferUses::UNIFORM) {
-            let align_mask = Direct3D12::D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT as u64 - 1;
-            size = ((size - 1) | align_mask) + 1;
-        }
+        let mut desc = desc.clone();
 
-        let raw_desc = Direct3D12::D3D12_RESOURCE_DESC {
-            Dimension: Direct3D12::D3D12_RESOURCE_DIMENSION_BUFFER,
-            Alignment: 0,
-            Width: size,
-            Height: 1,
-            DepthOrArraySize: 1,
-            MipLevels: 1,
-            Format: Dxgi::Common::DXGI_FORMAT_UNKNOWN,
-            SampleDesc: Dxgi::Common::DXGI_SAMPLE_DESC {
-                Count: 1,
-                Quality: 0,
-            },
-            Layout: Direct3D12::D3D12_TEXTURE_LAYOUT_ROW_MAJOR,
-            Flags: conv::map_buffer_usage_to_resource_flags(desc.usage),
-        };
+        if desc.usage.contains(wgt::BufferUses::UNIFORM) {
+            desc.size = desc
+                .size
+                .next_multiple_of(Direct3D12::D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT.into())
+        }
 
         let (resource, allocation) =
-            super::suballocation::create_buffer_resource(self, desc, raw_desc)?;
-
-        if let Some(label) = desc.label {
-            unsafe { resource.SetName(&windows::core::HSTRING::from(label)) }
-                .into_device_result("SetName")?;
-        }
+            suballocation::DeviceAllocationContext::from(self).create_buffer(&desc)?;
 
         self.counters.buffers.add(1);
 
         Ok(super::Buffer {
             resource,
-            size,
+            size: desc.size,
             allocation,
         })
     }
 
-    unsafe fn destroy_buffer(&self, mut buffer: super::Buffer) {
-        // Always Some except on Intel Xe: https://github.com/gfx-rs/wgpu/issues/3552
-        if let Some(alloc) = buffer.allocation.take() {
-            // Resource should be dropped before free suballocation
-            drop(buffer);
-
-            super::suballocation::free_buffer_allocation(self, alloc, &self.mem_allocator);
-        }
+    unsafe fn destroy_buffer(&self, buffer: super::Buffer) {
+        suballocation::DeviceAllocationContext::from(self)
+            .free_resource(buffer.resource, buffer.allocation);
 
         self.counters.buffers.sub(1);
     }
@@ -498,7 +486,9 @@ impl crate::Device for super::Device {
                 desc.format,
                 desc.usage,
                 !desc.view_formats.is_empty(),
-                self.private_caps.casting_fully_typed_format_supported,
+                self.shared
+                    .private_caps
+                    .casting_fully_typed_format_supported,
             ),
             SampleDesc: Dxgi::Common::DXGI_SAMPLE_DESC {
                 Count: desc.sample_count,
@@ -509,12 +499,7 @@ impl crate::Device for super::Device {
         };
 
         let (resource, allocation) =
-            super::suballocation::create_texture_resource(self, desc, raw_desc)?;
-
-        if let Some(label) = desc.label {
-            unsafe { resource.SetName(&windows::core::HSTRING::from(label)) }
-                .into_device_result("SetName")?;
-        }
+            suballocation::DeviceAllocationContext::from(self).create_texture(desc, raw_desc)?;
 
         self.counters.textures.add(1);
 
@@ -529,18 +514,9 @@ impl crate::Device for super::Device {
         })
     }
 
-    unsafe fn destroy_texture(&self, mut texture: super::Texture) {
-        if let Some(alloc) = texture.allocation.take() {
-            // Resource should be dropped before free suballocation
-            drop(texture);
-
-            super::suballocation::free_texture_allocation(
-                self,
-                alloc,
-                // SAFETY: for allocations to exist, the allocator must exist
-                &self.mem_allocator,
-            );
-        }
+    unsafe fn destroy_texture(&self, texture: super::Texture) {
+        suballocation::DeviceAllocationContext::from(self)
+            .free_resource(texture.resource, texture.allocation);
 
         self.counters.textures.sub(1);
     }
@@ -737,8 +713,7 @@ impl crate::Device for super::Device {
         .into_device_result("Command allocator creation")?;
 
         if let Some(label) = desc.label {
-            unsafe { allocator.SetName(&windows::core::HSTRING::from(label)) }
-                .into_device_result("SetName")?;
+            allocator.set_name(label)?;
         }
 
         self.counters.command_encoders.add(1);
@@ -747,6 +722,7 @@ impl crate::Device for super::Device {
             allocator,
             device: self.raw.clone(),
             shared: Arc::clone(&self.shared),
+            mem_allocator: self.mem_allocator.clone(),
             null_rtv_handle: self.null_rtv_handle,
             list: None,
             free_lists: Vec::new(),
@@ -774,7 +750,7 @@ impl crate::Device for super::Device {
                 wgt::BindingType::Buffer { .. }
                 | wgt::BindingType::Texture { .. }
                 | wgt::BindingType::StorageTexture { .. }
-                | wgt::BindingType::AccelerationStructure => num_views += count,
+                | wgt::BindingType::AccelerationStructure { .. } => num_views += count,
                 wgt::BindingType::Sampler { .. } => has_sampler_in_group = true,
             }
         }
@@ -1331,8 +1307,7 @@ impl crate::Device for super::Device {
         };
 
         if let Some(label) = desc.label {
-            unsafe { raw.SetName(&windows::core::HSTRING::from(label)) }
-                .into_device_result("SetName")?;
+            raw.set_name(label)?;
         }
 
         self.counters.pipeline_layouts.add(1);
@@ -1347,7 +1322,7 @@ impl crate::Device for super::Device {
             },
             bind_group_infos,
             naga_options: hlsl::Options {
-                shader_model: self.private_caps.shader_model,
+                shader_model: self.shared.private_caps.shader_model,
                 binding_map,
                 fake_missing_bindings: false,
                 special_constants_binding,
@@ -1515,7 +1490,7 @@ impl crate::Device for super::Device {
                         sampler_indexes.push(data.index);
                     }
                 }
-                wgt::BindingType::AccelerationStructure => {
+                wgt::BindingType::AccelerationStructure { .. } => {
                     let start = entry.resource_index as usize;
                     let end = start + entry.count as usize;
                     for data in &desc.acceleration_structures[start..end] {
@@ -1555,34 +1530,15 @@ impl crate::Device for super::Device {
             };
 
             let buffer_desc = crate::BufferDescriptor {
-                label: None,
+                label: Some(&label),
                 size: buffer_size,
                 usage: wgt::BufferUses::STORAGE_READ_ONLY | wgt::BufferUses::MAP_WRITE,
                 // D3D12 backend doesn't care about the memory flags
                 memory_flags: crate::MemoryFlags::empty(),
             };
 
-            let raw_buffer_desc = Direct3D12::D3D12_RESOURCE_DESC {
-                Dimension: Direct3D12::D3D12_RESOURCE_DIMENSION_BUFFER,
-                Alignment: 0,
-                Width: buffer_size,
-                Height: 1,
-                DepthOrArraySize: 1,
-                MipLevels: 1,
-                Format: Dxgi::Common::DXGI_FORMAT_UNKNOWN,
-                SampleDesc: Dxgi::Common::DXGI_SAMPLE_DESC {
-                    Count: 1,
-                    Quality: 0,
-                },
-                Layout: Direct3D12::D3D12_TEXTURE_LAYOUT_ROW_MAJOR,
-                Flags: Direct3D12::D3D12_RESOURCE_FLAG_NONE,
-            };
-
             let (buffer, allocation) =
-                super::suballocation::create_buffer_resource(self, &buffer_desc, raw_buffer_desc)?;
-
-            unsafe { buffer.SetName(&windows::core::HSTRING::from(&*label)) }
-                .into_device_result("SetName")?;
+                suballocation::DeviceAllocationContext::from(self).create_buffer(&buffer_desc)?;
 
             let mut mapping = ptr::null_mut::<ffi::c_void>();
             unsafe { buffer.Map(0, None, Some(&mut mapping)) }.into_device_result("Map")?;
@@ -1661,12 +1617,8 @@ impl crate::Device for super::Device {
         }
 
         if let Some(sampler_buffer) = group.sampler_index_buffer {
-            // Make sure the buffer is dropped before the allocation
-            drop(sampler_buffer.buffer);
-
-            if let Some(allocation) = sampler_buffer.allocation {
-                super::suballocation::free_buffer_allocation(self, allocation, &self.mem_allocator);
-            }
+            suballocation::DeviceAllocationContext::from(self)
+                .free_resource(sampler_buffer.buffer, sampler_buffer.allocation);
         }
 
         self.counters.bind_groups.sub(1);
@@ -1688,6 +1640,9 @@ impl crate::Device for super::Device {
             }),
             crate::ShaderInput::SpirV(_) => {
                 panic!("SPIRV_SHADER_PASSTHROUGH is not enabled for this backend")
+            }
+            crate::ShaderInput::Msl { .. } => {
+                panic!("MSL_SHADER_PASSTHROUGH is not enabled for this backend")
             }
         }
     }
@@ -1871,8 +1826,7 @@ impl crate::Device for super::Device {
         };
 
         if let Some(label) = desc.label {
-            unsafe { raw.SetName(&windows::core::HSTRING::from(label)) }
-                .into_device_result("SetName")?;
+            raw.set_name(label)?;
         }
 
         self.counters.render_pipelines.add(1);
@@ -1884,6 +1838,18 @@ impl crate::Device for super::Device {
             vertex_strides,
         })
     }
+
+    unsafe fn create_mesh_pipeline(
+        &self,
+        _desc: &crate::MeshPipelineDescriptor<
+            <Self::A as crate::Api>::PipelineLayout,
+            <Self::A as crate::Api>::ShaderModule,
+            <Self::A as crate::Api>::PipelineCache,
+        >,
+    ) -> Result<<Self::A as crate::Api>::RenderPipeline, crate::PipelineError> {
+        unreachable!()
+    }
+
     unsafe fn destroy_render_pipeline(&self, _pipeline: super::RenderPipeline) {
         self.counters.render_pipelines.sub(1);
     }
@@ -1923,8 +1889,7 @@ impl crate::Device for super::Device {
         })?;
 
         if let Some(label) = desc.label {
-            unsafe { raw.SetName(&windows::core::HSTRING::from(label)) }
-                .into_device_result("SetName")?;
+            raw.set_name(label)?;
         }
 
         self.counters.compute_pipelines.add(1);
@@ -1982,8 +1947,7 @@ impl crate::Device for super::Device {
         let raw = raw.ok_or(crate::DeviceError::Unexpected)?;
 
         if let Some(label) = desc.label {
-            unsafe { raw.SetName(&windows::core::HSTRING::from(label)) }
-                .into_device_result("SetName")?;
+            raw.set_name(label)?;
         }
 
         self.counters.query_sets.add(1);
@@ -2096,7 +2060,7 @@ impl crate::Device for super::Device {
         }
     }
 
-    unsafe fn start_capture(&self) -> bool {
+    unsafe fn start_graphics_debugger_capture(&self) -> bool {
         #[cfg(feature = "renderdoc")]
         {
             unsafe {
@@ -2108,7 +2072,7 @@ impl crate::Device for super::Device {
         false
     }
 
-    unsafe fn stop_capture(&self) {
+    unsafe fn stop_graphics_debugger_capture(&self) {
         #[cfg(feature = "renderdoc")]
         unsafe {
             self.render_doc
@@ -2273,13 +2237,8 @@ impl crate::Device for super::Device {
             Flags: Direct3D12::D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS,
         };
 
-        let (resource, allocation) =
-            super::suballocation::create_acceleration_structure_resource(self, desc, raw_desc)?;
-
-        if let Some(label) = desc.label {
-            unsafe { resource.SetName(&windows::core::HSTRING::from(label)) }
-                .into_device_result("SetName")?;
-        }
+        let (resource, allocation) = suballocation::DeviceAllocationContext::from(self)
+            .create_acceleration_structure(desc, raw_desc)?;
 
         // for some reason there is no counter for acceleration structures
 
@@ -2291,18 +2250,12 @@ impl crate::Device for super::Device {
 
     unsafe fn destroy_acceleration_structure(
         &self,
-        mut acceleration_structure: super::AccelerationStructure,
+        acceleration_structure: super::AccelerationStructure,
     ) {
-        if let Some(alloc) = acceleration_structure.allocation.take() {
-            // Resource should be dropped before suballocation is freed
-            drop(acceleration_structure);
-
-            super::suballocation::free_acceleration_structure_allocation(
-                self,
-                alloc,
-                &self.mem_allocator,
-            );
-        }
+        suballocation::DeviceAllocationContext::from(self).free_resource(
+            acceleration_structure.resource,
+            acceleration_structure.allocation,
+        );
     }
 
     fn get_internal_counters(&self) -> wgt::HalCounters {
@@ -2310,7 +2263,7 @@ impl crate::Device for super::Device {
     }
 
     fn generate_allocator_report(&self) -> Option<wgt::AllocatorReport> {
-        let mut upstream = self.mem_allocator.lock().allocator.generate_report();
+        let mut upstream = self.mem_allocator.lock().generate_report();
 
         let allocations = upstream
             .allocations
@@ -2347,13 +2300,9 @@ impl crate::Device for super::Device {
             _bitfield2: 0,
             AccelerationStructure: instance.blas_address,
         };
-        let temp: *const _ = &temp;
-        unsafe {
-            slice::from_raw_parts(
-                temp.cast::<u8>(),
-                size_of::<Direct3D12::D3D12_RAYTRACING_INSTANCE_DESC>(),
-            )
-            .to_vec()
-        }
+
+        wgt::bytemuck_wrapper!(unsafe struct Desc(Direct3D12::D3D12_RAYTRACING_INSTANCE_DESC));
+
+        bytemuck::bytes_of(&Desc::wrap(temp)).to_vec()
     }
 }

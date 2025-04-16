@@ -22,9 +22,10 @@
 
 #if defined(XP_WIN)
 #  include "mozilla/gfx/DeviceManagerDx.h"
+#  include "mozilla/webgpu/ExternalTextureD3D11.h"
 #endif
 
-#if MOZ_WIDGET_GTK
+#if defined(XP_LINUX) && !defined(MOZ_WIDGET_ANDROID)
 #  include "mozilla/webgpu/ExternalTextureDMABuf.h"
 #endif
 
@@ -86,7 +87,12 @@ extern void* wgpu_server_get_external_texture_handle(void* aParam,
 
   void* sharedHandle = nullptr;
 #ifdef XP_WIN
-  sharedHandle = texture->GetExternalTextureHandle();
+  auto* textureD3D11 = texture->AsExternalTextureD3D11();
+  if (!textureD3D11) {
+    MOZ_ASSERT_UNREACHABLE("unexpected to be called");
+    return nullptr;
+  }
+  sharedHandle = textureD3D11->GetExternalTextureHandle();
   if (!sharedHandle) {
     MOZ_ASSERT_UNREACHABLE("unexpected to be called");
     gfxCriticalNoteOnce << "Failed to get shared handle";
@@ -107,7 +113,7 @@ extern int32_t wgpu_server_get_dma_buf_fd(void* aParam, WGPUTextureId aId) {
     return -1;
   }
 
-#ifdef MOZ_WIDGET_GTK
+#if defined(XP_LINUX) && !defined(MOZ_WIDGET_ANDROID)
   auto* textureDMABuf = texture->AsExternalTextureDMABuf();
   if (!textureDMABuf) {
     MOZ_ASSERT_UNREACHABLE("unexpected to be called");
@@ -133,7 +139,7 @@ extern const WGPUVkImageHandle* wgpu_server_get_vk_image_handle(
     return nullptr;
   }
 
-#  if defined(MOZ_WIDGET_GTK)
+#  if defined(XP_LINUX) && !defined(MOZ_WIDGET_ANDROID)
   auto* textureDMABuf = texture->AsExternalTextureDMABuf();
   if (!textureDMABuf) {
     return nullptr;
@@ -549,11 +555,10 @@ WebGPUParent::BufferMapData* WebGPUParent::GetBufferMapData(RawId aBufferId) {
 
 ipc::IPCResult WebGPUParent::RecvDeviceCreateBuffer(
     RawId aDeviceId, RawId aBufferId, dom::GPUBufferDescriptor&& aDesc,
-    ipc::UnsafeSharedMemoryHandle&& aShmem) {
+    ipc::MutableSharedMemoryHandle&& aShmem) {
   webgpu::StringHelper label(aDesc.mLabel);
 
-  auto shmem =
-      ipc::WritableSharedMemoryMapping::Open(std::move(aShmem)).value();
+  auto shmem = aShmem.Map();
 
   bool hasMapFlags = aDesc.mUsage & (dom::GPUBufferUsage_Binding::MAP_WRITE |
                                      dom::GPUBufferUsage_Binding::MAP_READ);
@@ -664,7 +669,7 @@ void WebGPUParent::MapCallback(uint8_t* aUserData,
 
       MOZ_RELEASE_ASSERT(mapData->mShmem.Size() >= offset + size);
       if (src.ptr != nullptr && src.length >= size) {
-        auto dst = mapData->mShmem.Bytes().Subspan(offset, size);
+        auto dst = mapData->mShmem.DataAsSpan<uint8_t>().Subspan(offset, size);
         memcpy(dst.data(), src.ptr, size);
       }
     }
@@ -747,7 +752,7 @@ ipc::IPCResult WebGPUParent::RecvBufferUnmap(RawId aDeviceId, RawId aBufferId,
       MOZ_RELEASE_ASSERT(offset <= shmSize);
       MOZ_RELEASE_ASSERT(size <= shmSize - offset);
 
-      auto src = mapData->mShmem.Bytes().Subspan(offset, size);
+      auto src = mapData->mShmem.DataAsSpan<uint8_t>().Subspan(offset, size);
       memcpy(mapped.ptr, src.data(), size);
     }
 
@@ -859,6 +864,14 @@ ipc::IPCResult WebGPUParent::RecvRenderBundleDrop(RawId aBundleId) {
 ipc::IPCResult WebGPUParent::RecvQueueSubmit(
     RawId aQueueId, RawId aDeviceId, const nsTArray<RawId>& aCommandBuffers,
     const nsTArray<RawId>& aTextureIds) {
+  for (const auto& textureId : aTextureIds) {
+    auto it = mExternalTextures.find(textureId);
+    if (it != mExternalTextures.end()) {
+      auto& externalTexture = it->second;
+      externalTexture->onBeforeQueueSubmit(aQueueId);
+    }
+  }
+
   ErrorBuffer error;
   auto index = ffi::wgpu_server_queue_submit(
       mContext.get(), aQueueId, aCommandBuffers.Elements(),
@@ -912,14 +925,15 @@ ipc::IPCResult WebGPUParent::RecvQueueOnSubmittedWorkDone(
 
 ipc::IPCResult WebGPUParent::RecvQueueWriteAction(
     RawId aQueueId, RawId aDeviceId, const ipc::ByteBuf& aByteBuf,
-    ipc::UnsafeSharedMemoryHandle&& aShmem) {
-  auto mapping =
-      ipc::WritableSharedMemoryMapping::Open(std::move(aShmem)).value();
+    ipc::MutableSharedMemoryHandle&& aShmem) {
+  // `aShmem` may be an invalid handle, however this will simply result in an
+  // invalid mapping with 0 size, which is used safely below.
+  auto mapping = aShmem.Map();
 
   ErrorBuffer error;
-  ffi::wgpu_server_queue_write_action(mContext.get(), aQueueId,
-                                      ToFFI(&aByteBuf), mapping.Bytes().data(),
-                                      mapping.Size(), error.ToFFI());
+  ffi::wgpu_server_queue_write_action(
+      mContext.get(), aQueueId, ToFFI(&aByteBuf), mapping.DataAs<uint8_t>(),
+      mapping.Size(), error.ToFFI());
   ForwardError(aDeviceId, error);
   return IPC_OK();
 }
@@ -1420,19 +1434,11 @@ void WebGPUParent::PostExternalTexture(
 
   const auto surfaceFormat = gfx::SurfaceFormat::B8G8R8A8;
   const auto size = aExternalTexture->GetSize();
-  const auto index = aExternalTexture->GetSubmissionIndex();
-  MOZ_ASSERT(index != 0);
 
   RefPtr<PresentationData> data = lookup->second.get();
 
-  Maybe<gfx::FenceInfo> fenceInfo;
-  auto it = mDeviceFenceHandles.find(data->mDeviceId);
-  if (it != mDeviceFenceHandles.end()) {
-    fenceInfo = Some(gfx::FenceInfo(it->second, index));
-  }
-
   Maybe<layers::SurfaceDescriptor> desc =
-      aExternalTexture->ToSurfaceDescriptor(fenceInfo);
+      aExternalTexture->ToSurfaceDescriptor();
   if (!desc) {
     MOZ_ASSERT_UNREACHABLE("unexpected to be called");
     return;
@@ -1446,6 +1452,15 @@ void WebGPUParent::PostExternalTexture(
   if (recycledTexture) {
     data->mRecycledExternalTextures.push_back(recycledTexture);
   }
+}
+
+RefPtr<gfx::FileHandleWrapper> WebGPUParent::GetDeviceFenceHandle(
+    const RawId aDeviceId) {
+  auto it = mDeviceFenceHandles.find(aDeviceId);
+  if (it == mDeviceFenceHandles.end()) {
+    return nullptr;
+  }
+  return it->second;
 }
 
 ipc::IPCResult WebGPUParent::RecvSwapChainPresent(
@@ -1961,17 +1976,27 @@ Maybe<ffi::WGPUFfiLUID> WebGPUParent::GetCompositorDeviceLuid() {
 #endif
 }
 
-#if !defined(XP_MACOSX)
+#if defined(XP_LINUX) && !defined(MOZ_WIDGET_ANDROID)
 VkImageHandle::~VkImageHandle() {
   if (!mParent) {
     return;
   }
   auto* context = mParent->GetContext();
   if (context && mParent->IsDeviceActive(mDeviceId) && mVkImageHandle) {
-    wgpu_vkimage_destroy(context, mDeviceId,
-                         const_cast<ffi::WGPUVkImageHandle*>(mVkImageHandle));
+    wgpu_vkimage_destroy(context, mDeviceId, mVkImageHandle);
   }
-  wgpu_vkimage_delete(const_cast<ffi::WGPUVkImageHandle*>(mVkImageHandle));
+  wgpu_vkimage_delete(mVkImageHandle);
+}
+
+VkSemaphoreHandle::~VkSemaphoreHandle() {
+  if (!mParent) {
+    return;
+  }
+  auto* context = mParent->GetContext();
+  if (context && mParent->IsDeviceActive(mDeviceId) && mVkSemaphoreHandle) {
+    wgpu_vksemaphore_destroy(context, mDeviceId, mVkSemaphoreHandle);
+  }
+  wgpu_vksemaphore_delete(mVkSemaphoreHandle);
 }
 #endif
 

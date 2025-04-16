@@ -20,7 +20,7 @@ add_task(async function test_translations_telemetry_retranslate() {
   await FullPageTranslationsTestUtils.assertPageIsUntranslated(runInPage);
 
   await FullPageTranslationsTestUtils.openPanel({
-    onOpenPanel: FullPageTranslationsTestUtils.assertPanelViewDefault,
+    onOpenPanel: FullPageTranslationsTestUtils.assertPanelViewIntro,
   });
 
   await FullPageTranslationsTestUtils.changeSelectedFromLanguage({
@@ -43,11 +43,6 @@ add_task(async function test_translations_telemetry_retranslate() {
       ["full_page", 1],
       ["select", 0],
     ]
-  );
-  await TestTranslationsTelemetry.assertCounter(
-    "RequestCount",
-    Glean.translations.requestsCount,
-    1
   );
   await TestTranslationsTelemetry.assertEvent(Glean.translationsPanel.open, {
     expectNewFlowId: true,
@@ -117,11 +112,6 @@ add_task(async function test_translations_telemetry_retranslate() {
       ["full_page", 2],
       ["select", 0],
     ]
-  );
-  await TestTranslationsTelemetry.assertCounter(
-    "RequestCount",
-    Glean.translations.requestsCount,
-    2
   );
   await TestTranslationsTelemetry.assertEvent(Glean.translationsPanel.open, {
     expectNewFlowId: true,

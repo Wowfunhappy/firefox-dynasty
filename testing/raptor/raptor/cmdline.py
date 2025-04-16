@@ -4,7 +4,6 @@
 import argparse
 import os
 
-import six
 from mozlog.commandline import add_logging_group
 
 (FIREFOX, CHROME, SAFARI, SAFARI_TP, CHROMIUM_RELEASE) = DESKTOP_APPS = [
@@ -186,10 +185,11 @@ def create_parser(mach_interface=False):
         "--gecko-profile",
         action="store_true",
         dest="gecko_profile",
-        help="Profile the run and out-put the results in $MOZ_UPLOAD_DIR. "
+        help="Profile the run and output the results in $MOZ_UPLOAD_DIR. "
         "After talos is finished, profiler.firefox.com will be launched in Firefox "
         "so you can analyze the local profiles. To disable auto-launching of "
-        "profiler.firefox.com, set the DISABLE_PROFILE_LAUNCH=1 env var.",
+        "profiler.firefox.com, set the DISABLE_PROFILE_LAUNCH=1 env var. "
+        "Copy paste the parameters used in this profiling run directly from about:profiling in Nightly.",
     )
     add_arg(
         "--gecko-profile-entries",
@@ -721,7 +721,7 @@ class _PrintTests(_StopAction):
                         test_list[suite]["subtests"].append(subtest)
 
             # print the list in a nice, readable format
-            for key in sorted(six.iterkeys(test_list)):
+            for key in sorted(test_list.keys()):
                 print("\n%s" % key)
                 print("  type: %s" % test_list[key]["type"])
                 if len(test_list[key]["subtests"]) != 0:

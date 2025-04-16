@@ -31,6 +31,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusEvent
 import androidx.compose.ui.res.painterResource
@@ -38,23 +39,27 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.error
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.testTag
+import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.tooling.preview.PreviewLightDark
 import androidx.compose.ui.tooling.preview.PreviewParameter
 import androidx.compose.ui.tooling.preview.PreviewParameterProvider
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
+import mozilla.components.compose.base.Dropdown
+import mozilla.components.compose.base.button.PrimaryButton
 import mozilla.components.compose.base.button.TextButton
+import mozilla.components.compose.base.menu.MenuItem
+import mozilla.components.compose.base.modifier.thenConditional
+import mozilla.components.compose.base.text.Text.Resource
+import mozilla.components.compose.base.textfield.TextField
+import mozilla.components.compose.base.textfield.TextFieldColors
 import mozilla.components.lib.state.ext.observeAsState
 import org.mozilla.fenix.R
-import org.mozilla.fenix.compose.Dropdown
-import org.mozilla.fenix.compose.button.PrimaryButton
-import org.mozilla.fenix.compose.ext.thenConditional
-import org.mozilla.fenix.compose.menu.MenuItem
-import org.mozilla.fenix.compose.text.Text.Resource
-import org.mozilla.fenix.compose.textfield.TextField
-import org.mozilla.fenix.compose.textfield.TextFieldColors
 import org.mozilla.fenix.theme.FirefoxTheme
+import org.mozilla.fenix.webcompat.BrokenSiteReporterTestTags.brokenSiteReporterSendButton
+import org.mozilla.fenix.webcompat.BrokenSiteReporterTestTags.chooseReasonErrorMessage
 import org.mozilla.fenix.webcompat.store.WebCompatReporterAction
 import org.mozilla.fenix.webcompat.store.WebCompatReporterState
 import org.mozilla.fenix.webcompat.store.WebCompatReporterState.BrokenSiteReason
@@ -67,7 +72,7 @@ private const val PROBLEM_DESCRIPTION_MAX_LINES = 6
  *
  * @param store [WebCompatReporterStore] used to manage the state of the Web Compat Reporter feature.
  */
-@OptIn(ExperimentalFoundationApi::class)
+@OptIn(ExperimentalFoundationApi::class, ExperimentalComposeUiApi::class)
 @Suppress("LongMethod")
 @SuppressLint("UnusedMaterialScaffoldPaddingParameter")
 @Composable
@@ -119,6 +124,7 @@ fun WebCompatReporter(
                 },
                 placeholder = "",
                 errorText = stringResource(id = R.string.webcompat_reporter_url_error_invalid),
+                modifier = Modifier.fillMaxWidth(),
                 label = stringResource(id = R.string.webcompat_reporter_label_url),
                 isError = state.hasUrlTextError,
                 singleLine = true,
@@ -147,7 +153,10 @@ fun WebCompatReporter(
                 Text(
                     text = reasonErrorText,
                     // The a11y for this is handled via the `Dropdown` modifier
-                    modifier = Modifier.clearAndSetSemantics {},
+                    modifier = Modifier.clearAndSetSemantics {
+                        testTagsAsResourceId = true
+                        testTag = chooseReasonErrorMessage
+                    },
                     style = FirefoxTheme.typography.caption,
                     color = FirefoxTheme.colors.textCritical,
                 )
@@ -206,7 +215,12 @@ fun WebCompatReporter(
 
                 PrimaryButton(
                     text = stringResource(id = R.string.webcompat_reporter_send),
-                    modifier = Modifier.wrapContentSize(),
+                    modifier = Modifier
+                        .wrapContentSize()
+                        .semantics {
+                            testTagsAsResourceId = true
+                            testTag = brokenSiteReporterSendButton
+                        },
                     enabled = state.isSubmitEnabled,
                 ) {
                     store.dispatch(WebCompatReporterAction.SendReportClicked)

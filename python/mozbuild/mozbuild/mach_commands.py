@@ -35,7 +35,7 @@ from mozbuild.base import (
     MozbuildObject,
 )
 from mozbuild.base import MachCommandConditions as conditions
-from mozbuild.util import MOZBUILD_METRICS_PATH
+from mozbuild.util import MOZBUILD_METRICS_PATH, ForwardingArgumentParser
 
 here = os.path.abspath(os.path.dirname(__file__))
 
@@ -339,9 +339,7 @@ def cargo(
             append_env["CARGO_NO_AUTO_ARG"] = "1"
         else:
             append_env["ADD_RUST_LTOABLE"] = (
-                "force-cargo-library-{s:s} force-cargo-program-{s:s}".format(
-                    s=cargo_command
-                )
+                f"force-cargo-library-{cargo_command:s} force-cargo-program-{cargo_command:s}"
             )
 
         ret = command_context._run_make(
@@ -1244,16 +1242,14 @@ def _print_package_name(command_context):
     if not os.path.exists(package_name_path):
         return
 
-    with open(package_name_path, "r") as f:
+    with open(package_name_path) as f:
         package_name = f.read().strip()
     package_path = mozpath.join(dist_path, package_name)
 
     if not os.path.exists(package_path):
         return
 
-    command_context.log(
-        logging.INFO, "package", {}, "Created package: {}".format(package_path)
-    )
+    command_context.log(logging.INFO, "package", {}, f"Created package: {package_path}")
 
 
 def _get_android_install_parser():
@@ -1287,7 +1283,7 @@ def setup_install_parser():
 @Command(
     "install",
     category="post-build",
-    conditions=[conditions.has_build],
+    conditions=[conditions.has_build_or_shell],
     parser=setup_install_parser,
     description="Install the package on the machine (or device in the case of Android).",
 )
@@ -1307,6 +1303,55 @@ def install(command_context, **kwargs):
             )
             == 0
         )
+    elif conditions.is_jsshell(command_context) and conditions.is_android_cpu(
+        command_context
+    ):
+        # Push a shell build to the phone.
+        # It would be nice to just use `ADBDevice``, but what's nice about the
+        # mozrunner android stuff is that it nicely will handle starting an emulator for you and
+        # doing the work there
+        from mozrunner.devices.android_device import get_android_device
+
+        [device, device_serial] = get_android_device(command_context)
+
+        if not device:
+            command_context.log(
+                logging.INFO, "install", {}, "No device found, aborting install"
+            )
+            return 1
+
+        command_context.log(
+            logging.INFO,
+            "install",
+            {},
+            "Installing shell binary and support libarary to /data/local/tmp",
+        )
+
+        # The path to the binary and libraries
+        distpath = command_context.topobjdir + "/dist/bin/"
+
+        # Don't need to push much.
+        paths_to_push = [distpath + "js", distpath + "libmozglue.so"]
+
+        # Push
+        for path in paths_to_push:
+            device.push(path, "/data/local/tmp")
+
+        command_context.log(
+            logging.INFO,
+            "install",
+            {},
+            "Install complete: find the binary in `/data/local/tmp` on the device",
+        )
+        command_context.log(
+            logging.INFO,
+            "install",
+            {},
+            "Run with /data/local/tmp/js on the device",
+        )
+
+        return 0
+
     else:
         ret = command_context._run_make(
             directory=".", target="install", ensure_exit_code=False
@@ -1319,8 +1364,7 @@ def install(command_context, **kwargs):
 
 def _get_android_run_parser():
     parser = argparse.ArgumentParser()
-    group = parser.add_argument_group("The compiled program")
-    group.add_argument("url", nargs="?", default=None, help="URL to open")
+    group = parser.add_argument_group("Compiled Program Environment Options")
     group.add_argument(
         "--app",
         default="org.mozilla.geckoview_example",
@@ -1357,6 +1401,13 @@ def _get_android_run_parser():
         action="store_true",
         default=False,
         help="Do not try to install application on device before running "
+        "(default: False)",
+    )
+    group.add_argument(
+        "--no-uninstall",
+        action="store_true",
+        default=False,
+        help="Do not try to uninstall application on device before reinstalling"
         "(default: False)",
     )
     group.add_argument(
@@ -1413,20 +1464,16 @@ def _get_android_run_parser():
         default=False,
         help="Select an existing process to debug.",
     )
+
+    group = parser.add_argument_group("Compiled Program Options")
+    group.add_argument("url", nargs="?", default=None, help="URL to open")
+
     return parser
 
 
 def _get_jsshell_run_parser():
-    parser = argparse.ArgumentParser()
-    group = parser.add_argument_group("the compiled program")
-    group.add_argument(
-        "params",
-        nargs="...",
-        default=[],
-        help="Command-line arguments to be passed through to the program. Not "
-        "specifying a --profile or -P option will result in a temporary profile "
-        "being used.",
-    )
+    parser = ForwardingArgumentParser()
+    group = parser.add_argument_group("Compiled Program Environment Options")
 
     group = parser.add_argument_group("debugging")
     group.add_argument(
@@ -1455,20 +1502,21 @@ def _get_jsshell_run_parser():
         help=argparse.SUPPRESS,
     )
 
+    parser.add_forwarding_group(
+        title="Compiled Program Options",
+        dest="params",
+        help="Command-line arguments to be passed through to the program. "
+        "Omitting --profile or -P results in a temporary profile being used.",
+        forwarding_help="Display the program help.",
+    )
+
     return parser
 
 
 def _get_desktop_run_parser():
-    parser = argparse.ArgumentParser()
-    group = parser.add_argument_group("the compiled program")
-    group.add_argument(
-        "params",
-        nargs="...",
-        default=[],
-        help="Command-line arguments to be passed through to the program. Not "
-        "specifying a --profile or -P option will result in a temporary profile "
-        "being used.",
-    )
+
+    parser = ForwardingArgumentParser()
+    group = parser.add_argument_group("Compiled Program Environment Options")
     group.add_argument("--packaged", action="store_true", help="Run a packaged build.")
     group.add_argument(
         "--app", help="Path to executable to run (default: output of ./mach build)"
@@ -1523,7 +1571,7 @@ def _get_desktop_run_parser():
         "option.",
     )
 
-    group = parser.add_argument_group("debugging")
+    group = parser.add_argument_group("Debugging")
     group.add_argument(
         "--debug",
         action="store_true",
@@ -1570,6 +1618,13 @@ def _get_desktop_run_parser():
         "--show-dump-stats", action="store_true", help="Show stats when doing dumps."
     )
 
+    parser.add_forwarding_group(
+        title="Compiled Program Options",
+        dest="params",
+        help="Command-line arguments to be passed through to the program. "
+        "Omitting --profile or -P results in a temporary profile being used.",
+        forwarding_help="Display the program help.",
+    )
     return parser
 
 
@@ -1607,6 +1662,7 @@ def _run_android(
     url=None,
     aab=False,
     no_install=None,
+    no_uninstall=None,
     no_wait=None,
     fail_if_running=None,
     restart=None,
@@ -1619,6 +1675,7 @@ def _run_android(
 ):
     from mozrunner.devices.android_device import (
         InstallIntent,
+        UninstallIntent,
         _get_device,
         metadata_for_app,
         verify_android_device,
@@ -1628,7 +1685,7 @@ def _run_android(
     metadata = metadata_for_app(app)
 
     if not metadata.activity_name:
-        raise RuntimeError("Application not recognized: {}".format(app))
+        raise RuntimeError(f"Application not recognized: {app}")
 
     # If we want to debug an existing process, we implicitly do not want
     # to kill it and pave over its installation with a new one.
@@ -1642,10 +1699,11 @@ def _run_android(
         aab=aab,
         debugger=debug,
         install=InstallIntent.NO if no_install else InstallIntent.YES,
+        uninstall=UninstallIntent.NO if no_uninstall else UninstallIntent.YES,
     )
     device_serial = os.environ.get("DEVICE_SERIAL")
     if not device_serial:
-        print("No ADB devices connected.")
+        print("Unable to find ready Android device")
         return 1
 
     device = _get_device(command_context.substs, device_serial=device_serial)
@@ -1673,9 +1731,7 @@ def _run_android(
                 # Always /data/local/tmp, rather than `device.test_root`, because
                 # GeckoView only takes its configuration file from /data/local/tmp,
                 # and we want to follow suit.
-                target_profile = "/data/local/tmp/{}-profile".format(
-                    metadata.package_name
-                )
+                target_profile = f"/data/local/tmp/{metadata.package_name}-profile"
                 device.rm(target_profile, recursive=True, force=True)
                 device.push(host_profile, target_profile)
                 command_context.log(
@@ -1706,7 +1762,7 @@ def _run_android(
 
         extras = {}
         for i, e in enumerate(env):
-            extras["env{}".format(i)] = e
+            extras[f"env{i}"] = e
         if args:
             extras["args"] = " ".join(args)
 
@@ -3231,7 +3287,7 @@ def repackage_snap_install(command_context, snap_file, snap_name, sudo=None):
         logging.INFO,
         "repackage-snap-install-howto-run",
         {},
-        "Example usage: snap run {}".format(snap_name),
+        f"Example usage: snap run {snap_name}",
     )
 
     return 0
@@ -3369,7 +3425,7 @@ def package_l10n(command_context, verbose=False, locales=[]):
     )
     command_context._run_make(
         directory=command_context.topobjdir,
-        target=["chrome-{}".format(locale) for locale in locales],
+        target=[f"chrome-{locale}" for locale in locales],
         append_env=append_env,
         pass_thru=False,
         print_directory=False,

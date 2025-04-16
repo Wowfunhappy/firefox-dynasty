@@ -40,8 +40,8 @@
   scope.loader = browserLoader.loader;
 }
 
-const ReactDOM = require("resource://devtools/client/shared/vendor/react-dom.js");
-const React = require("resource://devtools/client/shared/vendor/react.js");
+const ReactDOM = require("resource://devtools/client/shared/vendor/react-dom.mjs");
+const React = require("resource://devtools/client/shared/vendor/react.mjs");
 const FluentReact = require("resource://devtools/client/shared/vendor/fluent-react.js");
 const {
   FluentL10n,
@@ -72,13 +72,13 @@ const {
 const { createLocalSymbolicationService } = ChromeUtils.importESModule(
   "resource://devtools/client/performance-new/shared/symbolication.sys.mjs"
 );
-const {
-  presets,
-  getProfilerViewModeForCurrentPreset,
-  registerProfileCaptureForBrowser,
-} = ChromeUtils.importESModule(
+const { registerProfileCaptureForBrowser } = ChromeUtils.importESModule(
   "resource://devtools/client/performance-new/shared/background.sys.mjs"
 );
+const { presets, getProfilerViewModeForCurrentPreset } =
+  ChromeUtils.importESModule(
+    "resource://devtools/shared/performance-new/prefs-presets.sys.mjs"
+  );
 
 /**
  * This file initializes the DevTools Panel UI. It is in charge of initializing
@@ -185,5 +185,8 @@ async function gInit(perfFront, traits, pageContext, openAboutProfiling) {
 }
 
 function gDestroy() {
-  ReactDOM.unmountComponentAtNode(document.querySelector("#root"));
+  const root = document.querySelector("#root");
+  if (root) {
+    ReactDOM.unmountComponentAtNode(root);
+  }
 }

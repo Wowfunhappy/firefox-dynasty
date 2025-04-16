@@ -3,6 +3,7 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+/* eslint-disable mozilla/valid-lazy */
 
 import { AppConstants } from "resource://gre/modules/AppConstants.sys.mjs";
 import { XPCOMUtils } from "resource://gre/modules/XPCOMUtils.sys.mjs";
@@ -11,34 +12,20 @@ import { ExtensionUtils } from "resource://gre/modules/ExtensionUtils.sys.mjs";
 
 var { DefaultMap, DefaultWeakMap } = ExtensionUtils;
 
-/** @type {Lazy} */
-const lazy = {};
-
-ChromeUtils.defineESModuleGetters(lazy, {
+const lazy = XPCOMUtils.declareLazy({
   ExtensionParent: "resource://gre/modules/ExtensionParent.sys.mjs",
   NetUtil: "resource://gre/modules/NetUtil.sys.mjs",
   ShortcutUtils: "resource://gre/modules/ShortcutUtils.sys.mjs",
+  StartupCache: "resource://gre/modules/ExtensionParent.sys.mjs",
+  contentPolicyService: {
+    service: "@mozilla.org/addons/content-policy;1",
+    iid: Ci.nsIAddonContentPolicy,
+  },
+  treatWarningsAsErrors: {
+    pref: "extensions.webextensions.warnings-as-errors",
+    default: false,
+  },
 });
-
-XPCOMUtils.defineLazyServiceGetter(
-  lazy,
-  "contentPolicyService",
-  "@mozilla.org/addons/content-policy;1",
-  "nsIAddonContentPolicy"
-);
-
-ChromeUtils.defineLazyGetter(
-  lazy,
-  "StartupCache",
-  () => lazy.ExtensionParent.StartupCache
-);
-
-XPCOMUtils.defineLazyPreferenceGetter(
-  lazy,
-  "treatWarningsAsErrors",
-  "extensions.webextensions.warnings-as-errors",
-  false
-);
 
 const KEY_CONTENT_SCHEMAS = "extensions-framework/schemas/content";
 const KEY_PRIVILEGED_SCHEMAS = "extensions-framework/schemas/privileged";
@@ -292,28 +279,50 @@ const POSTPROCESSORS = {
     return string;
   },
   checkRequiredManifestBackgroundKeys(value, context) {
-    const serviceWorkerEnabled =
-      WebExtensionPolicy.backgroundServiceWorkerEnabled;
-
-    // At least one environment is required
-    if (!value.page && !value.scripts?.length) {
-      if (!value.service_worker) {
-        // Add an error to the manifest validations and throw the
-        // same error.
-        const msg = `background requires at least one of ${
-          serviceWorkerEnabled ? '"service_worker", ' : ""
-        }"scripts" or "page".`;
-        context.logError(context.makeError(msg));
-        throw new Error(msg);
-      } else if (!serviceWorkerEnabled) {
-        // throw if only service_worker is specified and not enabled
-        const msg =
-          "background.service_worker is currently disabled. Add background.scripts.";
-        context.logError(context.makeError(msg));
-        throw new Error(msg);
+    if (value.scripts) {
+      if (value.scripts.length === 0) {
+        context.logWarning(`background.scripts is empty.`);
       }
+      return value;
     }
 
+    if (value.page) {
+      return value;
+    }
+
+    if (value.service_worker) {
+      if (WebExtensionPolicy.backgroundServiceWorkerEnabled) {
+        return value;
+      }
+
+      // throw if serviceWorker is disabled and is the only specified environment
+      const msg =
+        "background.service_worker is currently disabled. Add background.scripts.";
+      context.logError(context.makeError(msg));
+      throw new Error(msg);
+    }
+
+    // no valid environment found, proceed to throwing an error
+    const msg = `background requires at least one of ${
+      WebExtensionPolicy.backgroundServiceWorkerEnabled
+        ? '"service_worker", '
+        : ""
+    }"scripts" or "page".`;
+    context.logError(context.makeError(msg));
+    throw new Error(msg);
+  },
+
+  checkValidRequiredDataCollection(value, context) {
+    if (value.length > 1 && value.includes("none")) {
+      const normalizedValue = value.filter(perm => perm !== "none");
+      context.logWarning(
+        context.makeError(
+          `Data collection permission "none" is ignored because other data collection permissions have been specified. ` +
+            `Either remove "none" from the required list, or do not include other required data collection permissions.`
+        )
+      );
+      return normalizedValue;
+    }
     return value;
   },
 

@@ -76,6 +76,7 @@ using cricket::TransportInfo;
 using cricket::VideoContentDescription;
 using ::testing::ElementsAre;
 using ::testing::Field;
+using ::testing::Property;
 using webrtc::IceCandidateCollection;
 using webrtc::IceCandidateInterface;
 using webrtc::IceCandidateType;
@@ -1417,7 +1418,7 @@ class WebRtcSdpTest : public ::testing::Test {
       const cricket::ContentInfo& c1 = desc1.contents().at(i);
       const cricket::ContentInfo& c2 = desc2.contents().at(i);
       // ContentInfo properties.
-      EXPECT_EQ(c1.name, c2.name);
+      EXPECT_EQ(c1.mid(), c2.mid());
       EXPECT_EQ(c1.type, c2.type);
       EXPECT_EQ(c1.rejected, c2.rejected);
       EXPECT_EQ(c1.bundle_only, c2.bundle_only);
@@ -4584,11 +4585,11 @@ TEST_F(WebRtcSdpTest, TestDeserializeIgnoresMalformedRidLines) {
   CompareRidDescriptionIds(rids, {"5"});
 }
 
-// Removes RIDs that specify a different format than the m= section.
-TEST_F(WebRtcSdpTest, TestDeserializeRemovesRidsWithInvalidCodec) {
+// Ignores codecs from RIDs where the PTs are missing from the m= section.
+TEST_F(WebRtcSdpTest, TestDeserializeIgnoresInvalidPayloadTypesInRid) {
   std::string sdp = kUnifiedPlanSdpFullStringNoSsrc;
-  sdp += "a=rid:1 send pt=121,120\r\n";  // Should remove 121 and keep RID.
-  sdp += "a=rid:2 send pt=121\r\n";      // Should remove RID altogether.
+  sdp += "a=rid:1 send pt=121,120\r\n";  // Should remove 121 and keep 120.
+  sdp += "a=rid:2 send pt=121\r\n";      // Should remove 121.
   sdp += "a=simulcast:send 1;2\r\n";
   JsepSessionDescription output(kDummyType);
   SdpParseError error;
@@ -4599,15 +4600,17 @@ TEST_F(WebRtcSdpTest, TestDeserializeRemovesRidsWithInvalidCodec) {
   EXPECT_TRUE(media->HasSimulcast());
   const SimulcastDescription& simulcast = media->simulcast_description();
   EXPECT_TRUE(simulcast.receive_layers().empty());
-  EXPECT_EQ(1ul, simulcast.send_layers().size());
-  EXPECT_EQ(1ul, simulcast.send_layers().GetAllLayers().size());
+  EXPECT_EQ(2ul, simulcast.send_layers().size());
+  EXPECT_EQ(2ul, simulcast.send_layers().GetAllLayers().size());
   EXPECT_EQ("1", simulcast.send_layers()[0][0].rid);
   EXPECT_EQ(1ul, media->streams().size());
   const std::vector<RidDescription>& rids = media->streams()[0].rids();
-  EXPECT_EQ(1ul, rids.size());
+  EXPECT_EQ(2ul, rids.size());
   EXPECT_EQ("1", rids[0].rid);
-  EXPECT_EQ(1ul, rids[0].payload_types.size());
-  EXPECT_EQ(120, rids[0].payload_types[0]);
+  EXPECT_EQ(1ul, rids[0].codecs.size());
+  EXPECT_EQ(120, rids[0].codecs[0].id);
+  EXPECT_EQ("2", rids[1].rid);
+  EXPECT_EQ(0ul, rids[1].codecs.size());
 }
 
 // Ignores duplicate rid lines
@@ -4738,8 +4741,8 @@ TEST_F(WebRtcSdpTest, ParseNoMid) {
   ASSERT_TRUE(webrtc::SdpDeserialize(sdp, &output, &error));
 
   EXPECT_THAT(output.description()->contents(),
-              ElementsAre(Field("name", &cricket::ContentInfo::name, ""),
-                          Field("name", &cricket::ContentInfo::name, "")));
+              ElementsAre(Property("name", &cricket::ContentInfo::mid, ""),
+                          Property("name", &cricket::ContentInfo::mid, "")));
 }
 
 TEST_F(WebRtcSdpTest, SerializeWithDefaultSctpProtocol) {
@@ -4843,8 +4846,8 @@ TEST_F(WebRtcSdpTest, DeserializeSdpWithUnsupportedMediaType) {
   EXPECT_TRUE(jdesc_output.description()->contents()[0].rejected);
   EXPECT_TRUE(jdesc_output.description()->contents()[1].rejected);
 
-  EXPECT_EQ(jdesc_output.description()->contents()[0].name, "bogusmid");
-  EXPECT_EQ(jdesc_output.description()->contents()[1].name, "somethingmid");
+  EXPECT_EQ(jdesc_output.description()->contents()[0].mid(), "bogusmid");
+  EXPECT_EQ(jdesc_output.description()->contents()[1].mid(), "somethingmid");
 }
 
 TEST_F(WebRtcSdpTest, MediaTypeProtocolMismatch) {

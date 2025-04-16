@@ -982,6 +982,7 @@ open class DummyEngineSession : EngineSession() {
         flags: LoadUrlFlags,
         additionalHeaders: Map<String, String>?,
         originalInput: String?,
+        textDirectiveUserActivation: Boolean,
     ) {}
 
     override fun loadData(data: String, mimeType: String, encoding: String) {}
@@ -1016,6 +1017,12 @@ open class DummyEngineSession : EngineSession() {
 
     override fun getWebCompatInfo(
         onResult: (JSONObject) -> Unit,
+        onException: (Throwable) -> Unit,
+    ) {}
+
+    override fun sendMoreWebCompatInfo(
+        info: JSONObject,
+        onResult: () -> Unit,
         onException: (Throwable) -> Unit,
     ) {}
 

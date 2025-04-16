@@ -139,7 +139,6 @@ uint32_t EventListenerManager::sMainThreadCreatedCount = 0;
 
 EventListenerManagerBase::EventListenerManagerBase()
     : mMayHaveDOMActivateEventListener(false),
-      mMayHavePaintEventListener(false),
       mMayHaveMutationListeners(false),
       mMayHaveCapturingListeners(false),
       mMayHaveSystemGroupListeners(false),
@@ -359,12 +358,6 @@ void EventListenerManager::AddEventListenerInternal(
     }
 
     switch (resolvedEventMessage) {
-      case eAfterPaint:
-        mMayHavePaintEventListener = true;
-        if (nsPIDOMWindowInner* window = GetInnerWindowForTarget()) {
-          window->SetHasPaintEventListeners();
-        }
-        break;
       case eLegacyDOMActivate:
         mMayHaveDOMActivateEventListener = true;
         if (nsPIDOMWindowInner* window = GetInnerWindowForTarget()) {
@@ -478,20 +471,6 @@ void EventListenerManager::AddEventListenerInternal(
         mMayHaveFormSelectEventListener = true;
         if (nsPIDOMWindowInner* window = GetInnerWindowForTarget()) {
           window->SetHasFormSelectEventListeners();
-        }
-        break;
-      case eScrollPortOverflow:
-        if (nsPIDOMWindowInner* window = GetInnerWindowForTarget()) {
-          if (Document* doc = window->GetExtantDoc()) {
-            doc->SetUseCounter(eUseCounter_custom_onoverflow);
-          }
-        }
-        break;
-      case eScrollPortUnderflow:
-        if (nsPIDOMWindowInner* window = GetInnerWindowForTarget()) {
-          if (Document* doc = window->GetExtantDoc()) {
-            doc->SetUseCounter(eUseCounter_custom_onunderflow);
-          }
         }
         break;
       case eLegacyMouseLineOrPageScroll:
@@ -633,14 +612,6 @@ void EventListenerManager::AddEventListenerInternal(
                                      ToChar(resolvedEventMessage))
                          .get());
         NS_ASSERTION(aTypeAtom != nsGkAtoms::onselect,
-                     nsPrintfCString("resolvedEventMessage=%s",
-                                     ToChar(resolvedEventMessage))
-                         .get());
-        NS_ASSERTION(aTypeAtom != nsGkAtoms::onoverflow,
-                     nsPrintfCString("resolvedEventMessage=%s",
-                                     ToChar(resolvedEventMessage))
-                         .get());
-        NS_ASSERTION(aTypeAtom != nsGkAtoms::onunderflow,
                      nsPrintfCString("resolvedEventMessage=%s",
                                      ToChar(resolvedEventMessage))
                          .get());

@@ -23,8 +23,9 @@ using namespace js::jit;
 using mozilla::DebugOnly;
 
 CodeGeneratorX64::CodeGeneratorX64(MIRGenerator* gen, LIRGraph* graph,
-                                   MacroAssembler* masm)
-    : CodeGeneratorX86Shared(gen, graph, masm) {}
+                                   MacroAssembler* masm,
+                                   const wasm::CodeMetadata* wasmCodeMeta)
+    : CodeGeneratorX86Shared(gen, graph, masm, wasmCodeMeta) {}
 
 Operand CodeGeneratorX64::ToOperand64(const LInt64Allocation& a64) {
   const LAllocation& a = a64.value();
@@ -451,8 +452,8 @@ void CodeGenerator::visitWasmCompareAndSelect(LWasmCompareAndSelect* ins) {
 
   // We generate one of four cmp+cmov pairings, depending on whether one of
   // the cmp args and one of the cmov args is in memory or a register.
-  if (rhs->isRegister()) {
-    if (falseExpr->isRegister()) {
+  if (rhs->isGeneralReg()) {
+    if (falseExpr->isGeneralReg()) {
       (masm.*cmpMove_CRRRR)(cond, lhs, ToRegister(rhs), ToRegister(falseExpr),
                             trueExprAndDest);
     } else {
@@ -460,7 +461,7 @@ void CodeGenerator::visitWasmCompareAndSelect(LWasmCompareAndSelect* ins) {
                             trueExprAndDest);
     }
   } else {
-    if (falseExpr->isRegister()) {
+    if (falseExpr->isGeneralReg()) {
       (masm.*cmpMove_CRARR)(cond, lhs, ToAddress(rhs), ToRegister(falseExpr),
                             trueExprAndDest);
     } else {

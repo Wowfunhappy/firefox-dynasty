@@ -58,7 +58,6 @@ export let RemotePageAccessManager = {
       RPMGetAppBuildID: ["*"],
       RPMGetInnerMostURI: ["*"],
       RPMIsWindowPrivate: ["*"],
-      RPMAddToHistogram: ["*"],
     },
     "about:home": {
       RPMSendAsyncMessage: ["ActivityStream:ContentToMain"],
@@ -99,7 +98,6 @@ export let RemotePageAccessManager = {
         "security.certerror.hideAddException",
         "security.certerrors.felt-privacy-v1",
       ],
-      RPMAddToHistogram: ["*"],
       RPMGetInnerMostURI: ["*"],
       RPMGetHttpResponseHeader: ["*"],
       RPMIsTRROnlyFailure: ["*"],
@@ -267,7 +265,6 @@ export let RemotePageAccessManager = {
         "browser.shopping.experience2023.optedIn",
         "browser.shopping.experience2023.active",
         "browser.shopping.experience2023.ads.userEnabled",
-        "browser.shopping.experience2023.autoClose.userEnabled",
         "browser.shopping.experience2023.autoOpen.userEnabled",
         "browser.shopping.experience2023.newPositionCard.hasSeen",
         "browser.shopping.experience2023.sidebarClosedCount",

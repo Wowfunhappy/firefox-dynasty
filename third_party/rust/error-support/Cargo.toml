@@ -24,6 +24,9 @@ autobenches = false
 readme = "README.md"
 license = "MPL-2.0"
 
+[features]
+backtrace = ["dep:backtrace"]
+
 [lib]
 name = "error_support"
 path = "src/lib.rs"
@@ -45,11 +48,8 @@ version = "1.4"
 version = ">=0.11,<=0.12"
 
 [dependencies.uniffi]
-version = "0.28.2"
+version = "0.29.0"
 
 [build-dependencies.uniffi]
-version = "0.28.2"
+version = "0.29.0"
 features = ["build"]
-
-[lints.clippy]
-empty-line-after-doc-comments = "allow"

@@ -8,11 +8,12 @@
 #ifndef __MOZ_DMABUF_LIB_WRAPPER_H__
 #define __MOZ_DMABUF_LIB_WRAPPER_H__
 
-#include "mozilla/widget/gbm.h"
 #include "mozilla/StaticMutex.h"
 #include "mozilla/widget/DMABufFormats.h"
+#include <gbm.h>
 #include <mutex>
 
+#undef LOGDMABUF
 #ifdef MOZ_LOGGING
 #  include "mozilla/Logging.h"
 #  include "nsTArray.h"
@@ -221,9 +222,13 @@ class DMABufDevice {
   void SetModifiersToGfxVars();
   void GetModifiersFromGfxVars();
 
-  // Two basic formats, always present.
+  // Formats passed to RDD process to WebGL process
+  // where we can't get formats/modifiers from Wayland display.
+  // RGBA formats are mandatory, YUV ones are optional.
   RefPtr<DRMFormat> mFormatRGBA;
   RefPtr<DRMFormat> mFormatRGBX;
+  RefPtr<DRMFormat> mFormatP010;
+  RefPtr<DRMFormat> mFormatNV12;
 
   int mDRMFd = -1;
   std::once_flag mFlagGbmDevice;

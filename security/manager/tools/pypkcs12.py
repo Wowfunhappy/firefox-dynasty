@@ -57,12 +57,12 @@ def runUtil(util, args):
     proc = subprocess.run(
         [util] + args,
         env=env,
-        universal_newlines=True,
+        text=True,
     )
     return proc.returncode
 
 
-class PKCS12(object):
+class PKCS12:
     """Utility class for reading a specification and generating
     a PKCS12 file"""
 

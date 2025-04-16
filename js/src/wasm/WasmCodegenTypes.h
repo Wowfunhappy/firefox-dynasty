@@ -28,6 +28,7 @@
 
 #include "jit/IonTypes.h"
 #include "jit/PerfSpewer.h"
+#include "threading/ExclusiveData.h"
 #include "wasm/WasmBuiltins.h"
 #include "wasm/WasmCodegenConstants.h"
 #include "wasm/WasmConstants.h"
@@ -593,6 +594,25 @@ class CallRefMetricsPatch {
 using CallRefMetricsPatchVector =
     Vector<CallRefMetricsPatch, 0, SystemAllocPolicy>;
 
+class AllocSitePatch {
+ private:
+  uint32_t patchOffset_;
+  static constexpr uint32_t NO_OFFSET = UINT32_MAX;
+
+ public:
+  explicit AllocSitePatch() : patchOffset_(NO_OFFSET) {}
+
+  bool hasPatchOffset() const { return patchOffset_ != NO_OFFSET; }
+  uint32_t patchOffset() const { return patchOffset_; }
+  void setPatchOffset(uint32_t offset) {
+    MOZ_ASSERT(!hasPatchOffset());
+    MOZ_ASSERT(offset != NO_OFFSET);
+    patchOffset_ = offset;
+  }
+};
+
+using AllocSitePatchVector = Vector<AllocSitePatch, 0, SystemAllocPolicy>;
+
 // On trap, the bytecode offset to be reported in callstacks is saved.
 
 struct TrapData {
@@ -1017,7 +1037,7 @@ class CallSites {
 
   CallSite operator[](size_t index) const {
     SharedBytecodeOffsetVector inlinedCallerOffsets;
-    if (auto entry = inlinedCallerOffsets_.lookup(index)) {
+    if (auto entry = inlinedCallerOffsets_.readonlyThreadsafeLookup(index)) {
       inlinedCallerOffsets = entry->value();
     }
     return CallSite(CallSiteDesc(lineOrBytecodes_[index], inlinedCallerOffsets,
@@ -1562,6 +1582,39 @@ struct FuncBaselinePerfSpewer {
 using FuncBaselinePerfSpewerVector =
     Vector<FuncBaselinePerfSpewer, 8, SystemAllocPolicy>;
 using FuncBaselinePerfSpewerSpan = mozilla::Span<FuncBaselinePerfSpewer>;
+
+struct TierStats {
+  // number of functions compiled in this tier
+  size_t numFuncs = 0;
+  // bytecode size of the functions compiled in this tier
+  size_t bytecodeSize = 0;
+  // number of direct-call / call-ref sites inlined
+  size_t inlinedDirectCallCount = 0;
+  size_t inlinedCallRefCount = 0;
+  // total extra bytecode size from direct-call / call-ref inlining
+  size_t inlinedDirectCallBytecodeSize = 0;
+  size_t inlinedCallRefBytecodeSize = 0;
+  // number of funcs for which inlining stopped due to budget overrun
+  size_t numInliningBudgetOverruns = 0;
+  // total mapped addr space for optimized-tier code (a multiple of the page
+  // size)
+  size_t codeBytesMapped = 0;
+  // total used space for optimized-tier code (will be less than the above)
+  size_t codeBytesUsed = 0;
+
+  void merge(const TierStats& other) {
+    numFuncs += other.numFuncs;
+    bytecodeSize += other.bytecodeSize;
+    inlinedDirectCallCount += other.inlinedDirectCallCount;
+    inlinedCallRefCount += other.inlinedCallRefCount;
+    inlinedDirectCallBytecodeSize += other.inlinedDirectCallBytecodeSize;
+    inlinedCallRefBytecodeSize += other.inlinedCallRefBytecodeSize;
+    numInliningBudgetOverruns += other.numInliningBudgetOverruns;
+    codeBytesMapped += other.codeBytesMapped;
+    codeBytesUsed += other.codeBytesUsed;
+  }
+  void print() const;
+};
 
 }  // namespace wasm
 }  // namespace js

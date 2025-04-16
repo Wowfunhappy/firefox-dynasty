@@ -82,8 +82,8 @@ export var Policy = {
 var gActiveExperimentStartupBuffer = new Map();
 
 // For Powering arewegleanyet.com (See bug 1944592)
-// Legacy Count: 120
-// Glean Count: 9
+// Legacy Count: 114
+// Glean Count: 32
 
 var gGlobalEnvironment;
 function getGlobal() {
@@ -1554,6 +1554,9 @@ EnvironmentCache.prototype = {
       updaterAvailable: AppConstants.MOZ_UPDATER,
     };
 
+    Glean.xpcom.abi.set(Services.appinfo.XPCOMABI);
+    Glean.updater.available.set(AppConstants.MOZ_UPDATER);
+
     return buildData;
   },
 
@@ -1661,6 +1664,32 @@ EnvironmentCache.prototype = {
     this._updateDefaultBrowser();
     this._updateSearchEngine();
     this._loadAsyncUpdateSettingsFromCache();
+
+    Glean.addonsManager.compatibilityCheckEnabled.set(
+      this._currentEnvironment.settings.addonCompatibilityCheckEnabled
+    );
+    Glean.blocklist.enabled.set(
+      this._currentEnvironment.settings.blocklistEnabled
+    );
+    Glean.browser.defaultAtLaunch.set(
+      this._currentEnvironment.settings.isDefaultBrowser
+    );
+    Glean.launcherProcess.state.set(
+      this._currentEnvironment.settings.launcherProcessState
+    );
+    Glean.e10s.enabled.set(this._currentEnvironment.settings.e10sEnabled);
+    Glean.e10s.multiProcesses.set(
+      this._currentEnvironment.settings.e10sMultiProcesses
+    );
+    Glean.fission.enabled.set(this._currentEnvironment.settings.fissionEnabled);
+    let prefs = Object.entries(this._currentEnvironment.settings.userPrefs).map(
+      ([k, v]) => {
+        return { name: k, value: v.toString() };
+      }
+    );
+    if (prefs.length) {
+      Glean.preferences.userPrefs.set(prefs);
+    }
   },
 
   _getSandboxData() {

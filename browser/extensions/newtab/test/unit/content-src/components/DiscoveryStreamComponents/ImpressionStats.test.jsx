@@ -148,6 +148,11 @@ describe("<ImpressionStats>", () => {
         received_rank: undefined,
         topic: undefined,
         is_list_card: undefined,
+        format: "medium-card",
+        title: undefined,
+        url: undefined,
+        publisher: undefined,
+        time_sensitive: undefined,
       },
       {
         id: 2,
@@ -161,6 +166,11 @@ describe("<ImpressionStats>", () => {
         received_rank: undefined,
         topic: undefined,
         is_list_card: undefined,
+        format: "medium-card",
+        title: undefined,
+        url: undefined,
+        publisher: undefined,
+        time_sensitive: undefined,
       },
       {
         id: 3,
@@ -174,6 +184,11 @@ describe("<ImpressionStats>", () => {
         received_rank: undefined,
         topic: undefined,
         is_list_card: undefined,
+        format: "medium-card",
+        title: undefined,
+        url: undefined,
+        publisher: undefined,
+        time_sensitive: undefined,
       },
     ]);
     assert.equal(
@@ -266,6 +281,11 @@ describe("<ImpressionStats>", () => {
         fetchTimestamp: TEST_FETCH_TIMESTAMP,
         topic: undefined,
         is_list_card: undefined,
+        format: "medium-card",
+        title: undefined,
+        url: undefined,
+        publisher: undefined,
+        time_sensitive: undefined,
       },
       {
         id: 2,
@@ -279,6 +299,11 @@ describe("<ImpressionStats>", () => {
         fetchTimestamp: TEST_FETCH_TIMESTAMP,
         topic: undefined,
         is_list_card: undefined,
+        format: "medium-card",
+        title: undefined,
+        url: undefined,
+        publisher: undefined,
+        time_sensitive: undefined,
       },
       {
         id: 3,
@@ -292,6 +317,11 @@ describe("<ImpressionStats>", () => {
         fetchTimestamp: TEST_FETCH_TIMESTAMP,
         topic: undefined,
         is_list_card: undefined,
+        format: "medium-card",
+        title: undefined,
+        url: undefined,
+        publisher: undefined,
+        time_sensitive: undefined,
       },
     ]);
     assert.equal(

@@ -110,6 +110,13 @@ already_AddRefed<MediaRawData> EncodedVideoChunkData::TakeData() {
   return sample.forget();
 }
 
+nsCString EncodedVideoChunkData::ToString() const {
+  return nsFmtCString(
+      FMT_STRING("EncodedVideoChunkData[bytes: {}, type: {}, ts: {}, dur: {}]"),
+      mBuffer ? mBuffer->Length() : 0, GetEnumString(mType).get(), mTimestamp,
+      mDuration ? std::to_string(*mDuration).c_str() : "none");
+}
+
 EncodedVideoChunk::EncodedVideoChunk(
     nsIGlobalObject* aParent, already_AddRefed<MediaAlignedByteBuffer> aBuffer,
     const EncodedVideoChunkType& aType, int64_t aTimestamp,
@@ -202,9 +209,8 @@ uint32_t EncodedVideoChunk::ByteLength() const {
 }
 
 // https://w3c.github.io/webcodecs/#dom-encodedvideochunk-copyto
-void EncodedVideoChunk::CopyTo(
-    const MaybeSharedArrayBufferViewOrMaybeSharedArrayBuffer& aDestination,
-    ErrorResult& aRv) {
+void EncodedVideoChunk::CopyTo(const AllowSharedBufferSource& aDestination,
+                               ErrorResult& aRv) {
   AssertIsOnOwningThread();
 
   ProcessTypedArraysFixed(aDestination, [&](const Span<uint8_t>& aData) {

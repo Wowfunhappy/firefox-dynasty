@@ -106,7 +106,7 @@ class DebugState {
   void trace(JSTracer* trc);
   void finalize(JS::GCContext* gcx);
 
-  const Bytes& bytecode() const { return module_->debugBytecode(); }
+  const BytecodeSource& bytecode() const { return module_->debugBytecode(); }
 
   [[nodiscard]] bool getLineOffsets(size_t lineno, Vector<uint32_t>* offsets);
   [[nodiscard]] bool getAllColumnOffsets(Vector<ExprLoc>* offsets);
@@ -170,6 +170,7 @@ class DebugState {
     return *code_->debugCodeBlock().segment;
   }
   const CodeMetadata& codeMeta() const { return code_->codeMeta(); }
+  const CodeTailMetadata& codeTailMeta() const { return code_->codeTailMeta(); }
   const CodeMetadataForAsmJS* codeMetaForAsmJS() const {
     return code_->codeMetaForAsmJS();
   }

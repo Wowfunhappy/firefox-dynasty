@@ -31,6 +31,7 @@ import mozilla.components.browser.state.selector.selectedTab
 import mozilla.components.browser.state.store.BrowserStore
 import mozilla.components.concept.engine.translate.Language
 import mozilla.components.concept.engine.translate.TranslationError
+import mozilla.components.feature.downloads.FileSizeFormatter
 import mozilla.components.lib.state.ext.observeAsComposableState
 import mozilla.components.support.base.feature.ViewBoundFeatureWrapper
 import org.mozilla.fenix.BrowserDirection
@@ -221,6 +222,7 @@ class TranslationsDialogFragment : BottomSheetDialogFragment() {
                         translationsDialogState?.translationDownloadSize?.size?.let { fileSize ->
                             DownloadLanguageFileDialog(
                                 fileSize = fileSize,
+                                fileSizeFormatter = requireComponents.core.fileSizeFormatter,
                                 onConfirmDownload = {
                                     showDownloadLanguageFileDialog = false
                                 },
@@ -300,6 +302,7 @@ class TranslationsDialogFragment : BottomSheetDialogFragment() {
             },
             onNegativeButtonClicked = {
                 if (translationsDialogState.isTranslated || translationsDialogState.isTranslationInProgress) {
+                    @Suppress("DEPRECATION")
                     localView.announceForAccessibility(
                         requireContext().getString(
                             R.string.translations_bottom_sheet_restore_accessibility_announcement,
@@ -366,12 +369,14 @@ class TranslationsDialogFragment : BottomSheetDialogFragment() {
     @Composable
     private fun DownloadLanguageFileDialog(
         fileSize: Long,
+        fileSizeFormatter: FileSizeFormatter,
         onConfirmDownload: () -> Unit,
         onCancel: () -> Unit,
     ) {
         var checkBoxEnabled by remember { mutableStateOf(false) }
         DownloadLanguageFileDialog(
             downloadLanguageDialogType = DownloadLanguageFileDialogType.TranslationRequest,
+            fileSizeFormatter = fileSizeFormatter,
             fileSize = fileSize,
             isCheckBoxEnabled = checkBoxEnabled,
             onSavingModeStateChange = { checkBoxEnabled = it },
@@ -427,6 +432,7 @@ class TranslationsDialogFragment : BottomSheetDialogFragment() {
                 )
 
                 if (checked) {
+                    @Suppress("DEPRECATION")
                     localView.announceForAccessibility(type.descriptionId?.let { getString(it) })
                 }
             },

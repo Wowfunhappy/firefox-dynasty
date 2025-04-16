@@ -10,6 +10,10 @@
       name="viewport"
       content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
     />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src chrome: resource:;"
+    />
     <script
       type="module"
       src="chrome://global/content/megalist/MegalistAlpha.mjs"
@@ -26,7 +30,7 @@
       href="chrome://browser/skin/places/sidebar.css"
     /> -->
     <link rel="localization" href="branding/brand.ftl" />
-    <link rel="localization" href="preview/contextual-manager.ftl" />
+    <link rel="localization" href="browser/contextual-manager.ftl" />
     <link rel="localization" href="browser/aboutLogins.ftl" />
     <link rel="localization" href="browser/sidebar.ftl" />
   </head>

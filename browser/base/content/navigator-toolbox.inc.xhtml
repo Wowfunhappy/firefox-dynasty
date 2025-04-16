@@ -49,13 +49,14 @@
               setfocus="false"
               tooltip="tabbrowser-tab-tooltip"
               orient="horizontal"
-              stopwatchid="FX_TAB_CLICK_MS">
+              stopwatchid="tabClick">
           <hbox class="tab-drop-indicator" hidden="true"/>
+          <html:span id="tab-drag-empty-feedback" role="presentation"/>
 # If the name (tabbrowser-arrowscrollbox) or structure of this changes
 # significantly, there is an optimization in
 # DisplayPortUtils::MaybeCreateDisplayPortInFirstScrollFrameEncountered based
 # the current structure that we may want to revisit.
-          <html:div id="vertical-pinned-tabs-container" tabindex="-1"></html:div>
+          <arrowscrollbox id="vertical-pinned-tabs-container" orient="vertical" tabindex="-1"></arrowscrollbox>
           <html:div id="vertical-pinned-tabs-container-separator"></html:div>
           <arrowscrollbox id="tabbrowser-arrowscrollbox" orient="horizontal" flex="1" clicktoscroll="" scrolledtostart="" scrolledtoend="">
             <tab is="tabbrowser-tab" class="tabbrowser-tab" selected="true" visuallyselected="" fadein=""/>
@@ -163,7 +164,6 @@
         <toolbartabstop/>
         <html:div id="urlbar"
               popover="manual"
-              context=""
               focused="true"
               pageproxystate="invalid"
               unifiedsearchbutton-available=""
@@ -381,6 +381,13 @@
                 <image id="picture-in-picture-button-icon"
                        class="urlbar-icon"/>
               </hbox>
+              <hbox id="taskbar-tabs-button"
+                    class="urlbar-page-action"
+                    role="button"
+                    data-l10n-id="taskbar-tab-urlbar-button-open"
+                    hidden="true">
+                <image class="urlbar-icon"/>
+              </hbox>
               <hbox id="translations-button"
                     class="urlbar-page-action"
                     role="button"
@@ -456,9 +463,10 @@
                      data-l10n-id="toolbar-button-account"
                      cui-areatype="toolbar"
                      removable="true">
-                     <vbox>
+                     <hbox>
                       <image id="fxa-avatar-image"/>
-                     </vbox>
+                      <label id="fxa-avatar-label" hidden="true"/>
+                     </hbox>
       </toolbarbutton>
 
       <toolbarbutton id="unified-extensions-button"

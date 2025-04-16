@@ -6,7 +6,8 @@ const lazy = {};
 
 ChromeUtils.defineESModuleGetters(lazy, {
   PrivateBrowsingUtils: "resource://gre/modules/PrivateBrowsingUtils.sys.mjs",
-  SearchSERPTelemetry: "resource:///modules/SearchSERPTelemetry.sys.mjs",
+  SearchSERPTelemetry:
+    "moz-src:///browser/components/search/SearchSERPTelemetry.sys.mjs",
   UrlbarSearchUtils: "resource:///modules/UrlbarSearchUtils.sys.mjs",
 });
 
@@ -67,32 +68,16 @@ class BrowserSearchTelemetryHandler {
   }
 
   /**
-   * Records the method by which the user selected a result from the urlbar or
-   * searchbar.
+   * Records the method by which the user selected a result from the searchbar.
    *
    * @param {Event} event
    *        The event that triggered the selection.
-   * @param {string} source
-   *        Either "urlbar" or "searchbar" depending on the source.
    * @param {number} index
    *        The index that the user chose in the popup, or -1 if there wasn't a
    *        selection.
-   * @param {string} userSelectionBehavior
-   *        How the user cycled through results before picking the current match.
-   *        Could be one of "tab", "arrow" or "none".
    */
-  recordSearchSuggestionSelectionMethod(
-    event,
-    source,
-    index,
-    userSelectionBehavior = "none"
-  ) {
-    // If the contents of the histogram are changed then
-    // `UrlbarTestUtils.SELECTED_RESULT_METHODS` should also be updated.
-    if (source == "searchbar" && userSelectionBehavior != "none") {
-      throw new Error("Did not expect a selection behavior for the searchbar.");
-    }
-    // command events are from the one-off context menu.  Treat them as clicks.
+  recordSearchSuggestionSelectionMethod(event, index) {
+    // command events are from the one-off context menu. Treat them as clicks.
     // Note that we only care about MouseEvent subclasses here when the
     // event type is "click", or else the subclasses are associated with
     // non-click interactions.
@@ -105,28 +90,12 @@ class BrowserSearchTelemetryHandler {
     if (isClick) {
       category = "click";
     } else if (index >= 0) {
-      switch (userSelectionBehavior) {
-        case "tab":
-          category = "tabEnterSelection";
-          break;
-        case "arrow":
-          category = "arrowEnterSelection";
-          break;
-        case "rightClick":
-          // Selected by right mouse button.
-          category = "rightClickEnter";
-          break;
-        default:
-          category = "enterSelection";
-      }
+      category = "enterSelection";
     } else {
       category = "enter";
     }
-    if (source == "searchbar") {
-      Services.telemetry
-        .getHistogramById("FX_SEARCHBAR_SELECTED_RESULT_METHOD")
-        .add(category);
-    }
+
+    Glean.searchbar.selectedResultMethod[category].add(1);
   }
 
   /**
@@ -194,7 +163,6 @@ class BrowserSearchTelemetryHandler {
 
       const countIdPrefix = `${engine.telemetryId}.`;
       const countIdSource = countIdPrefix + source;
-      let histogram = Services.telemetry.getKeyedHistogramById("SEARCH_COUNTS");
 
       if (
         details.alias &&
@@ -203,10 +171,31 @@ class BrowserSearchTelemetryHandler {
       ) {
         // This is a keyword search using an AppProvided engine.
         // Record the source as "alias", not "urlbar".
-        histogram.add(countIdPrefix + "alias");
+        Glean.sap.deprecatedCounts[countIdPrefix + "alias"].add();
       } else {
-        histogram.add(countIdSource);
+        Glean.sap.deprecatedCounts[countIdSource].add();
       }
+
+      // When an engine is overridden by a third party, then we report the
+      // override and skip reporting the partner code, since we don't have
+      // a requirement to report the partner code in that case.
+      let isOverridden = !!engine.overriddenById;
+
+      // Strict equality is used because we want to only match against the
+      // empty string and not other values. We would have `engine.partnerCode`
+      // return `undefined`, but the XPCOM interfaces force us to return an
+      // empty string.
+      let reportPartnerCode = !isOverridden && engine.partnerCode !== "";
+
+      Glean.sap.counts.record({
+        source,
+        provider_id: engine.isAppProvided ? engine.id : "other",
+        provider_name: engine.name,
+        // If no code is reported, we must returned undefined, Glean will then
+        // not report the field.
+        partner_code: reportPartnerCode ? engine.partnerCode : undefined,
+        overridden_by_third_party: isOverridden.toString(),
+      });
 
       // Dispatch the search signal to other handlers.
       switch (source) {

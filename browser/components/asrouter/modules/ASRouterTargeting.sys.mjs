@@ -34,6 +34,11 @@ const { ShellService } = ChromeUtils.importESModule(
   "resource:///modules/ShellService.sys.mjs"
 );
 
+// eslint-disable-next-line mozilla/use-static-import
+const { ClientID } = ChromeUtils.importESModule(
+  "resource://gre/modules/ClientID.sys.mjs"
+);
+
 const lazy = {};
 
 ChromeUtils.defineESModuleGetters(lazy, {
@@ -388,6 +393,12 @@ export const QueryCache = {
       FRECENT_SITES_UPDATE_INTERVAL,
       ShellService
     ),
+    profileGroupId: new CachedTargetingGetter(
+      "getCachedProfileGroupID",
+      null,
+      FRECENT_SITES_UPDATE_INTERVAL,
+      ClientID
+    ),
   },
 };
 
@@ -655,6 +666,7 @@ const TargetingGetters = {
     return lazy.AddonManager.getActiveAddons(["extension", "service"]).then(
       ({ addons, fullData }) => {
         const info = {};
+        let hasInstalledAddons = false;
         for (const addon of addons) {
           info[addon.id] = {
             version: addon.version,
@@ -671,8 +683,21 @@ const TargetingGetters = {
               installDate: addon.installDate,
             });
           }
+          // special-powers and mochikit are addons installed in tests that
+          // are not "isSystem" or "isBuiltin"
+          const testAddons = [
+            "special-powers@mozilla.org",
+            "mochikit@mozilla.org",
+          ];
+          if (
+            !addon.isSystem &&
+            !addon.isBuiltin &&
+            !testAddons.includes(addon.id)
+          ) {
+            hasInstalledAddons = true;
+          }
         }
-        return { addons: info, isFullData: fullData };
+        return { addons: info, isFullData: fullData, hasInstalledAddons };
       }
     );
   },
@@ -1169,6 +1194,10 @@ const TargetingGetters = {
 
   get totalSearches() {
     return lazy.totalSearches;
+  },
+
+  get profileGroupId() {
+    return QueryCache.getters.profileGroupId.get();
   },
 };
 

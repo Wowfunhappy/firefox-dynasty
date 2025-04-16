@@ -145,7 +145,8 @@
          hidden="true" />
 
   <menupopup id="searchmode-switcher-popup"
-             class="toolbar-menupopup">
+             class="toolbar-menupopup"
+             consumeoutsideclicks="false">
     <label id="searchmode-switcher-popup-description"
            data-l10n-id="urlbar-searchmode-popup-description"
            role="heading" />
@@ -318,11 +319,19 @@
   </menupopup>
 
   <menupopup id="sidebar-history-menu">
-    <menuitem data-l10n-id="sidebar-history-sort-by-date"
+    <html:h1 data-l10n-id="sidebar-history-sort-by-heading"
+             id="sidebar-history-sort-by-heading"/>
+    <menuitem data-l10n-id="sidebar-history-sort-option-date"
               id="sidebar-history-sort-by-date"
               type="checkbox"/>
-    <menuitem data-l10n-id="sidebar-history-sort-by-site"
+    <menuitem data-l10n-id="sidebar-history-sort-option-site"
               id="sidebar-history-sort-by-site"
+              type="checkbox"/>
+    <menuitem data-l10n-id="sidebar-history-sort-option-date-and-site"
+              id="sidebar-history-sort-by-date-and-site"
+              type="checkbox"/>
+    <menuitem data-l10n-id="sidebar-history-sort-option-last-visited"
+              id="sidebar-history-sort-by-last-visited"
               type="checkbox"/>
     <menuseparator/>
     <menuitem data-l10n-id="sidebar-history-clear"
@@ -373,11 +382,6 @@
               contexttype="toolbaritem"
               class="customize-context-reportExtension"/>
     <menuseparator/>
-    <menuseparator id="toolbarDownloadsAnchorMenuSeparator"/>
-    <menuitem id="toolbar-context-always-open-downloads-panel"
-              type="checkbox"
-              data-lazy-l10n-id="toolbar-context-menu-always-open-downloads-panel"
-              contexttype="toolbaritem"/>
     <menuitem id="toolbar-context-openANewTab"
               contexttype="tabbar"
               command="cmd_newNavigatorTab"
@@ -426,6 +430,11 @@
               type="checkbox"
               contexttype="toolbaritem"
               class="customize-context-pinToToolbar"/>
+    <menuseparator id="toolbarDownloadsAnchorMenuSeparator"/>
+    <menuitem id="toolbar-context-always-open-downloads-panel"
+              type="checkbox"
+              data-lazy-l10n-id="toolbar-context-menu-always-open-downloads-panel"
+              contexttype="toolbaritem"/>
     <menuseparator id="customizationMenuSeparator"/>
     <menuseparator id="viewToolbarsMenuSeparator"/>
     <menuitem id="toolbar-context-customize"

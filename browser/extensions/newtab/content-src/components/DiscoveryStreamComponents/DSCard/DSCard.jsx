@@ -6,6 +6,7 @@ import { actionCreators as ac, actionTypes as at } from "common/Actions.mjs";
 import { DSImage } from "../DSImage/DSImage.jsx";
 import { DSLinkMenu } from "../DSLinkMenu/DSLinkMenu";
 import { ImpressionStats } from "../../DiscoveryStreamImpressionStats/ImpressionStats";
+import { getActiveCardSize } from "../../../lib/utils";
 import React from "react";
 import { SafeAnchor } from "../SafeAnchor/SafeAnchor";
 import {
@@ -71,10 +72,10 @@ export const DSSource = ({
 
   // Otherwise display a default source.
   return (
-    <p className="source clamp">
+    <div className="source-wrapper">
       {icon_src && <img src={icon_src} height="16" width="16" alt="" />}
-      {source}
-    </p>
+      <p className="source clamp">{source}</p>
+    </div>
   );
 };
 
@@ -365,17 +366,31 @@ export class _DSCard extends React.PureComponent {
               matches_selected_topic: matchesSelectedTopic,
               selected_topics: this.props.selectedTopics,
               is_list_card: this.props.isListCard,
-              ...(this.props.format ? { format: this.props.format } : {}),
+              title: this.props.title,
+              url: this.props.url,
+              publisher: this.props.publisher,
+              time_sensitive: this.props.isTimeSensitive,
+              ...(this.props.format
+                ? { format: this.props.format }
+                : {
+                    format: getActiveCardSize(
+                      window.innerWidth,
+                      this.props.sectionsClassNames,
+                      this.props.section,
+                      this.props.flightId
+                    ),
+                  }),
               ...(this.props.section
                 ? {
                     section: this.props.section,
                     section_position: this.props.sectionPosition,
-                    is_secton_followed: this.props.sectionFollowed,
+                    is_section_followed: this.props.sectionFollowed,
                   }
                 : {}),
             },
           })
         );
+
         this.props.dispatch(
           ac.ImpressionStats({
             source: this.props.type.toUpperCase(),
@@ -394,12 +409,25 @@ export class _DSCard extends React.PureComponent {
                 topic: this.props.topic,
                 selected_topics: this.props.selectedTopics,
                 is_list_card: this.props.isListCard,
-                ...(this.props.format ? { format: this.props.format } : {}),
+                title: this.props.title,
+                url: this.props.url,
+                publisher: this.props.publisher,
+                time_sensitive: this.props.isTimeSensitive,
+                ...(this.props.format
+                  ? { format: this.props.format }
+                  : {
+                      format: getActiveCardSize(
+                        window.innerWidth,
+                        this.props.sectionsClassNames,
+                        this.props.section,
+                        this.props.flightId
+                      ),
+                    }),
                 ...(this.props.section
                   ? {
                       section: this.props.section,
                       section_position: this.props.sectionPosition,
-                      is_secton_followed: this.props.sectionFollowed,
+                      is_section_followed: this.props.sectionFollowed,
                     }
                   : {}),
               },
@@ -439,11 +467,21 @@ export class _DSCard extends React.PureComponent {
           thumbs_up: true,
           thumbs_down: false,
           topic: this.props.topic,
+          title: this.props.title,
+          url: this.props.url,
+          publisher: this.props.publisher,
+          time_sensitive: this.props.isTimeSensitive,
+          format: getActiveCardSize(
+            window.innerWidth,
+            this.props.sectionsClassNames,
+            this.props.section,
+            false // (thumbs up/down only exist on organic content)
+          ),
           ...(this.props.section
             ? {
                 section: this.props.section,
                 section_position: this.props.sectionPosition,
-                is_secton_followed: this.props.sectionFollowed,
+                is_section_followed: this.props.sectionFollowed,
               }
             : {}),
         },
@@ -529,11 +567,21 @@ export class _DSCard extends React.PureComponent {
             thumbs_up: false,
             thumbs_down: true,
             topic: this.props.topic,
+            title: this.props.title,
+            url: this.props.url,
+            publisher: this.props.publisher,
+            time_sensitive: this.props.isTimeSensitive,
+            format: getActiveCardSize(
+              window.innerWidth,
+              this.props.sectionsClassNames,
+              this.props.section,
+              false // (thumbs up/down only exist on organic content)
+            ),
             ...(this.props.section
               ? {
                   section: this.props.section,
                   section_position: this.props.sectionPosition,
-                  is_secton_followed: this.props.sectionFollowed,
+                  is_section_followed: this.props.sectionFollowed,
                 }
               : {}),
           },
@@ -797,8 +845,12 @@ export class _DSCard extends React.PureComponent {
                   ? {
                       section: this.props.section,
                       section_position: this.props.sectionPosition,
-                      is_secton_followed: this.props.sectionFollowed,
+                      is_section_followed: this.props.sectionFollowed,
                     }
+                  : {}),
+                ...(!format && this.props.section
+                  ? // Note: sectionsCardsClassName is passed to ImpressionStats.jsx in order to calculate format
+                    { class_names: sectionsCardsClassName }
                   : {}),
               },
             ]}
@@ -884,9 +936,13 @@ export class _DSCard extends React.PureComponent {
                 is_list_card={this.props.isListCard}
                 section={this.props.section}
                 section_position={this.props.sectionPosition}
-                is_secton_followed={this.props.sectionFollowed}
+                is_section_followed={this.props.sectionFollowed}
                 format={format}
                 isSectionsCard={this.props.mayHaveSectionsCards}
+                topic={this.props.topic}
+                selected_topics={this.props.selected_topics}
+                time_sensitive={this.props.isTimeSensitive}
+                publisher={this.props.publisher}
               />
             )}
           </div>

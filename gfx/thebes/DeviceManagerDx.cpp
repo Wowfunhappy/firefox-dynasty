@@ -11,7 +11,7 @@
 #include "mozilla/D3DMessageUtils.h"
 #include "mozilla/StaticPrefs_gfx.h"
 #include "mozilla/StaticPrefs_layers.h"
-#include "mozilla/Telemetry.h"
+#include "mozilla/glean/GfxMetrics.h"
 #include "mozilla/gfx/GPUParent.h"
 #include "mozilla/gfx/GPUProcessManager.h"
 #include "mozilla/gfx/GraphicsMessages.h"
@@ -969,7 +969,7 @@ void DeviceManagerDx::CreateWARPCompositorDevice() {
 
 FeatureStatus DeviceManagerDx::CreateContentDevice() {
   RefPtr<IDXGIAdapter1> adapter;
-  if (!mDeviceStatus->isWARP()) {
+  if (!IsWARPLocked()) {
     adapter = GetDXGIAdapterLocked();
     if (!adapter) {
       gfxCriticalNote << "Could not get a DXGI adapter";
@@ -982,7 +982,7 @@ FeatureStatus DeviceManagerDx::CreateContentDevice() {
 
   UINT flags = D3D11_CREATE_DEVICE_BGRA_SUPPORT;
   D3D_DRIVER_TYPE type =
-      mDeviceStatus->isWARP() ? D3D_DRIVER_TYPE_WARP : D3D_DRIVER_TYPE_UNKNOWN;
+      IsWARPLocked() ? D3D_DRIVER_TYPE_WARP : D3D_DRIVER_TYPE_UNKNOWN;
   if (!CreateDevice(adapter, type, flags, hr, device)) {
     gfxCriticalNote
         << "Recovered from crash while creating a D3D11 content device";
@@ -1192,6 +1192,10 @@ bool DeviceManagerDx::ContentAdapterIsParentAdapter(ID3D11Device* device) {
     return false;
   }
 
+  if (!mDeviceStatus) {
+    return false;
+  }
+
   const DxgiAdapterDesc& preferred = mDeviceStatus->adapter();
 
   if (desc.VendorId != preferred.VendorId ||
@@ -1284,8 +1288,8 @@ bool DeviceManagerDx::GetAnyDeviceRemovedReason(DeviceResetReason* aOutReason) {
 }
 
 void DeviceManagerDx::ForceDeviceReset(ForcedDeviceResetReason aReason) {
-  Telemetry::Accumulate(Telemetry::FORCED_DEVICE_RESET_REASON,
-                        uint32_t(aReason));
+  glean::gfx::forced_device_reset_reason.AccumulateSingleSample(
+      uint32_t(aReason));
   {
     MutexAutoLock lock(mDeviceLock);
     if (!mDeviceResetReason) {
@@ -1391,6 +1395,10 @@ bool DeviceManagerDx::CanInitializeKeyedMutexTextures() {
 
 bool DeviceManagerDx::IsWARP() {
   MutexAutoLock lock(mDeviceLock);
+  return IsWARPLocked();
+}
+
+bool DeviceManagerDx::IsWARPLocked() {
   if (!mDeviceStatus) {
     return false;
   }

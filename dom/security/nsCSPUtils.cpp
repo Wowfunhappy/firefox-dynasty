@@ -149,29 +149,41 @@ void CSP_ApplyMetaCSPToDoc(mozilla::dom::Document& aDoc,
     return;
   }
 
-  // Make the <meta> policy in browser.xhtml toggleable.
-  if (nsIURI* uri = aDoc.GetDocumentURI();
-      uri->SchemeIs("chrome") &&
-      !StaticPrefs::security_browser_xhtml_csp_enabled()) {
-    nsAutoCString spec;
-    uri->GetSpec(spec);
-    if (spec.EqualsLiteral("chrome://browser/content/browser.xhtml")) {
+  // CSPs delivered via a <meta> tag can not be report-only.
+  bool reportOnly = false;
+
+  if (nsIURI* uri = aDoc.GetDocumentURI(); CSP_IsBrowserXHTML(uri)) {
+    // Make the <meta> policy in browser.xhtml toggleable.
+    if (!StaticPrefs::security_browser_xhtml_csp_enabled()) {
       return;
+    }
+
+    // Make the policy report-only to be able to collect telemetry.
+    if (StaticPrefs::security_browser_xhtml_csp_report_only()) {
+      reportOnly = true;
     }
   }
 
   // Multiple CSPs (delivered through either header of meta tag) need to
   // be joined together, see:
   // https://w3c.github.io/webappsec/specs/content-security-policy/#delivery-html-meta-element
-  nsresult rv =
-      csp->AppendPolicy(policyStr,
-                        false,  // csp via meta tag can not be report only
-                        true);  // delivered through the meta tag
+  nsresult rv = csp->AppendPolicy(policyStr, reportOnly,
+                                  true);  // delivered through the meta tag
   NS_ENSURE_SUCCESS_VOID(rv);
   if (nsPIDOMWindowInner* inner = aDoc.GetInnerWindow()) {
     inner->SetCsp(csp);
   }
   aDoc.ApplySettingsFromCSP(false);
+}
+
+bool CSP_IsBrowserXHTML(nsIURI* aURI) {
+  if (!aURI->SchemeIs("chrome")) {
+    return false;
+  }
+
+  nsAutoCString spec;
+  aURI->GetSpec(spec);
+  return spec.EqualsLiteral("chrome://browser/content/browser.xhtml");
 }
 
 void CSP_GetLocalizedStr(const char* aName, const nsTArray<nsString>& aParams,
@@ -1077,6 +1089,24 @@ bool nsCSPTrustedTypesDirectivePolicyName::visit(
 
 void nsCSPTrustedTypesDirectivePolicyName::toString(nsAString& aOutStr) const {
   aOutStr.Append(mName);
+}
+
+/* =============== nsCSPTrustedTypesDirectiveInvalidToken =============== */
+
+nsCSPTrustedTypesDirectiveInvalidToken::nsCSPTrustedTypesDirectiveInvalidToken(
+    const nsAString& aInvalidToken)
+    : mInvalidToken{aInvalidToken} {}
+
+bool nsCSPTrustedTypesDirectiveInvalidToken::visit(
+    nsCSPSrcVisitor* aVisitor) const {
+  MOZ_ASSERT_UNREACHABLE(
+      "Should only be called for other overloads of this method.");
+  return false;
+}
+
+void nsCSPTrustedTypesDirectiveInvalidToken::toString(
+    nsAString& aOutStr) const {
+  aOutStr.Append(mInvalidToken);
 }
 
 /* ===== nsCSPDirective ====================== */

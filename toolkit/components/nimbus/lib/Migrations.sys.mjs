@@ -8,6 +8,7 @@ ChromeUtils.defineESModuleGetters(lazy, {
   ExperimentAPI: "resource://nimbus/ExperimentAPI.sys.mjs",
   FirefoxLabs: "resource://nimbus/FirefoxLabs.sys.mjs",
   NimbusFeatures: "resource://nimbus/ExperimentAPI.sys.mjs",
+  NimbusTelemetry: "resource://nimbus/lib/Telemetry.sys.mjs",
 });
 
 ChromeUtils.defineLazyGetter(lazy, "log", () => {
@@ -30,6 +31,15 @@ export const LABS_MIGRATION_FEATURE_MAP = {
 };
 
 async function migrateFirefoxLabsEnrollments() {
+  const bts = Cc["@mozilla.org/backgroundtasks;1"]?.getService(
+    Ci.nsIBackgroundTasks
+  );
+
+  if (bts?.isBackgroundTaskMode) {
+    // This migration does not apply to background task mode.
+    return;
+  }
+
   await lazy.ExperimentAPI._rsLoader.finishedUpdating();
   await lazy.ExperimentAPI._rsLoader.withUpdateLock(
     async () => {
@@ -139,11 +149,7 @@ export const NimbusMigrations = {
           reason = e.reason;
         }
 
-        Glean.nimbusEvents.migration.record({
-          migration_id: migration.name,
-          success: false,
-          error_reason: reason,
-        });
+        lazy.NimbusTelemetry.recordMigration(migration.name, reason);
 
         break;
       }
@@ -154,10 +160,7 @@ export const NimbusMigrations = {
         `applyMigrations: applied migration ${i}: ${migration.name}`
       );
 
-      Glean.nimbusEvents.migration.record({
-        migration_id: migration.name,
-        success: true,
-      });
+      lazy.NimbusTelemetry.recordMigration(migration.name);
     }
 
     if (latestMigration != lastSuccess) {

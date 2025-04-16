@@ -1,40 +1,26 @@
-# Version of this schema
 schema: 1
 
 bugzilla:
-  # Bugzilla product and component for this directory and subdirectories
   product: Core
   component: "Graphics: WebGPU"
 
-# Document the source of externally hosted code
 origin:
-
-  # Short name of the package/library
   name: wgpu
-
   description: A cross-platform pure-Rust graphics API, modeled on the WebGPU standard
-
-  # Full URL for the package's homepage/etc
-  # Usually different from repository url
   url: https://github.com/gfx-rs/wgpu
-
-  # Human-readable identifier for this version/release
-  # Generally "version NNN", "tag SSS", "bookmark SSS"
-  release: commit 93f64dc847a0e6788b17b292ae4d7d59361e3be0
-
-  # Revision to pull in
-  # Must be a long or short commit SHA (long preferred)
-  revision: 93f64dc847a0e6788b17b292ae4d7d59361e3be0
-
+  release: f1c496523ff0aa10c162fd01ad606960e925a5a4 (2025-04-11T18:18:43Z).
+  revision: f1c496523ff0aa10c162fd01ad606960e925a5a4
   license: ['MIT', 'Apache-2.0']
 
 updatebot:
-    maintainer-phab: jimb
+    maintainer-phab: "#webgpu-reviewers"
     maintainer-bz: jimb@mozilla.com
+    try-preset: webgpu
     tasks:
       - type: vendoring
         enabled: false
         frequency: 1 week
+        blocking: 1851881  # webgpu-update-wgpu
 
 vendoring:
   url: https://github.com/gfx-rs/wgpu

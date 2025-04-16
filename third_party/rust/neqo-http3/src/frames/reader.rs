@@ -4,8 +4,10 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
-#![allow(clippy::module_name_repetitions)]
-
+#![allow(
+    clippy::module_name_repetitions,
+    reason = "<https://github.com/mozilla/neqo/issues/2284#issuecomment-2782711813>"
+)]
 use std::fmt::Debug;
 
 use neqo_common::{
@@ -44,7 +46,7 @@ pub trait StreamReader {
     fn read_data(&mut self, buf: &mut [u8]) -> Res<(usize, bool)>;
 }
 
-pub(crate) struct StreamReaderConnectionWrapper<'a> {
+pub struct StreamReaderConnectionWrapper<'a> {
     conn: &'a mut Connection,
     stream_id: StreamId,
 }
@@ -65,7 +67,7 @@ impl StreamReader for StreamReaderConnectionWrapper<'_> {
     }
 }
 
-pub(crate) struct StreamReaderRecvStreamWrapper<'a> {
+pub struct StreamReaderRecvStreamWrapper<'a> {
     recv_stream: &'a mut Box<dyn RecvStream>,
     conn: &'a mut Connection,
 }
@@ -93,9 +95,8 @@ enum FrameReaderState {
     UnknownFrameDischargeData { decoder: IncrementalDecoderIgnore },
 }
 
-#[allow(clippy::module_name_repetitions)]
 #[derive(Debug)]
-pub(crate) struct FrameReader {
+pub struct FrameReader {
     state: FrameReaderState,
     frame_type: HFrameType,
     frame_len: u64,

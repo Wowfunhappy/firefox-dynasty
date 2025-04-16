@@ -35,7 +35,6 @@
 #include "mozilla/ScopeExit.h"
 #include "mozilla/Services.h"
 #include "mozilla/StaticPrefs_layout.h"
-#include "mozilla/Telemetry.h"
 #include "gfxSVGGlyphs.h"
 #include "gfx2DGlue.h"
 
@@ -674,7 +673,13 @@ struct gfxFontEntry::GrSandboxData {
       grGetGlyphAdvanceCallback;
 
   GrSandboxData() {
+#if defined(MOZ_WASM_SANDBOXING_GRAPHITE)
+    sandbox.create_sandbox(/* shouldAbortOnFailure = */ true,
+                           /* custom capacity = */ nullptr,
+                           "rlbox_wasm2c_graphite");
+#else
     sandbox.create_sandbox();
+#endif
     grGetTableCallback =
         sandbox.register_callback(gfxFontEntryCallbacks::GrGetTable);
     grReleaseTableCallback =
@@ -1828,7 +1833,7 @@ void gfxFontFamily::FindFontForChar(GlobalFontMatch* aMatchData) {
 
       fe = e;
       distance = WeightStyleStretchDistance(fe, aMatchData->mStyle);
-      if (aMatchData->mPresentation != eFontPresentation::Any) {
+      if (aMatchData->mPresentation != FontPresentation::Any) {
         RefPtr<gfxFont> font = fe->FindOrMakeFont(&aMatchData->mStyle);
         if (!font) {
           continue;
@@ -1883,7 +1888,7 @@ void gfxFontFamily::SearchAllFontsForChar(GlobalFontMatch* aMatchData) {
     gfxFontEntry* fe = mAvailableFonts[i];
     if (fe && fe->HasCharacter(aMatchData->mCh)) {
       float distance = WeightStyleStretchDistance(fe, aMatchData->mStyle);
-      if (aMatchData->mPresentation != eFontPresentation::Any) {
+      if (aMatchData->mPresentation != FontPresentation::Any) {
         RefPtr<gfxFont> font = fe->FindOrMakeFont(&aMatchData->mStyle);
         if (!font) {
           continue;

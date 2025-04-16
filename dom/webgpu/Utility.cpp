@@ -4,6 +4,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "Utility.h"
+#include "mozilla/dom/TypedArray.h"
 #include "mozilla/dom/WebGPUBinding.h"
 #include "mozilla/webgpu/ffi/wgpu.h"
 #include "mozilla/webgpu/WebGPUTypes.h"
@@ -384,7 +385,7 @@ ffi::WGPUTextureFormat ConvertTextureFormat(
       result.tag = ffi::WGPUTextureFormat_Etc2Rgba8Unorm;
       break;
     case dom::GPUTextureFormat::Etc2_rgba8unorm_srgb:
-      result.tag = ffi::WGPUTextureFormat_Etc2Rgb8UnormSrgb;
+      result.tag = ffi::WGPUTextureFormat_Etc2Rgba8UnormSrgb;
       break;
     case dom::GPUTextureFormat::Eac_r11unorm:
       result.tag = ffi::WGPUTextureFormat_EacR11Unorm;
@@ -407,6 +408,29 @@ ffi::WGPUTextureFormat ConvertTextureFormat(
   // but not if we add a 'default' case. So, check this here.
   MOZ_RELEASE_ASSERT(result.tag != ffi::WGPUTextureFormat_Sentinel,
                      "unexpected texture format enum");
+
+  return result;
+}
+
+ffi::WGPUTextureAspect ConvertTextureAspect(
+    const dom::GPUTextureAspect& aAspect) {
+  ffi::WGPUTextureAspect result = ffi::WGPUTextureAspect_Sentinel;
+  switch (aAspect) {
+    case dom::GPUTextureAspect::All:
+      result = ffi::WGPUTextureAspect_All;
+      break;
+    case dom::GPUTextureAspect::Depth_only:
+      result = ffi::WGPUTextureAspect_DepthOnly;
+      break;
+    case dom::GPUTextureAspect::Stencil_only:
+      result = ffi::WGPUTextureAspect_StencilOnly;
+      break;
+  }
+
+  // Clang will check for us that the switch above is exhaustive,
+  // but not if we add a 'default' case. So, check this here.
+  MOZ_RELEASE_ASSERT(result != ffi::WGPUTextureAspect_Sentinel,
+                     "unexpected texture aspect enum");
 
   return result;
 }
@@ -589,6 +613,39 @@ ffi::WGPUDepthStencilState ConvertDepthStencilState(
   desc.bias.slope_scale = aDesc.mDepthBiasSlopeScale;
   desc.bias.clamp = aDesc.mDepthBiasClamp;
   return desc;
+}
+
+// Extract a list of dynamic offsets from a larger JS-supplied buffer.
+// Used by implementions of the `setBindGroup` method of the spec's
+// `GPUBindingCommandsMixin`.
+//
+// If the given start/length are out of bounds, sets a
+// `RangeError` in `aRv` and returns `Nothing`.
+mozilla::Maybe<mozilla::Buffer<uint32_t>> GetDynamicOffsetsFromArray(
+    const dom::Uint32Array& aDynamicOffsetsData,
+    uint64_t aDynamicOffsetsDataStart, uint64_t aDynamicOffsetsDataLength,
+    ErrorResult& aRv) {
+  auto dynamicOffsets =
+      aDynamicOffsetsData.CreateFromData<mozilla::Buffer<uint32_t>>(
+          [&](const size_t& aLength)
+              -> mozilla::Maybe<std::pair<uint64_t, uint64_t>> {
+            auto checkedLength =
+                CheckedInt<uint64_t>(aDynamicOffsetsDataStart) +
+                aDynamicOffsetsDataLength;
+            if (!checkedLength.isValid() || checkedLength.value() > aLength) {
+              return mozilla::Nothing();
+            } else {
+              return mozilla::Some(std::make_pair(aDynamicOffsetsDataStart,
+                                                  aDynamicOffsetsDataLength));
+            }
+          });
+
+  if (dynamicOffsets.isNothing()) {
+    aRv.ThrowRangeError<dom::MSG_VALUE_OUT_OF_RANGE>(
+        "dynamicOffsetsDataStart/Length");
+  }
+
+  return dynamicOffsets;
 }
 
 }  // namespace mozilla::webgpu

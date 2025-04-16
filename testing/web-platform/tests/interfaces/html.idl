@@ -1483,6 +1483,7 @@ interface mixin CanvasPathDrawingStyles {
 
 interface mixin CanvasTextDrawingStyles {
   // text
+  attribute DOMString lang; // (default: "inherit")
   attribute DOMString font; // (default 10px sans-serif)
   attribute CanvasTextAlign textAlign; // (default: "start")
   attribute CanvasTextBaseline textBaseline; // (default: "alphabetic")
@@ -1540,19 +1541,25 @@ interface TextMetrics {
   readonly attribute double ideographicBaseline;
 };
 
+typedef (Uint8ClampedArray or Float16Array) ImageDataArray;
+
+enum ImageDataPixelFormat { "rgba-unorm8", "rgba-float16" };
+
 dictionary ImageDataSettings {
   PredefinedColorSpace colorSpace;
+  ImageDataPixelFormat pixelFormat = "rgba-unorm8";
 };
 
 [Exposed=(Window,Worker),
  Serializable]
 interface ImageData {
   constructor(unsigned long sw, unsigned long sh, optional ImageDataSettings settings = {});
-  constructor(Uint8ClampedArray data, unsigned long sw, optional unsigned long sh, optional ImageDataSettings settings = {});
+  constructor(ImageDataArray data, unsigned long sw, optional unsigned long sh, optional ImageDataSettings settings = {});
 
   readonly attribute unsigned long width;
   readonly attribute unsigned long height;
-  readonly attribute Uint8ClampedArray data;
+  readonly attribute ImageDataArray data;
+  readonly attribute ImageDataPixelFormat pixelFormat;
   readonly attribute PredefinedColorSpace colorSpace;
 };
 
@@ -2366,6 +2373,13 @@ enum DOMParserSupportedType {
 
 partial interface Range {
   [CEReactions, NewObject] DocumentFragment createContextualFragment((TrustedHTML or DOMString) string);
+};
+
+[Exposed=Window]
+interface XMLSerializer {
+  constructor();
+
+  DOMString serializeToString(Node root);
 };
 
 [Exposed=Window]

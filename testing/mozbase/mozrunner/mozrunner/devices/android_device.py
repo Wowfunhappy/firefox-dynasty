@@ -84,7 +84,12 @@ class InstallIntent(Enum):
     NO = 2
 
 
-class AvdInfo(object):
+class UninstallIntent(Enum):
+    YES = 1
+    NO = 2
+
+
+class AvdInfo:
     """
     Simple class to contain an AVD description.
     """
@@ -255,7 +260,7 @@ def _maybe_update_host_utils(build_obj):
         #     "filename": "host-utils-58.0a1.en-US-linux-x86_64.tar.gz",
         path = os.path.join(build_obj.topsrcdir, MANIFEST_PATH)
         manifest_path = os.path.join(path, host_platform, "hostutils.manifest")
-        with open(manifest_path, "r") as f:
+        with open(manifest_path) as f:
             for line in f.readlines():
                 m = re.search('.*"(host-utils-.*)"', line)
                 if m:
@@ -297,7 +302,7 @@ def metadata_for_app(app, aab=False):
         package_name = "org.mozilla.firefox"
         activity_name = "org.mozilla.firefox.App"
         subcommand = "installFenixRelease"
-    if app == "org.mozilla.fenix.nightly" or app == "fenix.nightly":
+    elif app == "org.mozilla.fenix.nightly" or app == "fenix.nightly":
         # Likely only works for --no-install.
         package_name = "org.mozilla.fenix"
         activity_name = "org.mozilla.fenix.App"
@@ -328,9 +333,64 @@ def metadata_for_app(app, aab=False):
     return metadata(activity_name, package_name, subcommand)
 
 
+def get_android_device(build_obj, device_serial=None, verbose=False):
+    # If device_serial not specified, check environment variables.
+    if device_serial is None:
+        device_serial = os.environ.get("ANDROID_SERIAL")
+    if device_serial is None:
+        device_serial = os.environ.get("DEVICE_SERIAL")
+
+    # If no serial specified, check for a connected and ready device
+    if device_serial is None:
+        adb_path = _find_sdk_exe(build_obj.substs, "adb", False)
+        if adb_path is None:
+            _log_info("Couldn't find ADB. Quitting")
+            return
+        adbhost = ADBHost(adb=adb_path, verbose=verbose, timeout=SHORT_TIMEOUT)
+        devices = adbhost.devices(timeout=SHORT_TIMEOUT)
+        ready_devices = [d["device_serial"] for d in devices if d["state"] == "device"]
+        if ready_devices:
+            if len(ready_devices) > 1:
+                _log_info(
+                    "Multiple Android devices available. Please set ANDROID_SERIAL to pick one."
+                )
+                return
+            device_serial = ready_devices[0]
+
+    # If no device available, ask about starting an emulator
+    if device_serial is None:
+        emulator = AndroidEmulator("*", substs=build_obj.substs, verbose=verbose)
+        if emulator.is_available():
+            response = input(
+                "No Android devices connected. Start an emulator? (Y/n) "
+            ).strip()
+            if response.lower().startswith("y") or response == "":
+                if not emulator.check_avd():
+                    _log_info("Android AVD not found, please run |mach bootstrap|")
+                    return
+                _log_info(
+                    "Starting emulator running %s..." % emulator.get_avd_description()
+                )
+                emulator.start()
+                emulator.wait_for_start()
+                device_serial = "emulator-5554"
+
+    # Try to open a connection to chosen device
+    device = None
+    if device_serial:
+        device = _get_device(substs=build_obj.substs, device_serial=device_serial)
+
+    # For compatability, we record active device in DEVICE_SERIAL environment
+    if device:
+        os.environ["DEVICE_SERIAL"] = device_serial
+
+    return [device, device_serial]
+
+
 def verify_android_device(
     build_obj,
     install=InstallIntent.NO,
+    uninstall=UninstallIntent.YES,
     xre=False,
     debugger=False,
     network=False,
@@ -365,46 +425,27 @@ def verify_android_device(
         _log_info(
             "*********************************************************************\n"
             "Neither the MOZ_DISABLE_ADB_INSTALL environment variable nor the\n"
-            "--no-install flag was found. The code will now uninstall the current\n"
-            "app then re-install the android app from a different source. If you\n"
-            "don't want this set your local env so that\n"
+            "--no-install flag was found."
+        )
+
+        if uninstall == UninstallIntent.YES:
+            _log_info(
+                "The code will now uninstall the current app then re-install the\n"
+                "android app from a different source. If you want to avoid unintalling\n"
+                "the current app, set the --no-uninstall flag."
+            )
+
+        _log_info(
+            "If you don't want this set your local env so that\n"
             "MOZ_DISABLE_ADB_INSTALL=True or pass the --no-install flag\n"
             "*********************************************************************"
         )
-    device_verified = False
-    emulator = AndroidEmulator("*", substs=build_obj.substs, verbose=verbose)
-    adb_path = _find_sdk_exe(build_obj.substs, "adb", False)
-    if not adb_path:
-        adb_path = "adb"
-    adbhost = ADBHost(adb=adb_path, verbose=verbose, timeout=SHORT_TIMEOUT)
-    devices = adbhost.devices(timeout=SHORT_TIMEOUT)
-    if "device" in [d["state"] for d in devices]:
-        device_verified = True
-    elif emulator.is_available():
-        response = input(
-            "No Android devices connected. Start an emulator? (Y/n) "
-        ).strip()
-        if response.lower().startswith("y") or response == "":
-            if not emulator.check_avd():
-                _log_info("Android AVD not found, please run |mach bootstrap|")
-                return
-            _log_info(
-                "Starting emulator running %s..." % emulator.get_avd_description()
-            )
-            emulator.start()
-            emulator.wait_for_start()
-            device_verified = True
 
-    if device_verified and "DEVICE_SERIAL" not in os.environ:
-        devices = adbhost.devices(timeout=SHORT_TIMEOUT)
-        for d in devices:
-            if d["state"] == "device":
-                os.environ["DEVICE_SERIAL"] = d["device_serial"]
-                break
+    [device, device_serial] = get_android_device(build_obj, device_serial, verbose)
 
     metadata = metadata_for_app(app, aab)
 
-    if device_verified and install != InstallIntent.NO:
+    if device and install != InstallIntent.NO:
         # Determine if test app is installed on the device; if not,
         # prompt to install. This feature allows a test command to
         # launch an emulator, install the test app, and proceed with testing
@@ -417,7 +458,6 @@ def verify_android_device(
         # Installing every time (without prompting) is problematic because:
         #  - it prevents testing against other builds (downloaded apk)
         #  - installation may take a couple of minutes.
-        device = _get_device(build_obj.substs, device_serial)
         response = ""
         installed = device.is_app_installed(metadata.package_name)
 
@@ -427,11 +467,11 @@ def verify_android_device(
                 % metadata.package_name
             )
 
-        if metadata.subcommand and installed:
+        if metadata.subcommand and installed and uninstall == UninstallIntent.YES:
             device.uninstall_app(metadata.package_name)
 
         if metadata.activity_name == "org.mozilla.gecko.BrowserApp":
-            if installed:
+            if installed and uninstall == UninstallIntent.YES:
                 device.uninstall_app(metadata.package_name)
             _log_info("Installing Firefox...")
             build_obj._run_make(directory=".", target="install", ensure_exit_code=False)
@@ -452,7 +492,7 @@ def verify_android_device(
 
         device.run_as_package = metadata.package_name
 
-    if device_verified and xre:
+    if device and xre:
         # Check whether MOZ_HOST_BIN has been set to a valid xre; if not,
         # prompt to install one.
         xre_path = os.environ.get("MOZ_HOST_BIN")
@@ -482,13 +522,11 @@ def verify_android_device(
             if response.lower().startswith("y") or response == "":
                 _install_host_utils(build_obj)
 
-    if device_verified and network:
+    if device and network:
         # Optionally check the network: If on a device that does not look like
         # an emulator, verify that the device IP address can be obtained
         # and check that this host can ping the device.
-        serial = device_serial or os.environ.get("DEVICE_SERIAL")
-        if not serial or ("emulator" not in serial):
-            device = _get_device(build_obj.substs, serial)
+        if "emulator" not in device_serial:
             device.run_as_package = metadata.package_name
             try:
                 addr = device.get_ip_address()
@@ -516,7 +554,7 @@ def verify_android_device(
             metadata.package_name, build_obj.substs, device_serial, setup=True
         )
 
-    return device_verified
+    return device is not None
 
 
 def run_lldb_server(app, substs, device_serial):
@@ -627,7 +665,7 @@ def grant_runtime_permissions(build_obj, app, device_serial=None):
     device.grant_runtime_permissions(app)
 
 
-class AndroidEmulator(object):
+class AndroidEmulator:
     """
     Support running the Android emulator with an AVD from Mozilla
     test automation.
@@ -860,7 +898,7 @@ class AndroidEmulator(object):
 
     def _update_avd_paths(self):
         ini_path = os.path.join(EMULATOR_HOME_DIR, "avd", "%s.ini" % self.avd_info.name)
-        with open(ini_path, "r") as f:
+        with open(ini_path) as f:
             lines = f.readlines()
         with open(ini_path, "w") as f:
             for line in lines:
@@ -872,12 +910,12 @@ class AndroidEmulator(object):
                     f.write(line)
 
     def _telnet_read_until(self, telnet, expected, timeout):
-        if six.PY3 and isinstance(expected, six.text_type):
+        if six.PY3 and isinstance(expected, str):
             expected = expected.encode("ascii")
         return telnet.read_until(expected, timeout)
 
     def _telnet_write(self, telnet, command):
-        if six.PY3 and isinstance(command, six.text_type):
+        if six.PY3 and isinstance(command, str):
             command = command.encode("ascii")
         telnet.write(command)
 
@@ -969,12 +1007,20 @@ def _find_sdk_exe(substs, exe, tools):
     if not found:
         # Can exe be found in the default bootstrap location?
         for subdir in subdirs:
-            exe_path = os.path.join(MOZBUILD_PATH, "android-sdk-linux", subdir, exe)
-            if os.path.exists(exe_path):
-                found = True
+            for sdkdir in [
+                "android-sdk-linux",
+                "android-sdk-macosx",
+                "android-sdk-windows",
+            ]:
+                exe_path = os.path.join(MOZBUILD_PATH, sdkdir, subdir, exe)
+                if os.path.exists(exe_path):
+                    found = True
+                    break
+                else:
+                    _log_debug("Unable to find executable at %s" % exe_path)
+
+            if found:
                 break
-            else:
-                _log_debug("Unable to find executable at %s" % exe_path)
 
     if not found:
         # Is exe on PATH?
@@ -994,7 +1040,7 @@ def _find_sdk_exe(substs, exe, tools):
 
         prop_path = os.path.join(os.path.dirname(exe_path), "source.properties")
         if os.path.exists(prop_path):
-            with open(prop_path, "r") as f:
+            with open(prop_path) as f:
                 for line in f.readlines():
                     if line.startswith("Pkg.Revision"):
                         line = line.strip()
@@ -1098,7 +1144,7 @@ def _verify_kvm(substs):
     command = [emulator_path, "-accel-check"]
     try:
         out = subprocess.check_output(command)
-        if six.PY3 and not isinstance(out, six.text_type):
+        if six.PY3 and not isinstance(out, str):
             out = out.decode("utf-8")
         if "is installed and usable" in "".join(out):
             return

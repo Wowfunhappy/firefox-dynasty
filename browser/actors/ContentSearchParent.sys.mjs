@@ -5,7 +5,8 @@
 const lazy = {};
 
 ChromeUtils.defineESModuleGetters(lazy, {
-  BrowserSearchTelemetry: "resource:///modules/BrowserSearchTelemetry.sys.mjs",
+  BrowserSearchTelemetry:
+    "moz-src:///browser/components/search/BrowserSearchTelemetry.sys.mjs",
   BrowserUtils: "resource://gre/modules/BrowserUtils.sys.mjs",
   FormHistory: "resource://gre/modules/FormHistory.sys.mjs",
   PrivateBrowsingUtils: "resource://gre/modules/PrivateBrowsingUtils.sys.mjs",
@@ -332,7 +333,12 @@ export let ContentSearch = {
     return true;
   },
 
-  async currentStateObj(window) {
+  /**
+   * Construct a state object representing the search engine state.
+   *
+   * @returns {Object} state
+   */
+  async currentStateObj() {
     let state = {
       engines: [],
       currentEngine: await this._currentEngineObj(false),
@@ -346,13 +352,6 @@ export let ContentSearch = {
         hidden: engine.hideOneOffButton,
         isAppProvided: engine.isAppProvided,
       });
-    }
-
-    if (window) {
-      state.isInPrivateBrowsingMode =
-        lazy.PrivateBrowsingUtils.isContentWindowPrivate(window);
-      state.isAboutPrivateBrowsing =
-        window.gBrowser.currentURI.spec == "about:privatebrowsing";
     }
 
     return state;
@@ -411,21 +410,19 @@ export let ContentSearch = {
     }
   },
 
-  _onMessageGetState({ actor, browser }) {
-    return this.currentStateObj(browser.ownerGlobal).then(state => {
-      this._reply(actor, "State", state);
-    });
+  async _onMessageGetState({ actor }) {
+    let state = await this.currentStateObj();
+    return this._reply(actor, "State", state);
   },
 
-  _onMessageGetEngine({ actor, browser }) {
-    return this.currentStateObj(browser.ownerGlobal).then(state => {
-      this._reply(actor, "Engine", {
-        isPrivateEngine: state.isInPrivateBrowsingMode,
-        isAboutPrivateBrowsing: state.isAboutPrivateBrowsing,
-        engine: state.isInPrivateBrowsingMode
-          ? state.currentPrivateEngine
-          : state.currentEngine,
-      });
+  async _onMessageGetEngine({ actor }) {
+    let state = await this.currentStateObj();
+    let { usePrivateBrowsing } = actor.browsingContext;
+    return this._reply(actor, "Engine", {
+      isPrivateEngine: usePrivateBrowsing,
+      engine: usePrivateBrowsing
+        ? state.currentPrivateEngine
+        : state.currentEngine,
     });
   },
 

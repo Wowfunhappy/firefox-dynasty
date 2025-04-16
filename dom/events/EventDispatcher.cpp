@@ -63,7 +63,6 @@
 #include "mozilla/ProfilerLabels.h"
 #include "mozilla/ProfilerMarkers.h"
 #include "mozilla/ScopeExit.h"
-#include "mozilla/Telemetry.h"
 #include "mozilla/TextEvents.h"
 #include "mozilla/TouchEvents.h"
 #include "mozilla/Unused.h"
@@ -754,16 +753,15 @@ EventTargetChainItem* EventTargetChainItemForChromeTarget(
 }
 
 static bool ShouldClearTargets(WidgetEvent* aEvent) {
-  if (nsIContent* finalTarget =
-          nsIContent::FromEventTargetOrNull(aEvent->mTarget)) {
-    if (finalTarget->SubtreeRoot()->IsShadowRoot()) {
+  if (auto* finalTarget = nsIContent::FromEventTargetOrNull(aEvent->mTarget)) {
+    if (finalTarget->IsInShadowTree()) {
       return true;
     }
   }
 
-  if (nsIContent* finalRelatedTarget =
+  if (auto* finalRelatedTarget =
           nsIContent::FromEventTargetOrNull(aEvent->mRelatedTarget)) {
-    if (finalRelatedTarget->SubtreeRoot()->IsShadowRoot()) {
+    if (finalRelatedTarget->IsInShadowTree()) {
       return true;
     }
   }
@@ -1269,7 +1267,7 @@ nsresult EventDispatcher::Dispatch(EventTarget* aTarget,
   aEvent->mFlags.mDispatchedAtLeastOnce = true;
 
   if (eventTimingEntry) {
-    eventTimingEntry->FinalizeEventTiming(aEvent->mTarget);
+    eventTimingEntry->FinalizeEventTiming(aEvent);
   }
   // https://dom.spec.whatwg.org/#concept-event-dispatch
   // step 10. If clearTargets, then:

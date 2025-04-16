@@ -761,9 +761,6 @@ void mozJSModuleLoader::SetModuleOptions(CompileOptions& aOptions) {
 
   // Top level await is not supported in synchronously loaded modules.
   aOptions.topLevelAwait = false;
-
-  // Make all top-level `vars` available in `ModuleEnvironmentObject`.
-  aOptions.deoptimizeModuleGlobalVars = true;
 }
 
 /* static */
@@ -1039,7 +1036,8 @@ nsresult mozJSModuleLoader::GetModuleImportStack(const nsACString& aLocation,
 
 /* static */
 bool mozJSModuleLoader::IsTrustedScheme(nsIURI* aURI) {
-  return aURI->SchemeIs("resource") || aURI->SchemeIs("chrome");
+  return aURI->SchemeIs("resource") || aURI->SchemeIs("chrome") ||
+         aURI->SchemeIs("moz-src");
 }
 
 nsresult mozJSModuleLoader::ImportESModule(
@@ -1077,6 +1075,12 @@ nsresult mozJSModuleLoader::ImportESModule(
   nsresult rv = NS_NewURI(getter_AddRefs(uri), aLocation);
   NS_ENSURE_SUCCESS(rv, rv);
 
+  if (!IsTrustedScheme(uri)) {
+    JS_ReportErrorASCII(
+        aCx, "System modules must be loaded from a trusted scheme");
+    return NS_ERROR_FAILURE;
+  }
+
   nsCOMPtr<nsIPrincipal> principal =
       mModuleLoader->GetGlobalObject()->PrincipalOrNull();
   MOZ_ASSERT(principal);
@@ -1094,9 +1098,8 @@ nsresult mozJSModuleLoader::ImportESModule(
   RefPtr<ModuleLoadRequest> request = new ModuleLoadRequest(
       uri, JS::ModuleType::JavaScript, dom::ReferrerPolicy::No_referrer,
       options, dom::SRIMetadata(),
-      /* aReferrer = */ nullptr, context,
-      /* aIsTopLevel = */ true,
-      /* aIsDynamicImport = */ false, mModuleLoader, visitedSet, nullptr);
+      /* aReferrer = */ nullptr, context, ModuleLoadRequest::Kind::TopLevel,
+      mModuleLoader, visitedSet, nullptr);
 
   request->NoCacheEntryFound();
 

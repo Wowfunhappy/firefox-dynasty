@@ -1124,6 +1124,7 @@ class nsLayoutUtils {
     ForWebRender = 0x100,
     UseHighQualityScaling = 0x200,
     ResetViewportScrolling = 0x400,
+    CompositeOffscreen = 0x800,
   };
 
   /**
@@ -1463,6 +1464,19 @@ class nsLayoutUtils {
   static bool IsViewportScrollbarFrame(nsIFrame* aFrame);
 
   /**
+   * Use only for paddings / widths / heights, since it clamps negative calc()
+   * to 0.
+   */
+  template <typename LengthPercentageLike>
+  static mozilla::Maybe<nscoord> GetAbsoluteSize(
+      const LengthPercentageLike& aSize) {
+    if (!aSize.ConvertsToLength()) {
+      return mozilla::Nothing();
+    }
+    return mozilla::Some(std::max(0, aSize.ToLength()));
+  }
+
+  /**
    * Get the contribution of aFrame to its containing block's intrinsic
    * size for the given physical axis.  This considers the child's intrinsic
    * width, its 'width', 'min-width', and 'max-width' properties (or 'height'
@@ -1548,8 +1562,6 @@ class nsLayoutUtils {
   }
 
   static nscoord ComputeCBDependentValue(nscoord aPercentBasis,
-                                         mozilla::StylePhysicalAxis aAxis,
-                                         mozilla::StylePositionProperty aProp,
                                          const AnchorResolvedInset& aInset) {
     if (aInset->IsAuto()) {
       // Callers are assumed to have handled other cases already.
@@ -1559,16 +1571,17 @@ class nsLayoutUtils {
                  "Have unconstrained percentage basis when percentage "
                  "resolution needed; this should only result from very "
                  "large sizes, not attempts at intrinsic size calculation");
-    return aInset->AsLengthPercentage().ResolveWithAnchor(aPercentBasis, aAxis,
-                                                          aProp);
+    return aInset->AsLengthPercentage().Resolve(aPercentBasis);
   }
 
   static nscoord ComputeCBDependentValue(nscoord aPercentBasis,
-                                         const mozilla::StyleMargin& aMargin) {
-    if (!aMargin.IsLengthPercentage()) {
+                                         const AnchorResolvedMargin& aMargin) {
+    if (!aMargin->IsLengthPercentage()) {
+      MOZ_ASSERT(aMargin->IsAuto(), "Didn't resolve anchor functions first?");
       return 0;
     }
-    return ComputeCBDependentValue(aPercentBasis, aMargin.AsLengthPercentage());
+    return ComputeCBDependentValue(aPercentBasis,
+                                   aMargin->AsLengthPercentage());
   }
 
   static nscoord ComputeBSizeValue(nscoord aContainingBlockBSize,
@@ -1696,10 +1709,6 @@ class nsLayoutUtils {
   static bool IsPaddingZero(const LengthPercentage& aLength) {
     // clamp negative calc() to 0
     return aLength.Resolve(nscoord_MAX) <= 0 && aLength.Resolve(0) <= 0;
-  }
-
-  static bool IsMarginZero(const LengthPercentage& aLength) {
-    return aLength.Resolve(nscoord_MAX) == 0 && aLength.Resolve(0) == 0;
   }
 
   static void MarkDescendantsDirty(nsIFrame* aSubtreeRoot);

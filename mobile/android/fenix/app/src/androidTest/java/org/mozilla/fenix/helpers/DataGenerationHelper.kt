@@ -12,12 +12,13 @@ import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
-import android.net.Uri
 import android.util.Log
 import androidx.browser.customtabs.CustomTabsIntent
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.ComposeTestRule
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.core.graphics.createBitmap
+import androidx.core.net.toUri
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.uiautomator.UiSelector
 import mozilla.components.browser.state.search.SearchEngine
@@ -55,14 +56,14 @@ object DataGenerationHelper {
                 true,
             )
             .build()
-        customTabsIntent.intent.data = Uri.parse(pageUrl)
+        customTabsIntent.intent.data = pageUrl.toUri()
         Log.i(TAG, "createCustomTabIntent: Created custom tab intent with url: $pageUrl")
         return customTabsIntent.intent
     }
 
     private fun createTestBitmap(): Bitmap {
         Log.i(TAG, "createTestBitmap: Trying to create a test bitmap")
-        val bitmap = Bitmap.createBitmap(100, 100, Bitmap.Config.ARGB_8888)
+        val bitmap = createBitmap(100, 100, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
         canvas.drawColor(Color.GREEN)
         Log.i(TAG, "createTestBitmap: Created a test bitmap")

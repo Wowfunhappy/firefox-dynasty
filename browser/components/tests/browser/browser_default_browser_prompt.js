@@ -4,7 +4,7 @@
 "use strict";
 
 const { DefaultBrowserCheck } = ChromeUtils.importESModule(
-  "resource:///modules/BrowserGlue.sys.mjs"
+  "moz-src:///browser/components/DefaultBrowserCheck.sys.mjs"
 );
 const { ExperimentFakes } = ChromeUtils.importESModule(
   "resource://testing-common/NimbusTestUtils.sys.mjs"
@@ -222,16 +222,16 @@ add_task(async function promptStoresImpressionAndDisableTimestamps() {
   );
 
   const now = Math.floor(Date.now() / 1000);
-  const oneHourInMs = 60 * 60 * 1000;
+  const oneHourInS = 60 * 60;
 
   Assert.ok(
     impressionTimestamp &&
-      now - parseInt(impressionTimestamp, 10) <= oneHourInMs,
+      now - parseInt(impressionTimestamp, 10) <= oneHourInS,
     "Prompt impression timestamp is stored"
   );
 
   Assert.ok(
-    disabledTimestamp && now - parseInt(disabledTimestamp, 10) <= oneHourInMs,
+    disabledTimestamp && now - parseInt(disabledTimestamp, 10) <= oneHourInS,
     "Selecting checkbox stores timestamp of when user disabled the prompt"
   );
 });

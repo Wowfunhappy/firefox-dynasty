@@ -27,7 +27,7 @@
       <toolbarbutton id="scrollbutton-up" part="scrollbutton-up" keyNav="false" data-l10n-id="overflow-scroll-button-backwards"/>
       <spacer part="overflow-start-indicator"/>
       <scrollbox part="scrollbox" flex="1">
-        <html:slot/>
+        <html:slot part="items-wrapper"/>
       </scrollbox>
       <spacer part="overflow-end-indicator"/>
       <toolbarbutton id="scrollbutton-down" part="scrollbutton-down" keyNav="false" data-l10n-id="overflow-scroll-button-forwards"/>
@@ -235,6 +235,9 @@
     get isRTLScrollbox() {
       if (this.#verticalMode) {
         return false;
+      }
+      if ("RTL_UI" in window) {
+        return window.RTL_UI;
       }
       if (!("_isRTLScrollbox" in this)) {
         this._isRTLScrollbox =
@@ -650,9 +653,6 @@
       if (this.#verticalMode) {
         doScroll = true;
         scrollAmount = event.deltaY;
-        if (deltaMode == event.DOM_DELTA_PIXEL) {
-          instant = true;
-        }
       } else {
         // We allow vertical scrolling to scroll a horizontal scrollbox
         // because many users have a vertical scroll wheel but no

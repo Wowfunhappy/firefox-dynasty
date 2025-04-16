@@ -822,6 +822,12 @@
             "moz-box-button",
             "chrome://global/content/elements/moz-box-button.mjs",
           ],
+          [
+            "moz-box-group",
+            "chrome://global/content/elements/moz-box-group.mjs",
+          ],
+          ["moz-box-item", "chrome://global/content/elements/moz-box-item.mjs"],
+          ["moz-box-link", "chrome://global/content/elements/moz-box-link.mjs"],
           ["moz-button", "chrome://global/content/elements/moz-button.mjs"],
           [
             "moz-button-group",
@@ -833,6 +839,14 @@
           [
             "moz-five-star",
             "chrome://global/content/elements/moz-five-star.mjs",
+          ],
+          [
+            "moz-input-folder",
+            "chrome://global/content/elements/moz-input-folder.mjs",
+          ],
+          [
+            "moz-input-password",
+            "chrome://global/content/elements/moz-input-password.mjs",
           ],
           [
             "moz-input-search",

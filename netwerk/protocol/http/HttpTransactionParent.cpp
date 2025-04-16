@@ -22,6 +22,7 @@
 #include "nsSerializationHelper.h"
 #include "nsStreamUtils.h"
 #include "nsStringStream.h"
+#include "nsIRequestContext.h"
 
 namespace mozilla::net {
 
@@ -175,9 +176,16 @@ nsresult HttpTransactionParent::AsyncRead(nsIStreamListener* listener,
   return NS_OK;
 }
 
-UniquePtr<nsHttpResponseHead> HttpTransactionParent::TakeResponseHead() {
+UniquePtr<nsHttpResponseHead>
+HttpTransactionParent::TakeResponseHeadAndConnInfo(
+    nsHttpConnectionInfo** aOut) {
   MOZ_ASSERT(NS_IsMainThread());
   MOZ_ASSERT(!mResponseHeadTaken, "TakeResponseHead called 2x");
+
+  if (aOut) {
+    RefPtr<nsHttpConnectionInfo> connInfo = mConnInfo;
+    connInfo.forget(aOut);
+  }
 
   mResponseHeadTaken = true;
   return std::move(mResponseHead);

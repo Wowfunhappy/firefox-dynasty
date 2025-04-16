@@ -39,12 +39,13 @@ import org.mozilla.fenix.components.appstate.AppAction.SnackbarAction
 import org.mozilla.fenix.components.menu.MenuAccessPoint
 import org.mozilla.fenix.components.toolbar.interactor.BrowserToolbarInteractor
 import org.mozilla.fenix.components.toolbar.navbar.shouldAddNavigationBar
+import org.mozilla.fenix.components.usecases.FenixBrowserUseCases
 import org.mozilla.fenix.ext.components
 import org.mozilla.fenix.ext.nav
 import org.mozilla.fenix.ext.navigateSafe
 import org.mozilla.fenix.ext.settings
-import org.mozilla.fenix.home.HomeFragment
 import org.mozilla.fenix.home.HomeScreenViewModel
+import org.mozilla.fenix.home.HomeScreenViewModel.Companion.ALL_PRIVATE_TABS
 import org.mozilla.fenix.utils.Settings
 
 /**
@@ -104,6 +105,7 @@ class DefaultBrowserToolbarController(
     private val store: BrowserStore,
     private val appStore: AppStore,
     private val tabsUseCases: TabsUseCases,
+    private val fenixBrowserUseCases: FenixBrowserUseCases,
     private val activity: HomeActivity,
     private val settings: Settings,
     private val navController: NavController,
@@ -234,7 +236,7 @@ class DefaultBrowserToolbarController(
 
     override fun handleEraseButtonClick() {
         Events.browserToolbarEraseTapped.record(NoExtras())
-        homeViewModel.sessionToDelete = HomeFragment.ALL_PRIVATE_TABS
+        homeViewModel.sessionToDelete = ALL_PRIVATE_TABS
         val directions = BrowserFragmentDirections.actionGlobalHome()
         navController.navigate(directions)
     }
@@ -281,9 +283,7 @@ class DefaultBrowserToolbarController(
 
     override fun handleNewTabButtonClick() {
         if (settings.enableHomepageAsNewTab) {
-            tabsUseCases.addTab.invoke(
-                url = "about:home",
-                startLoading = false,
+            fenixBrowserUseCases.addNewHomepageTab(
                 private = currentSession?.content?.private ?: false,
             )
         }

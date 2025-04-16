@@ -8,9 +8,9 @@
 {
   ChromeUtils.defineESModuleGetters(this, {
     BrowserSearchTelemetry:
-      "resource:///modules/BrowserSearchTelemetry.sys.mjs",
+      "moz-src:///browser/components/search/BrowserSearchTelemetry.sys.mjs",
     BrowserUtils: "resource://gre/modules/BrowserUtils.sys.mjs",
-    SearchOneOffs: "resource:///modules/SearchOneOffs.sys.mjs",
+    SearchOneOffs: "moz-src:///browser/components/search/SearchOneOffs.sys.mjs",
   });
 
   /**
@@ -193,7 +193,6 @@
       // Check for middle-click or modified clicks on the search bar
       BrowserSearchTelemetry.recordSearchSuggestionSelectionMethod(
         aEvent,
-        "searchbar",
         this.selectedIndex
       );
 

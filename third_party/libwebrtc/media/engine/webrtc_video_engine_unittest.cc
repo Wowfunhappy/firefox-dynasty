@@ -471,6 +471,34 @@ TEST_F(WebRtcVideoEngineTest, DefaultRtxCodecHasAssociatedPayloadTypeSet) {
   FAIL() << "No RTX codec found among default codecs.";
 }
 
+// Test that we prefer to assign RTX payload types as "primary codec PT + 1".
+// This is purely for backwards compatibility (see https://crbug.com/391132280).
+// The spec does NOT mandate we do this and note that this is best-effort, if
+// "PT + 1" is already in-use the PT suggester would pick a different PT.
+TEST_F(WebRtcVideoEngineTest,
+       DefaultRtxCodecIsAssignedAssociatedPayloadTypePlusOne) {
+  AddSupportedVideoCodecType("VP8");
+  AddSupportedVideoCodecType("VP9");
+  AddSupportedVideoCodecType("AV1");
+  AddSupportedVideoCodecType("H264");
+  for (const Codec& codec : engine_.send_codecs()) {
+    if (codec.name != kRtxCodecName)
+      continue;
+    int associated_payload_type;
+    ASSERT_TRUE(codec.GetParam(kCodecParamAssociatedPayloadType,
+                               &associated_payload_type));
+    EXPECT_EQ(codec.id, associated_payload_type + 1);
+  }
+  for (const Codec& codec : engine_.recv_codecs()) {
+    if (codec.name != kRtxCodecName)
+      continue;
+    int associated_payload_type;
+    ASSERT_TRUE(codec.GetParam(kCodecParamAssociatedPayloadType,
+                               &associated_payload_type));
+    EXPECT_EQ(codec.id, associated_payload_type + 1);
+  }
+}
+
 TEST_F(WebRtcVideoEngineTest, SupportsTimestampOffsetHeaderExtension) {
   ExpectRtpCapabilitySupport(RtpExtension::kTimestampOffsetUri, true);
 }
@@ -2545,6 +2573,38 @@ TEST_F(WebRtcVideoChannelBaseTest, TwoStreamsSendAndReceive) {
   cricket::Codec codec = GetEngineCodec("VP8");
   codec.params[kCodecParamStartBitrate] = "1000000";
   TwoStreamsSendAndReceive(codec);
+}
+
+TEST_F(WebRtcVideoChannelBaseTest,
+       RequestEncoderFallbackNextCodecFollowNegotiatedOrder) {
+  cricket::VideoSenderParameters parameters;
+  parameters.codecs.push_back(GetEngineCodec("VP9"));
+  parameters.codecs.push_back(GetEngineCodec("AV1"));
+  parameters.codecs.push_back(GetEngineCodec("VP8"));
+  EXPECT_TRUE(send_channel_->SetSenderParameters(parameters));
+
+  std::optional<Codec> codec = send_channel_->GetSendCodec();
+  ASSERT_TRUE(codec);
+  EXPECT_EQ("VP9", codec->name);
+
+  SendImpl()->RequestEncoderFallback();
+  time_controller_.AdvanceTime(kFrameDuration);
+  codec = send_channel_->GetSendCodec();
+  ASSERT_TRUE(codec);
+  EXPECT_EQ("AV1", codec->name);
+
+  SendImpl()->RequestEncoderFallback();
+  time_controller_.AdvanceTime(kFrameDuration);
+  codec = send_channel_->GetSendCodec();
+  ASSERT_TRUE(codec);
+  EXPECT_EQ("VP8", codec->name);
+
+  SendImpl()->RequestEncoderFallback();
+  time_controller_.AdvanceTime(kFrameDuration);
+
+  webrtc::test::FrameForwarder frame_forwarder;
+  EXPECT_TRUE(send_channel_->SetVideoSend(kSsrc, nullptr, &frame_forwarder));
+  EXPECT_TRUE(send_channel_->RemoveSendStream(kSsrc));
 }
 
 #if defined(RTC_ENABLE_VP9)
@@ -5193,7 +5253,7 @@ TEST_F(WebRtcVideoChannelTest,
   std::vector<webrtc::VideoStream> streams = stream->GetVideoStreams();
   ASSERT_GT(streams.size(), 1u)
       << "Without simulcast this test doesn't make sense.";
-  int initial_max_bitrate_bps = GetTotalMaxBitrate(streams).bps();
+  int initial_max_bitrate_bps = webrtc::GetTotalMaxBitrate(streams).bps();
   EXPECT_GT(initial_max_bitrate_bps, 0);
 
   parameters.max_bandwidth_bps = initial_max_bitrate_bps * 2;
@@ -5201,7 +5261,7 @@ TEST_F(WebRtcVideoChannelTest,
   // Insert a frame to update the encoder config.
   frame_forwarder.IncomingCapturedFrame(frame_source_.GetFrame());
   streams = stream->GetVideoStreams();
-  int increased_max_bitrate_bps = GetTotalMaxBitrate(streams).bps();
+  int increased_max_bitrate_bps = webrtc::GetTotalMaxBitrate(streams).bps();
   EXPECT_EQ(initial_max_bitrate_bps * 2, increased_max_bitrate_bps);
 
   EXPECT_TRUE(send_channel_->SetVideoSend(kSsrcs3[0], nullptr, nullptr));
@@ -9115,7 +9175,7 @@ TEST_F(WebRtcVideoChannelTest, BandwidthAboveTotalMaxBitrateGivenToMaxLayer) {
 
   // Set max bandwidth equal to total max bitrate.
   send_parameters_.max_bandwidth_bps =
-      GetTotalMaxBitrate(stream->GetVideoStreams()).bps();
+      webrtc::GetTotalMaxBitrate(stream->GetVideoStreams()).bps();
   ExpectSetMaxBitrate(send_parameters_.max_bandwidth_bps);
   ASSERT_TRUE(send_channel_->SetSenderParameters(send_parameters_));
 
@@ -9126,7 +9186,7 @@ TEST_F(WebRtcVideoChannelTest, BandwidthAboveTotalMaxBitrateGivenToMaxLayer) {
 
   // Set max bandwidth above the total max bitrate.
   send_parameters_.max_bandwidth_bps =
-      GetTotalMaxBitrate(stream->GetVideoStreams()).bps() + 1;
+      webrtc::GetTotalMaxBitrate(stream->GetVideoStreams()).bps() + 1;
   ExpectSetMaxBitrate(send_parameters_.max_bandwidth_bps);
   ASSERT_TRUE(send_channel_->SetSenderParameters(send_parameters_));
 
@@ -9134,7 +9194,7 @@ TEST_F(WebRtcVideoChannelTest, BandwidthAboveTotalMaxBitrateGivenToMaxLayer) {
   // max should be given to the highest layer.
   EXPECT_EQ(kNumSimulcastStreams, stream->GetVideoStreams().size());
   EXPECT_EQ(send_parameters_.max_bandwidth_bps,
-            GetTotalMaxBitrate(stream->GetVideoStreams()).bps());
+            webrtc::GetTotalMaxBitrate(stream->GetVideoStreams()).bps());
   EXPECT_EQ(kDefault[2].max_bitrate_bps + 1,
             stream->GetVideoStreams()[2].max_bitrate_bps);
 
@@ -9164,7 +9224,7 @@ TEST_F(WebRtcVideoChannelTest,
 
   // Set max bandwidth above the total max bitrate.
   send_parameters_.max_bandwidth_bps =
-      GetTotalMaxBitrate(stream->GetVideoStreams()).bps() + 1;
+      webrtc::GetTotalMaxBitrate(stream->GetVideoStreams()).bps() + 1;
   ExpectSetMaxBitrate(send_parameters_.max_bandwidth_bps);
   ASSERT_TRUE(send_channel_->SetSenderParameters(send_parameters_));
 
@@ -9850,7 +9910,8 @@ class WebRtcVideoChannelSimulcastTest : public ::testing::Test {
       const webrtc::VideoEncoderConfig& encoder_config =
           stream->GetEncoderConfig();
       webrtc::VideoEncoder::EncoderInfo encoder_info;
-      auto factory = rtc::make_ref_counted<EncoderStreamFactory>(encoder_info);
+      auto factory =
+          rtc::make_ref_counted<webrtc::EncoderStreamFactory>(encoder_info);
       expected_streams = factory->CreateEncoderStreams(
           field_trials_, capture_width, capture_height, encoder_config);
       if (screenshare && conference_mode) {

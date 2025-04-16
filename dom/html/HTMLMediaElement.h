@@ -310,9 +310,11 @@ class HTMLMediaElement : public nsGenericHTMLElement,
       VideoFrameContainer* aContainer,
       const PrincipalHandle& aNewPrincipalHandle) override;
 
-  // Dispatch events
-  void DispatchAsyncEvent(const nsAString& aName) final;
-  void DispatchAsyncEvent(RefPtr<nsMediaEventRunner> aRunner);
+  // Queue a media element task to fire an event targeted at the media element.
+  void QueueEvent(const nsAString& aName) final;
+  // Queue a media element task.
+  // The task is blocked while the document is in B/F cache.
+  void QueueTask(RefPtr<nsMediaEventRunner> aRunner);
 
   // Triggers a recomputation of readyState.
   void UpdateReadyState() override {
@@ -1077,8 +1079,7 @@ class HTMLMediaElement : public nsGenericHTMLElement,
    * state to NETWORK_NO_SOURCE, and sends error event with code
    * MEDIA_ERR_SRC_NOT_SUPPORTED.
    */
-  void NoSupportedMediaSourceError(
-      const nsACString& aErrorDetails = nsCString());
+  void NoSupportedMediaSourceError(const nsACString& aErrorDetails);
 
   /**
    * Per spec, Failed with elements: Queue a task, using the DOM manipulation
@@ -1324,7 +1325,8 @@ class HTMLMediaElement : public nsGenericHTMLElement,
 
   using nsGenericHTMLElement::DispatchEvent;
   // For nsAsyncEventRunner.
-  nsresult DispatchEvent(const nsAString& aName);
+  // The event is blocked while the document is in B/F cache.
+  MOZ_CAN_RUN_SCRIPT nsresult FireEvent(const nsAString& aName);
 
   already_AddRefed<nsMediaEventRunner> GetEventRunner(
       const nsAString& aName, EventFlag aFlag = EventFlag::eNone);
@@ -1936,6 +1938,12 @@ class HTMLMediaElement : public nsGenericHTMLElement,
 
   // Return true if we should queue a 'timeupdate' event runner to main thread.
   bool ShouldQueueTimeupdateAsyncTask(TimeupdateType aType) const;
+
+  // In order to avoid the back-button intervention resulting in history
+  // entries with autoplayed videos from being skipped, we make sure that an
+  // entry which has played a video is considered to have been interacted
+  // with. See bug 1946547.
+  void MaybeMarkSHEntryAsUserInteracted();
 
 #ifdef MOZ_WMF_CDM
   // It's used to record telemetry probe for WMFCDM playback.

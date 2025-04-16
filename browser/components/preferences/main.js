@@ -30,7 +30,6 @@ const PREF_CONTAINERS_EXTENSION = "privacy.userContext.extension";
 // Strings to identify ExtensionSettingsStore overrides
 const CONTAINERS_KEY = "privacy.containers";
 
-const PREF_USE_SYSTEM_COLORS = "browser.display.use_system_colors";
 const PREF_CONTENT_APPEARANCE =
   "layout.css.prefers-color-scheme.content-override";
 const FORCED_COLORS_QUERY = matchMedia("(forced-colors)");
@@ -91,6 +90,7 @@ Preferences.addAll([
   { id: "browser.ctrlTab.sortByRecentlyUsed", type: "bool" },
   { id: "browser.tabs.hoverPreview.enabled", type: "bool" },
   { id: "browser.tabs.hoverPreview.showThumbnails", type: "bool" },
+  { id: "browser.tabs.groups.smart.userEnabled", type: "bool" },
 
   { id: "sidebar.verticalTabs", type: "bool" },
   { id: "sidebar.revamp", type: "bool" },
@@ -104,6 +104,9 @@ Preferences.addAll([
     id: "browser.newtabpage.activity-stream.asrouter.userprefs.cfr.features",
     type: "bool",
   },
+
+  // High Contrast
+  { id: "browser.display.document_color_use", type: "int" },
 
   // Fonts
   { id: "font.language.group", type: "wstring" },
@@ -197,6 +200,174 @@ if (AppConstants.MOZ_UPDATER) {
 
   if (AppConstants.NIGHTLY_BUILD) {
     Preferences.addAll([{ id: "app.update.suppressPrompts", type: "bool" }]);
+  }
+}
+
+Preferences.addSetting({
+  id: "useAutoScroll",
+  pref: "general.autoScroll",
+});
+Preferences.addSetting({
+  id: "useSmoothScrolling",
+  pref: "general.smoothScroll",
+});
+Preferences.addSetting({
+  id: "useOverlayScrollbars",
+  pref: "widget.gtk.overlay-scrollbars.enabled",
+  visible: () => AppConstants.MOZ_WIDGET_GTK,
+});
+Preferences.addSetting({
+  id: "useOnScreenKeyboard",
+  pref: "ui.osk.enabled",
+  visible: () => AppConstants.platform == "win",
+});
+Preferences.addSetting({
+  id: "useCursorNavigation",
+  pref: "accessibility.browsewithcaret",
+});
+Preferences.addSetting({
+  id: "useFullKeyboardNavigation",
+  pref: "accessibility.tabfocus",
+  visible: () => AppConstants.platform == "macosx",
+  /**
+   * Returns true if any full keyboard nav is enabled and false otherwise, caching
+   * the current value to enable proper pref restoration if the checkbox is
+   * never changed.
+   *
+   * accessibility.tabfocus
+   * - an integer controlling the focusability of:
+   *     1  text controls
+   *     2  form elements
+   *     4  links
+   *     7  all of the above
+   */
+  get(prefVal) {
+    this._storedFullKeyboardNavigation = prefVal;
+    return prefVal == 7;
+  },
+  /**
+   * Returns the value of the full keyboard nav preference represented by UI,
+   * preserving the preference's "hidden" value if the preference is
+   * unchanged and represents a value not strictly allowed in UI.
+   */
+  set(checked) {
+    if (checked) {
+      return 7;
+    }
+    if (this._storedFullKeyboardNavigation != 7) {
+      // 1/2/4 values set via about:config should persist
+      return this._storedFullKeyboardNavigation;
+    }
+    // When the checkbox is unchecked, default to just text controls.
+    return 1;
+  },
+});
+Preferences.addSetting({
+  id: "alwaysUnderlineLinks",
+  pref: "layout.css.always_underline_links",
+});
+Preferences.addSetting({
+  id: "searchStartTyping",
+  pref: "accessibility.typeaheadfind",
+});
+Preferences.addSetting({
+  id: "pictureInPictureToggleEnabled",
+  pref: "media.videocontrols.picture-in-picture.video-toggle.enabled",
+  visible: () =>
+    Services.prefs.getBoolPref(
+      "media.videocontrols.picture-in-picture.enabled"
+    ),
+  onUserChange(checked) {
+    if (!checked) {
+      Glean.pictureinpictureSettings.disableSettings.record();
+    }
+  },
+});
+Preferences.addSetting({
+  id: "mediaControlToggleEnabled",
+  pref: "media.hardwaremediakeys.enabled",
+  // For media control toggle button, we support it on Windows, macOS and
+  // gtk-based Linux.
+  visible: () =>
+    AppConstants.platform == "win" ||
+    AppConstants.platform == "macosx" ||
+    AppConstants.MOZ_WIDGET_GTK,
+});
+Preferences.addSetting({
+  id: "cfrRecommendations",
+  pref: "browser.newtabpage.activity-stream.asrouter.userprefs.cfr.addons",
+});
+Preferences.addSetting({
+  id: "cfrRecommendations-features",
+  pref: "browser.newtabpage.activity-stream.asrouter.userprefs.cfr.features",
+});
+
+let SETTINGS_CONFIG = {
+  browsing: {
+    items: [
+      {
+        id: "useAutoScroll",
+        l10nId: "browsing-use-autoscroll",
+      },
+      {
+        id: "useSmoothScrolling",
+        l10nId: "browsing-use-smooth-scrolling",
+      },
+      {
+        id: "useOverlayScrollbars",
+        l10nId: "browsing-gtk-use-non-overlay-scrollbars",
+      },
+      {
+        id: "useOnScreenKeyboard",
+        l10nId: "browsing-use-onscreen-keyboard",
+      },
+      {
+        id: "useCursorNavigation",
+        l10nId: "browsing-use-cursor-navigation",
+      },
+      {
+        id: "useFullKeyboardNavigation",
+        l10nId: "browsing-use-full-keyboard-navigation",
+      },
+      {
+        id: "alwaysUnderlineLinks",
+        l10nId: "browsing-always-underline-links",
+      },
+      {
+        id: "searchStartTyping",
+        l10nId: "browsing-search-on-start-typing",
+      },
+      {
+        id: "pictureInPictureToggleEnabled",
+        l10nId: "browsing-picture-in-picture-toggle-enabled",
+        supportPage: "picture-in-picture",
+      },
+      {
+        id: "mediaControlToggleEnabled",
+        l10nId: "browsing-media-control",
+        supportPage: "media-keyboard-control",
+      },
+      {
+        id: "cfrRecommendations",
+        l10nId: "browsing-cfr-recommendations",
+        supportPage: "extensionrecommendations",
+        subcategory: "cfraddons",
+      },
+      {
+        id: "cfrRecommendations-features",
+        l10nId: "browsing-cfr-features",
+        supportPage: "extensionrecommendations",
+        subcategory: "cfrfeatures",
+      },
+    ],
+  },
+};
+
+function initSettingGroup(id) {
+  let group = document.querySelector(`setting-group[groupid=${id}]`);
+  if (group && SETTINGS_CONFIG[id]) {
+    group.config = SETTINGS_CONFIG[id];
+    group.getSetting = Preferences.getSetting.bind(Preferences);
   }
 }
 
@@ -338,22 +509,7 @@ var gMainPane = {
 
     gMainPane.initTranslations();
 
-    if (
-      Services.prefs.getBoolPref(
-        "media.videocontrols.picture-in-picture.enabled"
-      )
-    ) {
-      document.getElementById("pictureInPictureBox").hidden = false;
-      setEventListener(
-        "pictureInPictureToggleEnabled",
-        "command",
-        function (event) {
-          if (!event.target.checked) {
-            Glean.pictureinpictureSettings.disableSettings.record();
-          }
-        }
-      );
-    }
+    initSettingGroup("browsing");
 
     if (AppConstants.platform == "win") {
       // Functionality for "Show tabs in taskbar" on Windows 7 and up.
@@ -372,6 +528,15 @@ var gMainPane = {
       (thumbsCheckbox.hidden = !cardPreviewEnabledPref.value);
     cardPreviewEnabledPref.on("change", maybeShowThumbsCheckbox);
     maybeShowThumbsCheckbox();
+
+    const tabGroupSuggestionsCheckbox = document.getElementById(
+      "tabGroupSuggestions"
+    );
+    const smartTabGroupFeatureEnabled = Services.prefs.getBoolPref(
+      "browser.tabs.groups.smart.enabled",
+      false
+    );
+    tabGroupSuggestionsCheckbox.hidden = !smartTabGroupFeatureEnabled;
 
     // The "opening multiple tabs might slow down Firefox" warning provides
     // an option for not showing this warning again. When the user disables it,
@@ -492,6 +657,11 @@ var gMainPane = {
     );
     setEventListener("advancedFonts", "command", gMainPane.configureFonts);
     setEventListener("colors", "command", gMainPane.configureColors);
+    Preferences.get("browser.display.document_color_use").on(
+      "change",
+      gMainPane.updateColorsButton.bind(gMainPane)
+    );
+    gMainPane.updateColorsButton();
     Preferences.get("layers.acceleration.disabled").on(
       "change",
       gMainPane.updateHardwareAcceleration.bind(gMainPane)
@@ -542,16 +712,6 @@ var gMainPane = {
         .setAttribute("style", "display: none !important");
     } else {
       setEventListener("manage-profiles", "command", gMainPane.manageProfiles);
-    }
-
-    // For media control toggle button, we support it on Windows, macOS and
-    // gtk-based Linux.
-    if (
-      AppConstants.platform == "win" ||
-      AppConstants.platform == "macosx" ||
-      AppConstants.MOZ_WIDGET_GTK
-    ) {
-      document.getElementById("mediaControlBox").hidden = false;
     }
 
     // Initializes the fonts dropdowns displayed in this pane.
@@ -794,18 +954,6 @@ var gMainPane = {
       document.getElementById("defaultFont"),
       element => FontBuilder.readFontSelection(element)
     );
-    if (AppConstants.platform == "macosx") {
-      // We only expose this control on macOS, so don't try
-      // to add listeners if it doesn't exist.
-      Preferences.addSyncFromPrefListener(
-        document.getElementById("useFullKeyboardNavigation"),
-        () => this.readUseFullKeyboardNavigation()
-      );
-      Preferences.addSyncToPrefListener(
-        document.getElementById("useFullKeyboardNavigation"),
-        () => this.writeUseFullKeyboardNavigation()
-      );
-    }
     Preferences.addSyncFromPrefListener(
       document.getElementById("checkSpelling"),
       () => this.readCheckSpelling()
@@ -1043,6 +1191,11 @@ var gMainPane = {
     document.getElementById("zoomBox").hidden = false;
   },
 
+  updateColorsButton() {
+    document.getElementById("colors").disabled =
+      Preferences.get("browser.display.document_color_use").value != 2;
+  },
+
   /**
    * Initialize the translations view.
    */
@@ -1161,6 +1314,12 @@ var gMainPane = {
           "command",
           this.handleDeleteAll
         );
+
+        Services.obs.addObserver(this, "intl:app-locales-changed");
+      }
+
+      destroy() {
+        Services.obs.removeObserver(this, "intl:app-locales-changed");
       }
 
       handleInstallAll = async () => {
@@ -1244,6 +1403,7 @@ var gMainPane = {
         for (const { langTag, displayName } of this.state.languageList) {
           const hboxRow = document.createXULElement("hbox");
           hboxRow.classList.add("translations-manage-language");
+          hboxRow.setAttribute("data-lang-tag", langTag);
 
           const languageLabel = document.createXULElement("label");
           languageLabel.textContent = displayName; // The display name is already localized.
@@ -1405,11 +1565,41 @@ var gMainPane = {
       hideError() {
         this.elements.error.hidden = true;
       }
+
+      observe(_subject, topic, _data) {
+        if (topic === "intl:app-locales-changed") {
+          this.refreshLanguageListDisplay();
+        }
+      }
+
+      refreshLanguageListDisplay() {
+        try {
+          const languageDisplayNames =
+            TranslationsParent.createLanguageDisplayNames();
+
+          for (const row of this.elements.installList.children) {
+            const rowLangTag = row.getAttribute("data-lang-tag");
+            if (!rowLangTag) {
+              continue;
+            }
+
+            const label = row.querySelector("label");
+            if (label) {
+              const newDisplayName = languageDisplayNames.of(rowLangTag);
+              if (label.textContent !== newDisplayName) {
+                label.textContent = newDisplayName;
+              }
+            }
+          }
+        } catch (error) {
+          console.error(error);
+        }
+      }
     }
 
     TranslationsState.create().then(
       state => {
-        new TranslationsView(state);
+        this._translationsView = new TranslationsView(state);
       },
       error => {
         // This error can happen when a user is not connected to the internet, or
@@ -2254,49 +2444,6 @@ var gMainPane = {
   },
 
   /**
-   * Stores the original value of the tabfocus preference to enable proper
-   * restoration if unchanged (since we're mapping an int pref onto a checkbox).
-   */
-  _storedFullKeyboardNavigation: Preferences.get("accessibility.tabfocus"),
-
-  /**
-   * Returns true if any full keyboard nav is enabled and false otherwise, caching
-   * the current value to enable proper pref restoration if the checkbox is
-   * never changed.
-   *
-   * accessibility.tabfocus
-   * - an integer controlling the focusability of:
-   *     1  text controls
-   *     2  form elements
-   *     4  links
-   *     7  all of the above
-   */
-  readUseFullKeyboardNavigation() {
-    var pref = Preferences.get("accessibility.tabfocus");
-    this._storedFullKeyboardNavigation = pref.value;
-
-    return pref.value == 7;
-  },
-
-  /**
-   * Returns the value of the full keyboard nav preference represented by UI,
-   * preserving the preference's "hidden" value if the preference is
-   * unchanged and represents a value not strictly allowed in UI.
-   */
-  writeUseFullKeyboardNavigation() {
-    var checkbox = document.getElementById("useFullKeyboardNavigation");
-    if (checkbox.checked) {
-      return 7;
-    }
-    if (this._storedFullKeyboardNavigation != 7) {
-      // 1/2/4 values set via about:config should persist
-      return this._storedFullKeyboardNavigation;
-    }
-    // When the checkbox is unchecked, default to just text controls.
-    return 1;
-  },
-
-  /**
    * Stores the original value of the spellchecking preference to enable proper
    * restoration if unchanged (since we're mapping a tristate onto a checkbox).
    */
@@ -2626,6 +2773,13 @@ var gMainPane = {
     Services.prefs.removeObserver(PREF_CONTAINERS_EXTENSION, this);
     Services.obs.removeObserver(this, AUTO_UPDATE_CHANGED_TOPIC);
     Services.obs.removeObserver(this, BACKGROUND_UPDATE_CHANGED_TOPIC);
+
+    // Clean up the TranslationsView instance if it exists
+    if (this._translationsView) {
+      this._translationsView.destroy();
+      this._translationsView = null;
+    }
+
     AppearanceChooser.destroy();
   },
 
@@ -3727,9 +3881,10 @@ var gMainPane = {
     switch (aFolder) {
       case "Desktop":
         return Services.dirsvc.get("Desk", Ci.nsIFile);
-      case "Downloads":
+      case "Downloads": {
         let downloadsDir = await Downloads.getSystemDownloadsDirectory();
         return new FileUtils.File(downloadsDir);
+      }
     }
     throw new Error(
       "ASSERTION FAILED: folder type should be 'Desktop' or 'Downloads'"
@@ -3894,8 +4049,17 @@ class HandlerListItem {
       return;
     }
     const { id, args } = document.l10n.getAttributes(selectedItem);
+    const messageIDs = {
+      "applications-action-save": "applications-action-save-label",
+      "applications-always-ask": "applications-always-ask-label",
+      "applications-open-inapp": "applications-open-inapp-label",
+      "applications-use-app-default": "applications-use-app-default-label",
+      "applications-use-app": "applications-use-app-label",
+      "applications-use-os-default": "applications-use-os-default-label",
+      "applications-use-other": "applications-use-other-label",
+    };
     localizeElement(this.node.querySelector(".actionDescription"), {
-      id: id + "-label",
+      id: messageIDs[id],
       args,
     });
     localizeElement(this.node.querySelector(".actionsMenu"), { id, args });
@@ -4016,12 +4180,12 @@ class HandlerInfoWrapper {
       case Ci.nsIHandlerInfo.useSystemDefault:
         return this.iconURLForSystemDefault;
 
-      case Ci.nsIHandlerInfo.useHelperApp:
+      case Ci.nsIHandlerInfo.useHelperApp: {
         let preferredApp = this.preferredApplicationHandler;
         if (gMainPane.isValidHandlerApp(preferredApp)) {
           return gMainPane._getIconURLForHandlerApp(preferredApp);
         }
-
+      }
       // This should never happen, but if preferredAction is set to some weird
       // value, then fall back to the generic application icon.
       // Explicit fall-through
@@ -4272,7 +4436,6 @@ const AppearanceChooser = {
     this.warning = document.getElementById("web-appearance-override-warning");
 
     FORCED_COLORS_QUERY.addEventListener("change", this);
-    Services.prefs.addObserver(PREF_USE_SYSTEM_COLORS, this);
     Services.obs.addObserver(this, "look-and-feel-changed");
     this._update();
   },
@@ -4308,7 +4471,6 @@ const AppearanceChooser = {
   },
 
   destroy() {
-    Services.prefs.removeObserver(PREF_USE_SYSTEM_COLORS, this);
     Services.obs.removeObserver(this, "look-and-feel-changed");
     FORCED_COLORS_QUERY.removeEventListener("change", this);
   },
@@ -4343,10 +4505,6 @@ const AppearanceChooser = {
   },
 
   _updateWarning() {
-    let forcingColorsAndNoColorSchemeSupport =
-      FORCED_COLORS_QUERY.matches &&
-      (AppConstants.platform == "win" ||
-        !Services.prefs.getBoolPref(PREF_USE_SYSTEM_COLORS));
-    this.warning.hidden = !forcingColorsAndNoColorSchemeSupport;
+    this.warning.hidden = !FORCED_COLORS_QUERY.matches;
   },
 };

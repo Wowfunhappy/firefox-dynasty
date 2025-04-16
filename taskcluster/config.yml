@@ -120,6 +120,7 @@ treeherder:
         'Ub22': 'Packages for Ubuntu 22.04'
         'Ub22a64': 'AArch64 packages for Ubuntu 22.04'
         'Ub24': 'Packages for Ubuntu 24.04'
+        'Ub24a64': 'AArch64 packages for Ubuntu 24.04'
         'I': 'Docker Image Builds'
         'TA': 'Toolchain builds for Android'
         'TL': 'Toolchain builds for Linux 64-bits'
@@ -177,6 +178,7 @@ treeherder:
         'Boot': 'Bootstrap'
         'Attr-L10n': 'Build Attribution'
         'android-l10n': 'Import strings from android-l10n repo'
+        'update-test': 'Test updates to release from older firefox versions'
 
         # The below symbols are from firefox-android (fenix/focus/android-components)
         'buildconfig': 'Make sure the content of .buildconfig.yml matches what gradle knows about its projects'
@@ -550,6 +552,13 @@ merge-automation:
                 - - "services/sync/modules/constants.sys.mjs"
                   - 'WEAVE_VERSION = "1.{current_weave_version}.0"'
                   - 'WEAVE_VERSION = "1.{next_weave_version}.0"'
+            regex-replacements:
+                - - "browser/extensions/webcompat/manifest.json"
+                  - '"version": "[0-9]+.[0-9]+.0"'
+                  - '"version": "{next_major_version}.0.0"'
+                - - "browser/extensions/newtab/manifest.json"
+                  - '"version": "[0-9]+.[0-9]+.0"'
+                  - '"version": "{next_major_version}.0.0"'
             merge-old-head: false
             end-tag: 'FIREFOX_NIGHTLY_{major_version}_END'
             to-repo: 'https://hg.mozilla.org/mozilla-central'
@@ -671,7 +680,7 @@ workers:
         addon:
             provisioner: scriptworker-k8s
             implementation: push-addons
-            os: scriptworker
+            os: linux
             worker-type:
                 by-release-level:
                     production: '{trust-domain}-3-addon'
@@ -679,7 +688,7 @@ workers:
         balrog:
             provisioner: scriptworker-k8s
             implementation: balrog
-            os: scriptworker
+            os: linux
             worker-type:
                 by-release-level:
                     production: '{trust-domain}-3-balrog'
@@ -689,7 +698,7 @@ workers:
             # Note that this implementation doesn't correspond with an
             # payload_builder, there are several `bouncer-*` implemenations.
             implementation: bouncer
-            os: scriptworker
+            os: linux
             worker-type:
                 by-release-level:
                     production: '{trust-domain}-3-bouncer'
@@ -697,7 +706,7 @@ workers:
         beetmover:
             provisioner: scriptworker-k8s
             implementation: beetmover
-            os: scriptworker
+            os: linux
             worker-type:
                 by-release-level:
                     production: '{trust-domain}-3-beetmover'
@@ -705,7 +714,7 @@ workers:
         beetmover-android:
             provisioner: scriptworker-k8s
             implementation: scriptworker-beetmover
-            os: scriptworker
+            os: linux
             worker-type:
                 by-release-level:
                     production: '{trust-domain}-3-beetmover'
@@ -713,7 +722,7 @@ workers:
         shipit:
             provisioner: scriptworker-k8s
             implementation: shipit
-            os: scriptworker
+            os: linux
             worker-type:
                 by-release-level:
                     production: '{trust-domain}-3-shipit'
@@ -747,12 +756,12 @@ workers:
         push-apk:
             provisioner: scriptworker-k8s
             implementation: scriptworker-pushapk
-            os: scriptworker
+            os: linux
             worker-type: '{trust-domain}-{level}-pushapk'
         pushflatpak:
             provisioner: scriptworker-k8s
             implementation: push-flatpak
-            os: scriptworker
+            os: linux
             worker-type:
                 by-release-level:
                     staging: '{trust-domain}-1-pushflatpak'
@@ -760,7 +769,7 @@ workers:
         pushmsix:
             provisioner: scriptworker-k8s
             implementation: push-msix
-            os: scriptworker
+            os: linux
             worker-type:
                 by-release-level:
                     staging: '{trust-domain}-1-pushmsix'
@@ -768,7 +777,7 @@ workers:
         tree:
             provisioner: scriptworker-k8s
             implementation: treescript
-            os: scriptworker
+            os: linux
             worker-type:
                 by-release-level:
                     production: '{trust-domain}-3-tree'
@@ -779,7 +788,7 @@ workers:
         tree-dev:
             provisioner: scriptworker-k8s
             implementation: treescript
-            os: scriptworker
+            os: linux
             worker-type: '{trust-domain}-1-tree-dev'
         t-bitbar-gw.*:
             provisioner: proj-autophone
@@ -846,6 +855,11 @@ workers:
             implementation: generic-worker
             os: linux
             worker-type: 't-linux-2404-wayland-snap'
+        t-linux-arm64-docker:
+            provisioner: '{trust-domain}-t'
+            implementation: docker-worker
+            os: linux
+            worker-type: '{alias}'
         t-osx-1015-r8:
             provisioner: releng-hardware
             implementation: generic-worker
@@ -898,6 +912,11 @@ workers:
             os: windows
             worker-type: 'gecko-{alias}'
         win11-64-2009(-hw-ref):
+            provisioner: releng-hardware
+            implementation: generic-worker
+            os: windows
+            worker-type: '{alias}'
+        win10-64-2009-hw:
             provisioner: releng-hardware
             implementation: generic-worker
             os: windows

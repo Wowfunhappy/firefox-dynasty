@@ -132,6 +132,8 @@ skip-if = [
 
 ["test_group_programmatic_scroll_behavior.html"]
 
+["test_group_scrollIntoView.html"]
+
 ["test_group_scroll_anchor.html"]
 
 ["test_group_scroll_linked_effect.html"]

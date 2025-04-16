@@ -19,9 +19,7 @@
 #include "nsIWidget.h"
 #include "nsViewManager.h"
 #include "nsIFrame.h"
-#include "nsPresArena.h"
 #include "nsXULPopupManager.h"
-#include "nsIScreen.h"
 #include "nsIWidgetListener.h"
 #include "nsContentUtils.h"  // for nsAutoScriptBlocker
 #include "nsDocShell.h"
@@ -205,26 +203,6 @@ bool nsView::IsEffectivelyVisible() {
   return true;
 }
 
-// Cocoa and GTK round widget coordinates to the nearest global "display pixel"
-// integer value. So we avoid fractional display pixel values by rounding to
-// the nearest value that won't yield a fractional display pixel.
-static LayoutDeviceIntRect MaybeRoundToDisplayPixels(
-    const LayoutDeviceIntRect& aRect, TransparencyMode aTransparency,
-    int32_t aRound) {
-  if (aRound == 1) {
-    return aRect;
-  }
-
-  // If the widget doesn't support transparency, we prefer truncating to
-  // ceiling, so that we don't have extra pixels not painted by our frame.
-  auto size = aTransparency == TransparencyMode::Opaque
-                  ? aRect.Size().TruncatedToMultiple(aRound)
-                  : aRect.Size().CeiledToMultiple(aRound);
-  Unused << NS_WARN_IF(aTransparency == TransparencyMode::Opaque &&
-                       size != aRect.Size());
-  return {aRect.TopLeft().RoundedToMultiple(aRound), size};
-}
-
 LayoutDeviceIntRect nsView::CalcWidgetBounds(WindowType aType,
                                              TransparencyMode aTransparency) {
   int32_t p2a = mViewManager->AppUnitsPerDevPixel();
@@ -268,7 +246,8 @@ LayoutDeviceIntRect nsView::CalcWidgetBounds(WindowType aType,
       return idealBounds;
     }
     const int32_t round = widget->RoundsWidgetCoordinatesTo();
-    return MaybeRoundToDisplayPixels(idealBounds, aTransparency, round);
+    return nsIWidget::MaybeRoundToDisplayPixels(idealBounds, aTransparency,
+                                                round);
   }();
 
   // Compute where the top-left of our widget ended up relative to the parent
@@ -855,7 +834,7 @@ bool nsView::WindowResized(nsIWidget* aWidget, int32_t aWidth,
   return false;
 }
 
-#if defined(MOZ_WIDGET_ANDROID)
+#ifdef MOZ_WIDGET_ANDROID
 void nsView::DynamicToolbarMaxHeightChanged(ScreenIntCoord aHeight) {
   MOZ_ASSERT(XRE_IsParentProcess(),
              "Should be only called for the browser parent process");
@@ -900,6 +879,18 @@ void nsView::KeyboardHeightChanged(ScreenIntCoord aHeight) {
 
         aBrowserParent->KeyboardHeightChanged(aHeight);
         return CallState::Stop;
+      });
+}
+
+void nsView::AndroidPipModeChanged(bool aPipMode) {
+  MOZ_ASSERT(XRE_IsParentProcess(),
+             "Should be only called for the browser parent process");
+  MOZ_ASSERT(this == mViewManager->GetRootView(),
+             "Should be called for the root view");
+  CallOnAllRemoteChildren(
+      [aPipMode](dom::BrowserParent* aBrowserParent) -> CallState {
+        aBrowserParent->AndroidPipModeChanged(aPipMode);
+        return CallState::Continue;
       });
 }
 #endif
@@ -962,7 +953,7 @@ void nsView::DidCompositeWindow(mozilla::layers::TransactionId aTransactionId,
 
 void nsView::RequestRepaint() {
   if (PresShell* presShell = mViewManager->GetPresShell()) {
-    presShell->ScheduleViewManagerFlush();
+    presShell->SchedulePaint();
   }
 }
 

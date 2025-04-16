@@ -13,7 +13,7 @@
 
   ChromeUtils.defineESModuleGetters(lazy, {
     BrowserSearchTelemetry:
-      "resource:///modules/BrowserSearchTelemetry.sys.mjs",
+      "moz-src:///browser/components/search/BrowserSearchTelemetry.sys.mjs",
     BrowserUtils: "resource://gre/modules/BrowserUtils.sys.mjs",
     FormHistory: "resource://gre/modules/FormHistory.sys.mjs",
     SearchSuggestionController:
@@ -332,7 +332,6 @@
 
       lazy.BrowserSearchTelemetry.recordSearchSuggestionSelectionMethod(
         aEvent,
-        "searchbar",
         selectedIndex
       );
 

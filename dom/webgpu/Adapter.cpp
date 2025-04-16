@@ -21,6 +21,64 @@ namespace mozilla::webgpu {
 GPU_IMPL_CYCLE_COLLECTION(AdapterInfo, mParent)
 GPU_IMPL_JS_WRAP(AdapterInfo)
 
+uint32_t AdapterInfo::SubgroupMinSize() const {
+  // From the spec. at
+  // <https://www.w3.org/TR/2025/CRD-webgpu-20250319/#dom-gpuadapterinfo-subgroupminsize>:
+  //
+  // > If `["subgroups"](https://www.w3.org/TR/webgpu/#subgroups)` is supported,
+  // > set `subgroupMinSize` to the smallest supported subgroup size. Otherwise,
+  // > set this value to 4.
+  // >
+  // > Note: To preserve privacy, the user agent may choose to not support some
+  // > features or provide values for the property which do not distinguish
+  // > different devices, but are still usable (e.g. use the default value of
+  // > 4 for all devices).
+
+  if (GetParentObject()->ShouldResistFingerprinting(
+          RFPTarget::WebGPUSubgroupSizes)) {
+    return 4;
+  }
+
+  // TODO: When we support `subgroups`, use the supported amount instead:
+  // <https://bugzilla.mozilla.org/show_bug.cgi?id=1955417>
+  return 4;
+}
+
+uint32_t AdapterInfo::SubgroupMaxSize() const {
+  // From the spec. at
+  // <https://www.w3.org/TR/2025/CRD-webgpu-20250319/#dom-gpuadapterinfo-subgroupmaxsize>:
+  //
+  // > If `["subgroups"](https://www.w3.org/TR/webgpu/#subgroups)` is supported,
+  // > set `subgroupMaxSize` to the largest supported subgroup size. Otherwise,
+  // > set this value to 128.
+  // >
+  // > Note: To preserve privacy, the user agent may choose to not support some
+  // > features or provide values for the property which do not distinguish
+  // > different devices, but are still usable (e.g. use the default value of
+  // > 128 for all devices).
+
+  if (GetParentObject()->ShouldResistFingerprinting(
+          RFPTarget::WebGPUSubgroupSizes)) {
+    return 128;
+  }
+
+  // TODO: When we support `subgroups`, use the supported amount instead:
+  // <https://bugzilla.mozilla.org/show_bug.cgi?id=1955417>
+  return 128;
+}
+
+bool AdapterInfo::IsFallbackAdapter() const {
+  if (GetParentObject()->ShouldResistFingerprinting(
+          RFPTarget::WebGPUIsFallbackAdapter)) {
+    // Always report hardware support for WebGPU.
+    // This behaviour matches with media capabilities API.
+    return false;
+  }
+
+  return mAboutSupportInfo->device_type ==
+         ffi::WGPUDeviceType::WGPUDeviceType_Cpu;
+}
+
 void AdapterInfo::GetWgpuName(nsString& s) const {
   s = mAboutSupportInfo->name;
 }
@@ -148,9 +206,7 @@ struct FeatureImplementationStatus {
         return implemented(WGPUWEBGPU_FEATURE_INDIRECT_FIRST_INSTANCE);
 
       case dom::GPUFeatureName::Shader_f16:
-        // return implemented(WGPUWEBGPU_FEATURE_SHADER_F16);
-        return unimplemented(
-            "https://bugzilla.mozilla.org/show_bug.cgi?id=1891593");
+        return implemented(WGPUWEBGPU_FEATURE_SHADER_F16);
 
       case dom::GPUFeatureName::Rg11b10ufloat_renderable:
         return implemented(WGPUWEBGPU_FEATURE_RG11B10UFLOAT_RENDERABLE);
@@ -173,6 +229,18 @@ struct FeatureImplementationStatus {
         // return implemented(WGPUWEBGPU_FEATURE_DUAL_SOURCE_BLENDING);
         return unimplemented(
             "https://bugzilla.mozilla.org/show_bug.cgi?id=1924328");
+
+      case dom::GPUFeatureName::Subgroups:
+        // return implemented(WGPUWEBGPU_FEATURE_SUBGROUPS);
+        return unimplemented(
+            "https://bugzilla.mozilla.org/show_bug.cgi?id=1955417");
+
+      case dom::GPUFeatureName::Core_features_and_limits:
+        // NOTE: `0` means that no bits are set in calling code, but this is on
+        // purpose. We currently _always_ return this feature elsewhere. If this
+        // actually corresponds to a value in the future, remove the
+        // unconditional setting of this feature!
+        return implemented(0);
     }
     MOZ_CRASH("Bad GPUFeatureName.");
   }
@@ -274,6 +342,18 @@ Adapter::Adapter(Instance* const aParent, WebGPUChild* const aBridge,
       // feature.
     }
   }
+  // TODO: Once we implement compat mode (see
+  // <https://bugzilla.mozilla.org/show_bug.cgi?id=1905951>), do not report this
+  // unconditionally.
+  //
+  // Meanwhile, the current spec. proposal's `Initialization` section (see
+  // <https://github.com/gpuweb/gpuweb/blob/main/proposals/compatibility-mode.md#initialization>)
+  // says:
+  //
+  // > Core-defaulting adapters *always* support the
+  // > `"core-features-and-limits"` feature. It is *automatically enabled* on
+  // > devices created from such adapters.
+  mFeatures->Add(dom::GPUFeatureName::Core_features_and_limits, ignoredRv);
 
   // We clamp limits to defaults when requestDevice is called, but
   // we return the actual limits when only requestAdapter is called.
@@ -564,9 +644,23 @@ already_AddRefed<dom::Promise> Adapter::RequestDevice(
     }
     RefPtr<Device> device = new Device(
         this, request->mDeviceId, request->mQueueId, ffiDesc.required_limits);
+    device->SetLabel(aDesc.mLabel);
+
     for (const auto& feature : aDesc.mRequiredFeatures) {
       device->mFeatures->Add(feature, aRv);
     }
+    // TODO: Once we implement compat mode (see
+    // <https://bugzilla.mozilla.org/show_bug.cgi?id=1905951>), do not report
+    // this unconditionally.
+    //
+    // Meanwhile, the current spec. proposal's `Initialization` section (see
+    // <https://github.com/gpuweb/gpuweb/blob/main/proposals/compatibility-mode.md#initialization>)
+    // says:
+    //
+    // > Core-defaulting adapters *always* support the
+    // > `"core-features-and-limits"` feature. It is *automatically enabled* on
+    // > devices created from such adapters.
+    device->mFeatures->Add(dom::GPUFeatureName::Core_features_and_limits, aRv);
 
     request->mPromise->Then(
         GetCurrentSerialEventTarget(), __func__,

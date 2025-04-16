@@ -27,7 +27,7 @@
 #include "mozilla/MemoryReporting.h"
 #include "mozilla/RangedArray.h"
 #include "mozilla/RecursiveMutex.h"
-#include "mozilla/ipc/SharedMemory.h"
+#include "mozilla/ipc/SharedMemoryHandle.h"
 #include "nsLanguageAtomService.h"
 
 namespace mozilla {
@@ -246,7 +246,8 @@ class gfxPlatformFontList : public gfxFontInfoLoader {
     return sPlatformFontList;
   }
 
-  void GetMissingFonts(nsTArray<nsCString>& aMissingFonts);
+  FontVisibility GetFontVisibility(nsCString& aFont, bool& aFound);
+  bool GetMissingFonts(nsTArray<nsCString>& aMissingFonts);
   void GetMissingFonts(nsCString& aMissingFonts);
 
   static bool Initialize(gfxPlatformFontList* aList);
@@ -295,7 +296,7 @@ class gfxPlatformFontList : public gfxFontInfoLoader {
 
   already_AddRefed<gfxFont> SystemFindFontForChar(
       nsPresContext* aPresContext, uint32_t aCh, uint32_t aNextCh,
-      Script aRunScript, eFontPresentation aPresentation,
+      Script aRunScript, FontPresentation aPresentation,
       const gfxFontStyle* aStyle, FontVisibility* aVisibility);
 
   // Flags to control optional behaviors in FindAndAddFamilies. The sense
@@ -353,20 +354,20 @@ class gfxPlatformFontList : public gfxFontInfoLoader {
 
   // Create a handle for a single shmem block (identified by index) ready to
   // be shared to the given processId.
-  void ShareFontListShmBlockToProcess(uint32_t aGeneration, uint32_t aIndex,
-                                      base::ProcessId aPid,
-                                      mozilla::ipc::SharedMemory::Handle* aOut);
+  void ShareFontListShmBlockToProcess(
+      uint32_t aGeneration, uint32_t aIndex, base::ProcessId aPid,
+      mozilla::ipc::ReadOnlySharedMemoryHandle* aOut);
 
   // Populate the array aBlocks with the complete list of shmem handles ready
   // to be shared to the given processId.
   void ShareFontListToProcess(
-      nsTArray<mozilla::ipc::SharedMemory::Handle>* aBlocks,
+      nsTArray<mozilla::ipc::ReadOnlySharedMemoryHandle>* aBlocks,
       base::ProcessId aPid);
 
   void ShmBlockAdded(uint32_t aGeneration, uint32_t aIndex,
-                     mozilla::ipc::SharedMemory::Handle aHandle);
+                     mozilla::ipc::ReadOnlySharedMemoryHandle aHandle);
 
-  mozilla::ipc::SharedMemory::Handle ShareShmBlockToProcess(
+  mozilla::ipc::ReadOnlySharedMemoryHandle ShareShmBlockToProcess(
       uint32_t aIndex, base::ProcessId aPid);
 
   void SetCharacterMap(uint32_t aGeneration, uint32_t aFamilyIndex, bool aAlias,
@@ -806,7 +807,7 @@ class gfxPlatformFontList : public gfxFontInfoLoader {
   already_AddRefed<gfxFont> CommonFontFallback(nsPresContext* aPresContext,
                                                uint32_t aCh, uint32_t aNextCh,
                                                Script aRunScript,
-                                               eFontPresentation aPresentation,
+                                               FontPresentation aPresentation,
                                                const gfxFontStyle* aMatchStyle,
                                                FontFamily& aMatchedFamily)
       MOZ_REQUIRES(mLock);
@@ -814,7 +815,7 @@ class gfxPlatformFontList : public gfxFontInfoLoader {
   // Search fonts system-wide for a given character, null if not found.
   already_AddRefed<gfxFont> GlobalFontFallback(
       nsPresContext* aPresContext, uint32_t aCh, uint32_t aNextCh,
-      Script aRunScript, eFontPresentation aPresentation,
+      Script aRunScript, FontPresentation aPresentation,
       const gfxFontStyle* aMatchStyle, uint32_t& aCmapCount,
       FontFamily& aMatchedFamily) MOZ_REQUIRES(mLock);
 

@@ -57,18 +57,21 @@
       this.initializeAttributeInheritance();
 
       this.#labelElement = this.querySelector(".tab-group-label");
+      // Mirroring MozTabbrowserTab
+      this.#labelElement.container = gBrowser.tabContainer;
+      this.#labelElement.group = this;
+
       this.#labelElement.addEventListener("click", this);
-
-      this.#updateLabelAriaAttributes();
-      this.#updateCollapsedAriaAttributes();
-
-      this.addEventListener("TabSelect", this);
-
       this.#labelElement.addEventListener("contextmenu", e => {
         e.preventDefault();
         gBrowser.tabGroupMenu.openEditModal(this);
         return false;
       });
+
+      this.#updateLabelAriaAttributes();
+      this.#updateCollapsedAriaAttributes();
+
+      this.addEventListener("TabSelect", this);
     }
 
     disconnectedCallback() {
@@ -80,22 +83,33 @@
         this.#tabChangeObserver = new window.MutationObserver(mutationList => {
           for (let mutation of mutationList) {
             mutation.addedNodes.forEach(node => {
-              node.tagName === "tab" &&
+              if (node.tagName === "tab") {
                 node.dispatchEvent(
                   new CustomEvent("TabGrouped", {
                     bubbles: true,
                     detail: this,
                   })
                 );
+                node.setAttribute("aria-level", 2);
+              }
             });
             mutation.removedNodes.forEach(node => {
-              node.tagName === "tab" &&
+              if (node.tagName === "tab") {
                 node.dispatchEvent(
                   new CustomEvent("TabUngrouped", {
                     bubbles: true,
                     detail: this,
                   })
                 );
+                // Tab could have moved to be ungrouped (level 1)
+                // or to a different group (level 2).
+                node.setAttribute("aria-level", node.group ? 2 : 1);
+                // `posinset` and `setsize` only need to be set explicitly
+                // on grouped tabs so that a11y tools can tell users that a
+                // given tab is "2 of 7" in the group, for example.
+                node.removeAttribute("aria-posinset");
+                node.removeAttribute("aria-setsize");
+              }
             });
           }
           if (!this.tabs.length) {
@@ -107,6 +121,15 @@
               this,
               "browser-tabgroup-removed-from-dom"
             );
+          } else {
+            // Renumber tabs so that a11y tools can tell users that a given
+            // tab is "2 of 7" in the group, for example.
+            let tabs = this.tabs;
+            let tabCount = tabs.length;
+            tabs.forEach((tab, index) => {
+              tab.setAttribute("aria-posinset", index + 1);
+              tab.setAttribute("aria-setsize", tabCount);
+            });
           }
         });
       }
@@ -174,6 +197,12 @@
       if (!!val == this.collapsed) {
         return;
       }
+      if (val) {
+        for (let tab of this.tabs) {
+          // Unlock tab sizes.
+          tab.style.maxWidth = "";
+        }
+      }
       this.toggleAttribute("collapsed", val);
       this.#updateCollapsedAriaAttributes();
       const eventName = val ? "TabGroupCollapse" : "TabGroupExpand";
@@ -204,6 +233,7 @@
       );
       this.#labelElement?.setAttribute("aria-label", tabGroupName);
       this.#labelElement?.setAttribute("aria-description", tabGroupDescription);
+      this.#labelElement?.setAttribute("aria-level", 1);
     }
 
     #updateCollapsedAriaAttributes() {
@@ -225,19 +255,20 @@
     /**
      * add tabs to the group
      *
-     * @param tabs array of tabs to add
+     * @param {MozTabbrowserTab[]} tabs
+     * @param {TabMetricsContext} [metricsContext]
+     *   Optional context to record for metrics purposes.
      */
-    addTabs(tabs) {
+    addTabs(tabs, metricsContext) {
       for (let tab of tabs) {
         let tabToMove =
           this.ownerGlobal === tab.ownerGlobal
             ? tab
-            : gBrowser.adoptTab(
-                tab,
-                gBrowser.tabs.at(-1)._tPos + 1,
-                tab.selected
-              );
-        gBrowser.moveTabToGroup(tabToMove, this);
+            : gBrowser.adoptTab(tab, {
+                tabIndex: gBrowser.tabs.at(-1)._tPos + 1,
+                selectTab: tab.selected,
+              });
+        gBrowser.moveTabToGroup(tabToMove, this, metricsContext);
       }
       this.#lastAddedTo = Date.now();
     }
@@ -254,9 +285,25 @@
 
     /**
      * Save group data to session store.
+     *
+     * @param {object} [options]
+     * @param {boolean} [options.isUserTriggered]
+     *   Whether or not the save operation was explicitly called by the user.
+     *   Used for telemetry. Default is false.
      */
-    save() {
+    save({ isUserTriggered = false } = {}) {
       SessionStore.addSavedTabGroup(this);
+      this.dispatchEvent(
+        new CustomEvent("TabGroupSaved", {
+          bubbles: true,
+          detail: { isUserTriggered },
+        })
+      );
+    }
+
+    saveAndClose({ isUserTriggered } = {}) {
+      this.save({ isUserTriggered });
+      gBrowser.removeTabGroup(this);
     }
 
     /**

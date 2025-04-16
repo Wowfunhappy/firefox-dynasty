@@ -17,6 +17,7 @@
 #include "SpecialSystemDirectory.h"  // For temp dir
 #include "WMFUtils.h"
 #include "mozilla/EMEUtils.h"
+#include "mozilla/ProfilerMarkers.h"
 #include "mozilla/KeySystemConfig.h"
 #include "mozilla/StaticMutex.h"
 #include "mozilla/StaticPrefs_media.h"
@@ -361,6 +362,11 @@ static nsString MapKeySystem(const nsString& aKeySystem) {
   return aKeySystem;
 }
 
+static bool IsBeingProfiledOrLogEnabled() {
+  return MOZ_LOG_TEST(GetEMELog(), LogLevel::Info) ||
+         profiler_thread_is_being_profiled_for_markers();
+}
+
 /* static */
 void MFCDMParent::SetWidevineL1Path(const char* aPath) {
   nsAutoCString path(aPath);
@@ -400,7 +406,13 @@ MFCDMParent::MFCDMParent(const nsAString& aKeySystem,
   MOZ_ASSERT(XRE_IsUtilityProcess());
   MOZ_ASSERT(GetCurrentSandboxingKind() ==
              ipc::SandboxingKind::MF_MEDIA_ENGINE_CDM);
-  MFCDM_PARENT_LOG("MFCDMParent created");
+
+  if (IsBeingProfiledOrLogEnabled()) {
+    nsPrintfCString msg("MFCDMParent created for %s",
+                        NS_ConvertUTF16toUTF8(aKeySystem).get());
+    MFCDM_PARENT_LOG("%s", msg.get());
+    PROFILER_MARKER_TEXT("MFCDMParent::Ctor", MEDIA_PLAYBACK, {}, msg);
+  }
   mIPDLSelfRef = this;
   Register();
 
@@ -430,6 +442,7 @@ void MFCDMParent::ShutdownCDM() {
 
 void MFCDMParent::Destroy() {
   AssertOnManagerThread();
+  PROFILER_MARKER_UNTYPED("MFCDMParent::Destroy", MEDIA_PLAYBACK);
   mKeyMessageEvents.DisconnectAll();
   mKeyChangeEvents.DisconnectAll();
   mExpirationEvents.DisconnectAll();
@@ -1041,24 +1054,29 @@ mozilla::ipc::IPCResult MFCDMParent::RecvInit(
     }
   };
 
-  MFCDM_PARENT_LOG(
-      "Creating a CDM (key-system=%s, origin=%s, distinctiveID=%s, "
-      "persistentState=%s, "
-      "hwSecure=%d)",
-      NS_ConvertUTF16toUTF8(mKeySystem).get(),
-      NS_ConvertUTF16toUTF8(aParams.origin()).get(),
-      RequirementToStr(aParams.distinctiveID()),
-      RequirementToStr(aParams.persistentState()),
-      IsKeySystemHWSecure(mKeySystem, aParams.videoCapabilities()));
-
+  if (IsBeingProfiledOrLogEnabled()) {
+    nsPrintfCString msg(
+        "(key-system=%s, origin=%s, distinctiveID=%s, "
+        "persistentState=%s, "
+        "hwSecure=%d)",
+        NS_ConvertUTF16toUTF8(mKeySystem).get(),
+        NS_ConvertUTF16toUTF8(aParams.origin()).get(),
+        RequirementToStr(aParams.distinctiveID()),
+        RequirementToStr(aParams.persistentState()),
+        IsKeySystemHWSecure(mKeySystem, aParams.videoCapabilities()));
+    MFCDM_PARENT_LOG("Creating a CDM %s", msg.get());
+    PROFILER_MARKER_TEXT("MFCDMParent::RecvInit(creating CDM)", MEDIA_PLAYBACK,
+                         {}, msg);
+  }
   MFCDM_REJECT_IF(!mFactory, NS_ERROR_DOM_NOT_SUPPORTED_ERR);
 
   MOZ_ASSERT(IsTypeSupported(mFactory, mKeySystem));
   MFCDM_REJECT_IF_FAILED(CreateContentDecryptionModule(
                              mFactory, MapKeySystem(mKeySystem), aParams, mCDM),
                          NS_ERROR_FAILURE);
-  MOZ_ASSERT(mCDM);
+  MFCDM_REJECT_IF(!mCDM, NS_ERROR_FAILURE);
   MFCDM_PARENT_LOG("Created a CDM!");
+  PROFILER_MARKER_UNTYPED("MFCDMParent::RecvInit(created CDM)", MEDIA_PLAYBACK);
 
   // This is only required by PlayReady.
   if (IsPlayReadyKeySystemAndSupported(mKeySystem)) {
@@ -1077,6 +1095,7 @@ mozilla::ipc::IPCResult MFCDMParent::RecvInit(
     MFCDM_PARENT_LOG("Set PMPHostWrapper on CDM!");
   }
 
+  mIsInited = true;
   aResolver(MFCDMInitIPDL{mId});
   return IPC_OK();
 }
@@ -1084,7 +1103,7 @@ mozilla::ipc::IPCResult MFCDMParent::RecvInit(
 mozilla::ipc::IPCResult MFCDMParent::RecvCreateSessionAndGenerateRequest(
     const MFCDMCreateSessionParamsIPDL& aParams,
     CreateSessionAndGenerateRequestResolver&& aResolver) {
-  MOZ_ASSERT(mCDM, "RecvInit() must be called and waited on before this call");
+  MOZ_ASSERT(mIsInited, "Must finish initialization first");
 
   static auto SessionTypeToStr = [](KeySystemConfig::SessionType aSessionType) {
     switch (aSessionType) {
@@ -1098,8 +1117,19 @@ mozilla::ipc::IPCResult MFCDMParent::RecvCreateSessionAndGenerateRequest(
       }
     }
   };
-  MFCDM_PARENT_LOG("Creating session for type '%s'",
-                   SessionTypeToStr(aParams.sessionType()));
+  if (IsBeingProfiledOrLogEnabled()) {
+    nsPrintfCString msg("session for type '%s'",
+                        SessionTypeToStr(aParams.sessionType()));
+    MFCDM_PARENT_LOG("Creating CDM %s", msg.get());
+    PROFILER_MARKER_TEXT(
+        "MFCDMParent::RecvCreateSessionAndGenerateRequest(creating)",
+        MEDIA_PLAYBACK, {}, msg);
+  }
+  if (!mCDM) {
+    MFCDM_PARENT_LOG("Cannot create CDM session, already shutdown");
+    aResolver(NS_ERROR_DOM_MEDIA_CDM_NO_SESSION_ERR);
+    return IPC_OK();
+  }
   UniquePtr<MFCDMSession> session{
       MFCDMSession::Create(aParams.sessionType(), mCDM.Get(), mManagerThread)};
   if (!session) {
@@ -1120,7 +1150,15 @@ mozilla::ipc::IPCResult MFCDMParent::RecvCreateSessionAndGenerateRequest(
   const auto& sessionId = session->SessionID();
   MOZ_ASSERT(sessionId);
   mSessions.emplace(*sessionId, std::move(session));
-  MFCDM_PARENT_LOG("Created a CDM session!");
+  if (IsBeingProfiledOrLogEnabled()) {
+    nsPrintfCString msg("session for type '%s', sessionId=%s",
+                        SessionTypeToStr(aParams.sessionType()),
+                        NS_ConvertUTF16toUTF8(*sessionId).get());
+    MFCDM_PARENT_LOG("Created CDM %s", msg.get());
+    PROFILER_MARKER_TEXT(
+        "MFCDMParent::RecvCreateSessionAndGenerateRequest(created)",
+        MEDIA_PLAYBACK, {}, msg);
+  }
   aResolver(*sessionId);
   return IPC_OK();
 }
@@ -1128,13 +1166,21 @@ mozilla::ipc::IPCResult MFCDMParent::RecvCreateSessionAndGenerateRequest(
 mozilla::ipc::IPCResult MFCDMParent::RecvLoadSession(
     const KeySystemConfig::SessionType& aSessionType,
     const nsString& aSessionId, LoadSessionResolver&& aResolver) {
-  MOZ_ASSERT(mCDM, "RecvInit() must be called and waited on before this call");
+  MOZ_ASSERT(mIsInited, "Must finish initialization first");
 
   nsresult rv = NS_OK;
   auto* session = GetSession(aSessionId);
   if (!session) {
     aResolver(NS_ERROR_DOM_MEDIA_CDM_NO_SESSION_ERR);
     return IPC_OK();
+  }
+
+  if (IsBeingProfiledOrLogEnabled()) {
+    nsPrintfCString msg("Load Session %s",
+                        NS_ConvertUTF16toUTF8(aSessionId).get());
+    MFCDM_PARENT_LOG("%s", msg.get());
+    PROFILER_MARKER_TEXT("MFCDMParent::RecvLoadSession", MEDIA_PLAYBACK, {},
+                         msg);
   }
   MFCDM_REJECT_IF_FAILED(session->Load(aSessionId),
                          NS_ERROR_DOM_MEDIA_CDM_SESSION_OPERATION_ERR);
@@ -1145,12 +1191,19 @@ mozilla::ipc::IPCResult MFCDMParent::RecvLoadSession(
 mozilla::ipc::IPCResult MFCDMParent::RecvUpdateSession(
     const nsString& aSessionId, const CopyableTArray<uint8_t>& aResponse,
     UpdateSessionResolver&& aResolver) {
-  MOZ_ASSERT(mCDM, "RecvInit() must be called and waited on before this call");
+  MOZ_ASSERT(mIsInited, "Must finish initialization first");
   nsresult rv = NS_OK;
   auto* session = GetSession(aSessionId);
   if (!session) {
     aResolver(NS_ERROR_DOM_MEDIA_CDM_NO_SESSION_ERR);
     return IPC_OK();
+  }
+  if (IsBeingProfiledOrLogEnabled()) {
+    nsPrintfCString msg("Update Session %s",
+                        NS_ConvertUTF16toUTF8(aSessionId).get());
+    MFCDM_PARENT_LOG("%s", msg.get());
+    PROFILER_MARKER_TEXT("MFCDMParent::RecvUpdateSession", MEDIA_PLAYBACK, {},
+                         msg);
   }
   MFCDM_REJECT_IF_FAILED(session->Update(aResponse),
                          NS_ERROR_DOM_MEDIA_CDM_SESSION_OPERATION_ERR);
@@ -1160,12 +1213,19 @@ mozilla::ipc::IPCResult MFCDMParent::RecvUpdateSession(
 
 mozilla::ipc::IPCResult MFCDMParent::RecvCloseSession(
     const nsString& aSessionId, UpdateSessionResolver&& aResolver) {
-  MOZ_ASSERT(mCDM, "RecvInit() must be called and waited on before this call");
+  MOZ_ASSERT(mIsInited, "Must finish initialization first");
   nsresult rv = NS_OK;
   auto* session = GetSession(aSessionId);
   if (!session) {
     aResolver(NS_ERROR_DOM_MEDIA_CDM_NO_SESSION_ERR);
     return IPC_OK();
+  }
+  if (IsBeingProfiledOrLogEnabled()) {
+    nsPrintfCString msg("Close Session %s",
+                        NS_ConvertUTF16toUTF8(aSessionId).get());
+    MFCDM_PARENT_LOG("%s", msg.get());
+    PROFILER_MARKER_TEXT("MFCDMParent::RecvCloseSession", MEDIA_PLAYBACK, {},
+                         msg);
   }
   MFCDM_REJECT_IF_FAILED(session->Close(),
                          NS_ERROR_DOM_MEDIA_CDM_SESSION_OPERATION_ERR);
@@ -1175,12 +1235,19 @@ mozilla::ipc::IPCResult MFCDMParent::RecvCloseSession(
 
 mozilla::ipc::IPCResult MFCDMParent::RecvRemoveSession(
     const nsString& aSessionId, UpdateSessionResolver&& aResolver) {
-  MOZ_ASSERT(mCDM, "RecvInit() must be called and waited on before this call");
+  MOZ_ASSERT(mIsInited, "Must finish initialization first");
   nsresult rv = NS_OK;
   auto* session = GetSession(aSessionId);
   if (!session) {
     aResolver(NS_ERROR_DOM_MEDIA_CDM_NO_SESSION_ERR);
     return IPC_OK();
+  }
+  if (IsBeingProfiledOrLogEnabled()) {
+    nsPrintfCString msg("Remove Session %s",
+                        NS_ConvertUTF16toUTF8(aSessionId).get());
+    MFCDM_PARENT_LOG("%s", msg.get());
+    PROFILER_MARKER_TEXT("MFCDMParent::RecvRemoveSession", MEDIA_PLAYBACK, {},
+                         msg);
   }
   MFCDM_REJECT_IF_FAILED(session->Remove(),
                          NS_ERROR_DOM_MEDIA_CDM_SESSION_OPERATION_ERR);
@@ -1191,9 +1258,12 @@ mozilla::ipc::IPCResult MFCDMParent::RecvRemoveSession(
 mozilla::ipc::IPCResult MFCDMParent::RecvSetServerCertificate(
     const CopyableTArray<uint8_t>& aCertificate,
     UpdateSessionResolver&& aResolver) {
-  MOZ_ASSERT(mCDM, "RecvInit() must be called and waited on before this call");
+  MOZ_ASSERT(mIsInited, "Must finish initialization first");
   nsresult rv = NS_OK;
   MFCDM_PARENT_LOG("Set server certificate");
+  PROFILER_MARKER_UNTYPED("MFCDMParent::RecvSetServerCertificate",
+                          MEDIA_PLAYBACK);
+  MFCDM_REJECT_IF(!mCDM, NS_ERROR_DOM_MEDIA_CDM_ERR);
   MFCDM_REJECT_IF_FAILED(mCDM->SetServerCertificate(
                              static_cast<const BYTE*>(aCertificate.Elements()),
                              aCertificate.Length()),
@@ -1205,8 +1275,16 @@ mozilla::ipc::IPCResult MFCDMParent::RecvSetServerCertificate(
 mozilla::ipc::IPCResult MFCDMParent::RecvGetStatusForPolicy(
     const dom::HDCPVersion& aMinHdcpVersion,
     GetStatusForPolicyResolver&& aResolver) {
-  MOZ_ASSERT(mCDM, "RecvInit() must be called and waited on before this call");
-  aResolver(IsHDCPVersionSupported(mFactory, mKeySystem, aMinHdcpVersion));
+  auto rv = IsHDCPVersionSupported(mFactory, mKeySystem, aMinHdcpVersion);
+  if (IsBeingProfiledOrLogEnabled()) {
+    nsPrintfCString msg("HDCP version=%u, support=%s",
+                        static_cast<uint8_t>(aMinHdcpVersion),
+                        rv == NS_OK ? "true" : "false");
+    MFCDM_PARENT_LOG("%s", msg.get());
+    PROFILER_MARKER_TEXT("MFCDMParent::RecvGetStatusForPolicy", MEDIA_PLAYBACK,
+                         {}, msg);
+  }
+  aResolver(rv);
   return IPC_OK();
 }
 

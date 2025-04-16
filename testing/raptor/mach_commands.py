@@ -34,7 +34,7 @@ class RaptorRunner(MozbuildObject):
         3. Run mozharness
         """
         # Validate that the user is using a supported python version before doing anything else
-        max_py_major, max_py_minor = 3, 11
+        max_py_major, max_py_minor = 3, 13
         sys_maj, sys_min = sys.version_info.major, sys.version_info.minor
         if sys_min > max_py_minor:
             raise PythonVersionException(
@@ -252,7 +252,7 @@ class RaptorRunner(MozbuildObject):
             config_file = open(self.config_file_path, "w")
             config_file.write(json.dumps(self.config))
             config_file.close()
-        except IOError as e:
+        except OSError as e:
             err_str = "Error writing to Raptor Mozharness config file {0}:{1}"
             print(err_str.format(self.config_file_path, str(e)))
             raise e
@@ -327,11 +327,7 @@ def setup_node(command_context):
         else:
             toolchain_job = toolchain_job.format("linux64")
 
-        print(
-            "Downloading Node v18 from Taskcluster toolchain {}...".format(
-                toolchain_job
-            )
-        )
+        print(f"Downloading Node v18 from Taskcluster toolchain {toolchain_job}...")
 
         if not os.path.exists(cache_path):
             os.makedirs(cache_path, exist_ok=True)

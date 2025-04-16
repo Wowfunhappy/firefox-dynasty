@@ -537,10 +537,6 @@ const TEST_GLOBAL = {
       settings: {},
     },
   },
-  TelemetryStopwatch: {
-    start: () => {},
-    finish: () => {},
-  },
   Sampling: {
     ratioSample(_seed, _ratios) {
       return Promise.resolve(0);
@@ -565,6 +561,9 @@ const TEST_GLOBAL = {
   },
   Logger: FakeLogger,
   getFxAccountsSingleton() {},
+  AWEnsureAddonInstalled() {
+    return Promise.resolve({ value: "complete" });
+  },
   AboutNewTab: {},
   Glean: {
     newtab: {

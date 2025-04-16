@@ -17,8 +17,8 @@
 #include "ia2AccessibleTable.h"
 #include "ia2AccessibleTableCell.h"
 #include "LocalAccessible-inl.h"
+#include "mozilla/a11y/Compatibility.h"
 #include "mozilla/a11y/RemoteAccessible.h"
-#include "mozilla/StaticPrefs_accessibility.h"
 #include "MsaaAccessible.h"
 #include "MsaaRootAccessible.h"
 #include "nsAccessibilityService.h"
@@ -29,6 +29,7 @@
 #include "Relation.h"
 #include "RootAccessible.h"
 #include "TextLeafRange.h"
+#include "UiaText.h"
 #include "UiaTextRange.h"
 
 using namespace mozilla;
@@ -90,9 +91,6 @@ class LabelTextLeafRule : public PivotRule {
 
 static void MaybeRaiseUiaLiveRegionEvent(Accessible* aAcc,
                                          uint32_t aGeckoEvent) {
-  if (!::UiaClientsAreListening()) {
-    return;
-  }
   if (Accessible* live = nsAccUtils::GetLiveRegionRoot(aAcc)) {
     auto* uia = MsaaAccessible::GetFrom(live);
     ::UiaRaiseAutomationEvent(uia, UIA_LiveRegionChangedEventId);
@@ -100,10 +98,17 @@ static void MaybeRaiseUiaLiveRegionEvent(Accessible* aAcc,
 }
 
 static bool HasTextPattern(Accessible* aAcc) {
-  // Only documents and editable text controls should have the Text pattern.
+  // The Text pattern must be supported for documents and editable text controls
+  // on the web:
   // https://learn.microsoft.com/en-us/windows/win32/winauto/uiauto-textpattern-and-embedded-objects-overview#webpage-and-text-input-controls-in-edge
+  // It is also recommended that the Text pattern be supported for the Text
+  // control type:
+  // https://learn.microsoft.com/en-us/windows/win32/winauto/uiauto-about-text-and-textrange-patterns#control-types
+  // If we don't support this for the Text control type, when Narrator is
+  // continuously reading a document, it doesn't respect the starting position
+  // of the cursor and doesn't move the cursor as it reads. See bug 1949920.
   constexpr uint64_t editableRootStates = states::EDITABLE | states::FOCUSABLE;
-  return aAcc->IsDoc() ||
+  return aAcc->IsText() || (aAcc->IsDoc() && !aAcc->IsRoot()) ||
          (aAcc->IsHyperText() &&
           (aAcc->State() & editableRootStates) == editableRootStates);
 }
@@ -132,13 +137,18 @@ Accessible* uiaRawElmProvider::Acc() const {
 /* static */
 void uiaRawElmProvider::RaiseUiaEventForGeckoEvent(Accessible* aAcc,
                                                    uint32_t aGeckoEvent) {
-  if (!StaticPrefs::accessibility_uia_enable()) {
+  if (!Compatibility::IsUiaEnabled() || !::UiaClientsAreListening()) {
     return;
   }
   auto* uia = MsaaAccessible::GetFrom(aAcc);
   if (!uia) {
     return;
   }
+  // Some UIA events include or depend on data that might not be cached yet. We
+  // shouldn't request additional cache domains in this case because a client
+  // might not even care about these events. Instead, we use explicit client
+  // queries as a signal to request domains.
+  CacheDomainActivationBlocker cacheBlocker;
   PROPERTYID property = 0;
   _variant_t newVal;
   bool gotNewVal = false;
@@ -148,6 +158,12 @@ void uiaRawElmProvider::RaiseUiaEventForGeckoEvent(Accessible* aAcc,
     case nsIAccessibleEvent::EVENT_DESCRIPTION_CHANGE:
       property = UIA_FullDescriptionPropertyId;
       break;
+    case nsIAccessibleEvent::EVENT_DOCUMENT_LOAD_COMPLETE:
+      // There is a UiaRaiseAsyncContentLoadedEvent function, but the client API
+      // doesn't have a specialized event handler for this event. Also, Chromium
+      // uses UiaRaiseAutomationEvent for this event.
+      ::UiaRaiseAutomationEvent(uia, UIA_AsyncContentLoadedEventId);
+      return;
     case nsIAccessibleEvent::EVENT_FOCUS:
       ::UiaRaiseAutomationEvent(uia, UIA_AutomationFocusChangedEventId);
       return;
@@ -191,7 +207,7 @@ void uiaRawElmProvider::RaiseUiaEventForGeckoEvent(Accessible* aAcc,
       gotNewVal = true;
       break;
   }
-  if (property && ::UiaClientsAreListening()) {
+  if (property) {
     // We can't get the old value. Thankfully, clients don't seem to need it.
     _variant_t oldVal;
     if (!gotNewVal) {
@@ -206,7 +222,7 @@ void uiaRawElmProvider::RaiseUiaEventForGeckoEvent(Accessible* aAcc,
 void uiaRawElmProvider::RaiseUiaEventForStateChange(Accessible* aAcc,
                                                     uint64_t aState,
                                                     bool aEnabled) {
-  if (!StaticPrefs::accessibility_uia_enable()) {
+  if (!Compatibility::IsUiaEnabled() || !::UiaClientsAreListening()) {
     return;
   }
   auto* uia = MsaaAccessible::GetFrom(aAcc);
@@ -246,11 +262,9 @@ void uiaRawElmProvider::RaiseUiaEventForStateChange(Accessible* aAcc,
       return;
   }
   MOZ_ASSERT(property);
-  if (::UiaClientsAreListening()) {
-    // We can't get the old value. Thankfully, clients don't seem to need it.
-    _variant_t oldVal;
-    ::UiaRaiseAutomationPropertyChangedEvent(uia, property, oldVal, newVal);
-  }
+  // We can't get the old value. Thankfully, clients don't seem to need it.
+  _variant_t oldVal;
+  ::UiaRaiseAutomationPropertyChangedEvent(uia, property, oldVal, newVal);
 }
 
 // IUnknown
@@ -463,8 +477,8 @@ uiaRawElmProvider::GetPatternProvider(
       return S_OK;
     case UIA_TextPatternId:
       if (HasTextPattern(acc)) {
-        auto text =
-            GetPatternFromDerived<ia2AccessibleHypertext, ITextProvider>();
+        RefPtr<ITextProvider> text =
+            new UiaText(static_cast<MsaaAccessible*>(this));
         text.forget(aPatternProvider);
       }
       return S_OK;
@@ -995,6 +1009,11 @@ uiaRawElmProvider::get_Value(__RPC__deref_out_opt BSTR* aRetVal) {
   }
   nsAutoString value;
   acc->Value(value);
+  if (value.IsEmpty() && acc->IsDoc()) {
+    // Exposing the URl via the Value pattern doesn't seem to be documented
+    // anywhere. However, Chromium does it, as does the IA2 -> UIA proxy.
+    nsAccUtils::DocumentURL(acc, value);
+  }
   *aRetVal = ::SysAllocStringLen(value.get(), value.Length());
   if (!*aRetVal) {
     return E_OUTOFMEMORY;
@@ -1377,7 +1396,7 @@ bool uiaRawElmProvider::HasValuePattern() const {
   Accessible* acc = Acc();
   MOZ_ASSERT(acc);
   if (acc->HasNumericValue() || acc->IsCombobox() || acc->IsHTMLLink() ||
-      acc->IsTextField()) {
+      acc->IsTextField() || acc->IsDoc()) {
     return true;
   }
   const nsRoleMapEntry* roleMapEntry = acc->ARIARoleMap();

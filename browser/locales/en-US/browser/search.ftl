@@ -37,6 +37,13 @@ searchbar-icon =
 removed-search-engine-message2 = <strong>Your default search engine has been changed.</strong> { $oldEngine } is no longer available as a default search engine in { -brand-short-name }. { $newEngine } is now your default search engine. To change to another default search engine, go to settings.
 remove-search-engine-button = OK
 
+## Infobar shown when default search engine is reset due to an issue reading the settings file.
+## Variables
+## $newEngine (String) - the name of the new default search engine.
+
+reset-search-settings-message = Due to a technical issue, your default search engine has been changed back to { $newEngine }. To change the default search engine, go to settings.
+reset-search-settings-button = OK
+
 ## Infobar shown when user is prompted to install search engine.
 ## Variables
 ## $engineName (String) - the name of the search engine to install.
@@ -44,3 +51,25 @@ remove-search-engine-button = OK
 install-search-engine = Add { $engineName } as a search engine?
 install-search-engine-add = Add
 install-search-engine-no = No
+
+## These strings are used for the add engine dialog when adding a custom search engine
+## in settings or when adding an HTML form as a search engine.
+
+add-engine-window =
+    .title = Add Search Engine
+    .style = min-width: 32em;
+
+add-engine-button = Add Custom Engine
+
+add-engine-name = Search engine name
+
+add-engine-keyword = Keyword
+
+add-engine-url = Engine URL, use %s in place of the search term
+
+add-engine-dialog =
+    .buttonlabelaccept = Add Engine
+    .buttonaccesskeyaccept = A
+
+engine-name-exists = An engine with that name already exists
+engine-keyword-exists = An engine with that keyword already exists

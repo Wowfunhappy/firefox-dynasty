@@ -10,8 +10,8 @@ const {
   createFactory,
   createRef,
   PureComponent,
-} = require("resource://devtools/client/shared/vendor/react.js");
-const PropTypes = require("resource://devtools/client/shared/vendor/react-prop-types.js");
+} = require("resource://devtools/client/shared/vendor/react.mjs");
+const PropTypes = require("resource://devtools/client/shared/vendor/react-prop-types.mjs");
 const dom = require("resource://devtools/client/shared/vendor/react-dom-factories.js");
 
 const { LocalizationHelper } = require("resource://devtools/shared/l10n.js");
@@ -58,7 +58,7 @@ class SearchBox extends PureComponent {
       summaryId: PropTypes.string,
       summaryTooltip: PropTypes.string,
       type: PropTypes.string,
-      value: PropTypes.string,
+      initialValue: PropTypes.string,
     };
   }
 
@@ -66,7 +66,7 @@ class SearchBox extends PureComponent {
     super(props);
 
     this.state = {
-      value: props.value || "",
+      value: props.initialValue || "",
       focused: false,
     };
 

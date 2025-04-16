@@ -454,7 +454,9 @@ pub mod property_counts {
     /// The number of non-custom properties.
     pub const NON_CUSTOM: usize = LONGHANDS_AND_SHORTHANDS + ALIASES;
     /// The number of prioritary properties that we have.
-    pub const PRIORITARY: usize = ${len(PRIORITARY_PROPERTIES)};
+    <% longhand_property_names = set(list(map(lambda p: p.name, data.longhands))) %>
+    <% enabled_prioritary_properties = PRIORITARY_PROPERTIES.intersection(longhand_property_names) %>
+    pub const PRIORITARY: usize = ${len(enabled_prioritary_properties)};
     /// The max number of longhands that a shorthand other than "all" expands to.
     pub const MAX_SHORTHAND_EXPANDED: usize =
         ${max(len(s.sub_properties) for s in data.shorthands_except_all())};
@@ -1403,13 +1405,6 @@ pub mod style_structs {
                     pub ${longhand.ident}: longhands::${longhand.ident}::computed_value::T,
                 % endif
             % endfor
-            % if style_struct.name == "InheritedText":
-                /// The "used" text-decorations that apply to this box.
-                ///
-                /// FIXME(emilio): This is technically a box-tree concept, and
-                /// would be nice to move away from style.
-                pub text_decorations_in_effect: crate::values::computed::text::TextDecorationsInEffect,
-            % endif
             % if style_struct.name == "Font":
                 /// The font hash, used for font caching.
                 pub hash: u64,
@@ -1886,9 +1881,9 @@ impl ComputedValues {
     ///
     /// Usage example:
     /// let top_color =
-    ///   style.resolve_color(style.get_border().clone_border_top_color());
+    ///   style.resolve_color(&style.get_border().clone_border_top_color());
     #[inline]
-    pub fn resolve_color(&self, color: computed::Color) -> crate::color::AbsoluteColor {
+    pub fn resolve_color(&self, color: &computed::Color) -> crate::color::AbsoluteColor {
         let current_color = self.get_inherited_text().clone_color();
         color.resolve_to_absolute(&current_color)
     }
@@ -1967,10 +1962,6 @@ impl ComputedValues {
                                 ${longhand.ident}: longhands::${longhand.ident}::get_initial_value(),
                             % endif
                         % endfor
-                        % if style_struct.name == "InheritedText":
-                            text_decorations_in_effect:
-                                crate::values::computed::text::TextDecorationsInEffect::default(),
-                        % endif
                         % if style_struct.name == "Box":
                             original_display: longhands::display::get_initial_value(),
                         % endif
@@ -1998,11 +1989,11 @@ impl ComputedValues {
 
     /// Serializes the computed value of this property as a string.
     pub fn computed_value_to_string(&self, property: PropertyDeclarationId) -> String {
-        let context = resolved::Context {
-            style: self,
-        };
         match property {
             PropertyDeclarationId::Longhand(id) => {
+                let context = resolved::Context {
+                    style: self,
+                };
                 let mut s = String::new();
                 self.computed_or_resolved_value(
                     id,
@@ -2929,10 +2920,10 @@ macro_rules! css_properties_accessors {
                         % for prop in [property] + property.aliases:
                             % if '-' in prop.name:
                                 [${prop.ident.capitalize()}, Set${prop.ident.capitalize()},
-                                 PropertyId::${kind}(${kind}Id::${property.camel_case})],
+                                 PropertyId::NonCustom(${kind}Id::${property.camel_case}.into())],
                             % endif
                             [${prop.camel_case}, Set${prop.camel_case},
-                             PropertyId::${kind}(${kind}Id::${property.camel_case})],
+                             PropertyId::NonCustom(${kind}Id::${property.camel_case}.into())],
                         % endfor
                     % endif
                 % endfor
@@ -2958,7 +2949,11 @@ macro_rules! longhand_properties_idents {
 }
 
 // Large pages generate tens of thousands of ComputedValues.
+#[cfg(feature = "gecko")]
 size_of_test!(ComputedValues, 240);
+#[cfg(feature = "servo")]
+size_of_test!(ComputedValues, 208);
+
 // FFI relies on this.
 size_of_test!(Option<Arc<ComputedValues>>, 8);
 

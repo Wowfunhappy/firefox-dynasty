@@ -348,6 +348,14 @@ function wrapWithIFrame(doc, options = {}) {
     id: DEFAULT_IFRAME_DOC_BODY_ID,
     ...iframeDocBodyAttrs,
   };
+  if (options.contentSetup) {
+    // Hide the body initially so we can ensure that any changes made by
+    // contentSetup are included when the body's content is initially added to
+    // the accessibility tree. Use `hidden` instead of `aria-hidden` because the
+    // latter is ignored when applied to top level docs/<body> elements and we
+    // want to remain consistent with our handling for non-iframe docs.
+    iframeDocBodyAttrs.hidden = true;
+  }
   if (options.remoteIframe) {
     // eslint-disable-next-line @microsoft/sdl/no-insecure-url
     const srcURL = new URL(`http://example.net/document-builder.sjs`);
@@ -418,6 +426,12 @@ function snippetToURL(doc, options = {}) {
 
   if (gIsIframe) {
     doc = wrapWithIFrame(doc, options);
+  } else if (options.contentSetup) {
+    // Hide the body initially so we can ensure that any changes made by
+    // contentSetup are included when the body's content is initially added to
+    // the accessibility tree. Use `hidden` instead of `aria-hidden` because the
+    // latter is ignored when applied to top level docs/<body> elements.
+    attrs.hidden = true;
   }
 
   const encodedDoc = encodeURIComponent(
@@ -584,6 +598,9 @@ function accessibleTask(doc, task, options = {}) {
         } else {
           ({ accessible: docAccessible } = await onContentDocLoad);
         }
+        // The test may want to access document methods/attributes such as URL
+        // and browsingContext.
+        docAccessible.QueryInterface(nsIAccessibleDocument);
         let iframeDocAccessible;
         if (gIsIframe) {
           if (!options.skipFissionDocLoad) {
@@ -592,9 +609,25 @@ function accessibleTask(doc, task, options = {}) {
               ? (await onIframeDocLoad).accessible
               : findAccessibleChildByID(docAccessible, DEFAULT_IFRAME_ID)
                   .firstChild;
+            iframeDocAccessible.QueryInterface(nsIAccessibleDocument);
           }
         }
 
+        if (options.contentSetup) {
+          info("Executing contentSetup");
+          const ready = waitForEvent(EVENT_REORDER, currentContentDoc());
+          await invokeContentTask(browser, [], options.contentSetup);
+          // snippetToURL set hidden on the body. We now Remove hidden
+          // and wait for a reorder on the body. This guarantees that any
+          // changes made by contentSetup are included when the body's content
+          // is initially added to the accessibility tree and that the
+          // accessibility tree is up to date.
+          await invokeContentTask(browser, [], () => {
+            content.document.body.removeAttribute("hidden");
+          });
+          await ready;
+          info("contentSetup done");
+        }
         await loadContentScripts(browser, {
           script: "Common.sys.mjs",
           symbol: "CommonUtils",
@@ -670,6 +703,22 @@ function accessibleTask(doc, task, options = {}) {
  *         - {CacheDomain} cacheDomains
  *           The set of cache domains that should be present at the start of the
  *           test. If not set, all cache domains will be present.
+ *         - {Function|AsyncFunction} contentSetup
+ *           An optional task to run to set up the content document before the
+ *           test starts. If this test is to be run as a chrome document in the
+ *           parent process (chrome: true), This should be used instead of an
+ *           inline <script> element in the test snippet, since inline script is
+ *           not allowed in such documents. This task is ultimately executed
+ *           using SpecialPowers.spawn. Any updates to the content within the
+ *           body will be included when the content is initially added to the
+ *           accessibility tree. The accessibility tree is guaranteed to be up
+ *           to date when the test starts. This will not work correctly for
+ *           changes to the html or body elements themselves. Note that you will
+ *           need to define this exactly as follows:
+ *           contentSetup: async function contentSetup() { ... }
+ *           async contentSetup() will fail when the task is serialized.
+ *           contentSetup: async function() will be changed to
+ *           async contentSetup() by the linter and likewise fail.
  */
 function addAccessibleTask(doc, task, options = {}) {
   const {

@@ -6,6 +6,7 @@
 #include "ClientWebGLContext.h"
 
 #include <bitset>
+#include <fmt/format.h>
 
 #include "ClientWebGLExtensions.h"
 #include "gfxCrashReporterUtils.h"
@@ -1139,6 +1140,11 @@ already_AddRefed<gfx::SourceSurface> ClientWebGLContext::GetSurfaceSnapshot(
   }
 
   return ret.forget();
+}
+
+mozilla::ipc::IProtocol* ClientWebGLContext::SupportsSnapshotExternalCanvas()
+    const {
+  return GetChild();
 }
 
 RefPtr<gfx::SourceSurface> ClientWebGLContext::GetFrontBufferSnapshot(
@@ -2486,7 +2492,7 @@ void ClientWebGLContext::GetParameter(JSContext* cx, GLenum pname,
         case LOCAL_GL_TRANSFORM_FEEDBACK_ACTIVE:
         case LOCAL_GL_TRANSFORM_FEEDBACK_PAUSED:
           retval.set(JS::BooleanValue(*maybe));
-          break;
+          return;
 
         // 4 bools
         case LOCAL_GL_COLOR_WRITEMASK: {
@@ -2501,9 +2507,19 @@ void ClientWebGLContext::GetParameter(JSContext* cx, GLenum pname,
           return;
         }
 
+        case LOCAL_GL_IMPLEMENTATION_COLOR_READ_TYPE: {
+          auto readType = (GLenum)*maybe;
+          // Map HALF_FLOAT to HALF_FLOAT_OES for webgl 1 clients.
+          if (readType == LOCAL_GL_HALF_FLOAT && !mIsWebGL2) {
+            readType = LOCAL_GL_HALF_FLOAT_OES;
+          }
+          retval.set(JS::NumberValue(readType));
+          return;
+        }
+
         default:
           retval.set(JS::NumberValue(*maybe));
-          break;
+          return;
       }
     }
   }
@@ -2873,23 +2889,21 @@ void ClientWebGLContext::GetUniform(JSContext* const cx,
 already_AddRefed<WebGLShaderPrecisionFormatJS>
 ClientWebGLContext::GetShaderPrecisionFormat(const GLenum shadertype,
                                              const GLenum precisiontype) {
+  const FuncScope funcScope(*this, "getShaderPrecisionFormat");
   if (IsContextLost()) return nullptr;
-  const auto info = [&]() {
-    const auto& inProcess = mNotLost->inProcess;
-    if (inProcess) {
-      return inProcess->GetShaderPrecisionFormat(shadertype, precisiontype);
-    }
-    const auto& child = mNotLost->outOfProcess;
-    child->FlushPendingCmds();
-    Maybe<webgl::ShaderPrecisionFormat> ret;
-    if (!child->SendGetShaderPrecisionFormat(shadertype, precisiontype, &ret)) {
-      ret.reset();
-    }
-    return ret;
-  }();
 
-  if (!info) return nullptr;
-  return AsAddRefed(new WebGLShaderPrecisionFormatJS(*info));
+  const auto& shaderPrecisions = *mNotLost->info.shaderPrecisions;
+  const auto args =
+      webgl::GetShaderPrecisionFormatArgs{shadertype, precisiontype};
+  const auto found = MaybeFind(shaderPrecisions, args);
+  if (!found) {
+    EnqueueError(
+        LOCAL_GL_INVALID_ENUM, "Bad shaderType (%s) or precisionType (%s)",
+        EnumString(shadertype).c_str(), EnumString(precisiontype).c_str());
+    return nullptr;
+  }
+
+  return AsAddRefed(new WebGLShaderPrecisionFormatJS(*found));
 }
 
 void ClientWebGLContext::BlendColor(GLclampf r, GLclampf g, GLclampf b,
@@ -5130,7 +5144,7 @@ void ClientWebGLContext::ReadPixels(GLint x, GLint y, GLsizei width,
                                     dom::CallerType aCallerType,
                                     ErrorResult& out_error) const {
   const FuncScope funcScope(*this, "readPixels");
-  if (!ReadPixels_SharedPrecheck(aCallerType, out_error)) return;
+  if (!ReadPixels_SharedPrecheck(&type, aCallerType, out_error)) return;
   const auto& state = State();
   if (!ValidateNonNegative("width", width)) return;
   if (!ValidateNonNegative("height", height)) return;
@@ -5150,7 +5164,7 @@ void ClientWebGLContext::ReadPixels(GLint x, GLint y, GLsizei width,
                                     dom::CallerType aCallerType,
                                     ErrorResult& out_error) const {
   const FuncScope funcScope(*this, "readPixels");
-  if (!ReadPixels_SharedPrecheck(aCallerType, out_error)) return;
+  if (!ReadPixels_SharedPrecheck(&type, aCallerType, out_error)) return;
   const auto& state = State();
   if (!ValidateNonNegative("width", width)) return;
   if (!ValidateNonNegative("height", height)) return;
@@ -5247,8 +5261,27 @@ bool ClientWebGLContext::DoReadPixels(const webgl::ReadPixelsDesc& desc,
 }
 
 bool ClientWebGLContext::ReadPixels_SharedPrecheck(
-    dom::CallerType aCallerType, ErrorResult& out_error) const {
+    GLenum* const inout_readType, dom::CallerType aCallerType,
+    ErrorResult& out_error) const {
   if (IsContextLost()) return false;
+
+  GLenum validHalfFloatType = LOCAL_GL_HALF_FLOAT;
+  GLenum forbiddenHalfFloatType = LOCAL_GL_HALF_FLOAT_OES;
+  if (!mIsWebGL2) {
+    std::swap(validHalfFloatType, forbiddenHalfFloatType);  // Tragic.
+  }
+  if (*inout_readType == forbiddenHalfFloatType) {
+    const auto msg = fmt::format(
+        FMT_STRING("For WebGL {}, for `type`, enum {} is forbidden. Use {}."),
+        mIsWebGL2 ? "2" : "1", EnumString(forbiddenHalfFloatType),
+        EnumString(validHalfFloatType));
+    EnqueueError({LOCAL_GL_INVALID_ENUM, msg});
+    return false;
+  }
+  // Normalize to HALF_FLOAT non-_OES internally:
+  if (*inout_readType == LOCAL_GL_HALF_FLOAT_OES) {
+    *inout_readType = LOCAL_GL_HALF_FLOAT;
+  }
 
   if (mCanvasElement && mCanvasElement->IsWriteOnly() &&
       aCallerType != dom::CallerType::System) {

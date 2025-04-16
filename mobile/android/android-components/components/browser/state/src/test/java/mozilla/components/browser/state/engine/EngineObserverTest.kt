@@ -87,6 +87,11 @@ class EngineObserverTest {
                 onResult: (JSONObject) -> Unit,
                 onException: (Throwable) -> Unit,
             ) {}
+            override fun sendMoreWebCompatInfo(
+                info: JSONObject,
+                onResult: () -> Unit,
+                onException: (Throwable) -> Unit,
+            ) {}
             override fun requestTranslate(
                 fromLanguage: String,
                 toLanguage: String,
@@ -121,6 +126,7 @@ class EngineObserverTest {
                 flags: LoadUrlFlags,
                 additionalHeaders: Map<String, String>?,
                 originalInput: String?,
+                textDirectiveUserActivation: Boolean,
             ) {
                 notifyObservers { onLocationChange(url, false) }
                 notifyObservers { onProgress(100) }
@@ -172,6 +178,11 @@ class EngineObserverTest {
                 onResult: (JSONObject) -> Unit,
                 onException: (Throwable) -> Unit,
             ) {}
+            override fun sendMoreWebCompatInfo(
+                info: JSONObject,
+                onResult: () -> Unit,
+                onException: (Throwable) -> Unit,
+            ) {}
             override fun requestTranslate(
                 fromLanguage: String,
                 toLanguage: String,
@@ -201,6 +212,7 @@ class EngineObserverTest {
                 flags: LoadUrlFlags,
                 additionalHeaders: Map<String, String>?,
                 originalInput: String?,
+                textDirectiveUserActivation: Boolean,
             ) {
                 if (url.startsWith("https://")) {
                     notifyObservers { onSecurityChange(true, "host", "issuer") }
@@ -253,6 +265,11 @@ class EngineObserverTest {
                 onResult: (JSONObject) -> Unit,
                 onException: (Throwable) -> Unit,
             ) {}
+            override fun sendMoreWebCompatInfo(
+                info: JSONObject,
+                onResult: () -> Unit,
+                onException: (Throwable) -> Unit,
+            ) {}
             override fun requestTranslate(
                 fromLanguage: String,
                 toLanguage: String,
@@ -274,6 +291,7 @@ class EngineObserverTest {
                 flags: LoadUrlFlags,
                 additionalHeaders: Map<String, String>?,
                 originalInput: String?,
+                textDirectiveUserActivation: Boolean,
             ) {}
             override fun loadData(data: String, mimeType: String, encoding: String) {}
             override fun requestPdfToDownload() = Unit

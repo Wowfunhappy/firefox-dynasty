@@ -198,7 +198,8 @@ document.addEventListener(
         #tracking-protection-icon-container,
         #identity-icon-box,
         #identity-permission-box,
-        #translations-button
+        #translations-button,
+        #taskbar-tabs-button
         `);
       if (!element) {
         return;
@@ -434,9 +435,9 @@ document.addEventListener(
       switch (element.id) {
         case "new-tab-button":
           if (event.type === "dragenter" || event.type === "dragover") {
-            newTabButtonObserver.onDragOver(event);
+            ToolbarDropHandler.onDragOver(event);
           } else if (event.type === "drop") {
-            newTabButtonObserver.onDrop(event);
+            ToolbarDropHandler.onDropNewTabButtonObserver(event);
           }
           break;
 
@@ -450,9 +451,9 @@ document.addEventListener(
 
         case "new-window-button":
           if (event.type === "dragenter" || event.type === "dragover") {
-            newWindowButtonObserver.onDragOver(event);
+            ToolbarDropHandler.onDragOver(event);
           } else if (event.type === "drop") {
-            newWindowButtonObserver.onDrop(event);
+            ToolbarDropHandler.onDropNewWindowButtonObserver(event);
           }
           break;
 
@@ -475,9 +476,13 @@ document.addEventListener(
 
         case "home-button":
           if (event.type === "dragenter" || event.type === "dragover") {
-            homeButtonObserver.onDragOver(event);
+            if (HomePage.locked) {
+              return;
+            }
+            ToolbarDropHandler.onDragOver(event);
+            event.dropEffect = "link";
           } else if (event.type == "drop") {
-            homeButtonObserver.onDrop(event);
+            ToolbarDropHandler.onDropHomeButtonObserver(event);
           }
           break;
 

@@ -707,6 +707,23 @@ const AVAILABLE_SHIMS = [
     onlyIfDFPIActive: true,
   },
   {
+    id: "MicrosoftIcon",
+    name: "Microsoft Account Icon",
+    bug: "1728111",
+    contentScripts: [
+      {
+        js: "microsoftAccountIcon.js",
+        matches: [
+          "*://*.microsoft.com/*",
+          "*://*.bing.com/*",
+          "*://m365.cloud.microsoft/*",
+        ],
+        runAt: "document_start",
+      },
+    ],
+    onlyIfDFPIActive: true,
+  },
+  {
     id: "MicrosoftLogin",
     platform: "desktop",
     name: "Microsoft Login",
@@ -918,6 +935,20 @@ const AVAILABLE_SHIMS = [
     onlyIfDFPIActive: true,
   },
   {
+    id: "StackOverflowLogin",
+    platform: "all",
+    name: "StackOverflow Login",
+    bug: "1949491",
+    contentScripts: [
+      {
+        js: "stackoverflow-login.js",
+        matches: ["*://stackoverflow.com/*"],
+        runAt: "document_start",
+      },
+    ],
+    onlyIfDFPIActive: true,
+  },
+  {
     id: "emeraude.my.salesforce.com",
     platform: "all",
     name: "Salesforce IndexedDB Script Access",
@@ -989,6 +1020,70 @@ const AVAILABLE_SHIMS = [
     matches: ["*://openfpcdn.io/botd/v1"],
     onlyIfBlockedByETP: true,
   },
+  {
+    id: "SteamLogin",
+    platform: "all",
+    name: "Steam Login Shim",
+    bug: "1938299",
+    requestStorageAccessForRedirect: [
+      // allow cookies for *.steampowered.com <-> steamcommunity.com
+      ["*://store.steampowered.com/*", "*://steamcommunity.com/*"],
+      ["*://steamcommunity.com/*", "*://store.steampowered.com/*"],
+      ["*://help.steampowered.com/*", "*://steamcommunity.com/*"],
+      ["*://steamcommunity.com/*", "*://help.steampowered.com/*"],
+      ["*://checkout.steampowered.com/*", "*://steamcommunity.com/*"],
+      ["*://steamcommunity.com/*", "*://checkout.steampowered.com/*"],
+      // allow cookies for *.steampowered.com <-> steam.tv
+      ["*://store.steampowered.com/*", "*://steam.tv/*"],
+      ["*://steam.tv/*", "*://store.steampowered.com/*"],
+      ["*://help.steampowered.com/*", "*://steam.tv/*"],
+      ["*://steam.tv/*", "*://help.steampowered.com/*"],
+      ["*://checkout.steampowered.com/*", "*://steam.tv/*"],
+      ["*://steam.tv/*", "*://checkout.steampowered.com/*"],
+    ],
+  },
+  {
+    id: "TwitterEmbed",
+    platform: "desktop",
+    name: "Twitter embed placeholder",
+    bug: "1901602",
+    runFirst: "twitter-embed.js",
+    // Blank stub file just so we run the script above when the matched script
+    // files get blocked.
+    file: "empty-script.js",
+    matches: ["https://platform.twitter.com/widgets.js"],
+    logos: ["x-logo.svg"],
+    needsShimHelpers: [
+      "embedClicked",
+      "smartblockEmbedReplaced",
+      "smartblockGetFluentString",
+    ],
+    isSmartblockEmbedShim: true,
+    onlyIfBlockedByETP: true,
+    unblocksOnOptIn: [
+      "*://platform.twitter.com/*",
+      "*://syndication.twitter.com/*",
+      "*://cdn.syndication.twimg.com/*",
+      "*://pbs.twimg.com/*",
+      "*://abs.twimg.com/*",
+      "*://abs-0.twimg.com/*",
+    ],
+  },
+  {
+    id: "AliExpressInternationalization",
+    name: "AliExpress Internationalization",
+    bug: "1912228",
+    contentScripts: [
+      {
+        js: "aliexpress-language.js",
+        matches: ["*://*.aliexpress.us/*"],
+        runAt: "document_start",
+      },
+    ],
+    onlyIfDFPIActive: true,
+  },
 ];
 
-module.exports = AVAILABLE_SHIMS;
+if (typeof module !== "undefined") {
+  module.exports = AVAILABLE_SHIMS;
+}

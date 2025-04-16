@@ -82,6 +82,7 @@ namespace layers {
 class AsyncDragMetrics;
 class Compositor;
 class CompositorBridgeChild;
+struct CompositorScrollUpdate;
 struct FrameMetrics;
 class LayerManager;
 class WebRenderBridgeChild;
@@ -139,9 +140,6 @@ typedef void* nsNativeWidget;
 #define NS_RAW_NATIVE_IME_CONTEXT 14
 #define NS_NATIVE_WINDOW_WEBRTC_DEVICE_ID 15
 #ifdef XP_WIN
-#  define NS_NATIVE_TSF_THREAD_MGR 100
-#  define NS_NATIVE_TSF_CATEGORY_MGR 101
-#  define NS_NATIVE_TSF_DISPLAY_ATTR_MGR 102
 #  define NS_NATIVE_ICOREWINDOW 103  // winrt specific
 #endif
 #if defined(MOZ_WIDGET_GTK)
@@ -972,6 +970,21 @@ class nsIWidget : public nsISupports {
    * widget.
    */
   virtual TransparencyMode GetTransparencyMode() = 0;
+
+  // Cocoa and GTK round widget coordinates to the nearest global "display
+  // pixel" integer value; see bug 892994. So we avoid fractional display pixel
+  // values by rounding to the nearest value that won't yield a fractional
+  // display pixel.
+  virtual int32_t RoundsWidgetCoordinatesTo() { return 1; }
+  static LayoutDeviceIntRect MaybeRoundToDisplayPixels(
+      const LayoutDeviceIntRect& aRect, TransparencyMode aTransparency,
+      int32_t aRound);
+
+  LayoutDeviceIntRect MaybeRoundToDisplayPixels(
+      const LayoutDeviceIntRect& aRect) {
+    return MaybeRoundToDisplayPixels(aRect, GetTransparencyMode(),
+                                     RoundsWidgetCoordinatesTo());
+  }
 
   /**
    * Set the shadow style of the window.
@@ -1934,13 +1947,6 @@ class nsIWidget : public nsISupports {
    */
   virtual bool SynchronouslyRepaintOnResize() { return true; }
 
-  /**
-   * Some platforms (only cocoa right now) round widget coordinates to the
-   * nearest even pixels (see bug 892994), this function allows us to
-   * determine how widget coordinates will be rounded.
-   */
-  virtual int32_t RoundsWidgetCoordinatesTo() { return 1; }
-
   virtual void UpdateZoomConstraints(
       const uint32_t& aPresShellId, const ScrollableLayerGuid::ViewID& aViewId,
       const mozilla::Maybe<ZoomConstraints>& aConstraints) {};
@@ -1995,14 +2001,11 @@ class nsIWidget : public nsISupports {
   virtual void RecvToolbarAnimatorMessageFromCompositor(int32_t aMessage) = 0;
 
   /**
-   * UpdateRootFrameMetrics steady state frame metrics send from compositor
-   * thread
-   *
-   * @param aScrollOffset  page scroll offset value in screen pixels.
-   * @param aZoom          current page zoom.
+   * NotifyCompositorScrollUpdate notify widget about an update to the
+   * composited scroll offset and zoom
    */
-  virtual void UpdateRootFrameMetrics(const ScreenPoint& aScrollOffset,
-                                      const CSSToScreenScale& aZoom) = 0;
+  virtual void NotifyCompositorScrollUpdate(
+      const mozilla::layers::CompositorScrollUpdate& aUpdate) = 0;
 
   /**
    * RecvScreenPixels Buffer containing the pixel from the frame buffer. Used

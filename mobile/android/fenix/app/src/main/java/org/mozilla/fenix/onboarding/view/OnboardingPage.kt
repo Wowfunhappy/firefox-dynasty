@@ -32,10 +32,10 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import mozilla.components.compose.base.annotation.FlexibleWindowLightDarkPreview
+import mozilla.components.compose.base.button.PrimaryButton
+import mozilla.components.compose.base.button.SecondaryButton
 import org.mozilla.fenix.R
 import org.mozilla.fenix.compose.LinkText
-import org.mozilla.fenix.compose.button.PrimaryButton
-import org.mozilla.fenix.compose.button.SecondaryButton
 import org.mozilla.fenix.theme.FirefoxTheme
 
 /**
@@ -53,6 +53,16 @@ private const val IMAGE_HEIGHT_RATIO_MEDIUM = 0.36f
  * The ratio of the image height to the parent height for small devices like Nexus 4, Nexus 1.
  */
 private const val IMAGE_HEIGHT_RATIO_SMALL = 0.28f
+
+/**
+ * The small device height definition for onboarding in dp.
+ */
+val ONBOARDING_SMALL_DEVICE = 550.dp
+
+/**
+ * The medium device height definition for onboarding in dp.
+ */
+val ONBOARDING_MEDIUM_DEVICE = 650.dp
 
 /**
  * A composable for displaying onboarding page content.
@@ -176,8 +186,8 @@ fun OnboardingPage(
  */
 fun imageHeight(boxWithConstraintsScope: BoxWithConstraintsScope): Dp {
     val imageHeightRatio: Float = when {
-        boxWithConstraintsScope.maxHeight <= 550.dp -> IMAGE_HEIGHT_RATIO_SMALL
-        boxWithConstraintsScope.maxHeight <= 650.dp -> IMAGE_HEIGHT_RATIO_MEDIUM
+        boxWithConstraintsScope.maxHeight <= ONBOARDING_SMALL_DEVICE -> IMAGE_HEIGHT_RATIO_SMALL
+        boxWithConstraintsScope.maxHeight <= ONBOARDING_MEDIUM_DEVICE -> IMAGE_HEIGHT_RATIO_MEDIUM
         else -> IMAGE_HEIGHT_RATIO_DEFAULT
     }
     return boxWithConstraintsScope.maxHeight.times(imageHeightRatio)

@@ -379,6 +379,7 @@
   MACRO_(lookupSetter_, "__lookupSetter__")                                    \
   MACRO_(many, "many")                                                         \
   MACRO_(MapConstructorInit, "MapConstructorInit")                             \
+  MACRO_(MapIteratorNext, "MapIteratorNext")                                   \
   MACRO_(Map_Iterator_, "Map Iterator")                                        \
   MACRO_(maxByteLength, "maxByteLength")                                       \
   MACRO_(maxColumn, "maxColumn")                                               \
@@ -501,6 +502,11 @@
   MACRO_(rawJSON, "rawJSON")                                                   \
   MACRO_(read, "read")                                                         \
   MACRO_(reason, "reason")                                                     \
+  MACRO_(RegExpMatch, "RegExpMatch")                                           \
+  MACRO_(RegExpMatchAll, "RegExpMatchAll")                                     \
+  MACRO_(RegExpReplace, "RegExpReplace")                                       \
+  MACRO_(RegExpSearch, "RegExpSearch")                                         \
+  MACRO_(RegExpSplit, "RegExpSplit")                                           \
   MACRO_(RegExp_String_Iterator_, "RegExp String Iterator")                    \
   MACRO_(RegExp_prototype_Exec, "RegExp_prototype_Exec")                       \
   MACRO_(region, "region")                                                     \
@@ -537,6 +543,7 @@
   MACRO_(SetConstructorInit, "SetConstructorInit")                             \
   MACRO_(setFloat16, "setFloat16")                                             \
   MACRO_(SetIsInlinableLargeFunction, "SetIsInlinableLargeFunction")           \
+  MACRO_(SetIteratorNext, "SetIteratorNext")                                   \
   MACRO_(Set_Iterator_, "Set Iterator")                                        \
   MACRO_(setFromBase64, "setFromBase64")                                       \
   MACRO_(setFromHex, "setFromHex")                                             \

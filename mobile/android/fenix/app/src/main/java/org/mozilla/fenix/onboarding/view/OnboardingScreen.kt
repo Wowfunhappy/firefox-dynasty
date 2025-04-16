@@ -45,6 +45,7 @@ import org.mozilla.fenix.R
 import org.mozilla.fenix.components.components
 import org.mozilla.fenix.compose.LinkTextState
 import org.mozilla.fenix.compose.PagerIndicator
+import org.mozilla.fenix.ext.components
 import org.mozilla.fenix.ext.settings
 import org.mozilla.fenix.onboarding.WidgetPinnedReceiver.WidgetPinnedState
 import org.mozilla.fenix.onboarding.store.OnboardingAction
@@ -115,17 +116,19 @@ fun OnboardingScreen(
 
     DisposableEffect(lifecycleOwner) {
         val settings = context.settings()
+        val isNotPartnershipDistribution = !context.components.distributionIdManager.isPartnershipDistribution()
 
         // Observe the shouldShowMarketingOnboarding preference and disable the marketing page
         // if the preference switches to false
         val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
             val marketingPageIndex = pagesToDisplay.indexOfFirst { it.type == OnboardingPageUiData.Type.MARKETING_DATA }
             val shouldShowMarketingPreferenceKey = context.getString(R.string.pref_key_should_show_marketing_onboarding)
-
-            if (key == shouldShowMarketingPreferenceKey &&
+            val removeMarketingPage = key == shouldShowMarketingPreferenceKey &&
                 !settings.shouldShowMarketingOnboarding &&
-                pagerState.currentPage < marketingPageIndex
-            ) {
+                pagerState.currentPage < marketingPageIndex &&
+                isNotPartnershipDistribution
+
+            if (removeMarketingPage) {
                 pagesToDisplay.removeAt(marketingPageIndex)
             }
         }
@@ -133,7 +136,7 @@ fun OnboardingScreen(
         settings.preferences.registerOnSharedPreferenceChangeListener(listener)
 
         // If the preference is already false, disable the marketing page
-        if (!settings.shouldShowMarketingOnboarding) {
+        if (!settings.shouldShowMarketingOnboarding && isNotPartnershipDistribution) {
             val marketingPage = pagesToDisplay.find { it.type == OnboardingPageUiData.Type.MARKETING_DATA }
             marketingPage?.let { pagesToDisplay.remove(it) }
         }

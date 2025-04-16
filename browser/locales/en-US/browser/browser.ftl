@@ -124,11 +124,6 @@ urlbar-addons-notification-anchor =
     .tooltiptext = Open add-on installation message panel
 urlbar-search-tips-confirm = Okay, Got It
 urlbar-search-tips-confirm-short = Got it
-# Read out before Urlbar Tip text content so screenreader users know the
-# subsequent text is a tip offered by the browser. It should end in a colon or
-# localized equivalent.
-urlbar-tip-icon-description =
-    .alt = Tip:
 
 urlbar-result-menu-button =
     .title = Open menu
@@ -152,6 +147,25 @@ urlbar-result-menu-learn-more-about-firefox-suggest =
 urlbar-result-menu-manage-firefox-suggest =
     .label = Manage { -firefox-suggest-brand-name }
     .accesskey = M
+# Some urlbar suggestions show the user's approximate location as automatically
+# detected by Firefox (e.g., weather suggestions), and this menu item lets the
+# user tell Firefox that the location is not accurate. Typically the location
+# will be a city name, or a city name combined with the name of its parent
+# administrative region (e.g., a province, prefecture, or state).
+urlbar-result-menu-report-inaccurate-location =
+    .label = Report inaccurate location
+urlbar-result-menu-show-less-frequently =
+    .label = Show less frequently
+urlbar-result-menu-dont-show-weather-suggestions =
+    .label = Don’t show weather suggestions
+
+# A message shown in the urlbar when the user submits feedback on a suggestion
+# (e.g., it shows an inaccurate location, it's shown too often, etc.).
+urlbar-feedback-acknowledgment = Thanks for your feedback
+
+# A message shown in the urlbar when the user dismisses weather suggestions.
+# Weather suggestions won't be shown at all anymore.
+urlbar-dismissal-acknowledgment-weather = Thanks for your feedback. You won’t see weather suggestions anymore.
 
 ## Prompts users to use the Urlbar when they open a new tab or visit the
 ## homepage of their default search engine.
@@ -295,8 +309,8 @@ quickactions-bookmarks2 = Manage bookmarks
 quickactions-cmd-bookmarks = bookmarks
 
 # Opens a SUMO article explaining how to clear history
-quickactions-clearhistory = Clear History
-quickactions-cmd-clearhistory = clear history
+quickactions-clearrecenthistory = Clear recent history
+quickactions-cmd-clearrecenthistory = clear recent history, history
 
 # Opens about:downloads page
 quickactions-downloads2 = View downloads
@@ -306,17 +320,24 @@ quickactions-cmd-downloads = downloads
 quickactions-extensions = Manage extensions
 quickactions-cmd-extensions = extensions
 
+# Opens Firefox View
+quickactions-firefoxview = Open { -firefoxview-brand-name }
+# English is using "view" and "open view", since the feature name is
+# "Firefox View". If you have translated the name in your language, you
+# should use a word related to the existing translation.
+quickactions-cmd-firefoxview = open { -firefoxview-brand-name }, { -firefoxview-brand-name }, open view, view
+
+# Opens SUMO home page
+quickactions-help = { -brand-product-name } help
+quickactions-cmd-help = help, support
+
 # Opens the devtools web inspector
 quickactions-inspector2 = Open Developer Tools
-quickactions-cmd-inspector = inspector, devtools
+quickactions-cmd-inspector2 = inspector, devtools, dev tools
 
 # Opens about:logins
 quickactions-logins2 = Manage passwords
 quickactions-cmd-logins = logins, passwords
-
-# Opens about:addons page in the plugins section
-quickactions-plugins = Manage plugins
-quickactions-cmd-plugins = plugins
 
 # Opens the print dialog
 quickactions-print2 = Print page
@@ -340,7 +361,7 @@ quickactions-cmd-restart = restart
 
 # Opens the screenshot tool
 quickactions-screenshot3 = Take a screenshot
-quickactions-cmd-screenshot = screenshot
+quickactions-cmd-screenshot2 = screenshot, take a screenshot
 
 # Opens about:preferences
 quickactions-settings2 = Manage settings
@@ -355,8 +376,8 @@ quickactions-update = Update { -brand-short-name }
 quickactions-cmd-update = update
 
 # Opens the view-source UI with current pages source
-quickactions-viewsource2 = View Page Source
-quickactions-cmd-viewsource = view source, source
+quickactions-viewsource2 = View page source
+quickactions-cmd-viewsource2 = view source, source, page source
 
 # Tooltip text for the help button shown in the result.
 quickactions-learn-more =
@@ -416,7 +437,6 @@ identity-custom-root = Connection verified by a certificate issuer that is not r
 identity-passive-loaded = Parts of this page are not secure (such as images).
 identity-active-loaded = You have disabled protection on this page.
 identity-weak-encryption = This page uses weak encryption.
-identity-insecure-login-forms = Logins entered on this page could be compromised.
 
 identity-https-only-connection-upgraded = (upgraded to HTTPS)
 identity-https-only-label2 = Automatically upgrade this site to a secure connection
@@ -445,7 +465,6 @@ identity-remove-cert-exception =
     .label = Remove Exception
     .accesskey = R
 identity-description-insecure = Your connection to this site is not private. Information you submit could be viewed by others (like passwords, messages, credit cards, etc.).
-identity-description-insecure-login-forms = The login information you enter on this page is not secure and could be compromised.
 identity-description-weak-cipher-intro = Your connection to this website uses weak encryption and is not private.
 identity-description-weak-cipher-risk = Other people can view your information or modify the website’s behavior.
 identity-description-active-blocked2 = { -brand-short-name } has blocked parts of this page that are not secure.
@@ -454,12 +473,6 @@ identity-description-passive-loaded-insecure2 = This website contains content th
 identity-description-passive-loaded-mixed2 = Although { -brand-short-name } has blocked some content, there is still content on the page that is not secure (such as images).
 identity-description-active-loaded = This website contains content that is not secure (such as scripts) and your connection to it is not private.
 identity-description-active-loaded-insecure = Information you share with this site could be viewed by others (like passwords, messages, credit cards, etc.).
-identity-disable-mixed-content-blocking =
-    .label = Disable protection for now
-    .accesskey = D
-identity-enable-mixed-content-blocking =
-    .label = Enable protection
-    .accesskey = E
 identity-more-info-link-text =
     .label = More information
 
@@ -477,35 +490,7 @@ browser-window-close-button =
 ## Tab actions
 
 # This label should be written in all capital letters if your locale supports them.
-browser-tab-audio-playing2 = PLAYING
-# This label should be written in all capital letters if your locale supports them.
-browser-tab-audio-muted2 = MUTED
-# This label should be written in all capital letters if your locale supports them.
-browser-tab-audio-blocked = AUTOPLAY BLOCKED
-# This label should be written in all capital letters if your locale supports them.
 browser-tab-audio-pip = PICTURE-IN-PICTURE
-
-## These labels should be written in all capital letters if your locale supports them.
-## Variables:
-##  $count (number): number of affected tabs
-
-browser-tab-mute =
-    { $count ->
-        [1] MUTE TAB
-       *[other] MUTE { $count } TABS
-    }
-
-browser-tab-unmute =
-    { $count ->
-        [1] UNMUTE TAB
-       *[other] UNMUTE { $count } TABS
-    }
-
-browser-tab-unblock =
-    { $count ->
-        [1] PLAY TAB
-       *[other] PLAY { $count } TABS
-    }
 
 ## Bookmarks toolbar items
 
@@ -673,17 +658,23 @@ urlbar-result-action-copy-to-clipboard = Copy
 urlbar-result-action-calculator-result = = { $result }
 # The string returned for an undefined calculator result such as when dividing by 0
 urlbar-result-action-undefined-calculator-result = undefined
-# Shows the result of a formula expression being calculated, to a maximum of 9 significant
-# digits. The last = sign will be shown as part of the result (e.g. "= 2").
-# Variables
-#  $result (String): the string representation for a formula result
-urlbar-result-action-calculator-result-2 = = { NUMBER($result, maximumSignificantDigits: 9)}
 # Shows the result of a formula expression being calculated, in scientific notation.
 # The last = sign will be shown as part of the result (e.g. "= 1.0e17").
 # Variables
 #  $result (String): the string representation for a result in scientific notation
 #  (e.g. "1.0e17").
 urlbar-result-action-calculator-result-scientific-notation = = { $result }
+# Shows the result of a formula expression being calculated, this is used for numbers >= 1.
+# The last = sign will be shown as part of the result (e.g. "= 2").
+# Variables
+#  $result (String): the string representation for a formula result
+urlbar-result-action-calculator-result-3 = = { NUMBER($result, useGrouping: "false", maximumFractionDigits: 8)}
+# Shows the result of a formula expression being calculated, to a maximum of 9 significant
+# digits. This is used for numbers < 1.
+# The last = sign will be shown as part of the result (e.g. "= 0.333333333").
+# Variables
+#  $result (String): the string representation for a formula result
+urlbar-result-action-calculator-result-decimal = = { NUMBER($result, maximumSignificantDigits: 9)}
 
 ## Strings used for buttons in the urlbar
 
@@ -867,11 +858,6 @@ bookmarks-tools-toolbar-visibility-panel =
      [true] Hide bookmarks toolbar
     *[other] Show bookmarks toolbar
   }
-bookmarks-tools-menu-button-visibility =
-  .label = { $isVisible ->
-     [true] Remove bookmarks menu from toolbar
-    *[other] Add bookmarks menu to toolbar
-  }
 
 ##
 
@@ -904,8 +890,6 @@ bookmarks-subview-bookmark-tab =
 
 library-bookmarks-menu =
   .label = Bookmarks
-library-recent-activity-title =
-  .value = Recent Activity
 
 ## Pocket toolbar button
 
@@ -982,6 +966,9 @@ panel-save-update-password = Password
 # "More" item in macOS share menu
 menu-share-more =
     .label = More…
+menu-share-copy-link =
+    .label = Copy Link
+    .accesskey = L
 ui-tour-info-panel-close =
     .tooltiptext = Close
 
@@ -1179,10 +1166,10 @@ popup-notification-xpinstall-prompt-learn-more = Learn more about installing add
 
 popup-notification-xpinstall-prompt-block-url = See details
 
-# Note: Access key is set to P to match "Private" in the corresponding localized label.
-popup-notification-addon-privatebrowsing-checkbox =
-    .label = Run in Private Windows
-    .accesskey = P
+# Note: Access key is set to p to match "private" in the corresponding localized label.
+popup-notification-addon-privatebrowsing-checkbox2 =
+    .label = Allow extension to run in private windows
+    .accesskey = p
 
 ## Pop-up warning
 

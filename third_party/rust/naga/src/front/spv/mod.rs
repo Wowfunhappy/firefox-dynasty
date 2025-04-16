@@ -33,20 +33,23 @@ mod function;
 mod image;
 mod null;
 
-use convert::*;
 pub use error::Error;
-use function::*;
 
+use alloc::{borrow::ToOwned, format, string::String, vec, vec::Vec};
+use core::{convert::TryInto, mem, num::NonZeroU32};
+use std::path::PathBuf;
+
+use half::f16;
+use petgraph::graphmap::GraphMap;
+
+use super::atomic_upgrade::Upgrades;
 use crate::{
     arena::{Arena, Handle, UniqueArena},
     proc::{Alignment, Layouter},
     FastHashMap, FastHashSet, FastIndexMap,
 };
-
-use petgraph::graphmap::GraphMap;
-use std::{convert::TryInto, mem, num::NonZeroU32, path::PathBuf};
-
-use super::atomic_upgrade::Upgrades;
+use convert::*;
+use function::*;
 
 pub const SUPPORTED_CAPABILITIES: &[spirv::Capability] = &[
     spirv::Capability::Shader,
@@ -80,6 +83,7 @@ pub const SUPPORTED_EXTENSIONS: &[&str] = &[
     "SPV_KHR_vulkan_memory_model",
     "SPV_KHR_multiview",
     "SPV_EXT_shader_atomic_float_add",
+    "SPV_KHR_16bit_storage",
 ];
 pub const SUPPORTED_EXT_SETS: &[&str] = &["GLSL.std.450"];
 
@@ -250,7 +254,7 @@ impl Decoration {
                 location,
                 interpolation,
                 sampling,
-                second_blend_source: false,
+                blend_src: None,
             }),
             _ => Err(Error::MissingDecoration(spirv::Decoration::Location)),
         }
@@ -702,7 +706,7 @@ impl<I: Iterator<Item = u32>> Frontend<I> {
                 break;
             }
         }
-        std::str::from_utf8(&self.temp_bytes)
+        core::str::from_utf8(&self.temp_bytes)
             .map(|s| (s.to_owned(), count))
             .map_err(|_| Error::BadString)
     }
@@ -3036,7 +3040,6 @@ impl<I: Iterator<Item = u32>> Frontend<I> {
                 }
                 Op::FunctionCall => {
                     inst.expect_at_least(4)?;
-                    block.extend(emitter.finish(ctx.expressions));
 
                     let result_type_id = self.next()?;
                     let result_id = self.next()?;
@@ -3048,6 +3051,8 @@ impl<I: Iterator<Item = u32>> Frontend<I> {
                         let lexp = self.lookup_expression.lookup(arg_id)?;
                         arguments.push(get_expr_handle!(arg_id, lexp));
                     }
+
+                    block.extend(emitter.finish(ctx.expressions));
 
                     // We just need an unique handle here, nothing more.
                     let function = self.add_call(ctx.function_id, func_id);
@@ -3845,6 +3850,10 @@ impl<I: Iterator<Item = u32>> Frontend<I> {
                                     | spirv::MemorySemantics::WORKGROUP_MEMORY)
                                     .bits()
                                 != 0,
+                        );
+                        flags.set(
+                            crate::Barrier::TEXTURE,
+                            semantics & spirv::MemorySemantics::IMAGE_MEMORY.bits() != 0,
                         );
                         block.push(crate::Statement::Barrier(flags), span);
                     } else {
@@ -5598,6 +5607,9 @@ impl<I: Iterator<Item = u32>> Frontend<I> {
             }) => {
                 let low = self.next()?;
                 match width {
+                    // https://registry.khronos.org/SPIR-V/specs/unified1/SPIRV.html#Literal
+                    // If a numeric type’s bit width is less than 32-bits, the value appears in the low-order bits of the word.
+                    2 => crate::Literal::F16(f16::from_bits(low as u16)),
                     4 => crate::Literal::F32(f32::from_bits(low)),
                     8 => {
                         inst.expect(5)?;
@@ -6062,6 +6074,8 @@ fn is_parent(mut child: usize, parent: usize, block_ctx: &BlockContext) -> bool 
 
 #[cfg(test)]
 mod test {
+    use alloc::vec;
+
     #[test]
     fn parse() {
         let bin = vec![

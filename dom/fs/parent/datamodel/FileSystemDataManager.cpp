@@ -27,8 +27,6 @@
 #include "mozilla/dom/QMResult.h"
 #include "mozilla/dom/quota/ClientDirectoryLock.h"
 #include "mozilla/dom/quota/ClientImpl.h"
-#include "mozilla/dom/quota/DirectoryLock.h"
-#include "mozilla/dom/quota/DirectoryLockInlines.h"
 #include "mozilla/dom/quota/HashKeys.h"
 #include "mozilla/dom/quota/QuotaCommon.h"
 #include "mozilla/dom/quota/QuotaManager.h"
@@ -167,6 +165,7 @@ FileSystemDataManager::FileSystemDataManager(
       mBackgroundTarget(WrapNotNull(GetCurrentSerialEventTarget())),
       mIOTarget(std::move(aIOTarget)),
       mIOTaskQueue(std::move(aIOTaskQueue)),
+      mDirectoryLockId(-1),
       mRegCount(0),
       mVersion(0),
       mState(State::Initial) {}
@@ -320,7 +319,7 @@ void FileSystemDataManager::RegisterActor(
     NotNull<FileSystemManagerParent*> aActor) {
   MOZ_ASSERT(!mBackgroundThreadAccessible.Access()->mActors.Contains(aActor));
   MOZ_ASSERT(mState == State::Open);
-  MOZ_ASSERT(mDirectoryLock);
+  MOZ_ASSERT(mDirectoryLockHandle);
 
   mBackgroundThreadAccessible.Access()->mActors.Insert(aActor);
 
@@ -334,7 +333,7 @@ void FileSystemDataManager::RegisterActor(
   // directory lock if it has been invalidated and eventually notify the actor
   // about the abort.
 
-  if (mDirectoryLock->Invalidated()) {
+  if (mDirectoryLockHandle->Invalidated()) {
     aActor->RequestAllowToClose();
   }
 }
@@ -343,7 +342,7 @@ void FileSystemDataManager::UnregisterActor(
     NotNull<FileSystemManagerParent*> aActor) {
   MOZ_ASSERT(mBackgroundThreadAccessible.Access()->mActors.Contains(aActor));
   MOZ_ASSERT(mState == State::Open);
-  MOZ_ASSERT(mDirectoryLock);
+  MOZ_ASSERT(mDirectoryLockHandle);
 
   mBackgroundThreadAccessible.Access()->mActors.Remove(aActor);
 
@@ -489,19 +488,61 @@ Result<FileId, QMResult> FileSystemDataManager::LockShared(
 // TODO: Improve reporting of failures, see bug 1840811.
 void FileSystemDataManager::UnlockShared(const EntryId& aEntryId,
                                          const FileId& aFileId, bool aAbort) {
-  MOZ_ASSERT(!mExclusiveLocks.Contains(aEntryId));
-  MOZ_ASSERT(mSharedLocks.Contains(aEntryId));
+  const bool wasDeprecated = [&]() {
+    // Someone recreated the file and put an exclusive lock on it
+    if (mExclusiveLocks.Contains(aEntryId)) {
+      aAbort = true;
+    }
 
-  auto entry = mSharedLocks.Lookup(aEntryId);
-  MOZ_ASSERT(entry);
+    auto entry = mDeprecatedLocks.Lookup(aEntryId);
+    if (!entry) {
+      return false;
+    }
 
-  MOZ_ASSERT(entry.Data() > 0);
-  --entry.Data();
+    auto& fileIdData = entry.Data();
+    auto fileIdIt = fileIdData.IndexOf(aFileId);
+    if (nsTArray<FileId>::NoIndex == fileIdIt) {
+      return false;
+    }
 
-  LOG_VERBOSE(("SharedUnlock %u", *entry));
+    fileIdData.UnorderedRemoveElementAt(fileIdIt);
 
-  if (0u == entry.Data()) {
-    entry.Remove();
+    if (fileIdData.IsEmpty()) {
+      entry.Remove();
+    }
+
+    return true;
+  }();
+
+  // Deprecated locks are per file. A file cannot be
+  // both in active use with a shared lock and deprecated,
+  // while entries can.
+  if (!wasDeprecated) {
+    MOZ_ASSERT(!mExclusiveLocks.Contains(aEntryId));
+
+    auto entry = mSharedLocks.Lookup(aEntryId);
+    if (!entry) {
+      return;
+    }
+
+    MOZ_ASSERT(entry.Data() > 0);
+    --entry.Data();
+
+    LOG_VERBOSE(("SharedUnlock %u", *entry));
+
+    if (0u == entry.Data()) {
+      entry.Remove();
+    }
+  }
+
+  // If underlying file does not exist but should close, abort instead.
+  if (!aAbort) {
+    QM_WARNONLY_TRY_UNWRAP(const Maybe<bool> doesFileExist,
+                           mDatabaseManager->DoesFileExist(aEntryId));
+    const bool exists = doesFileExist.isSome() && doesFileExist.ref();
+    if (!exists) {
+      aAbort = true;
+    }
   }
 
   // On error, usage tracking remains on to prevent writes until usage is
@@ -511,6 +552,38 @@ void FileSystemDataManager::UnlockShared(const EntryId& aEntryId,
   QM_TRY(
       MOZ_TO_RESULT(mDatabaseManager->MergeFileId(aEntryId, aFileId, aAbort)),
       QM_VOID);
+}
+
+void FileSystemDataManager::DeprecateSharedLocks(const EntryId& aEntryId,
+                                                 const FileId& aFileId) {
+  auto oldEntry = mSharedLocks.Lookup(aEntryId);
+  if (!oldEntry) {
+    return;
+  }
+
+  auto& deprecatedEntries = mDeprecatedLocks.LookupOrInsert(aEntryId);
+  MOZ_ASSERT(!deprecatedEntries.Contains(aFileId));
+  deprecatedEntries.AppendElement(aFileId);
+
+  MOZ_ASSERT(oldEntry.Data() >= 1);
+  if (oldEntry.Data() == 1) {
+    oldEntry.Remove();
+  } else {
+    --oldEntry.Data();
+  }
+}
+
+bool FileSystemDataManager::IsLockedWithDeprecatedSharedLock(
+    const EntryId& aEntryId, const FileId& aFileId) const {
+  MOZ_ASSERT(!aEntryId.IsEmpty());
+  MOZ_ASSERT(!aFileId.IsEmpty());
+
+  auto entry = mDeprecatedLocks.Lookup(aEntryId);
+  if (!entry) {
+    return false;
+  }
+
+  return nsTArray<FileId>::NoIndex != entry.Data().IndexOf(aFileId);
 }
 
 FileMode FileSystemDataManager::GetMode(bool aKeepData) const {
@@ -541,25 +614,28 @@ RefPtr<BoolPromise> FileSystemDataManager::BeginOpen() {
   mQuotaManager
       ->OpenClientDirectory(
           {mOriginMetadata, mozilla::dom::quota::Client::FILESYSTEM})
-      ->Then(
-          GetCurrentSerialEventTarget(), __func__,
-          [self = RefPtr<FileSystemDataManager>(this)](
-              quota::ClientDirectoryLockPromise::ResolveOrRejectValue&& value) {
-            if (value.IsReject()) {
-              return BoolPromise::CreateAndReject(value.RejectValue(),
-                                                  __func__);
-            }
+      ->Then(GetCurrentSerialEventTarget(), __func__,
+             [self = RefPtr<FileSystemDataManager>(this)](
+                 quota::QuotaManager::ClientDirectoryLockHandlePromise::
+                     ResolveOrRejectValue&& value) {
+               if (value.IsReject()) {
+                 return BoolPromise::CreateAndReject(value.RejectValue(),
+                                                     __func__);
+               }
 
-            self->mDirectoryLock = std::move(value.ResolveValue());
+               self->mDirectoryLockHandle = std::move(value.ResolveValue());
 
-            if (self->mDirectoryLock->Invalidated()) {
-              return BoolPromise::CreateAndReject(NS_ERROR_ABORT, __func__);
-            }
+               MOZ_ASSERT(self->mDirectoryLockHandle->Id() >= 0);
+               self->mDirectoryLockId = self->mDirectoryLockHandle->Id();
 
-            NotifyDatabaseWorkStarted();
+               if (self->mDirectoryLockHandle->Invalidated()) {
+                 return BoolPromise::CreateAndReject(NS_ERROR_ABORT, __func__);
+               }
 
-            return BoolPromise::CreateAndResolve(true, __func__);
-          })
+               NotifyDatabaseWorkStarted();
+
+               return BoolPromise::CreateAndResolve(true, __func__);
+             })
       ->Then(
           mQuotaManager->IOThread(), __func__,
           [self = RefPtr<FileSystemDataManager>(this)](
@@ -589,7 +665,7 @@ RefPtr<BoolPromise> FileSystemDataManager::BeginOpen() {
 
             QM_TRY_UNWRAP(auto connection,
                           GetStorageConnection(self->mOriginMetadata,
-                                               self->mDirectoryLock->Id()),
+                                               self->mDirectoryLockId),
                           CreateAndRejectBoolPromiseFromQMResult);
 
             QM_TRY_UNWRAP(UniquePtr<FileSystemFileManager> fmPtr,
@@ -680,7 +756,10 @@ RefPtr<BoolPromise> FileSystemDataManager::BeginClose() {
       ->Then(MutableBackgroundTargetPtr(), __func__,
              [self = RefPtr<FileSystemDataManager>(this)](
                  const ShutdownPromise::ResolveOrRejectValue&) {
-               SafeDropDirectoryLock(self->mDirectoryLock);
+               {
+                 auto destroyingDirectoryLockHandle =
+                     std::move(self->mDirectoryLockHandle);
+               }
 
                RemoveFileSystemDataManager(self->mOriginMetadata.mOrigin);
 

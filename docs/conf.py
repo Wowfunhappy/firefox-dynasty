@@ -50,6 +50,14 @@ extensions = [
     "bzlink",
 ]
 
+myst_enable_extensions = [
+    "colon_fence",
+    "smartquotes",
+    "deflist",
+    "html_admonition",
+    "fieldlist",
+]
+
 # JSDoc must run successfully for dirs specified, so running
 # tree-wide (the default) will not work currently.
 # When adding more paths to this list, please ensure that they are not
@@ -74,8 +82,8 @@ js_source_path = [
     "../toolkit/actors",
     "../toolkit/components/extensions",
     "../toolkit/components/extensions/parent",
-    "../toolkit/components/featuregates",
-    "../toolkit/components/ml/content/ONNXPipeline.mjs",
+    "../toolkit/components/ml/content/backends/ONNXPipeline.mjs",
+    "../toolkit/modules/BrowserUtils.sys.mjs",
     "../toolkit/mozapps/extensions",
     "../toolkit/components/prompts/src",
     "../toolkit/components/pictureinpicture",

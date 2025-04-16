@@ -16,6 +16,7 @@
 #include "mozilla/AlreadyAddRefed.h"
 #include "mozilla/Assertions.h"
 #include "mozilla/ErrorResult.h"
+#include "mozilla/HoldDropJSObjects.h"
 #include "mozilla/RefPtr.h"
 #include "mozilla/Result.h"
 #include "mozilla/WeakPtr.h"
@@ -42,7 +43,7 @@ class PromiseInit;
 class PromiseNativeHandler;
 class PromiseDebugging;
 
-class Promise : public SupportsWeakPtr {
+class Promise : public SupportsWeakPtr, public JSHolderBase {
   friend class PromiseTask;
   friend class PromiseWorkerProxy;
   friend class PromiseWorkerProxyRunnable;
@@ -260,6 +261,15 @@ class Promise : public SupportsWeakPtr {
       ErrorResult& aRv,
       PropagateUserInteraction aPropagateUserInteraction =
           eDontPropagateUserInteraction);
+
+  using SuccessSteps =
+      const std::function<void(const Span<JS::Heap<JS::Value>>&)>&;
+  using FailureSteps = const std::function<void(JS::Handle<JS::Value>)>&;
+  MOZ_CAN_RUN_SCRIPT
+  static void WaitForAll(nsIGlobalObject* aGlobal,
+                         const Span<RefPtr<Promise>>& aPromises,
+                         SuccessSteps aSuccessSteps,
+                         FailureSteps aFailureSteps);
 
   template <typename Callback, typename... Args>
   using IsHandlerCallback =

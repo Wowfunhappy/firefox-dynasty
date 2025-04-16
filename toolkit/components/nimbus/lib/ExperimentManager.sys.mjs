@@ -2,10 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-import {
-  PrefFlipsFeature,
-  REASON_PREFFLIPS_FAILED,
-} from "resource://nimbus/lib/PrefFlipsFeature.sys.mjs";
+import { PrefFlipsFeature } from "resource://nimbus/lib/PrefFlipsFeature.sys.mjs";
 
 const lazy = {};
 
@@ -16,13 +13,13 @@ ChromeUtils.defineESModuleGetters(lazy, {
   ExperimentStore: "resource://nimbus/lib/ExperimentStore.sys.mjs",
   FirstStartup: "resource://gre/modules/FirstStartup.sys.mjs",
   NimbusFeatures: "resource://nimbus/ExperimentAPI.sys.mjs",
+  NimbusTelemetry: "resource://nimbus/lib/Telemetry.sys.mjs",
   NormandyUtils: "resource://normandy/lib/NormandyUtils.sys.mjs",
   PrefUtils: "resource://normandy/lib/PrefUtils.sys.mjs",
   EnrollmentsContext:
     "resource://nimbus/lib/RemoteSettingsExperimentLoader.sys.mjs",
+  MatchStatus: "resource://nimbus/lib/RemoteSettingsExperimentLoader.sys.mjs",
   Sampling: "resource://gre/modules/components-utils/Sampling.sys.mjs",
-  TelemetryEnvironment: "resource://gre/modules/TelemetryEnvironment.sys.mjs",
-  TelemetryEvents: "resource://normandy/lib/TelemetryEvents.sys.mjs",
 });
 
 ChromeUtils.defineLazyGetter(lazy, "log", () => {
@@ -32,8 +29,6 @@ ChromeUtils.defineLazyGetter(lazy, "log", () => {
   return new Logger("ExperimentManager");
 });
 
-const TELEMETRY_EVENT_OBJECT = "nimbus_experiment";
-const TELEMETRY_EXPERIMENT_ACTIVE_PREFIX = "nimbus-";
 const TELEMETRY_DEFAULT_EXPERIMENT_TYPE = "nimbus";
 
 const UPLOAD_ENABLED_PREF = "datareporting.healthreport.uploadEnabled";
@@ -41,24 +36,7 @@ const STUDIES_OPT_OUT_PREF = "app.shield.optoutstudies.enabled";
 
 const STUDIES_ENABLED_CHANGED = "nimbus:studies-enabled-changed";
 
-const ENROLLMENT_STATUS = {
-  ENROLLED: "Enrolled",
-  NOT_ENROLLED: "NotEnrolled",
-  DISQUALIFIED: "Disqualified",
-  WAS_ENROLLED: "WasEnrolled",
-  ERROR: "Error",
-};
-
-const ENROLLMENT_STATUS_REASONS = {
-  QUALIFIED: "Qualified",
-  OPT_IN: "OptIn",
-  OPT_OUT: "OptOut",
-  NOT_SELECTED: "NotSelected",
-  NOT_TARGETED: "NotTargeted",
-  ENROLLMENTS_PAUSED: "EnrollmentsPaused",
-  FEATURE_CONFLICT: "FeatureConflict",
-  ERROR: "Error",
-};
+const FORCE_ENROLLMENT_SOURCE = "force-enrollment";
 
 function featuresCompat(branch) {
   if (!branch || (!branch.feature && !branch.features)) {
@@ -79,6 +57,68 @@ function getFeatureFromBranch(branch, featureId) {
   );
 }
 
+export const UnenrollmentCause = {
+  fromCheckRecipeResult(result) {
+    const { UnenrollReason } = lazy.NimbusTelemetry;
+
+    let reason;
+
+    if (result.ok) {
+      switch (result.status) {
+        case lazy.MatchStatus.NOT_SEEN:
+          reason = UnenrollReason.RECIPE_NOT_SEEN;
+          break;
+
+        case lazy.MatchStatus.NO_MATCH:
+          reason = UnenrollReason.TARGETING_MISMATCH;
+          break;
+
+        case lazy.MatchStatus.TARGETING_ONLY:
+          reason = UnenrollReason.BUCKETING;
+          break;
+
+        // TARGETING_AND_BUCKETING cannot cause unenrollment.
+      }
+    } else {
+      reason = result.reason;
+    }
+
+    return { reason };
+  },
+
+  fromReason(reason) {
+    return { reason };
+  },
+
+  ChangedPref(pref) {
+    return {
+      reason: lazy.NimbusTelemetry.UnenrollReason.CHANGED_PREF,
+      changedPref: pref,
+    };
+  },
+
+  PrefFlipsConflict(conflictingSlug) {
+    return {
+      reason: lazy.NimbusTelemetry.UnenrollReason.PREF_FLIPS_CONFLICT,
+      conflictingSlug,
+    };
+  },
+
+  PrefFlipsFailed(prefName, prefType) {
+    return {
+      reason: lazy.NimbusTelemetry.UnenrollReason.PREF_FLIPS_FAILED,
+      prefName,
+      prefType,
+    };
+  },
+
+  Unknown() {
+    return {
+      reason: lazy.NimbusTelemetry.UnenrollReason.UNKNOWN,
+    };
+  },
+};
+
 /**
  * A module for processes Experiment recipes, choosing and storing enrollment state,
  * and sending experiment-related Telemetry.
@@ -87,7 +127,6 @@ export class _ExperimentManager {
   constructor({ id = "experimentmanager", store } = {}) {
     this.id = id;
     this.store = store || new lazy.ExperimentStore();
-    this.sessions = new Map();
     this.optInRecipes = [];
     // By default, no extra context.
     this.extraContext = {};
@@ -96,13 +135,21 @@ export class _ExperimentManager {
 
     // A Map from pref names to pref observers and metadata. See
     // `_updatePrefObservers` for the full structure.
-    this._prefs = new Map();
+    //
+    // This can only be used in the parent process ExperimentManager.
+    this._prefs = null;
+
     // A Map from enrollment slugs to a Set of prefs that enrollment is setting
     // or would set (e.g., if the enrollment is a rollout and there wasn't an
     // active experiment already setting it).
-    this._prefsBySlug = new Map();
+    //
+    // This can only be used in the parent process ExperimentManager.
+    this._prefsBySlug = null;
 
-    this._prefFlips = new PrefFlipsFeature({ manager: this });
+    // The PrefFlipsFeature instance for managing arbitrary pref flips.
+    //
+    // This can only be used in the parent process ExperimentManager.
+    this._prefFlips = null;
   }
 
   get studiesEnabled() {
@@ -194,6 +241,10 @@ export class _ExperimentManager {
    * ambient environment.
    */
   async onStartup(extraContext = {}) {
+    this._prefs = new Map();
+    this._prefsBySlug = new Map();
+    this._prefFlips = new PrefFlipsFeature({ manager: this });
+
     await this.store.init();
     this.extraContext = extraContext;
 
@@ -201,13 +252,13 @@ export class _ExperimentManager {
     const restoredRollouts = this.store.getAllActiveRollouts();
 
     for (const experiment of restoredExperiments) {
-      this.setExperimentActive(experiment);
+      lazy.NimbusTelemetry.setExperimentActive(experiment);
       if (this._restoreEnrollmentPrefs(experiment)) {
         this._updatePrefObservers(experiment);
       }
     }
     for (const rollout of restoredRollouts) {
-      this.setExperimentActive(rollout);
+      lazy.NimbusTelemetry.setExperimentActive(rollout);
       if (this._restoreEnrollmentPrefs(rollout)) {
         this._updatePrefObservers(rollout);
       }
@@ -242,206 +293,82 @@ export class _ExperimentManager {
   }
 
   /**
-   * Runs every time a Recipe is updated or seen for the first time.
-   * @param {RecipeArgs} recipe
+   * Handle a recipe from a source.
+   *
+   * If the recipe is already enrolled we will update the enrollment. Otherwise
+   * enrollment will be attempted.
+   *
+   * @param {object} recipe
+   *        The recipe.
+   *
    * @param {string} source
-   * @param {boolean} isTargetingMatch
+   *         The source of the recipe, e.g., "rs-loader".
+   *
+   * @param {object} result
+   *        The result of validation, targeting, and bucketing.
+   *
+   *        See `CheckRecipeResult` for details.
    */
-  async onRecipe(recipe, source, isTargetingMatch) {
-    const { slug, isEnrollmentPaused, isFirefoxLabsOptIn } = recipe;
-
-    if (!source) {
-      throw new Error("When calling onRecipe, you must specify a source.");
+  async onRecipe(recipe, source, result) {
+    const { EnrollmentStatus, EnrollmentStatusReason } = lazy.NimbusTelemetry;
+    const enrollment = this.store.get(recipe.slug);
+    if (enrollment) {
+      await this.updateEnrollment(enrollment, recipe, source, result);
+      return;
     }
 
-    if (isFirefoxLabsOptIn) {
+    if (result.ok && recipe.isFirefoxLabsOptIn) {
       this.optInRecipes.push(recipe);
     }
 
-    if (isTargetingMatch) {
-      if (!this.sessions.has(source)) {
-        this.sessions.set(source, new Set());
-      }
-      this.sessions.get(source).add(slug);
-
-      if (this.store.has(slug)) {
-        await this.updateEnrollment(recipe, source);
-      } else if (!isFirefoxLabsOptIn) {
-        // Firefox Labs opt-ins cannot be paused and we do not enroll in them
-        // directly.
-        if (isEnrollmentPaused) {
-          lazy.log.debug(`Enrollment is paused for "${slug}"`);
-        } else if (!(await this.isInBucketAllocation(recipe.bucketConfig))) {
-          lazy.log.debug(
-            "Client was not enrolled because of the bucket sampling"
-          );
-        } else {
-          await this.enroll(recipe, source);
-        }
-      }
-    }
-  }
-
-  _checkUnseenEnrollments(
-    enrollments,
-    sourceToCheck,
-    recipeMismatches,
-    invalidRecipes,
-    invalidBranches,
-    invalidFeatures,
-    missingLocale,
-    missingL10nIds
-  ) {
-    for (const enrollment of enrollments) {
-      const { slug, source, branch } = enrollment;
-      if (sourceToCheck !== source) {
-        continue;
-      }
-      const statusTelemetry = {
-        slug,
-        branch: branch.slug,
-      };
-      if (!this.sessions.get(source)?.has(slug)) {
-        lazy.log.debug(`Stopping study for recipe ${slug}`);
-        try {
-          let reason;
-          if (recipeMismatches.includes(slug)) {
-            reason = "targeting-mismatch";
-            statusTelemetry.status = ENROLLMENT_STATUS.DISQUALIFIED;
-            statusTelemetry.reason = ENROLLMENT_STATUS_REASONS.NOT_TARGETED;
-          } else if (invalidRecipes.includes(slug)) {
-            reason = "invalid-recipe";
-          } else if (invalidBranches.has(slug) || invalidFeatures.has(slug)) {
-            reason = "invalid-branch";
-          } else if (missingLocale.includes(slug)) {
-            reason = "l10n-missing-locale";
-          } else if (missingL10nIds.has(slug)) {
-            reason = "l10n-missing-entry";
-          } else {
-            reason = "recipe-not-seen";
-            statusTelemetry.status = ENROLLMENT_STATUS.WAS_ENROLLED;
-            statusTelemetry.branch = branch.slug;
-          }
-          if (!statusTelemetry.status) {
-            statusTelemetry.status = ENROLLMENT_STATUS.DISQUALIFIED;
-            statusTelemetry.reason = ENROLLMENT_STATUS_REASONS.ERROR;
-            statusTelemetry.error_string = reason;
-          }
-          this.unenroll(slug, reason);
-        } catch (err) {
-          console.error(err);
-        }
-      } else {
-        statusTelemetry.status = ENROLLMENT_STATUS.ENROLLED;
-        statusTelemetry.reason = ENROLLMENT_STATUS_REASONS.QUALIFIED;
-      }
-      this.sendEnrollmentStatusTelemetry(statusTelemetry);
-    }
-  }
-
-  /**
-   * Removes stored enrollments that were not seen after syncing with Remote Settings
-   * Runs when the all recipes been processed during an update, including at first run.
-   * @param {string} sourceToCheck
-   * @param {object} options Extra context used in telemetry reporting
-   * @param {string[]} options.recipeMismatches
-   *         The list of experiments that do not match targeting.
-   * @param {string[]} options.invalidRecipes
-   *         The list of recipes that do not match
-   * @param {Map<string, string[]>} options.invalidBranches
-   *         A mapping of experiment slugs to a list of branches that failed
-   *         feature validation.
-   * @param {Map<string, string[]>} options.invalidFeatures
-   *        The mapping of experiment slugs to a list of invalid feature IDs.
-   * @param {string[]} options.missingLocale
-   *        The list of experiment slugs missing an entry in the localization
-   *        table for the current locale.
-   * @param {Map<string, string[]>} options.missingL10nIds
-   *        The mapping of experiment slugs to the IDs of localization entries
-   *        missing from the current locale.
-   * @param {string | null} options.locale
-   *        The current locale.
-   * @param {boolean} options.validationEnabled
-   *        Whether or not schema validation was enabled.
-   */
-  onFinalize(
-    sourceToCheck,
-    {
-      recipeMismatches = [],
-      invalidRecipes = [],
-      invalidBranches = new Map(),
-      invalidFeatures = new Map(),
-      missingLocale = [],
-      missingL10nIds = new Map(),
-      locale = null,
-      validationEnabled = true,
-    } = {}
-  ) {
-    if (!sourceToCheck) {
-      throw new Error("When calling onFinalize, you must specify a source.");
-    }
-    const activeExperiments = this.store.getAllActiveExperiments();
-    const activeRollouts = this.store.getAllActiveRollouts();
-    this._checkUnseenEnrollments(
-      activeExperiments,
-      sourceToCheck,
-      recipeMismatches,
-      invalidRecipes,
-      invalidBranches,
-      invalidFeatures,
-      missingLocale,
-      missingL10nIds
-    );
-    this._checkUnseenEnrollments(
-      activeRollouts,
-      sourceToCheck,
-      recipeMismatches,
-      invalidRecipes,
-      invalidBranches,
-      invalidFeatures,
-      missingLocale,
-      missingL10nIds
-    );
-
-    // If schema validation is disabled, then we will never send these
-    // validation failed telemetry events
-    if (validationEnabled) {
-      for (const slug of invalidRecipes) {
-        this.sendValidationFailedTelemetry(slug, "invalid-recipe");
-      }
-      for (const [slug, branches] of invalidBranches.entries()) {
-        for (const branch of branches) {
-          this.sendValidationFailedTelemetry(slug, "invalid-branch", {
-            branch,
-          });
-        }
-      }
-      for (const [slug, featureIds] of invalidFeatures.entries()) {
-        for (const featureId of featureIds) {
-          this.sendValidationFailedTelemetry(slug, "invalid-feature", {
-            feature: featureId,
-          });
-        }
-      }
+    if (!result.ok) {
+      lazy.NimbusTelemetry.recordEnrollmentStatus({
+        slug: recipe.slug,
+        status: EnrollmentStatus.DISQUALIFIED,
+        reason: EnrollmentStatusReason.ERROR,
+        error_string: result.reason,
+      });
+      return;
     }
 
-    if (locale) {
-      for (const slug of missingLocale.values()) {
-        this.sendValidationFailedTelemetry(slug, "l10n-missing-locale", {
-          locale,
+    if (recipe.isFirefoxLabsOptIn) {
+      // We do not enroll directly into Firefox Labs opt-ins.
+      return;
+    }
+
+    switch (result.status) {
+      case lazy.MatchStatus.ENROLLMENT_PAUSED:
+        lazy.NimbusTelemetry.recordEnrollmentStatus({
+          slug: recipe.slug,
+          status: EnrollmentStatus.NOT_ENROLLED,
+          reason: EnrollmentStatusReason.ENROLLMENTS_PAUSED,
         });
-      }
+        break;
 
-      for (const [slug, ids] of missingL10nIds.entries()) {
-        this.sendValidationFailedTelemetry(slug, "l10n-missing-entry", {
-          l10n_ids: ids.join(","),
-          locale,
+      case lazy.MatchStatus.NO_MATCH:
+        lazy.NimbusTelemetry.recordEnrollmentStatus({
+          slug: recipe.slug,
+          status: EnrollmentStatus.NOT_ENROLLED,
+          reason: EnrollmentStatusReason.NOT_TARGETED,
         });
-      }
-    }
+        break;
 
-    this.sessions.delete(sourceToCheck);
-    this._originalDefaultValues = null;
+      case lazy.MatchStatus.TARGETING_ONLY:
+        lazy.NimbusTelemetry.recordEnrollmentStatus({
+          slug: recipe.slug,
+          status: EnrollmentStatus.NOT_ENROLLED,
+          reason: EnrollmentStatusReason.NOT_SELECTED,
+        });
+        break;
+
+      case lazy.MatchStatus.TARGETING_AND_BUCKETING:
+        await this.enroll(recipe, source);
+        break;
+
+      // This function will not be called with MatchStatus.NOT_SEEN --
+      // RemoteSettingsExperimentLoader will call updateEnrollment directly
+      // instead.
+    }
   }
 
   /**
@@ -592,13 +519,22 @@ export class _ExperimentManager {
       (enrollment.active ||
         (!isFirefoxLabsOptIn && (!enrollment.isRollout || !reenroll)))
     ) {
-      this.sendFailureTelemetry("enrollFailed", slug, "name-conflict");
+      lazy.NimbusTelemetry.recordEnrollmentFailure(
+        slug,
+        lazy.NimbusTelemetry.EnrollmentFailureReason.NAME_CONFLICT
+      );
+      lazy.NimbusTelemetry.recordEnrollmentStatus({
+        slug,
+        status: lazy.NimbusTelemetry.EnrollmentStatus.NOT_ENROLLED,
+        reason: lazy.NimbusTelemetry.EnrollmentStatusReason.NAME_CONFLICT,
+      });
+
       throw new Error(`An experiment with the slug "${slug}" already exists.`);
     }
 
     let storeLookupByFeature = recipe.isRollout
       ? this.store.getRolloutForFeature.bind(this.store)
-      : this.store.hasExperimentForFeature.bind(this.store);
+      : this.store.getExperimentForFeature.bind(this.store);
     const userId = await this.getUserId(bucketConfig);
 
     let branch;
@@ -627,15 +563,24 @@ export class _ExperimentManager {
     }
 
     const features = featuresCompat(branch);
-    for (let feature of features) {
-      if (storeLookupByFeature(feature?.featureId)) {
+    for (const feature of features) {
+      const existingEnrollment = storeLookupByFeature(feature?.featureId);
+      if (existingEnrollment) {
         lazy.log.debug(
           `Skipping enrollment for "${slug}" because there is an existing ${
             recipe.isRollout ? "rollout" : "experiment"
           } for this feature.`
         );
-        this.sendFailureTelemetry("enrollFailed", slug, "feature-conflict");
-
+        lazy.NimbusTelemetry.recordEnrollmentFailure(
+          slug,
+          lazy.NimbusTelemetry.EnrollmentFailureReason.FEATURE_CONFLICT
+        );
+        lazy.NimbusTelemetry.recordEnrollmentStatus({
+          slug,
+          status: lazy.NimbusTelemetry.EnrollmentStatus.NOT_ENROLLED,
+          reason: lazy.NimbusTelemetry.EnrollmentStatusReason.FEATURE_CONFLICT,
+          conflict_slug: existingEnrollment.slug,
+        });
         return null;
       }
     }
@@ -682,17 +627,14 @@ export class _ExperimentManager {
 
       for (const prefName of Object.keys(featureValue.prefs)) {
         if (prefNames.has(prefName)) {
-          this._unenroll(enrollment, {
-            reason: "prefFlips-conflict",
-            conflictingSlug: slug,
-          });
+          this._unenroll(enrollment, UnenrollmentCause.PrefFlipsConflict(slug));
           break;
         }
       }
     }
 
     /** @type {Enrollment} */
-    const experiment = {
+    const enrollment = {
       slug,
       branch,
       active: true,
@@ -706,11 +648,11 @@ export class _ExperimentManager {
     };
 
     if (localizations) {
-      experiment.localizations = localizations;
+      enrollment.localizations = localizations;
     }
 
     if (typeof isFirefoxLabsOptIn !== "undefined") {
-      Object.assign(experiment, {
+      Object.assign(enrollment, {
         isFirefoxLabsOptIn,
         firefoxLabsTitle,
         firefoxLabsDescription,
@@ -721,27 +663,26 @@ export class _ExperimentManager {
     }
 
     if (typeof isRollout !== "undefined") {
-      experiment.isRollout = isRollout;
+      enrollment.isRollout = isRollout;
     }
 
     // Tag this as a forced enrollment. This prevents all unenrolling unless
     // manually triggered from about:studies
     if (options.force) {
-      experiment.force = true;
+      enrollment.force = true;
     }
 
     if (isRollout) {
-      experiment.experimentType = "rollout";
-      this.store.addEnrollment(experiment);
-      this.setExperimentActive(experiment);
+      enrollment.experimentType = "rollout";
+      this.store.addEnrollment(enrollment);
     } else {
-      this.store.addEnrollment(experiment);
-      this.setExperimentActive(experiment);
+      this.store.addEnrollment(enrollment);
     }
-    this.sendEnrollmentTelemetry(experiment);
+
+    lazy.NimbusTelemetry.recordEnrollment(enrollment);
 
     this._setEnrollmentPrefs(prefsToSet);
-    this._updatePrefObservers(experiment);
+    this._updatePrefObservers(enrollment);
 
     lazy.log.debug(
       `New ${isRollout ? "rollout" : "experiment"} started: ${slug}, ${
@@ -749,10 +690,10 @@ export class _ExperimentManager {
       }`
     );
 
-    return experiment;
+    return enrollment;
   }
 
-  forceEnroll(recipe, branch, source = "force-enrollment") {
+  forceEnroll(recipe, branch) {
     /**
      * If we happen to be enrolled in an experiment for the same feature
      * we need to unenroll from that experiment.
@@ -772,7 +713,12 @@ export class _ExperimentManager {
           } found for the same feature ${feature.featureId}, unenrolling.`
         );
 
-        this.unenroll(enrollment.slug, source);
+        this._unenroll(
+          enrollment,
+          UnenrollmentCause.fromReason(
+            lazy.NimbusTelemetry.UnenrollReason.FORCE_ENROLLMENT
+          )
+        );
       }
     }
 
@@ -785,7 +731,7 @@ export class _ExperimentManager {
         slug,
       },
       branch,
-      source,
+      FORCE_ENROLLMENT_SOURCE,
       { force: true }
     );
 
@@ -795,50 +741,120 @@ export class _ExperimentManager {
   }
 
   /**
-   * Update an enrollment that was already set
+   * Update an existing enrollment.
    *
-   * @param {RecipeArgs} recipe
-   * @returns {boolean} whether the enrollment is still active
+   * @param {object} enrollment
+   *        The enrollment to update.
+   *
+   * @param {object?} recipe
+   *        The recipe to update the enrollment with, if any
+   *
+   * @param {string} source
+   *        The source of the recipe, e.g., "rs-loader".
+   *
+   * @param {object} result
+   *        The result of validation, targeting, and bucketing.
+   *
+   *        See `CheckRecipeResult` for details.
+   *
+   * @returns {boolean}
+   *          Whether the enrollment is active.
    */
-  async updateEnrollment(recipe, source) {
-    /** @type Enrollment */
-    const enrollment = this.store.get(recipe.slug);
+  async updateEnrollment(enrollment, recipe, source, result) {
+    const { EnrollmentStatus, EnrollmentStatusReason, UnenrollReason } =
+      lazy.NimbusTelemetry;
 
-    // Don't update experiments that were already unenrolled.
-    if (enrollment.active === false && !recipe.isRollout) {
-      lazy.log.debug(`Enrollment ${recipe.slug} has expired, aborting.`);
-      return false;
+    if (result.ok && recipe?.isFirefoxLabsOptIn) {
+      this.optInRecipes.push(recipe);
     }
 
-    if (recipe.isRollout) {
-      if (!(await this.isInBucketAllocation(recipe.bucketConfig))) {
-        lazy.log.debug(
-          `No longer meet bucketing for "${recipe.slug}"; unenrolling...`
+    if (enrollment.active) {
+      if (!result.ok) {
+        // If the recipe failed validation then we must unenroll.
+        this._unenroll(
+          enrollment,
+          UnenrollmentCause.fromCheckRecipeResult(result)
         );
-        this.unenroll(recipe.slug, "bucketing");
         return false;
-      } else if (
-        !enrollment.active &&
-        enrollment.unenrollReason !== "individual-opt-out" &&
-        !enrollment.isFirefoxLabsOptIn
-      ) {
-        lazy.log.debug(`Re-enrolling in rollout "${recipe.slug}`);
-        return !!(await this.enroll(recipe, source, { reenroll: true }));
       }
+
+      if (result.status === lazy.MatchStatus.NOT_SEEN) {
+        // If the recipe was not present in the source we must unenroll.
+        this._unenroll(
+          enrollment,
+          UnenrollmentCause.fromCheckRecipeResult(result)
+        );
+        return false;
+      }
+
+      if (!recipe.branches.find(b => b.slug === enrollment.branch.slug)) {
+        // Our branch has been removed so we must unenroll.
+        //
+        // This should not happen in practice.
+        this._unenroll(
+          enrollment,
+          UnenrollmentCause.fromReason(UnenrollReason.BRANCH_REMOVED)
+        );
+        return false;
+      }
+
+      if (result.status === lazy.MatchStatus.NO_MATCH) {
+        // If we have an active enrollment and we no longer match targeting we
+        // must unenroll.
+        this._unenroll(
+          enrollment,
+          UnenrollmentCause.fromCheckRecipeResult(result)
+        );
+        return false;
+      }
+
+      if (
+        enrollment.isRollout &&
+        result.status === lazy.MatchStatus.TARGETING_ONLY
+      ) {
+        // If we no longer fall in the bucketing allocation for this rollout we
+        // must unenroll.
+        this._unenroll(
+          enrollment,
+          UnenrollmentCause.fromCheckRecipeResult(result)
+        );
+        return false;
+      }
+
+      if (result.status === lazy.MatchStatus.TARGETING_AND_BUCKETING) {
+        lazy.NimbusTelemetry.recordEnrollmentStatus({
+          slug: enrollment.slug,
+          branch: enrollment.branch.slug,
+          status: EnrollmentStatus.ENROLLED,
+          reason: EnrollmentStatusReason.QUALIFIED,
+        });
+      }
+
+      // Either this recipe is not a rollout or both targeting matches and we
+      // are in the bucket allocation. For the former, we do not re-evaluate
+      // bucketing for experiments because the bucketing cannot change. For the
+      // latter, we are already active so we don't need to enroll.
+      return true;
     }
 
-    // Stay in the same branch, don't re-sample every time.
-    const branch = recipe.branches.find(
-      branch => branch.slug === enrollment.branch.slug
-    );
-
-    if (!branch) {
-      // Our branch has been removed. Unenroll.
-      this.unenroll(recipe.slug, "branch-removed");
+    if (!enrollment.isRollout || enrollment.isFirefoxLabsOptIn) {
+      // We can only re-enroll into rollouts and we do not enroll directly into
+      // Firefox Labs Opt-Ins.
       return false;
     }
 
-    return true;
+    if (
+      !enrollment.active &&
+      result.status === lazy.MatchStatus.TARGETING_AND_BUCKETING &&
+      enrollment.unenrollReason !== UnenrollReason.INDIVIDUAL_OPT_OUT
+    ) {
+      // We only re-enroll if we match targeting and bucketing and the user did
+      // not purposefully opt out via about:studies.
+      lazy.log.debug(`Re-enrolling in rollout "${recipe.slug}`);
+      return !!(await this.enroll(recipe, source, { reenroll: true }));
+    }
+
+    return false;
   }
 
   /**
@@ -846,19 +862,24 @@ export class _ExperimentManager {
    *
    * @param {string} slug
    *        The slug of the enrollment to stop.
-   * @param {string} reason
-   *        An optional reason for the unenrollment.
+   * @param {object?} cause
+   *        The cause of this unenrollment. If not provided, "unknown" will be
+   *        used for the unenrollment reason.
    *
-   *        This will be reported in telemetry.
+   *        See `UnenrollCause` for details.
    */
-  unenroll(slug, reason = "unknown") {
+  unenroll(slug, cause) {
     const enrollment = this.store.get(slug);
     if (!enrollment) {
-      this.sendFailureTelemetry("unenrollFailed", slug, "does-not-exist");
-      throw new Error(`Could not find an experiment with the slug "${slug}"`);
+      lazy.NimbusTelemetry.recordUnenrollmentFailure(
+        slug,
+        lazy.NimbusTelemetry.UnenrollmentFailureReason.DOES_NOT_EXIST
+      );
+      lazy.log.error(`Could not find an experiment with the slug "${slug}"`);
+      return;
     }
 
-    this._unenroll(enrollment, { reason });
+    this._unenroll(enrollment, cause ?? UnenrollmentCause.Unknown());
   }
 
   /**
@@ -867,90 +888,38 @@ export class _ExperimentManager {
    * @param {Enrollment} enrollment
    *        The enrollment to end.
    *
-   * @param {object} options
-   * @param {string} options.reason
-   *        An optional reason for the unenrollment.
+   * @param {object} cause
+   *        The cause of this unenrollment.
    *
-   *        This will be reported in telemetry.
+   *        See `UnenrollmentCause` for details.
    *
-   * @param {object?} options.changedPref
-   *        If the unenrollment was due to pref change, this will contain the
-   *        information about the pref that changed.
+   * @param {object?} options
    *
-   * @param {string} options.changedPref.name
-   *        The name of the pref that caused the unenrollment.
-   *
-   * @param {string} options.changedPref.branch
-   *        The branch that was changed ("user" or "default").
+   * @param {boolean} options.duringRestore
+   *        If true, this indicates that this was during the call to
+   *        `_restoreEnrollmentPrefs`.
    */
-  _unenroll(
-    enrollment,
-    {
-      reason = "unknown",
-      changedPref = undefined,
-      duringRestore = false,
-      conflictingSlug = undefined,
-      prefName = undefined,
-      prefType = undefined,
-    } = {}
-  ) {
+  _unenroll(enrollment, cause, { duringRestore = false } = {}) {
     const { slug } = enrollment;
 
     if (!enrollment.active) {
-      this.sendFailureTelemetry("unenrollFailed", slug, "already-unenrolled");
+      lazy.NimbusTelemetry.recordUnenrollmentFailure(
+        slug,
+        lazy.NimbusTelemetry.UnenrollmentFailureReason.ALREADY_UNENROLLED
+      );
       throw new Error(
         `Cannot stop experiment "${slug}" because it is already expired`
       );
     }
 
-    lazy.TelemetryEnvironment.setExperimentInactive(slug);
-    // We also need to set the experiment inactive in the Glean Experiment API
-    Services.fog.setExperimentInactive(slug);
     this.store.updateExperiment(slug, {
       active: false,
-      unenrollReason: reason,
+      unenrollReason: cause.reason,
     });
 
-    lazy.TelemetryEvents.sendEvent(
-      "unenroll",
-      TELEMETRY_EVENT_OBJECT,
-      slug,
-      Object.assign(
-        {
-          reason,
-          branch: enrollment.branch.slug,
-        },
-        typeof changedPref !== "undefined"
-          ? { changedPref: changedPref.name }
-          : {},
-        typeof conflictingSlug !== "undefined" ? { conflictingSlug } : {},
-        reason === REASON_PREFFLIPS_FAILED ? { prefType, prefName } : {}
-      )
-    );
-    // Sent Glean event equivalent
-    Glean.nimbusEvents.unenrollment.record(
-      Object.assign(
-        {
-          experiment: slug,
-          branch: enrollment.branch.slug,
-          reason,
-        },
-        typeof changedPref !== "undefined"
-          ? { changed_pref: changedPref.name }
-          : {},
-        typeof conflictingSlug !== "undefined"
-          ? { conflicting_slug: conflictingSlug }
-          : {},
-        reason === REASON_PREFFLIPS_FAILED
-          ? {
-              pref_type: prefType,
-              pref_name: prefName,
-            }
-          : {}
-      )
-    );
+    lazy.NimbusTelemetry.recordUnenrollment(enrollment, cause);
 
-    this._unsetEnrollmentPrefs(enrollment, { changedPref, duringRestore });
+    this._unsetEnrollmentPrefs(enrollment, cause, { duringRestore });
 
     lazy.log.debug(`Recipe unenrolled: ${slug}`);
   }
@@ -967,118 +936,24 @@ export class _ExperimentManager {
    * Unenroll from all active studies if user opts out.
    */
   _handleStudiesOptOut() {
-    for (const { slug } of this.store.getAllActiveExperiments()) {
-      this.unenroll(slug, "studies-opt-out");
+    for (const enrollment of this.store.getAllActiveExperiments()) {
+      this._unenroll(
+        enrollment,
+        UnenrollmentCause.fromReason(
+          lazy.NimbusTelemetry.UnenrollReason.STUDIES_OPT_OUT
+        )
+      );
     }
-    for (const { slug } of this.store.getAllActiveRollouts()) {
-      this.unenroll(slug, "studies-opt-out");
+    for (const enrollment of this.store.getAllActiveRollouts()) {
+      this._unenroll(
+        enrollment,
+        UnenrollmentCause.fromReason(
+          lazy.NimbusTelemetry.UnenrollReason.STUDIES_OPT_OUT
+        )
+      );
     }
 
     this.optInRecipes = [];
-  }
-
-  /**
-   * Send Telemetry for undesired event
-   *
-   * @param {string} eventName
-   * @param {string} slug
-   * @param {string} reason
-   */
-  sendFailureTelemetry(eventName, slug, reason) {
-    lazy.TelemetryEvents.sendEvent(eventName, TELEMETRY_EVENT_OBJECT, slug, {
-      reason,
-    });
-    if (eventName == "enrollFailed") {
-      Glean.nimbusEvents.enrollFailed.record({
-        experiment: slug,
-        reason,
-      });
-    } else if (eventName == "unenrollFailed") {
-      Glean.nimbusEvents.unenrollFailed.record({
-        experiment: slug,
-        reason,
-      });
-    }
-  }
-
-  sendValidationFailedTelemetry(slug, reason, extra) {
-    lazy.TelemetryEvents.sendEvent(
-      "validationFailed",
-      TELEMETRY_EVENT_OBJECT,
-      slug,
-      {
-        reason,
-        ...extra,
-      }
-    );
-    Glean.nimbusEvents.validationFailed.record({
-      experiment: slug,
-      reason,
-      ...extra,
-    });
-  }
-
-  /**
-   *
-   * @param {Enrollment} experiment
-   */
-  sendEnrollmentTelemetry({ slug, branch, experimentType }) {
-    lazy.TelemetryEvents.sendEvent("enroll", TELEMETRY_EVENT_OBJECT, slug, {
-      experimentType,
-      branch: branch.slug,
-    });
-    Glean.nimbusEvents.enrollment.record({
-      experiment: slug,
-      branch: branch.slug,
-      experiment_type: experimentType,
-    });
-  }
-
-  /**
-   *
-   * @param {object} enrollmentStatus
-   * @param {string} enrollmentStatus.slug
-   * @param {string} enrollmentStatus.status
-   * @param {string?} enrollmentStatus.reason
-   * @param {string?} enrollmentStatus.branch
-   * @param {string?} enrollmentStatus.error_string
-   * @param {string?} enrollmentStatus.conflict_slug
-   */
-  sendEnrollmentStatusTelemetry({
-    slug,
-    status,
-    reason,
-    branch,
-    error_string,
-    conflict_slug,
-  }) {
-    Glean.nimbusEvents.enrollmentStatus.record({
-      slug,
-      status,
-      reason,
-      branch,
-      error_string,
-      conflict_slug,
-    });
-  }
-
-  /**
-   * Sets Telemetry when activating an experiment.
-   *
-   * @param {Enrollment} experiment
-   */
-  setExperimentActive(experiment) {
-    lazy.TelemetryEnvironment.setExperimentActive(
-      experiment.slug,
-      experiment.branch.slug,
-      {
-        type: `${TELEMETRY_EXPERIMENT_ACTIVE_PREFIX}${experiment.experimentType}`,
-      }
-    );
-    // Report the experiment to the Glean Experiment API
-    Services.fog.setExperimentActive(experiment.slug, experiment.branch.slug, {
-      type: `${TELEMETRY_EXPERIMENT_ACTIVE_PREFIX}${experiment.experimentType}`,
-    });
   }
 
   /**
@@ -1319,26 +1194,20 @@ export class _ExperimentManager {
    * Otherwise, it will be set to the original value from before the enrollment
    * began.
    *
-   * @param {Enrollment} enrollment
+   * @param {object} enrollment
    *        The enrollment that has ended.
    *
+   * @param {object} cause
+   *        The cause of the unenrollment.
+   *
+   *        See `UnenrollmentCause` for details.
+   *
    * @param {object} options
-   *
-   * @param {object?} options.changedPref
-   *        If provided, a changed pref that caused the unenrollment that
-   *        triggered unsetting these prefs. This is provided as to not
-   *        overwrite a changed pref with an original value.
-   *
-   * @param {string} options.changedPref.name
-   *        The name of the changed pref.
-   *
-   * @param {string} options.changedPref.branch
-   *        The branch that was changed ("user" or "default").
    *
    * @param {boolean} options.duringRestore
    *        The unenrollment was caused during restore.
    */
-  _unsetEnrollmentPrefs(enrollment, { changedPref, duringRestore } = {}) {
+  _unsetEnrollmentPrefs(enrollment, cause, { duringRestore } = {}) {
     if (!enrollment.prefs?.length) {
       return;
     }
@@ -1351,8 +1220,9 @@ export class _ExperimentManager {
       this._removePrefObserver(pref.name, enrollment.slug);
 
       if (
-        changedPref?.name == pref.name &&
-        changedPref.branch === pref.branch
+        cause.reason === lazy.NimbusTelemetry.UnenrollReason.CHANGED_PREF &&
+        cause.changedPref.name === pref.name &&
+        cause.changedPref.branch === pref.branch
       ) {
         // Resetting the original value would overwite the pref the user just
         // set. Skip it.
@@ -1422,6 +1292,8 @@ export class _ExperimentManager {
    *                    enrollment has ended.
    */
   _restoreEnrollmentPrefs(enrollment) {
+    const { UnenrollReason } = lazy.NimbusTelemetry;
+
     const { branch, prefs = [], isRollout } = enrollment;
 
     if (!prefs?.length) {
@@ -1435,10 +1307,11 @@ export class _ExperimentManager {
     for (const { name, featureId, variable } of prefs) {
       // If the feature no longer exists, unenroll.
       if (!Object.hasOwn(lazy.NimbusFeatures, featureId)) {
-        this._unenroll(enrollment, {
-          reason: "invalid-feature",
-          duringRestore: true,
-        });
+        this._unenroll(
+          enrollment,
+          UnenrollmentCause.fromReason(UnenrollReason.INVALID_FEATURE),
+          { duringRestore: true }
+        );
         return false;
       }
 
@@ -1446,10 +1319,11 @@ export class _ExperimentManager {
 
       // If the feature is missing a variable that set a pref, unenroll.
       if (!Object.hasOwn(variables, variable)) {
-        this._unenroll(enrollment, {
-          reason: "pref-variable-missing",
-          duringRestore: true,
-        });
+        this._unenroll(
+          enrollment,
+          UnenrollmentCause.fromReason(UnenrollReason.PREF_VARIABLE_MISSING),
+          { duringRestore: true }
+        );
         return false;
       }
 
@@ -1457,10 +1331,11 @@ export class _ExperimentManager {
 
       // If the variable is no longer a pref-setting variable, unenroll.
       if (!Object.hasOwn(variableDef, "setPref")) {
-        this._unenroll(enrollment, {
-          reason: "pref-variable-no-longer",
-          duringRestore: true,
-        });
+        this._unenroll(
+          enrollment,
+          UnenrollmentCause.fromReason(UnenrollReason.PREF_VARIABLE_NO_LONGER),
+          { duringRestore: true }
+        );
         return false;
       }
 
@@ -1471,10 +1346,11 @@ export class _ExperimentManager {
           : variableDef.setPref;
 
       if (prefName !== name) {
-        this._unenroll(enrollment, {
-          reason: "pref-variable-changed",
-          duringRestore: true,
-        });
+        this._unenroll(
+          enrollment,
+          UnenrollmentCause.fromReason(UnenrollReason.PREF_VARIABLE_CHANGED),
+          { duringRestore: true }
+        );
         return false;
       }
     }
@@ -1695,7 +1571,7 @@ export class _ExperimentManager {
     };
 
     for (const enrollment of enrollments) {
-      this._unenroll(enrollment, { reason: "changed-pref", changedPref });
+      this._unenroll(enrollment, UnenrollmentCause.ChangedPref(changedPref));
     }
   }
 }

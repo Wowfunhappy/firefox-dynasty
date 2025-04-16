@@ -21,6 +21,7 @@
 #include "jsapi.h"
 #include "js/PropertyAndElement.h"  // JS_SetProperty
 #include "mozilla/dom/Promise.h"
+#include "mozilla/glean/XpcomMetrics.h"
 
 #ifdef XP_WIN
 #  include <comutil.h>
@@ -41,6 +42,7 @@
 #  include "nsDirectoryServiceDefs.h"
 #  include "nsDirectoryServiceUtils.h"
 #  include "nsWindowsHelpers.h"
+#  include "nsIWindowsRegKey.h"
 #  include "WinUtils.h"
 #  include "mozilla/NotNull.h"
 
@@ -565,6 +567,49 @@ static nsresult ProcessIsRosettaTranslated(bool& isRosetta) {
     isRosetta = (ret == 1);
   }
 #  endif
+  return NS_OK;
+}
+#endif
+
+#ifdef XP_WIN
+static nsresult GetWinModelId(nsAutoString& aModelId) {
+  nsCOMPtr<nsIWindowsRegKey> regKey =
+      do_GetService("@mozilla.org/windows-registry-key;1");
+  NS_ENSURE_TRUE(regKey, NS_ERROR_FAILURE);
+  const nsString regPath(
+      u"SYSTEM\\CurrentControlSet\\Control\\SystemInformation");
+  nsresult rv = regKey->Open(nsIWindowsRegKey::ROOT_KEY_LOCAL_MACHINE, regPath,
+                             nsIWindowsRegKey::ACCESS_READ);
+  NS_ENSURE_SUCCESS(rv, rv);
+  auto defer = mozilla::MakeScopeExit([&] { regKey->Close(); });
+  return regKey->ReadStringValue(u"SystemProductName"_ns, aModelId);
+}
+#endif
+
+#if defined(XP_LINUX)
+static nsresult GetLinuxProductName(nsAutoCString& aProductName) {
+  std::ifstream input("/sys/devices/virtual/dmi/id/product_name");
+  if (!input.is_open()) {
+    return NS_ERROR_FAILURE;
+  }
+  std::string line;
+  if (!std::getline(input, line)) {
+    return NS_ERROR_FAILURE;
+  }
+  aProductName = line.c_str();
+  return NS_OK;
+}
+
+static nsresult GetLinuxProductSku(nsAutoCString& aProductSku) {
+  std::ifstream input("/sys/devices/virtual/dmi/id/product_sku");
+  if (!input.is_open()) {
+    return NS_ERROR_FAILURE;
+  }
+  std::string line;
+  if (!std::getline(input, line)) {
+    return NS_ERROR_FAILURE;
+  }
+  aProductSku = line.c_str();
   return NS_OK;
 }
 #endif
@@ -1118,20 +1163,20 @@ nsresult CollectProcessInfo(ProcessInfo& info) {
 
     for (auto& hw_impl : hw_implementer) {
       if (hw_impl.id == (int)cpuFamily) {
-        info.cpuVendor.Assign(hw_impl.name);
+        cpuVendor.Assign(hw_impl.name);
         for (auto* p = &hw_impl.parts[0]; p->id != -1; ++p) {
           if (p->id == (int)cpuModel) {
-            info.cpuName.Assign(p->name);
+            cpuName.Assign(p->name);
           }
         }
       }
     }
 #  else
     // cpuVendor from "vendor_id"
-    info.cpuVendor.Assign(keyValuePairs["vendor_id"_ns]);
+    cpuVendor.Assign(keyValuePairs["vendor_id"_ns]);
 
     // cpuName from "model name"
-    info.cpuName.Assign(keyValuePairs["model name"_ns]);
+    cpuName.Assign(keyValuePairs["model name"_ns]);
 
     // cpuFamily from "cpu family"
     (void)Tokenizer(keyValuePairs["cpu family"_ns]).ReadInteger(&cpuFamily);
@@ -1174,6 +1219,9 @@ nsresult CollectProcessInfo(ProcessInfo& info) {
   }
 
   info.cpuCount = PR_GetNumberOfProcessors();
+  if (XRE_IsParentProcess()) {
+    glean::system_cpu::logical_cores.Set(info.cpuCount);
+  }
   int max_cpu_bits = [&] {
     // PR_GetNumberOfProcessors gets the value from
     // /sys/devices/system/cpu/present, but the number of bits in the CPU masks
@@ -1276,51 +1324,92 @@ nsresult CollectProcessInfo(ProcessInfo& info) {
 
 #else
   info.cpuCount = PR_GetNumberOfProcessors();
+  if (XRE_IsParentProcess()) {
+    glean::system_cpu::logical_cores.Set(info.cpuCount);
+  }
 #endif
   if (Maybe<hal::HeterogeneousCpuInfo> hetCpuInfo =
           hal::GetHeterogeneousCpuInfo()) {
     info.cpuPCount = int32_t(hetCpuInfo->mBigCpus.Count());
     info.cpuMCount = int32_t(hetCpuInfo->mMediumCpus.Count());
     info.cpuECount = int32_t(hetCpuInfo->mLittleCpus.Count());
+    if (XRE_IsParentProcess()) {
+      glean::system_cpu::big_cores.Set(info.cpuPCount);
+      glean::system_cpu::medium_cores.Set(info.cpuMCount);
+      glean::system_cpu::little_cores.Set(info.cpuECount);
+    }
   } else {
     info.cpuPCount = physicalCPUs;
+    if (XRE_IsParentProcess()) {
+      glean::system_cpu::big_cores.Set(physicalCPUs);
+    }
     info.cpuMCount = 0;
     info.cpuECount = 0;
   }
 
   if (cpuSpeed >= 0) {
     info.cpuSpeed = cpuSpeed;
+    if (XRE_IsParentProcess()) {
+      glean::system_cpu::speed.Set(cpuSpeed);
+    }
   } else {
     info.cpuSpeed = 0;
   }
   if (!cpuVendor.IsEmpty()) {
     info.cpuVendor = cpuVendor;
+    if (XRE_IsParentProcess()) {
+      glean::system_cpu::vendor.Set(cpuVendor);
+    }
   }
   if (!cpuName.IsEmpty()) {
     info.cpuName = cpuName;
+    if (XRE_IsParentProcess()) {
+      glean::system_cpu::name.Set(cpuName);
+    }
   }
   if (cpuFamily >= 0) {
     info.cpuFamily = cpuFamily;
+    if (XRE_IsParentProcess()) {
+      glean::system_cpu::family.Set(cpuFamily);
+    }
   }
   if (cpuModel >= 0) {
     info.cpuModel = cpuModel;
+    if (XRE_IsParentProcess()) {
+      glean::system_cpu::model.Set(cpuModel);
+    }
   }
   if (cpuStepping >= 0) {
     info.cpuStepping = cpuStepping;
+    if (XRE_IsParentProcess()) {
+      glean::system_cpu::stepping.Set(cpuStepping);
+    }
   }
 
   if (logicalCPUs >= 0) {
     info.cpuCount = logicalCPUs;
+    if (XRE_IsParentProcess()) {
+      glean::system_cpu::logical_cores.Set(logicalCPUs);
+    }
   }
   if (physicalCPUs >= 0) {
     info.cpuCores = physicalCPUs;
+    if (XRE_IsParentProcess()) {
+      glean::system_cpu::physical_cores.Set(physicalCPUs);
+    }
   }
 
   if (cacheSizeL2 >= 0) {
     info.l2cacheKB = cacheSizeL2;
+    if (XRE_IsParentProcess()) {
+      glean::system_cpu::l2_cache.Set(cacheSizeL2);
+    }
   }
   if (cacheSizeL3 >= 0) {
     info.l3cacheKB = cacheSizeL3;
+    if (XRE_IsParentProcess()) {
+      glean::system_cpu::l3_cache.Set(cacheSizeL3);
+    }
   }
 
   return NS_OK;
@@ -1488,6 +1577,28 @@ nsresult nsSystemInfo::Init() {
   bool isRosetta;
   if (NS_SUCCEEDED(ProcessIsRosettaTranslated(isRosetta))) {
     rv = SetPropertyAsBool(u"rosettaStatus"_ns, isRosetta);
+    NS_ENSURE_SUCCESS(rv, rv);
+  }
+#endif
+
+#if defined(XP_WIN)
+  nsAutoString modelId;
+  if (NS_SUCCEEDED(GetWinModelId(modelId))) {
+    rv = SetPropertyAsAString(u"winModelId"_ns, modelId);
+    NS_ENSURE_SUCCESS(rv, rv);
+  }
+#endif
+
+#if defined(XP_LINUX)
+  nsAutoCString productName;
+  if (NS_SUCCEEDED(GetLinuxProductName(productName))) {
+    rv = SetPropertyAsACString(u"linuxProductName"_ns, productName);
+    NS_ENSURE_SUCCESS(rv, rv);
+  }
+
+  nsAutoCString productSku;
+  if (NS_SUCCEEDED(GetLinuxProductSku(productSku))) {
+    rv = SetPropertyAsACString(u"linuxProductSku"_ns, productSku);
     NS_ENSURE_SUCCESS(rv, rv);
   }
 #endif

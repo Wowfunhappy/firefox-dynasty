@@ -10,6 +10,7 @@ use smallvec::SmallVec;
 use thiserror::Error;
 
 use super::{life::LifetimeTracker, Device};
+use crate::device::resource::CommandIndices;
 #[cfg(feature = "trace")]
 use crate::device::trace::Action;
 use crate::scratch::ScratchBuffer;
@@ -267,6 +268,8 @@ pub(crate) struct EncoderInFlight {
     inner: crate::command::CommandEncoder,
     pub(crate) trackers: Tracker,
     pub(crate) temp_resources: Vec<TempResource>,
+    /// We only need to keep these resources alive.
+    _indirect_draw_validation_resources: crate::indirect_validation::DrawResources,
 
     /// These are the buffers that have been tracked by `PendingWrites`.
     pub(crate) pending_buffers: FastHashMap<TrackerIndex, Arc<Buffer>>,
@@ -377,6 +380,9 @@ impl PendingWrites {
                 },
                 trackers: Tracker::new(),
                 temp_resources: mem::take(&mut self.temp_resources),
+                _indirect_draw_validation_resources: crate::indirect_validation::DrawResources::new(
+                    device.clone(),
+                ),
                 pending_buffers,
                 pending_textures,
             };
@@ -442,9 +448,7 @@ pub enum QueueSubmitError {
     #[error(transparent)]
     CommandEncoder(#[from] CommandEncoderError),
     #[error(transparent)]
-    ValidateBlasActionsError(#[from] crate::ray_tracing::ValidateBlasActionsError),
-    #[error(transparent)]
-    ValidateTlasActionsError(#[from] crate::ray_tracing::ValidateTlasActionsError),
+    ValidateAsActionsError(#[from] crate::ray_tracing::ValidateAsActionsError),
 }
 
 //TODO: move out common parts of write_xxx.
@@ -1063,11 +1067,10 @@ impl Queue {
 
             // Fence lock must be acquired after the snatch lock everywhere to avoid deadlocks.
             let mut fence = self.device.fence.write();
-            submit_index = self
-                .device
-                .active_submission_index
-                .fetch_add(1, Ordering::SeqCst)
-                + 1;
+
+            let mut command_index_guard = self.device.command_indices.write();
+            command_index_guard.active_submission_index += 1;
+            submit_index = command_index_guard.active_submission_index;
             let mut active_executions = Vec::new();
 
             let mut used_surface_textures = track::TextureUsageScope::default();
@@ -1122,6 +1125,7 @@ impl Queue {
                                     &snatch_guard,
                                     &mut submit_surface_textures_owned,
                                     &mut used_surface_textures,
+                                    &mut command_index_guard,
                                 );
                                 if let Err(err) = res {
                                     first_error.get_or_insert(err);
@@ -1196,6 +1200,8 @@ impl Queue {
                             inner: baked.encoder,
                             trackers: baked.trackers,
                             temp_resources: baked.temp_resources,
+                            _indirect_draw_validation_resources: baked
+                                .indirect_draw_validation_resources,
                             pending_buffers: FastHashMap::default(),
                             pending_textures: FastHashMap::default(),
                         });
@@ -1284,6 +1290,8 @@ impl Queue {
                 {
                     break 'error Err(e.into());
                 }
+
+                drop(command_index_guard);
 
                 // Advance the successful submission index.
                 self.device
@@ -1481,6 +1489,11 @@ impl Global {
 
     pub fn queue_get_timestamp_period(&self, queue_id: QueueId) -> f32 {
         let queue = self.hub.queues.get(queue_id);
+
+        if queue.device.timestamp_normalizer.get().unwrap().enabled() {
+            return 1.0;
+        }
+
         queue.get_timestamp_period()
     }
 
@@ -1505,6 +1518,7 @@ fn validate_command_buffer(
     snatch_guard: &SnatchGuard,
     submit_surface_textures_owned: &mut FastHashMap<*const Texture, Arc<Texture>>,
     used_surface_textures: &mut track::TextureUsageScope,
+    command_index_guard: &mut RwLockWriteGuard<CommandIndices>,
 ) -> Result<(), QueueSubmitError> {
     command_buffer.same_device_as(queue)?;
 
@@ -1544,10 +1558,9 @@ fn validate_command_buffer(
             }
         }
 
-        if let Err(e) = cmd_buf_data.validate_blas_actions() {
-            return Err(e.into());
-        }
-        if let Err(e) = cmd_buf_data.validate_tlas_actions(snatch_guard) {
+        if let Err(e) =
+            cmd_buf_data.validate_acceleration_structure_actions(snatch_guard, command_index_guard)
+        {
             return Err(e.into());
         }
     }

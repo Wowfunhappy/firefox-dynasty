@@ -4,10 +4,10 @@ use crate::{
     AccelerationStructureBuildSizes, AccelerationStructureDescriptor, Api, BindGroupDescriptor,
     BindGroupLayoutDescriptor, BufferDescriptor, BufferMapping, CommandEncoderDescriptor,
     ComputePipelineDescriptor, Device, DeviceError, FenceValue,
-    GetAccelerationStructureBuildSizesDescriptor, Label, MemoryRange, PipelineCacheDescriptor,
-    PipelineCacheError, PipelineError, PipelineLayoutDescriptor, RenderPipelineDescriptor,
-    SamplerDescriptor, ShaderError, ShaderInput, ShaderModuleDescriptor, TextureDescriptor,
-    TextureViewDescriptor, TlasInstance,
+    GetAccelerationStructureBuildSizesDescriptor, Label, MemoryRange, MeshPipelineDescriptor,
+    PipelineCacheDescriptor, PipelineCacheError, PipelineError, PipelineLayoutDescriptor,
+    RenderPipelineDescriptor, SamplerDescriptor, ShaderError, ShaderInput, ShaderModuleDescriptor,
+    TextureDescriptor, TextureViewDescriptor, TlasInstance,
 };
 
 use super::{
@@ -100,6 +100,14 @@ pub trait DynDevice: DynResource {
             dyn DynPipelineCache,
         >,
     ) -> Result<Box<dyn DynRenderPipeline>, PipelineError>;
+    unsafe fn create_mesh_pipeline(
+        &self,
+        desc: &MeshPipelineDescriptor<
+            dyn DynPipelineLayout,
+            dyn DynShaderModule,
+            dyn DynPipelineCache,
+        >,
+    ) -> Result<Box<dyn DynRenderPipeline>, PipelineError>;
     unsafe fn destroy_render_pipeline(&self, pipeline: Box<dyn DynRenderPipeline>);
 
     unsafe fn create_compute_pipeline(
@@ -138,8 +146,8 @@ pub trait DynDevice: DynResource {
         timeout_ms: u32,
     ) -> Result<bool, DeviceError>;
 
-    unsafe fn start_capture(&self) -> bool;
-    unsafe fn stop_capture(&self);
+    unsafe fn start_graphics_debugger_capture(&self) -> bool;
+    unsafe fn stop_graphics_debugger_capture(&self);
 
     unsafe fn pipeline_cache_get_data(&self, cache: &dyn DynPipelineCache) -> Option<Vec<u8>>;
 
@@ -393,6 +401,32 @@ impl<D: Device + DynResource> DynDevice for D {
             .map(|b| -> Box<dyn DynRenderPipeline> { Box::new(b) })
     }
 
+    unsafe fn create_mesh_pipeline(
+        &self,
+        desc: &MeshPipelineDescriptor<
+            dyn DynPipelineLayout,
+            dyn DynShaderModule,
+            dyn DynPipelineCache,
+        >,
+    ) -> Result<Box<dyn DynRenderPipeline>, PipelineError> {
+        let desc = MeshPipelineDescriptor {
+            label: desc.label,
+            layout: desc.layout.expect_downcast_ref(),
+            task_stage: desc.task_stage.clone().map(|f| f.expect_downcast()),
+            mesh_stage: desc.mesh_stage.clone().expect_downcast(),
+            primitive: desc.primitive,
+            depth_stencil: desc.depth_stencil.clone(),
+            multisample: desc.multisample,
+            fragment_stage: desc.fragment_stage.clone().map(|f| f.expect_downcast()),
+            color_targets: desc.color_targets,
+            multiview: desc.multiview,
+            cache: desc.cache.map(|c| c.expect_downcast_ref()),
+        };
+
+        unsafe { D::create_mesh_pipeline(self, &desc) }
+            .map(|b| -> Box<dyn DynRenderPipeline> { Box::new(b) })
+    }
+
     unsafe fn destroy_render_pipeline(&self, pipeline: Box<dyn DynRenderPipeline>) {
         unsafe { D::destroy_render_pipeline(self, pipeline.unbox()) };
     }
@@ -470,12 +504,12 @@ impl<D: Device + DynResource> DynDevice for D {
         unsafe { D::wait(self, fence, value, timeout_ms) }
     }
 
-    unsafe fn start_capture(&self) -> bool {
-        unsafe { D::start_capture(self) }
+    unsafe fn start_graphics_debugger_capture(&self) -> bool {
+        unsafe { D::start_graphics_debugger_capture(self) }
     }
 
-    unsafe fn stop_capture(&self) {
-        unsafe { D::stop_capture(self) }
+    unsafe fn stop_graphics_debugger_capture(&self) {
+        unsafe { D::stop_graphics_debugger_capture(self) }
     }
 
     unsafe fn pipeline_cache_get_data(&self, cache: &dyn DynPipelineCache) -> Option<Vec<u8>> {

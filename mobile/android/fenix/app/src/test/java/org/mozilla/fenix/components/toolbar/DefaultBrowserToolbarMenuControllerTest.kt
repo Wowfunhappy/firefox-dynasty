@@ -25,6 +25,7 @@ import io.mockk.slot
 import io.mockk.unmockkObject
 import io.mockk.unmockkStatic
 import io.mockk.verify
+import io.mockk.verifyOrder
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.test.runTest
 import mozilla.appservices.places.BookmarkRoot
@@ -42,6 +43,7 @@ import mozilla.components.feature.session.SessionFeature
 import mozilla.components.feature.session.SessionUseCases
 import mozilla.components.feature.tab.collections.TabCollection
 import mozilla.components.feature.tabs.CustomTabsUseCases
+import mozilla.components.feature.tabs.TabsUseCases
 import mozilla.components.feature.top.sites.DefaultTopSitesStorage
 import mozilla.components.feature.top.sites.PinnedSiteStorage
 import mozilla.components.feature.top.sites.TopSite
@@ -77,6 +79,7 @@ import org.mozilla.fenix.components.TabCollectionStorage
 import org.mozilla.fenix.components.accounts.AccountState
 import org.mozilla.fenix.components.accounts.FenixFxAEntryPoint
 import org.mozilla.fenix.components.appstate.AppAction.ShortcutAction
+import org.mozilla.fenix.components.usecases.FenixBrowserUseCases
 import org.mozilla.fenix.compose.snackbar.Snackbar
 import org.mozilla.fenix.ext.components
 import org.mozilla.fenix.ext.directionsEq
@@ -121,6 +124,10 @@ class DefaultBrowserToolbarMenuControllerTest {
 
     @RelaxedMockK private lateinit var topSitesUseCase: TopSitesUseCases
 
+    @RelaxedMockK private lateinit var tabsUseCases: TabsUseCases
+
+    @RelaxedMockK private lateinit var fenixBrowserUseCases: FenixBrowserUseCases
+
     @RelaxedMockK private lateinit var readerModeController: ReaderModeController
 
     @MockK private lateinit var sessionFeatureWrapper: ViewBoundFeatureWrapper<SessionFeature>
@@ -152,6 +159,8 @@ class DefaultBrowserToolbarMenuControllerTest {
         every { activity.components.useCases.customTabsUseCases } returns customTabUseCases
         every { activity.components.useCases.searchUseCases } returns searchUseCases
         every { activity.components.useCases.topSitesUseCase } returns topSitesUseCase
+        every { activity.components.useCases.tabsUseCases } returns tabsUseCases
+        every { activity.components.useCases.fenixBrowserUseCases } returns fenixBrowserUseCases
         every { sessionFeatureWrapper.get() } returns sessionFeature
         every { navController.currentDestination } returns mockk {
             every { id } returns R.id.browserFragment
@@ -826,6 +835,28 @@ class DefaultBrowserToolbarMenuControllerTest {
         controller.handleToolbarItemInteraction(item)
 
         verify {
+            navController.navigate(
+                directionsEq(
+                    NavGraphDirections.actionGlobalHome(
+                        focusOnAddressBar = true,
+                    ),
+                ),
+            )
+        }
+    }
+
+    @Test
+    fun `GIVEN homepage as a new tab is enabled WHEN New Tab menu item is pressed THEN navigate to a new homepage tab`() = runTest {
+        every { settings.enableHomepageAsNewTab } returns true
+
+        val controller = createController(scope = this, store = browserStore)
+        val item = ToolbarMenu.Item.NewTab
+
+        controller.handleToolbarItemInteraction(item)
+
+        verifyOrder {
+            fenixBrowserUseCases.addNewHomepageTab(private = false)
+
             navController.navigate(
                 directionsEq(
                     NavGraphDirections.actionGlobalHome(

@@ -1,10 +1,7 @@
 "use strict";
 
-const { ExperimentAPI } = ChromeUtils.importESModule(
-  "resource://nimbus/ExperimentAPI.sys.mjs"
-);
-const { ExperimentFakes } = ChromeUtils.importESModule(
-  "resource://testing-common/NimbusTestUtils.sys.mjs"
+const { NimbusTelemetry } = ChromeUtils.importESModule(
+  "resource://nimbus/lib/Telemetry.sys.mjs"
 );
 const { TestUtils } = ChromeUtils.importESModule(
   "resource://testing-common/TestUtils.sys.mjs"
@@ -14,52 +11,12 @@ const COLLECTION_ID_PREF = "messaging-system.rsexperimentloader.collection_id";
 /**
  * #getExperiment
  */
-add_task(async function test_getExperiment_fromChild_slug() {
-  const sandbox = sinon.createSandbox();
-  const manager = ExperimentFakes.manager();
-  const expected = ExperimentFakes.experiment("foo");
-
-  // NB: We are not setting ExperimentAPI._manager here to manager or
-  // manager.store to a child store because we are simulating synchronization
-  // between a parent store and child store.
-  sandbox.stub(ExperimentAPI, "_store").get(() => ExperimentFakes.childStore());
-
-  await manager.onStartup();
-
-  await manager.store.addEnrollment(expected);
-
-  // Wait to sync to child
-  await TestUtils.waitForCondition(
-    () => ExperimentAPI.getExperiment({ slug: "foo" }),
-    "Wait for child to sync"
-  );
-
-  Assert.equal(
-    ExperimentAPI.getExperiment({ slug: "foo" }).slug,
-    expected.slug,
-    "should return an experiment by slug"
-  );
-
-  Assert.deepEqual(
-    ExperimentAPI.getExperiment({ slug: "foo" }).branch,
-    expected.branch,
-    "should return the right branch by slug"
-  );
-
-  sandbox.restore();
-});
-
 add_task(async function test_getExperiment_fromParent_slug() {
-  const sandbox = sinon.createSandbox();
-  const manager = ExperimentFakes.manager();
+  const { manager, cleanup } = await NimbusTestUtils.setupTest();
+
   const expected = ExperimentFakes.experiment("foo");
 
-  sandbox.stub(ExperimentAPI, "_manager").get(() => manager);
-
-  await manager.onStartup();
-  await ExperimentAPI.ready();
-
-  await manager.store.addEnrollment(expected);
+  manager.store.addEnrollment(expected);
 
   Assert.equal(
     ExperimentAPI.getExperiment({ slug: "foo" }).slug,
@@ -67,21 +24,17 @@ add_task(async function test_getExperiment_fromParent_slug() {
     "should return an experiment by slug"
   );
 
-  sandbox.restore();
+  manager.unenroll(expected.slug);
+  cleanup();
 });
 
 add_task(async function test_getExperimentMetaData() {
-  const sandbox = sinon.createSandbox();
-  const manager = ExperimentFakes.manager();
+  const { sandbox, manager, cleanup } = await NimbusTestUtils.setupTest();
+
   const expected = ExperimentFakes.experiment("foo");
-  let exposureStub = sandbox.stub(ExperimentAPI, "recordExposureEvent");
+  let exposureStub = sandbox.stub(NimbusTelemetry, "recordExposure");
 
-  sandbox.stub(ExperimentAPI, "_manager").get(() => manager);
-
-  await manager.onStartup();
-  await ExperimentAPI.ready();
-
-  await manager.store.addEnrollment(expected);
+  manager.store.addEnrollment(expected);
 
   let metadata = ExperimentAPI.getExperimentMetaData({ slug: expected.slug });
 
@@ -99,23 +52,16 @@ add_task(async function test_getExperimentMetaData() {
   Assert.ok(exposureStub.notCalled, "Not called for this method");
 
   manager.unenroll(expected.slug);
-  assertEmptyStore(manager.store);
-
-  sandbox.restore();
+  cleanup();
 });
 
 add_task(async function test_getRolloutMetaData() {
-  const sandbox = sinon.createSandbox();
-  const manager = ExperimentFakes.manager();
+  const { sandbox, manager, cleanup } = await NimbusTestUtils.setupTest();
+
   const expected = ExperimentFakes.rollout("foo");
-  let exposureStub = sandbox.stub(ExperimentAPI, "recordExposureEvent");
+  let exposureStub = sandbox.stub(NimbusTelemetry, "recordExposure");
 
-  sandbox.stub(ExperimentAPI, "_manager").get(() => manager);
-
-  await manager.onStartup();
-  await ExperimentAPI.ready();
-
-  await manager.store.addEnrollment(expected);
+  manager.store.addEnrollment(expected);
 
   let metadata = ExperimentAPI.getExperimentMetaData({ slug: expected.slug });
 
@@ -133,96 +79,42 @@ add_task(async function test_getRolloutMetaData() {
   Assert.ok(exposureStub.notCalled, "Not called for this method");
 
   manager.unenroll(expected.slug);
-  await assertEmptyStore(manager.store);
-
-  sandbox.restore();
+  cleanup();
 });
 
-add_task(function test_getExperimentMetaData_safe() {
-  const sandbox = sinon.createSandbox();
-  let exposureStub = sandbox.stub(ExperimentAPI, "recordExposureEvent");
+add_task(async function test_getExperimentMetaData_safe() {
+  const { sandbox, manager, cleanup } = await NimbusTestUtils.setupTest();
 
-  sandbox.stub(ExperimentAPI._store, "get").throws();
-  sandbox.stub(ExperimentAPI._store, "getExperimentForFeature").throws();
+  const exposureStub = sandbox.stub(NimbusTelemetry, "recordExposure");
+  sandbox.stub(manager.store, "get").throws();
+  sandbox.stub(manager.store, "getExperimentForFeature").throws();
 
   try {
-    let metadata = ExperimentAPI.getExperimentMetaData({ slug: "foo" });
+    const metadata = ExperimentAPI.getExperimentMetaData({ slug: "foo" });
     Assert.equal(metadata, null, "Should not throw");
   } catch (e) {
     Assert.ok(false, "Error should be caught in ExperimentAPI");
   }
 
-  Assert.ok(ExperimentAPI._store.get.calledOnce, "Sanity check");
+  Assert.ok(manager.store.get.calledOnce);
 
   try {
-    let metadata = ExperimentAPI.getExperimentMetaData({ featureId: "foo" });
+    const metadata = ExperimentAPI.getExperimentMetaData({ featureId: "foo" });
     Assert.equal(metadata, null, "Should not throw");
   } catch (e) {
     Assert.ok(false, "Error should be caught in ExperimentAPI");
   }
 
-  Assert.ok(
-    ExperimentAPI._store.getExperimentForFeature.calledOnce,
-    "Sanity check"
-  );
-
+  Assert.ok(manager.store.getExperimentForFeature.calledOnce);
   Assert.ok(exposureStub.notCalled, "Not called for this feature");
 
-  sandbox.restore();
-});
-
-add_task(async function test_getExperiment_feature() {
-  const sandbox = sinon.createSandbox();
-  const manager = ExperimentFakes.manager();
-  const expected = ExperimentFakes.experiment("foo", {
-    branch: {
-      slug: "treatment",
-      ratio: 1,
-      features: [{ featureId: "cfr", value: {} }],
-      feature: {
-        featureId: "unused-feature-id-for-legacy-support",
-        enabled: false,
-        value: {},
-      },
-    },
-  });
-
-  await manager.onStartup();
-
-  // NB: We are not setting ExperimentAPI._manager here to manager or
-  // manager.store to a child store because we are simulating synchronization
-  // between a parent store and child store.
-  sandbox.stub(ExperimentAPI, "_store").get(() => ExperimentFakes.childStore());
-  let exposureStub = sandbox.stub(ExperimentAPI, "recordExposureEvent");
-
-  await manager.store.addEnrollment(expected);
-
-  // Wait to sync to child
-  await TestUtils.waitForCondition(
-    () => ExperimentAPI.getExperiment({ featureId: "cfr" }),
-    "Wait for child to sync"
-  );
-
-  Assert.equal(
-    ExperimentAPI.getExperiment({ featureId: "cfr" }).slug,
-    expected.slug,
-    "should return an experiment by featureId"
-  );
-
-  Assert.deepEqual(
-    ExperimentAPI.getExperiment({ featureId: "cfr" }).branch,
-    expected.branch,
-    "should return the right branch by featureId"
-  );
-
-  Assert.ok(exposureStub.notCalled, "Not called by default");
-
-  sandbox.restore();
+  cleanup();
 });
 
 add_task(async function test_getExperiment_safe() {
-  const sandbox = sinon.createSandbox();
-  sandbox.stub(ExperimentAPI._store, "getExperimentForFeature").throws();
+  const { sandbox, manager, cleanup } = await NimbusTestUtils.setupTest();
+
+  sandbox.stub(manager.store, "getExperimentForFeature").throws();
 
   try {
     Assert.equal(
@@ -234,11 +126,12 @@ add_task(async function test_getExperiment_safe() {
     Assert.ok(false, "Error should be caught by ExperimentAPI");
   }
 
-  sandbox.restore();
+  cleanup();
 });
 
 add_task(async function test_getExperiment_featureAccess() {
-  const sandbox = sinon.createSandbox();
+  const { sandbox, manager, cleanup } = await NimbusTestUtils.setupTest();
+
   const expected = ExperimentFakes.experiment("foo", {
     branch: {
       slug: "treatment",
@@ -246,47 +139,43 @@ add_task(async function test_getExperiment_featureAccess() {
       features: [{ featureId: "cfr", value: { message: "content" } }],
     },
   });
-  const stub = sandbox
-    .stub(ExperimentAPI._store, "getExperimentForFeature")
-    .returns(expected);
+  sandbox.stub(manager.store, "getExperimentForFeature").returns(expected);
 
-  let { branch } = ExperimentAPI.getExperiment({ featureId: "cfr" });
+  const { branch } = ExperimentAPI.getExperiment({ featureId: "cfr" });
 
   Assert.equal(branch.slug, "treatment");
-  let feature = branch.cfr;
+  const feature = branch.cfr;
   Assert.ok(feature, "Should allow to access by featureId");
   Assert.equal(feature.value.message, "content");
 
-  stub.restore();
+  cleanup();
 });
 
 add_task(async function test_getExperiment_featureAccess_backwardsCompat() {
-  const sandbox = sinon.createSandbox();
+  const { sandbox, manager, cleanup } = await NimbusTestUtils.setupTest();
   const expected = ExperimentFakes.experiment("foo", {
     branch: {
       slug: "treatment",
       feature: { featureId: "cfr", value: { message: "content" } },
     },
   });
-  const stub = sandbox
-    .stub(ExperimentAPI._store, "getExperimentForFeature")
-    .returns(expected);
+  sandbox.stub(manager.store, "getExperimentForFeature").returns(expected);
 
-  let { branch } = ExperimentAPI.getExperiment({ featureId: "cfr" });
+  const { branch } = ExperimentAPI.getExperiment({ featureId: "cfr" });
 
   Assert.equal(branch.slug, "treatment");
-  let feature = branch.cfr;
+  const feature = branch.cfr;
   Assert.ok(feature, "Should allow to access by featureId");
   Assert.equal(feature.value.message, "content");
 
-  stub.restore();
+  cleanup();
 });
 
 /**
  * #getRecipe
  */
 add_task(async function test_getRecipe() {
-  const sandbox = sinon.createSandbox();
+  const { sandbox, cleanup } = await NimbusTestUtils.setupTest();
   const RECIPE = ExperimentFakes.recipe("foo");
   const collectionName = Services.prefs.getStringPref(COLLECTION_ID_PREF);
   sandbox.stub(ExperimentAPI._remoteSettingsClient, "get").resolves([RECIPE]);
@@ -303,24 +192,24 @@ add_task(async function test_getRecipe() {
     "Loaded the expected collection"
   );
 
-  sandbox.restore();
+  cleanup();
 });
 
 add_task(async function test_getRecipe_Failure() {
-  const sandbox = sinon.createSandbox();
+  const { sandbox, cleanup } = await NimbusTestUtils.setupTest();
   sandbox.stub(ExperimentAPI._remoteSettingsClient, "get").throws();
 
   const recipe = await ExperimentAPI.getRecipe("foo");
   Assert.equal(recipe, undefined, "should return undefined if RS throws");
 
-  sandbox.restore();
+  cleanup();
 });
 
 /**
  * #getAllBranches
  */
 add_task(async function test_getAllBranches() {
-  const sandbox = sinon.createSandbox();
+  const { sandbox, cleanup } = await NimbusTestUtils.setupTest();
   const RECIPE = ExperimentFakes.recipe("foo");
   sandbox.stub(ExperimentAPI._remoteSettingsClient, "get").resolves([RECIPE]);
 
@@ -331,12 +220,13 @@ add_task(async function test_getAllBranches() {
     "should return all branches if found a recipe"
   );
 
-  sandbox.restore();
+  cleanup();
 });
 
 // API used by Messaging System
 add_task(async function test_getAllBranches_featureIdAccessor() {
-  const sandbox = sinon.createSandbox();
+  const { sandbox, cleanup } = await NimbusTestUtils.setupTest();
+
   const RECIPE = ExperimentFakes.recipe("foo");
   sandbox.stub(ExperimentAPI._remoteSettingsClient, "get").resolves([RECIPE]);
 
@@ -354,13 +244,14 @@ add_task(async function test_getAllBranches_featureIdAccessor() {
     );
   });
 
-  sandbox.restore();
+  cleanup();
 });
 
 // For schema version before 1.6.2 branch.feature was accessed
 // instead of branch.features
 add_task(async function test_getAllBranches_backwardsCompat() {
-  const sandbox = sinon.createSandbox();
+  const { sandbox, cleanup } = await NimbusTestUtils.setupTest();
+
   const RECIPE = ExperimentFakes.recipe("foo");
   delete RECIPE.branches[0].features;
   delete RECIPE.branches[1].features;
@@ -388,25 +279,27 @@ add_task(async function test_getAllBranches_backwardsCompat() {
     );
   });
 
-  sandbox.restore();
+  cleanup();
 });
 
 add_task(async function test_getAllBranches_Failure() {
-  const sandbox = sinon.createSandbox();
+  const { sandbox, cleanup } = await NimbusTestUtils.setupTest();
+
   sandbox.stub(ExperimentAPI._remoteSettingsClient, "get").throws();
 
   const branches = await ExperimentAPI.getAllBranches("foo");
   Assert.equal(branches, undefined, "should return undefined if RS throws");
 
-  sandbox.restore();
+  cleanup();
 });
 
 /**
  * Store events
  */
 add_task(async function test_addEnrollment_eventEmit_add() {
-  const sandbox = sinon.createSandbox();
-  const slugStub = sandbox.stub();
+  const { sandbox, manager, cleanup } = await NimbusTestUtils.setupTest();
+  const store = manager.store;
+
   const featureStub = sandbox.stub();
   const experiment = ExperimentFakes.experiment("foo", {
     branch: {
@@ -415,24 +308,13 @@ add_task(async function test_addEnrollment_eventEmit_add() {
       features: [{ featureId: "purple", value: {} }],
     },
   });
-  const manager = ExperimentFakes.manager();
-  const store = manager.store;
-  sandbox.stub(ExperimentAPI, "_manager").get(() => manager);
 
-  await store.init();
   await ExperimentAPI.ready();
 
-  store.on("update:foo", slugStub);
   store.on("featureUpdate:purple", featureStub);
 
-  await store.addEnrollment(experiment);
+  store.addEnrollment(experiment);
 
-  Assert.equal(
-    slugStub.callCount,
-    1,
-    "should call 'update' callback for slug when experiment is added"
-  );
-  Assert.equal(slugStub.firstCall.args[1].slug, experiment.slug);
   Assert.equal(
     featureStub.callCount,
     1,
@@ -441,18 +323,16 @@ add_task(async function test_addEnrollment_eventEmit_add() {
   Assert.equal(featureStub.firstCall.args[0], "featureUpdate:purple");
   Assert.equal(featureStub.firstCall.args[1], "experiment-updated");
 
-  store.off("update:foo", slugStub);
   store.off("featureUpdate:purple", featureStub);
 
   manager.unenroll(experiment.slug);
-  await assertEmptyStore(store);
-
-  sandbox.restore();
+  cleanup();
 });
 
 add_task(async function test_updateExperiment_eventEmit_add_and_update() {
-  const sandbox = sinon.createSandbox();
-  const slugStub = sandbox.stub();
+  const { sandbox, manager, cleanup } = await NimbusTestUtils.setupTest();
+  const store = manager.store;
+
   const featureStub = sandbox.stub();
   const experiment = ExperimentFakes.experiment("foo", {
     branch: {
@@ -461,16 +341,9 @@ add_task(async function test_updateExperiment_eventEmit_add_and_update() {
       features: [{ featureId: "purple", value: {} }],
     },
   });
-  const manager = ExperimentFakes.manager();
-  const store = manager.store;
-  sandbox.stub(ExperimentAPI, "_manager").get(() => manager);
 
-  await store.init();
-  await ExperimentAPI.ready();
+  store.addEnrollment(experiment);
 
-  await store.addEnrollment(experiment);
-
-  store.on("update:foo", slugStub);
   store._onFeatureUpdate("purple", featureStub);
 
   store.updateExperiment(experiment.slug, experiment);
@@ -481,21 +354,20 @@ add_task(async function test_updateExperiment_eventEmit_add_and_update() {
   );
   // Called twice, once when attaching the event listener (because there is an
   // existing experiment with that name) and 2nd time for the update event
-  Assert.equal(slugStub.firstCall.args[1].slug, experiment.slug);
   Assert.equal(featureStub.callCount, 2, "Called twice for feature");
   Assert.equal(featureStub.firstCall.args[0], "featureUpdate:purple");
   Assert.equal(featureStub.firstCall.args[1], "experiment-updated");
 
-  store.off("update:foo", slugStub);
   store._offFeatureUpdate("featureUpdate:purple", featureStub);
 
   manager.unenroll(experiment.slug);
-  await assertEmptyStore(store);
+  cleanup();
 });
 
 add_task(async function test_updateExperiment_eventEmit_off() {
-  const sandbox = sinon.createSandbox();
-  const slugStub = sandbox.stub();
+  const { manager, sandbox, cleanup } = await NimbusTestUtils.setupTest();
+  const store = manager.store;
+
   const featureStub = sandbox.stub();
   const experiment = ExperimentFakes.experiment("foo", {
     branch: {
@@ -504,38 +376,25 @@ add_task(async function test_updateExperiment_eventEmit_off() {
       features: [{ featureId: "purple", value: {} }],
     },
   });
-  const manager = ExperimentFakes.manager();
-  const store = manager.store;
-  sandbox.stub(ExperimentAPI, "_manager").get(() => manager);
 
-  await store.init();
-  await ExperimentAPI.ready();
-
-  store.on("update:foo", slugStub);
   store.on("featureUpdate:purple", featureStub);
 
-  await store.addEnrollment(experiment);
+  store.addEnrollment(experiment);
 
-  store.off("update:foo", slugStub);
   store.off("featureUpdate:purple", featureStub);
 
   store.updateExperiment(experiment.slug, experiment);
 
-  Assert.equal(slugStub.callCount, 1, "Called only once before `off`");
   Assert.equal(featureStub.callCount, 1, "Called only once before `off`");
 
   manager.unenroll(experiment.slug);
-  await assertEmptyStore(store);
-
-  sandbox.restore();
+  cleanup();
 });
 
 add_task(async function test_getActiveBranch() {
-  const sandbox = sinon.createSandbox();
-  const manager = ExperimentFakes.manager();
+  const { manager, cleanup } = await NimbusTestUtils.setupTest();
   const store = manager.store;
 
-  sandbox.stub(ExperimentAPI, "_manager").get(() => manager);
   const experiment = ExperimentFakes.experiment("foo", {
     branch: {
       slug: "variant",
@@ -544,8 +403,7 @@ add_task(async function test_getActiveBranch() {
     },
   });
 
-  await store.init();
-  await store.addEnrollment(experiment);
+  store.addEnrollment(experiment);
 
   Assert.deepEqual(
     ExperimentAPI.getActiveBranch({ featureId: "green" }),
@@ -554,14 +412,13 @@ add_task(async function test_getActiveBranch() {
   );
 
   manager.unenroll(experiment.slug);
-  await assertEmptyStore(store);
-
-  sandbox.restore();
+  cleanup();
 });
 
 add_task(async function test_getActiveBranch_safe() {
-  const sandbox = sinon.createSandbox();
-  sandbox.stub(ExperimentAPI._store, "getAllActiveExperiments").throws();
+  const { sandbox, manager, cleanup } = await NimbusTestUtils.setupTest();
+
+  sandbox.stub(manager.store, "getAllActiveExperiments").throws();
 
   try {
     Assert.equal(
@@ -573,14 +430,13 @@ add_task(async function test_getActiveBranch_safe() {
     Assert.ok(false, "Should catch error in ExperimentAPI");
   }
 
-  sandbox.restore();
+  cleanup();
 });
 
 add_task(async function test_getActiveBranch_storeFailure() {
-  const sandbox = sinon.createSandbox();
-  const manager = ExperimentFakes.manager();
+  const { sandbox, manager, cleanup } = await NimbusTestUtils.setupTest();
   const store = manager.store;
-  sandbox.stub(ExperimentAPI, "_manager").get(() => manager);
+
   const experiment = ExperimentFakes.experiment("foo", {
     branch: {
       slug: "variant",
@@ -589,8 +445,7 @@ add_task(async function test_getActiveBranch_storeFailure() {
     },
   });
 
-  await store.init();
-  await store.addEnrollment(experiment);
+  store.addEnrollment(experiment);
   // Adding stub later because `addEnrollment` emits update events
   const stub = sandbox.stub(store, "emit");
   // Call getActiveBranch to trigger an activation event
@@ -604,16 +459,13 @@ add_task(async function test_getActiveBranch_storeFailure() {
   Assert.equal(stub.callCount, 0, "Not called if store somehow fails");
 
   manager.unenroll(experiment.slug);
-  await assertEmptyStore(store);
-
-  sandbox.restore();
+  cleanup();
 });
 
 add_task(async function test_getActiveBranch_noActivationEvent() {
-  const manager = ExperimentFakes.manager();
+  const { sandbox, manager, cleanup } = await NimbusTestUtils.setupTest();
   const store = manager.store;
-  const sandbox = sinon.createSandbox();
-  sandbox.stub(ExperimentAPI, "_manager").get(() => manager);
+
   const experiment = ExperimentFakes.experiment("foo", {
     branch: {
       slug: "variant",
@@ -622,8 +474,7 @@ add_task(async function test_getActiveBranch_noActivationEvent() {
     },
   });
 
-  await store.init();
-  await store.addEnrollment(experiment);
+  store.addEnrollment(experiment);
   // Adding stub later because `addEnrollment` emits update events
   const stub = sandbox.stub(store, "emit");
   // Call getActiveBranch to trigger an activation event
@@ -632,7 +483,5 @@ add_task(async function test_getActiveBranch_noActivationEvent() {
   Assert.equal(stub.callCount, 0, "Not called: sendExposureEvent is false");
 
   manager.unenroll(experiment.slug);
-  await assertEmptyStore(store);
-
-  sandbox.restore();
+  cleanup();
 });

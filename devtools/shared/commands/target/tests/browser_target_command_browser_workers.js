@@ -35,7 +35,11 @@ add_task(async function () {
 
   // Bug 1918267 - startListening may not collect all worker if any process is slow to respond (on tsan for example)
   // So that we have to wait for the worker to be received by the TargetCommand
-  await waitFor(() => targetCommand.getAllTargets([TYPES.SHARED_WORKER]).some(target => target.url == CHROME_WORKER_URL + "#shared-worker"));
+  await waitFor(() =>
+    targetCommand
+      .getAllTargets([TYPES.SHARED_WORKER])
+      .some(target => target.url == CHROME_WORKER_URL + "#shared-worker")
+  );
 
   // Very naive sanity check against getAllTargets([workerType])
   info("Check that getAllTargets returned the expected targets");
@@ -162,6 +166,10 @@ add_task(async function () {
       if (targets.includes(targetFront)) {
         return;
       }
+      if (!targetFront.url.startsWith(CHROME_WORKER_URL)) {
+        // We might get unrelated workers eg for RemoteSettings.
+        return;
+      }
       targetCommand.unwatchTargets({
         types: [TYPES.WORKER],
         onAvailable: onAvailable2,
@@ -201,6 +209,10 @@ add_task(async function () {
   const onWorkerDestroyed = new Promise(resolve => {
     const emptyFn = () => {};
     const onDestroyed = ({ targetFront }) => {
+      if (!targetFront.url.startsWith(CHROME_WORKER_URL)) {
+        // We might get unrelated workers eg for RemoteSettings.
+        return;
+      }
       targetCommand.unwatchTargets({
         types: [TYPES.WORKER],
         onAvailable: emptyFn,

@@ -48,10 +48,12 @@ MacroAssembler& CodeGeneratorShared::ensureMasm(MacroAssembler* masmArg,
 }
 
 CodeGeneratorShared::CodeGeneratorShared(MIRGenerator* gen, LIRGraph* graph,
-                                         MacroAssembler* masmArg)
+                                         MacroAssembler* masmArg,
+                                         const wasm::CodeMetadata* wasmCodeMeta)
     : masm(ensureMasm(masmArg, gen->alloc(), gen->realm)),
       gen(gen),
       graph(*graph),
+      wasmCodeMeta_(wasmCodeMeta),
       current(nullptr),
       recovers_(),
 #ifdef DEBUG
@@ -436,7 +438,7 @@ void CodeGeneratorShared::encodeAllocation(LSnapshot* snapshot,
 
       JSValueType valueType = ValueTypeFromMIRType(type);
 
-      MOZ_DIAGNOSTIC_ASSERT(payload->isMemory() || payload->isRegister());
+      MOZ_DIAGNOSTIC_ASSERT(payload->isMemory() || payload->isAnyRegister());
       if (payload->isMemory()) {
         MOZ_ASSERT_IF(payload->isStackSlot(),
                       payload->toStackSlot()->width() ==
@@ -462,14 +464,15 @@ void CodeGeneratorShared::encodeAllocation(LSnapshot* snapshot,
         break;
       }
 
-      MOZ_ASSERT(payload->isMemory() || payload->isFloatReg());
       if (payload->isFloatReg()) {
         alloc = RValueAllocation::Float32(ToFloatRegister(payload));
-      } else {
+      } else if (payload->isMemory()) {
         MOZ_ASSERT_IF(payload->isStackSlot(),
                       payload->toStackSlot()->width() ==
                           LStackSlot::width(LDefinition::TypeFrom(type)));
         alloc = RValueAllocation::Float32(ToStackIndex(payload));
+      } else {
+        MOZ_CRASH("Unexpected payload type.");
       }
       break;
     }
@@ -497,7 +500,6 @@ void CodeGeneratorShared::encodeAllocation(LSnapshot* snapshot,
         break;
       }
 
-      MOZ_ASSERT(payload->isMemory() || payload->isGeneralReg());
       if (payload->isGeneralReg()) {
         alloc = RValueAllocation::IntPtr(ToRegister(payload));
       } else if (payload->isStackSlot()) {
@@ -511,7 +513,7 @@ void CodeGeneratorShared::encodeAllocation(LSnapshot* snapshot,
           alloc = RValueAllocation::IntPtrInt32(ToStackIndex(payload));
         }
       } else {
-        alloc = RValueAllocation::IntPtr(ToStackIndex(payload));
+        MOZ_CRASH("Unexpected payload type.");
       }
       break;
     }
@@ -555,11 +557,9 @@ void CodeGeneratorShared::encodeAllocation(LSnapshot* snapshot,
         alloc = RValueAllocation::Int64Constant(lowIndex, highIndex);
         break;
       }
-      MOZ_ASSERT(payload->isMemory() || payload->isRegister());
 
 #ifdef JS_NUNBOX32
       LAllocation* type = snapshot->typeOfSlot(*allocIndex);
-      MOZ_ASSERT(type->isMemory() || type->isRegister());
 
       MOZ_ASSERT_IF(payload->isStackSlot(),
                     payload->toStackSlot()->width() ==
@@ -568,42 +568,48 @@ void CodeGeneratorShared::encodeAllocation(LSnapshot* snapshot,
                     type->toStackSlot()->width() ==
                         LStackSlot::width(LDefinition::GENERAL));
 
-      if (payload->isRegister()) {
-        if (type->isRegister()) {
+      if (payload->isGeneralReg()) {
+        if (type->isGeneralReg()) {
           alloc =
               RValueAllocation::Int64(ToRegister(type), ToRegister(payload));
-        } else {
+        } else if (type->isStackSlot()) {
           alloc =
               RValueAllocation::Int64(ToStackIndex(type), ToRegister(payload));
+        } else {
+          MOZ_CRASH("Unexpected payload type.");
         }
-      } else {
-        if (type->isRegister()) {
+      } else if (payload->isStackSlot()) {
+        if (type->isGeneralReg()) {
           alloc =
               RValueAllocation::Int64(ToRegister(type), ToStackIndex(payload));
-        } else {
+        } else if (type->isStackSlot()) {
           alloc = RValueAllocation::Int64(ToStackIndex(type),
                                           ToStackIndex(payload));
+        } else {
+          MOZ_CRASH("Unexpected payload type.");
         }
+      } else {
+        MOZ_CRASH("Unexpected payload type.");
       }
 #elif JS_PUNBOX64
-      if (payload->isRegister()) {
+      if (payload->isGeneralReg()) {
         alloc = RValueAllocation::Int64(ToRegister(payload));
-      } else {
-        MOZ_ASSERT_IF(payload->isStackSlot(),
-                      payload->toStackSlot()->width() ==
-                          LStackSlot::width(LDefinition::GENERAL));
+      } else if (payload->isStackSlot()) {
+        MOZ_ASSERT(payload->toStackSlot()->width() ==
+                   LStackSlot::width(LDefinition::GENERAL));
         alloc = RValueAllocation::Int64(ToStackIndex(payload));
+      } else {
+        MOZ_CRASH("Unexpected payload type.");
       }
 #endif
       break;
     }
-    default: {
-      MOZ_ASSERT(mir->type() == MIRType::Value);
+    case MIRType::Value: {
       LAllocation* payload = snapshot->payloadOfSlot(*allocIndex);
 #ifdef JS_NUNBOX32
       LAllocation* type = snapshot->typeOfSlot(*allocIndex);
-      if (type->isRegister()) {
-        if (payload->isRegister()) {
+      if (type->isGeneralReg()) {
+        if (payload->isGeneralReg()) {
           alloc =
               RValueAllocation::Untyped(ToRegister(type), ToRegister(payload));
         } else {
@@ -611,7 +617,7 @@ void CodeGeneratorShared::encodeAllocation(LSnapshot* snapshot,
                                             ToStackIndex(payload));
         }
       } else {
-        if (payload->isRegister()) {
+        if (payload->isGeneralReg()) {
           alloc = RValueAllocation::Untyped(ToStackIndex(type),
                                             ToRegister(payload));
         } else {
@@ -620,7 +626,7 @@ void CodeGeneratorShared::encodeAllocation(LSnapshot* snapshot,
         }
       }
 #elif JS_PUNBOX64
-      if (payload->isRegister()) {
+      if (payload->isGeneralReg()) {
         alloc = RValueAllocation::Untyped(ToRegister(payload));
       } else {
         alloc = RValueAllocation::Untyped(ToStackIndex(payload));
@@ -628,6 +634,8 @@ void CodeGeneratorShared::encodeAllocation(LSnapshot* snapshot,
 #endif
       break;
     }
+    default:
+      MOZ_CRASH("Unexpected MIR type");
   }
   MOZ_DIAGNOSTIC_ASSERT(alloc.valid());
 

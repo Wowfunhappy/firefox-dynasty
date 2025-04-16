@@ -517,10 +517,10 @@ std::vector<LayersId> APZCTreeManager::UpdateHitTestingTree(
             MutexAutoLock lock(mMapLock);
             mGeckoFixedLayerMargins =
                 aLayerMetrics.Metrics().GetFixedLayerMargins();
-            mInteractiveWidget =
-                aLayerMetrics.Metadata().GetInteractiveWidget();
-            mIsSoftwareKeyboardVisible =
-                aLayerMetrics.Metadata().IsSoftwareKeyboardVisible();
+            SetInteractiveWidgetMode(
+                aLayerMetrics.Metadata().GetInteractiveWidget(), lock);
+            SetIsSoftwareKeyboardVisible(
+                aLayerMetrics.Metadata().IsSoftwareKeyboardVisible(), lock);
             currentRootContentLayersId = layersId;
           } else {
             MOZ_ASSERT(aLayerMetrics.Metrics().GetFixedLayerMargins() ==
@@ -892,12 +892,15 @@ void APZCTreeManager::SampleForWebRender(const Maybe<VsyncId>& aVsyncId,
     }
 
 #if defined(MOZ_WIDGET_ANDROID)
-    // Send the root frame metrics to java through the UIController
-    RefPtr<UiCompositorControllerParent> uiController =
-        UiCompositorControllerParent::GetFromRootLayerTreeId(mRootLayersId);
-    if (uiController &&
-        apzc->UpdateRootFrameMetricsIfChanged(mLastRootMetrics)) {
-      uiController->NotifyUpdateScreenMetrics(mLastRootMetrics);
+    if (apzc->IsRootContent()) {
+      // Send the root frame metrics to java through the UIController
+      if (RefPtr<UiCompositorControllerParent> uiController =
+              UiCompositorControllerParent::GetFromRootLayerTreeId(
+                  mRootLayersId)) {
+        for (const auto& update : apzc->GetCompositorScrollUpdates()) {
+          uiController->NotifyCompositorScrollUpdate(update);
+        }
+      }
     }
 #endif
   }
@@ -931,8 +934,7 @@ void APZCTreeManager::SampleForWebRender(const Maybe<VsyncId>& aVsyncId,
     // We only care about the horizontal scrollbar.
     if (info.mScrollDirection == ScrollDirection::eHorizontal) {
       ScreenPoint translation =
-          ComputeFixedMarginsOffset(GetCompositorFixedLayerMargins(lock),
-                                    SideBits::eBottom, ScreenMargin());
+          ComputeFixedMarginsOffset(lock, SideBits::eBottom, ScreenMargin());
 
       LayerToParentLayerMatrix4x4 transform =
           LayerToParentLayerMatrix4x4::Translation(ViewAs<ParentLayerPixel>(
@@ -949,9 +951,8 @@ void APZCTreeManager::SampleForWebRender(const Maybe<VsyncId>& aVsyncId,
       continue;
     }
 
-    ScreenPoint translation =
-        ComputeFixedMarginsOffset(GetCompositorFixedLayerMargins(lock),
-                                  info.mFixedPosSides, mGeckoFixedLayerMargins);
+    ScreenPoint translation = ComputeFixedMarginsOffset(
+        lock, info.mFixedPosSides, mGeckoFixedLayerMargins);
 
     LayerToParentLayerMatrix4x4 transform =
         LayerToParentLayerMatrix4x4::Translation(ViewAs<ParentLayerPixel>(
@@ -969,8 +970,8 @@ void APZCTreeManager::SampleForWebRender(const Maybe<VsyncId>& aVsyncId,
       continue;
     }
 
-    ScreenPoint translation = ComputeFixedMarginsOffset(
-        GetCompositorFixedLayerMargins(lock), sides, mGeckoFixedLayerMargins);
+    ScreenPoint translation =
+        ComputeFixedMarginsOffset(lock, sides, mGeckoFixedLayerMargins);
 
     LayerToParentLayerMatrix4x4 transform =
         LayerToParentLayerMatrix4x4::Translation(ViewAs<ParentLayerPixel>(
@@ -2218,8 +2219,7 @@ void APZCTreeManager::AdjustEventPointForDynamicToolbar(
   if (aHit.mFixedPosSides != SideBits::eNone) {
     MutexAutoLock lock(mMapLock);
     aEventPoint -= RoundedToInt(ComputeFixedMarginsOffset(
-        GetCompositorFixedLayerMargins(lock), aHit.mFixedPosSides,
-        mGeckoFixedLayerMargins));
+        lock, aHit.mFixedPosSides, mGeckoFixedLayerMargins));
   } else if (aHit.mNode && aHit.mNode->GetStickyPositionAnimationId()) {
     SideBits sideBits = SideBits::eNone;
     {
@@ -2229,8 +2229,7 @@ void APZCTreeManager::AdjustEventPointForDynamicToolbar(
     }
     MutexAutoLock lock(mMapLock);
     aEventPoint -= RoundedToInt(
-        ComputeFixedMarginsOffset(GetCompositorFixedLayerMargins(lock),
-                                  sideBits, mGeckoFixedLayerMargins));
+        ComputeFixedMarginsOffset(lock, sideBits, mGeckoFixedLayerMargins));
   }
 }
 
@@ -2571,7 +2570,14 @@ void APZCTreeManager::ZoomToRect(const ScrollableLayerGuid& aGuid,
 
       apzc = FindZoomableApzc(apzc);
       if (apzc) {
-        apzc->ZoomToRect(zoomTarget, aFlags);
+        uint32_t flags = aFlags;
+        MutexAutoLock lock(mMapLock);
+        if (IsSoftwareKeyboardVisible(lock) &&
+            InteractiveWidgetMode(lock) ==
+                dom::InteractiveWidget::ResizesVisual) {
+          flags |= ZOOM_TO_FOCUSED_INPUT_ON_RESIZES_VISUAL;
+        }
+        apzc->ZoomToRect(zoomTarget, flags);
       }
     }
     return;
@@ -2995,6 +3001,7 @@ already_AddRefed<AsyncPanZoomController> APZCTreeManager::GetTargetAPZC(
 already_AddRefed<AsyncPanZoomController> APZCTreeManager::GetTargetAPZC(
     const LayersId& aLayersId, const ScrollableLayerGuid::ViewID& aScrollId,
     const MutexAutoLock& aProofOfMapLock) const {
+  mMapLock.AssertCurrentThreadOwns();
   ScrollableLayerGuid guid(aLayersId, 0, aScrollId);
   auto it = mApzcMap.find(guid);
   RefPtr<AsyncPanZoomController> apzc =
@@ -3211,8 +3218,8 @@ already_AddRefed<AsyncPanZoomController> APZCTreeManager::FindZoomableApzc(
 }
 
 ScreenMargin APZCTreeManager::GetCompositorFixedLayerMargins() const {
-  RecursiveMutexAutoLock lock(mTreeLock);
-  return mCompositorFixedLayerMargins;
+  MutexAutoLock lock(mMapLock);
+  return GetCompositorFixedLayerMargins(lock);
 }
 
 AsyncPanZoomController* APZCTreeManager::FindRootApzcFor(
@@ -3848,13 +3855,14 @@ void APZCTreeManager::SetFixedLayerMargins(ScreenIntCoord aTop,
 }
 
 ScreenPoint APZCTreeManager::ComputeFixedMarginsOffset(
-    const ScreenMargin& aCompositorFixedLayerMargins, SideBits aFixedSides,
+    const MutexAutoLock& aProofOfMapLock, SideBits aFixedSides,
     const ScreenMargin& aGeckoFixedLayerMargins) const {
   // If the software keyboard is visible and the interactive-widget is not
   // resizes-content, we don't need to move the position:fixed or sticky
   // elements at all.
-  if (mIsSoftwareKeyboardVisible &&
-      mInteractiveWidget != dom::InteractiveWidget::ResizesContent) {
+  if (IsSoftwareKeyboardVisible(aProofOfMapLock) &&
+      InteractiveWidgetMode(aProofOfMapLock) !=
+          dom::InteractiveWidget::ResizesContent) {
     return ScreenPoint(0, 0);
   }
 
@@ -3862,7 +3870,7 @@ ScreenPoint APZCTreeManager::ComputeFixedMarginsOffset(
   ScreenPoint translation;
 
   ScreenMargin effectiveMargin =
-      aCompositorFixedLayerMargins - aGeckoFixedLayerMargins;
+      GetCompositorFixedLayerMargins(aProofOfMapLock) - aGeckoFixedLayerMargins;
   if (aFixedSides & SideBits::eLeft) {
     translation.x += effectiveMargin.left;
   } else if (aFixedSides & SideBits::eRight) {

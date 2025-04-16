@@ -11,6 +11,7 @@ import android.content.SharedPreferences
 import android.widget.Toast
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
+import androidx.core.content.edit
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.launch
 import mozilla.components.browser.domains.autocomplete.ShippedDomainsProvider
@@ -47,8 +48,10 @@ import mozilla.components.feature.autofill.AutofillConfiguration
 import mozilla.components.feature.contextmenu.ContextMenuUseCases
 import mozilla.components.feature.customtabs.CustomTabIntentProcessor
 import mozilla.components.feature.customtabs.store.CustomTabsServiceStore
+import mozilla.components.feature.downloads.DefaultFileSizeFormatter
 import mozilla.components.feature.downloads.DownloadMiddleware
 import mozilla.components.feature.downloads.DownloadsUseCases
+import mozilla.components.feature.downloads.FileSizeFormatter
 import mozilla.components.feature.intent.processing.TabIntentProcessor
 import mozilla.components.feature.media.MediaSessionFeature
 import mozilla.components.feature.media.middleware.RecordingDevicesMiddleware
@@ -391,7 +394,7 @@ open class DefaultComponents(private val applicationContext: Context) {
                     preferences.getBoolean(PREF_LAUNCH_EXTERNAL_APP, false)
                 },
             ) { checked ->
-                preferences.edit().putBoolean(PREF_LAUNCH_EXTERNAL_APP, checked).apply()
+                preferences.edit { putBoolean(PREF_LAUNCH_EXTERNAL_APP, checked) }
             },
         )
 
@@ -402,7 +405,7 @@ open class DefaultComponents(private val applicationContext: Context) {
                     preferences.getBoolean(PREF_GLOBAL_PRIVACY_CONTROL, false)
                 },
             ) { checked ->
-                preferences.edit().putBoolean(PREF_GLOBAL_PRIVACY_CONTROL, checked).apply()
+                preferences.edit { putBoolean(PREF_GLOBAL_PRIVACY_CONTROL, checked) }
                 engine.settings.globalPrivacyControlEnabled = checked
                 sessionUseCases.reload()
             },
@@ -513,4 +516,6 @@ open class DefaultComponents(private val applicationContext: Context) {
 
     val addonUpdater =
         DefaultAddonUpdater(applicationContext, Frequency(1, TimeUnit.DAYS), notificationsDelegate)
+
+    val fileSizeFormatter: FileSizeFormatter by lazy { DefaultFileSizeFormatter(applicationContext) }
 }

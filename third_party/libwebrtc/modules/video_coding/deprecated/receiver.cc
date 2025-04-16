@@ -92,8 +92,7 @@ VCMEncodedFrame* VCMReceiver::FrameForDecoding(uint16_t max_wait_time_ms,
 
   if (std::optional<VideoPlayoutDelay> playout_delay =
           found_frame->EncodedImage().PlayoutDelay()) {
-    timing_->set_min_playout_delay(playout_delay->min());
-    timing_->set_max_playout_delay(playout_delay->max());
+    timing_->set_playout_delay(*playout_delay);
   }
 
   // We have a frame - Set timing and render timestamp.
@@ -138,7 +137,7 @@ VCMEncodedFrame* VCMReceiver::FrameForDecoding(uint16_t max_wait_time_ms,
         static_cast<int32_t>(clock_->TimeInMilliseconds() - start_time_ms);
     uint16_t new_max_wait_time =
         static_cast<uint16_t>(VCM_MAX(available_wait_time, 0));
-    uint32_t wait_time_ms = rtc::saturated_cast<uint32_t>(
+    uint32_t wait_time_ms = saturated_cast<uint32_t>(
         timing_
             ->MaxWaitingTime(Timestamp::Millis(render_time_ms),
                              clock_->CurrentTime(),

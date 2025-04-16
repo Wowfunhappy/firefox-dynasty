@@ -14,6 +14,7 @@
 #include "nsContentCreatorFunctions.h"
 #include "nsStyledElement.h"
 #include "mozilla/dom/BindingDeclarations.h"
+#include "mozilla/dom/HTMLElementBinding.h"
 #include "mozilla/dom/Element.h"
 #include "mozilla/dom/DOMRect.h"
 #include "mozilla/dom/ValidityState.h"
@@ -95,10 +96,16 @@ class nsGenericHTMLElement : public nsGenericHTMLElementBase {
   void SetPopover(const nsAString& aPopover, mozilla::ErrorResult& aError) {
     SetOrRemoveNullableStringAttr(nsGkAtoms::popover, aPopover, aError);
   }
-  bool Hidden() const { return GetBoolAttr(nsGkAtoms::hidden); }
-  void SetHidden(bool aHidden, mozilla::ErrorResult& aError) {
-    SetHTMLBoolAttr(nsGkAtoms::hidden, aHidden, aError);
-  }
+
+  void GetHidden(mozilla::dom::Nullable<
+                 mozilla::dom::OwningBooleanOrUnrestrictedDoubleOrString>&
+                     aHidden) const;
+
+  void SetHidden(
+      const mozilla::dom::Nullable<
+          mozilla::dom::BooleanOrUnrestrictedDoubleOrString>& aHidden,
+      mozilla::ErrorResult& aRv);
+
   bool Inert() const { return GetBoolAttr(nsGkAtoms::inert); }
   void SetInert(bool aInert, mozilla::ErrorResult& aError) {
     SetHTMLBoolAttr(nsGkAtoms::inert, aInert, aError);
@@ -699,15 +706,22 @@ class nsGenericHTMLElement : public nsGenericHTMLElementBase {
 
   static bool LegacyTouchAPIEnabled(JSContext* aCx, JSObject* aObj);
 
+  // https://html.spec.whatwg.org/#dom-window-nameditem-filter
   static inline bool CanHaveName(nsAtom* aTag) {
     return aTag == nsGkAtoms::img || aTag == nsGkAtoms::form ||
            aTag == nsGkAtoms::embed || aTag == nsGkAtoms::object;
   }
-  static inline bool ShouldExposeNameAsHTMLDocumentProperty(Element* aElement) {
+  static inline bool ShouldExposeNameAsWindowProperty(Element* aElement) {
     return aElement->IsHTMLElement() &&
            CanHaveName(aElement->NodeInfo()->NameAtom());
   }
+  // https://html.spec.whatwg.org/#dom-document-nameditem-filter
   static inline bool ShouldExposeIdAsHTMLDocumentProperty(Element* aElement) {
+    if (!aElement->HasID() || aElement->IsInNativeAnonymousSubtree()) {
+      return false;
+    }
+    // XXX Not all objects is exposed per spec, but other browsers doesn't check
+    // if object is exposed, either.
     if (aElement->IsHTMLElement(nsGkAtoms::object)) {
       return true;
     }
@@ -716,6 +730,16 @@ class nsGenericHTMLElement : public nsGenericHTMLElementBase {
     // name (which doesn't have to match the id or anything).
     // HasName() is true precisely when name is nonempty.
     return aElement->IsHTMLElement(nsGkAtoms::img) && aElement->HasName();
+  }
+  static inline bool ShouldExposeNameAsHTMLDocumentProperty(Element* aElement) {
+    if (!aElement->HasName() || aElement->IsInNativeAnonymousSubtree()) {
+      return false;
+    }
+    // XXX Not all embeds/objects are exposed per spec, but other browser
+    // doesn't check if embeds/objects are exposed.
+    return aElement->IsAnyOfHTMLElements(nsGkAtoms::embed, nsGkAtoms::form,
+                                         nsGkAtoms::iframe, nsGkAtoms::img,
+                                         nsGkAtoms::object);
   }
 
   virtual inline void ResultForDialogSubmit(nsAString& aResult) {
@@ -971,7 +995,7 @@ class nsGenericHTMLElement : public nsGenericHTMLElementBase {
   already_AddRefed<nsIURI> GetHrefURIForAnchors() const;
 
  private:
-  void ChangeEditableState(int32_t aChange);
+  MOZ_CAN_RUN_SCRIPT void ChangeEditableState(int32_t aChange);
 };
 
 namespace mozilla::dom {

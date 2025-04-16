@@ -38,7 +38,7 @@ class LossBasedBweV2Test : public ::testing::TestWithParam<bool> {
  protected:
   std::string Config(bool enabled, bool valid) {
     char buffer[1024];
-    rtc::SimpleStringBuilder config_string(buffer);
+    SimpleStringBuilder config_string(buffer);
 
     config_string << "WebRTC-Bwe-LossBasedBweV2/";
 
@@ -79,7 +79,7 @@ class LossBasedBweV2Test : public ::testing::TestWithParam<bool> {
 
   std::string ShortObservationConfig(std::string custom_config) {
     char buffer[1024];
-    rtc::SimpleStringBuilder config_string(buffer);
+    SimpleStringBuilder config_string(buffer);
 
     config_string << "WebRTC-Bwe-LossBasedBweV2/"
                      "MinNumObservations:1,ObservationWindowSize:2,";
@@ -147,7 +147,8 @@ class LossBasedBweV2Test : public ::testing::TestWithParam<bool> {
   }
 
   std::vector<PacketResult> CreatePacketResultsWith100pLossRate(
-      Timestamp first_packet_timestamp, unsigned num_packets = 2) {
+      Timestamp first_packet_timestamp,
+      unsigned num_packets = 2) {
     std::vector<PacketResult> enough_feedback(num_packets);
     for (unsigned i = 0; i < num_packets - 1; ++i) {
       enough_feedback[i].sent_packet.sequence_number =

@@ -1,7 +1,7 @@
 /* Any copyright is dedicated to the Public Domain.
  * http://creativecommons.org/publicdomain/zero/1.0/ */
 
-const { ExperimentAPI, NimbusFeatures } = ChromeUtils.importESModule(
+const { NimbusFeatures } = ChromeUtils.importESModule(
   "resource://nimbus/ExperimentAPI.sys.mjs"
 );
 const {
@@ -61,7 +61,6 @@ function removeExperimentManagerListeners(manager) {
 }
 
 add_setup(function setup() {
-  do_get_profile();
   Services.fog.initializeFOG();
   removeExperimentManagerListeners(ExperimentAPI._manager);
 });
@@ -71,34 +70,40 @@ add_setup(function setup() {
  *
  * @param {object} options
  * @param {number?} options.latestMigration
- *                  The value that should be set for the latest Nimbus migration
- *                  pref. If not provided, the pref will be unset.
+ *        The value that should be set for the latest Nimbus migration pref. If
+ *        not provided, the pref will be unset.
  * @param {object[]} options.migrations
- *                   An array of migrations that will replace the regular set of
- *                   migrations for the duration of the test.
+ *        An array of migrations that will replace the regular set of migrations
+ *        for the duration of the test.
  * @param {object[]} options.recipes
- *                   An array of experiment recipes that will be returned by the
- *                   RemoteSettingsExperimentLoader for the duration of the test.
- * @param {boolean} options.init
- *                  If true, the ExperimentAPI will be initialized during the setup.
+ *        An array of experiment recipes that will be returned by the
+ *        RemoteSettingsExperimentLoader for the duration of the test.
+ * @param {object} options.args
+ *       Options to pass to to NimbusTestutils.setupNimbusTest.
  */
+
 async function setupTest({
   latestMigration,
   migrations,
-  recipes,
   init = true,
+  ...args
 } = {}) {
-  const sandbox = sinon.createSandbox();
-  const loader = ExperimentFakes.rsLoader();
-
-  sandbox.stub(ExperimentAPI, "_rsLoader").get(() => loader);
-  sandbox.stub(ExperimentAPI, "_manager").get(() => loader.manager);
-  sandbox.stub(loader, "setTimer");
-
   Assert.ok(
     !Services.prefs.prefHasUserValue(NIMBUS_MIGRATION_PREF),
     "migration pref should be unset"
   );
+
+  const {
+    initExperimentAPI,
+    cleanup: baseCleanup,
+    ...ctx
+  } = await NimbusTestUtils.setupTest({
+    init: false,
+    clearTelemetry: true,
+    ...args,
+  });
+
+  const { sandbox } = ctx;
 
   if (typeof latestMigration !== "undefined") {
     Services.prefs.setIntPref(NIMBUS_MIGRATION_PREF, latestMigration);
@@ -108,28 +113,18 @@ async function setupTest({
     sandbox.stub(NimbusMigrations, "MIGRATIONS").get(() => migrations);
   }
 
-  if (Array.isArray(recipes)) {
-    sandbox
-      .stub(loader.remoteSettingsClients.experiments, "get")
-      .resolves(recipes);
-  }
-
   if (init) {
-    await ExperimentAPI.init();
-    await ExperimentAPI.ready();
+    await initExperimentAPI();
+  } else {
+    ctx.initExperimentAPI = initExperimentAPI;
   }
 
   return {
-    sandbox,
-    loader,
-    manager: loader.manager,
-    async cleanup({ removeStore = false } = {}) {
-      await assertEmptyStore(loader.manager.store, { cleanup: removeStore });
-      ExperimentAPI._resetForTests();
-      removeExperimentManagerListeners(loader.manager);
+    ...ctx,
+    cleanup() {
+      baseCleanup();
+      removeExperimentManagerListeners(ctx.manager);
       Services.prefs.deleteBranch(NIMBUS_MIGRATION_PREF);
-      sandbox.restore();
-      Services.fog.testResetFOG();
     },
   };
 }
@@ -177,7 +172,7 @@ add_task(async function test_migration_unset() {
     ]
   );
 
-  await cleanup();
+  cleanup();
 });
 
 add_task(async function test_migration_partially_done() {
@@ -204,7 +199,7 @@ add_task(async function test_migration_partially_done() {
     ]
   );
 
-  await cleanup();
+  cleanup();
 });
 
 add_task(async function test_migration_throws() {
@@ -249,7 +244,7 @@ add_task(async function test_migration_throws() {
     ]
   );
 
-  await cleanup();
+  cleanup();
 });
 
 add_task(async function test_migration_throws_MigrationError() {
@@ -294,7 +289,7 @@ add_task(async function test_migration_throws_MigrationError() {
     ]
   );
 
-  await cleanup();
+  cleanup();
 });
 
 add_task(async function test_migration_firefoxLabsEnrollments() {
@@ -308,11 +303,11 @@ add_task(async function test_migration_firefoxLabsEnrollments() {
     }
 
     const { manager, cleanup } = await setupTest({
-      recipes: mockLabsRecipes("true"),
+      experiments: mockLabsRecipes("true"),
     });
 
     Assert.deepEqual(
-      await ExperimentAPI._manager
+      await manager
         .getAllOptInRecipes()
         .then(recipes => recipes.map(recipe => recipe.slug).toSorted()),
       Object.values(LABS_MIGRATION_FEATURE_MAP).toSorted(),
@@ -361,7 +356,7 @@ add_task(async function test_migration_firefoxLabsEnrollments() {
       ]
     );
 
-    await cleanup();
+    cleanup();
   }
 
   await doTest([]);
@@ -387,11 +382,11 @@ add_task(async function test_migration_firefoxLabsEnrollments_falseTargeting() {
     Services.prefs.setBoolPref(pref, true);
   }
   const { manager, cleanup } = await setupTest({
-    recipes: mockLabsRecipes("false"),
+    experiments: mockLabsRecipes("false"),
   });
 
   Assert.deepEqual(
-    await ExperimentAPI._manager.getAllOptInRecipes(),
+    await manager.getAllOptInRecipes(),
     [],
     "There should be no opt-in recipes"
   );
@@ -422,7 +417,7 @@ add_task(async function test_migration_firefoxLabsEnrollments_falseTargeting() {
     ]
   );
 
-  await cleanup();
+  cleanup();
 });
 
 add_task(async function test_migration_firefoxLabsEnrollments_idempotent() {
@@ -446,14 +441,15 @@ add_task(async function test_migration_firefoxLabsEnrollments_idempotent() {
 
     manager.enroll(recipes[0], "rs-loader", { branchSlug: "control" });
 
-    await manager.store._store.saveSoon();
-    await manager.store._store.finalize();
+    await NimbusTestUtils.saveStore(manager.store);
 
     removeExperimentManagerListeners(manager);
+    removePrefObservers(manager);
+    assertNoObservers(manager);
   }
 
   const { manager, cleanup } = await setupTest({
-    recipes,
+    experiments: recipes,
   });
 
   Assert.equal(
@@ -475,7 +471,7 @@ add_task(async function test_migration_firefoxLabsEnrollments_idempotent() {
     manager.unenroll(slug);
   }
 
-  await cleanup({ removeStore: true });
+  cleanup();
 
   for (const pref of prefs) {
     Services.prefs.clearUserPref(pref);

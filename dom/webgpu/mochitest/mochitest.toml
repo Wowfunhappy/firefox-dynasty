@@ -31,6 +31,8 @@ scheme = "https"
 
 ["test_context_configure.html"]
 
+["test_core_features_and_limits.html"]
+
 ["test_device_creation.html"]
 
 ["test_device_lost.html"]
@@ -58,6 +60,8 @@ scheme = "http"
 ["test_rfp_clamp_limits_off.html"]
 
 ["test_set_bind_group_null.html"]
+
+["test_shared_array_buffer.html"]
 
 ["test_submit_compute_empty.html"]
 

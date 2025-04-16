@@ -8,6 +8,7 @@ import { CollapsibleSection } from "content-src/components/CollapsibleSection/Co
 import { connect } from "react-redux";
 import { DSMessage } from "content-src/components/DiscoveryStreamComponents/DSMessage/DSMessage";
 import { DSPrivacyModal } from "content-src/components/DiscoveryStreamComponents/DSPrivacyModal/DSPrivacyModal";
+import { ReportContent } from "../DiscoveryStreamComponents/ReportContent/ReportContent";
 import { DSSignup } from "content-src/components/DiscoveryStreamComponents/DSSignup/DSSignup";
 import { DSTextPromo } from "content-src/components/DiscoveryStreamComponents/DSTextPromo/DSTextPromo";
 import { Highlights } from "content-src/components/DiscoveryStreamComponents/Highlights/Highlights";
@@ -252,6 +253,9 @@ export class _DiscoveryStreamBase extends React.PureComponent {
     const { config } = this.props.DiscoveryStream;
     const topicSelectionEnabled =
       this.props.Prefs.values["discoverystream.topicSelection.enabled"];
+    const reportAdsEnabled =
+      this.props.Prefs.values["discoverystream.reportAds.enabled"];
+    const spocsEnabled = this.props.Prefs.values["unifiedAds.spocs.enabled"];
 
     // Allow rendering without extracting special components
     if (!config.collapsible) {
@@ -316,12 +320,19 @@ export class _DiscoveryStreamBase extends React.PureComponent {
       }
     }
 
-    // Render a DS-style TopSites then the rest if any in a collapsible section
+    const { DiscoveryStream } = this.props;
+
     return (
       <React.Fragment>
         {this.props.DiscoveryStream.isPrivacyInfoModalVisible && (
           <DSPrivacyModal dispatch={this.props.dispatch} />
         )}
+
+        {/* Reporting stories/articles will only be available in sections, not the default card grid  */}
+        {((reportAdsEnabled && spocsEnabled) || sectionsEnabled) && (
+          <ReportContent spocs={DiscoveryStream.spocs} />
+        )}
+
         {topSites &&
           this.renderLayout([
             {

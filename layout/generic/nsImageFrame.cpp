@@ -107,6 +107,8 @@ using namespace mozilla::layers;
 
 using mozilla::layout::TextDrawTarget;
 
+static constexpr wr::ImageKey kNoKey{{0}, 0};
+
 class nsDisplayGradient final : public nsPaintedDisplayItem {
  public:
   nsDisplayGradient(nsDisplayListBuilder* aBuilder, nsImageFrame* aFrame)
@@ -321,12 +323,13 @@ void BrokenImageIcon::Notify(imgIRequest* aRequest, int32_t aType,
 // test if the width and height are fixed, looking at the style data
 // This is used by nsImageFrame::ImageFrameTypeFor and should not be used for
 // layout decisions.
-static bool HaveSpecifiedSize(const nsStylePosition* aStylePosition) {
+static bool HaveSpecifiedSize(const nsStylePosition* aStylePosition,
+                              StylePositionProperty aProp) {
   // check the width and height values in the reflow input's style struct
   // - if width and height are specified as either coord or percentage, then
   //   the size of the image frame is constrained
-  return aStylePosition->GetWidth().IsLengthPercentage() &&
-         aStylePosition->GetHeight().IsLengthPercentage();
+  return aStylePosition->GetWidth(aProp)->IsLengthPercentage() &&
+         aStylePosition->GetHeight(aProp)->IsLengthPercentage();
 }
 
 template <typename SizeOrMaxSize>
@@ -353,6 +356,7 @@ static bool DependsOnIntrinsicSize(const SizeOrMaxSize& aMinOrMaxSize) {
 // image's intrinsic size changing.
 static bool SizeDependsOnIntrinsicSize(const ReflowInput& aReflowInput) {
   const auto& position = *aReflowInput.mStylePosition;
+  const auto positionProperty = aReflowInput.mStyleDisplay->mPosition;
   WritingMode wm = aReflowInput.GetWritingMode();
   // Don't try to make this optimization when an image has percentages
   // in its 'width' or 'height'.  The percentages might be treated like
@@ -363,10 +367,10 @@ static bool SizeDependsOnIntrinsicSize(const ReflowInput& aReflowInput) {
   // don't need to check them.
   //
   // Flex item's min-[width|height]:auto resolution depends on intrinsic size.
-  return !position.GetHeight().ConvertsToLength() ||
-         !position.GetWidth().ConvertsToLength() ||
-         DependsOnIntrinsicSize(position.MinISize(wm)) ||
-         DependsOnIntrinsicSize(position.MaxISize(wm)) ||
+  return !position.GetHeight(positionProperty)->ConvertsToLength() ||
+         !position.GetWidth(positionProperty)->ConvertsToLength() ||
+         DependsOnIntrinsicSize(*position.MinISize(wm, positionProperty)) ||
+         DependsOnIntrinsicSize(*position.MaxISize(wm, positionProperty)) ||
          aReflowInput.mFrame->IsFlexItem();
 }
 
@@ -399,10 +403,10 @@ nsIFrame* NS_NewImageFrameForListStyleImage(PresShell* aPresShell,
                                        nsImageFrame::Kind::ListStyleImage);
 }
 
-nsIFrame* NS_NewImageFrameForViewTransitionOld(PresShell* aPresShell,
-                                               ComputedStyle* aStyle) {
+nsIFrame* NS_NewImageFrameForViewTransition(PresShell* aPresShell,
+                                            ComputedStyle* aStyle) {
   return new (aPresShell) nsImageFrame(aStyle, aPresShell->GetPresContext(),
-                                       nsImageFrame::Kind::ViewTransitionOld);
+                                       nsImageFrame::Kind::ViewTransition);
 }
 
 bool nsImageFrame::ShouldShowBrokenImageIcon() const {
@@ -471,7 +475,7 @@ a11y::AccType nsImageFrame::AccessibleType() {
     return a11y::eNoType;
   }
 
-  if (mKind == Kind::ViewTransitionOld) {
+  if (mKind == Kind::ViewTransition) {
     // View transitions don't show up in the a11y tree.
     return a11y::eNoType;
   }
@@ -538,13 +542,6 @@ void nsImageFrame::Destroy(DestroyContext& aContext) {
     BrokenImageIcon::RemoveObserver(this);
   }
 
-  if (mViewTransitionData.HasKey()) {
-    MOZ_ASSERT(mViewTransitionData.mManager);
-    mViewTransitionData.mManager->AddImageKeyForDiscard(
-        mViewTransitionData.mImageKey);
-    mViewTransitionData = {};
-  }
-
   nsAtomicContainerFrame::Destroy(aContext);
 }
 
@@ -563,9 +560,9 @@ void nsImageFrame::DeinitOwnedRequest() {
 void nsImageFrame::DidSetComputedStyle(ComputedStyle* aOldStyle) {
   nsAtomicContainerFrame::DidSetComputedStyle(aOldStyle);
 
-  // A ::marker's default size is calculated from the font's em-size.
-  if (IsForMarkerPseudo()) {
-    mIntrinsicSize = IntrinsicSize(0, 0);
+  // A list-style-image ::marker default size is calculated from the font's
+  // em-size, which might have changed here.
+  if (mKind == Kind::ListStyleImage) {
     UpdateIntrinsicSize();
   }
 
@@ -630,7 +627,7 @@ static bool SizeIsAvailable(imgIRequest* aRequest) {
 
 const StyleImage* nsImageFrame::GetImageFromStyle() const {
   switch (mKind) {
-    case Kind::ViewTransitionOld:
+    case Kind::ViewTransition:
       break;
     case Kind::ImageLoadingContent:
       break;
@@ -750,7 +747,7 @@ void nsImageFrame::Init(nsIContent* aContent, nsContainerFrame* aParent,
     }
   } else if (mKind == Kind::XULImage) {
     UpdateXULImage();
-  } else if (mKind == Kind::ViewTransitionOld) {
+  } else if (mKind == Kind::ViewTransition) {
     // View transitions have a surface directly.
   } else {
     const StyleImage* image = GetImageFromStyle();
@@ -768,7 +765,7 @@ void nsImageFrame::Init(nsIContent* aContent, nsContainerFrame* aParent,
 
     // Increase load priority further if intrinsic size might be important for
     // layout.
-    if (!HaveSpecifiedSize(StylePosition())) {
+    if (!HaveSpecifiedSize(StylePosition(), StyleDisplay()->mPosition)) {
       categoryToBoostPriority |= imgIRequest::CATEGORY_SIZE_QUERY;
     }
 
@@ -881,13 +878,10 @@ IntrinsicSize nsImageFrame::ComputeIntrinsicSize(
     return FinishIntrinsicSize(containAxes, intrinsicSize);
   }
 
-  if (auto* surf = GetViewTransitionSurface()) {
+  if (auto size = GetViewTransitionSnapshotSize()) {
     IntrinsicSize intrinsicSize;
-    auto devPx = LayoutDeviceIntSize::FromUnknownSize(surf->GetSize());
-    auto size = LayoutDeviceIntSize::ToAppUnits(
-        devPx, PresContext()->AppUnitsPerDevPixel());
-    intrinsicSize.width.emplace(size.width);
-    intrinsicSize.height.emplace(size.height);
+    intrinsicSize.width.emplace(size->width);
+    intrinsicSize.height.emplace(size->height);
     return FinishIntrinsicSize(containAxes, intrinsicSize);
   }
 
@@ -950,18 +944,47 @@ bool nsImageFrame::UpdateIntrinsicSize() {
   return mIntrinsicSize != oldIntrinsicSize;
 }
 
-gfx::DataSourceSurface* nsImageFrame::GetViewTransitionSurface() const {
-  if (mKind != Kind::ViewTransitionOld) {
-    return nullptr;
-  }
-  auto* vt = PresContext()->Document()->GetActiveViewTransition();
-  if (NS_WARN_IF(!vt)) {
+nsAtom* nsImageFrame::GetViewTransitionName() const {
+  if (mKind != Kind::ViewTransition) {
     return nullptr;
   }
   MOZ_ASSERT(GetContent()->AsElement()->HasName());
-  nsAtom* name =
-      GetContent()->AsElement()->GetParsedAttr(nsGkAtoms::name)->GetAtomValue();
-  return vt->GetOldSurface(name);
+  return GetContent()
+      ->AsElement()
+      ->GetParsedAttr(nsGkAtoms::name)
+      ->GetAtomValue();
+}
+
+Maybe<nsSize> nsImageFrame::GetViewTransitionSnapshotSize() const {
+  auto* name = GetViewTransitionName();
+  if (!name) {
+    return {};
+  }
+  auto* vt = PresContext()->Document()->GetActiveViewTransition();
+  if (NS_WARN_IF(!vt)) {
+    return {};
+  }
+  return Style()->GetPseudoType() == PseudoStyleType::viewTransitionOld
+             ? vt->GetOldSize(name)
+             : vt->GetNewSize(name);
+}
+
+wr::ImageKey nsImageFrame::GetViewTransitionImageKey(
+    layers::RenderRootStateManager* aManager,
+    wr::IpcResourceUpdateQueue& aResources) const {
+  auto* name = GetViewTransitionName();
+  if (!name) {
+    return kNoKey;
+  }
+  auto* vt = PresContext()->Document()->GetActiveViewTransition();
+  if (NS_WARN_IF(!vt)) {
+    return kNoKey;
+  }
+  const auto* key =
+      Style()->GetPseudoType() == PseudoStyleType::viewTransitionOld
+          ? vt->GetOldImageKey(name, aManager, aResources)
+          : vt->GetNewImageKey(name);
+  return key ? *key : kNoKey;
 }
 
 AspectRatio nsImageFrame::ComputeIntrinsicRatioForImage(
@@ -976,8 +999,8 @@ AspectRatio nsImageFrame::ComputeIntrinsicRatioForImage(
     }
   }
 
-  if (auto* surf = GetViewTransitionSurface()) {
-    return AspectRatio::FromSize(surf->GetSize());
+  if (auto size = GetViewTransitionSnapshotSize()) {
+    return AspectRatio::FromSize(*size);
   }
 
   if (ShouldUseMappedAspectRatio()) {
@@ -1127,7 +1150,8 @@ auto nsImageFrame::ImageFrameTypeFor(const Element& aElement,
   // FIXME(emilio, bug 1788767): We definitely don't reframe when
   // HaveSpecifiedSize changes...
   if (aElement.OwnerDoc()->GetCompatibilityMode() == eCompatibility_NavQuirks &&
-      HaveSpecifiedSize(aStyle.StylePosition())) {
+      HaveSpecifiedSize(aStyle.StylePosition(),
+                        aStyle.StyleDisplay()->mPosition)) {
     return ImageFrameType::ForElementRequest;
   }
 
@@ -1453,15 +1477,7 @@ nsRect nsImageFrame::GetDestRect(const nsRect& aFrameContentBox,
                                               aAnchorPoint);
 }
 
-bool nsImageFrame::IsForMarkerPseudo() const {
-  if (mKind == Kind::ImageLoadingContent) {
-    return false;
-  }
-  auto* subtreeRoot = GetContent()->GetClosestNativeAnonymousSubtreeRoot();
-  return subtreeRoot && subtreeRoot->IsGeneratedContentContainerForMarker();
-}
-
-void nsImageFrame::EnsureIntrinsicSizeAndRatio() {
+void nsImageFrame::EnsureIntrinsicSizeAndRatio(bool aConsiderIntrinsicsDirty) {
   const auto containAxes = GetContainSizeAxes();
   if (containAxes.IsBoth()) {
     // If we have 'contain:size', then we have no intrinsic aspect ratio,
@@ -1472,10 +1488,17 @@ void nsImageFrame::EnsureIntrinsicSizeAndRatio() {
     return;
   }
 
-  // If mIntrinsicSize.width and height are 0, then we need to update from the
-  // image container.  Note that we handle ::marker intrinsic size/ratio in
-  // DidSetComputedStyle.
-  if (mIntrinsicSize != IntrinsicSize(0, 0) && !IsForMarkerPseudo()) {
+  // If mIntrinsicSize is set (i.e. anything besides (0,0)), then we assume that
+  // our intrinsic size/ratio have been already computed and don't need
+  // recomputing, *unless* the aConsiderIntrinsicsDirty param is set to true
+  // (in which case our intrinsic size/ratio might be invalid).
+  //
+  // The fallback list-style-image marker size might have been set in
+  // DidSetComputedStyle, and it might have changed since then.
+  // TODO(emilio): We should remove that special case and add missing
+  // invalidation if/where needed.
+  if (!aConsiderIntrinsicsDirty && mIntrinsicSize != IntrinsicSize(0, 0) &&
+      mKind != Kind::ListStyleImage) {
     return;
   }
 
@@ -2344,35 +2367,20 @@ void nsDisplayImage::MaybeCreateWebRenderCommandsForViewTransition(
     nsDisplayListBuilder* aDisplayListBuilder) {
   auto* frame = Frame();
   MOZ_ASSERT(!frame->mImage);
-  auto* surf = frame->GetViewTransitionSurface();
-  if (NS_WARN_IF(!surf)) {
+  auto key = frame->GetViewTransitionImageKey(aManager, aResources);
+  if (NS_WARN_IF(key == kNoKey)) {
     return;
   }
-  if (!frame->mViewTransitionData.HasKey()) {
-    DataSourceSurface::ScopedMap map(surf, DataSourceSurface::READ);
-    if (NS_WARN_IF(!map.IsMapped())) {
-      return;
-    }
-    auto key = aManager->WrBridge()->GetNextImageKey();
-    auto size = surf->GetSize();
-    auto format = surf->GetFormat();
-    wr::ImageDescriptor desc(size, format);
-    Range<uint8_t> bytes(map.GetData(), map.GetStride() * size.height);
-    if (NS_WARN_IF(!aResources.AddImage(key, desc, bytes))) {
-      return;
-    }
-    // TODO: Discard this image
-    frame->mViewTransitionData.mImageKey = key;
-    frame->mViewTransitionData.mManager = aManager;
-  }
+  VT_LOG_DEBUG("GetViewTransitionImageKey(%s) = %s", frame->ListTag().get(),
+               ToString(key).c_str());
   const nsRect destAppUnits = GetDestRect();
   const int32_t factor = mFrame->PresContext()->AppUnitsPerDevPixel();
   const auto destRect =
       wr::ToLayoutRect(LayoutDeviceRect::FromAppUnits(destAppUnits, factor));
   auto rendering = wr::ToImageRendering(frame->UsedImageRendering());
+  aBuilder.PushDebug(1);
   aBuilder.PushImage(destRect, destRect, !BackfaceIsHidden(),
-                     /* aForceAntiAliasing = */ false, rendering,
-                     frame->mViewTransitionData.mImageKey);
+                     /* aForceAntiAliasing = */ false, rendering, key);
 }
 
 bool nsDisplayImage::CreateWebRenderCommands(
@@ -2386,8 +2394,10 @@ bool nsDisplayImage::CreateWebRenderCommands(
         aBuilder, aResources, aSc, aManager, aDisplayListBuilder);
     return true;
   }
-  if (frame->HasImageMap()) {
-    // Image layer doesn't support draw focus ring for image map.
+
+  if (nsImageMap* map = frame->GetImageMap(); map && map->HasFocus()) {
+    // We can't draw some of the focus areas (in particular, PolyArea would be
+    // somewhat hard to do).
     return false;
   }
 
@@ -2511,7 +2521,7 @@ ImgDrawResult nsImageFrame::PaintImage(gfxContext& aRenderingContext,
       nsLayoutUtils::GetSamplingFilterForFrame(this), dest, aDirtyRect,
       svgContext, aFlags, &anchorPoint);
 
-  if (nsImageMap* map = GetImageMap()) {
+  if (nsImageMap* map = GetImageMap(); map && map->HasFocus()) {
     gfxPoint devPixelOffset = nsLayoutUtils::PointToGfxPoint(
         dest.TopLeft(), PresContext()->AppUnitsPerDevPixel());
     AutoRestoreTransform autoRestoreTransform(drawTarget);
@@ -2520,13 +2530,13 @@ ImgDrawResult nsImageFrame::PaintImage(gfxContext& aRenderingContext,
 
     // solid white stroke:
     ColorPattern white(ToDeviceColor(sRGBColor::OpaqueWhite()));
-    map->Draw(this, *drawTarget, white);
+    map->DrawFocus(this, *drawTarget, white);
 
     // then dashed black stroke over the top:
     ColorPattern black(ToDeviceColor(sRGBColor::OpaqueBlack()));
     StrokeOptions strokeOptions;
     nsLayoutUtils::InitDashPattern(strokeOptions, StyleBorderStyle::Dotted);
-    map->Draw(this, *drawTarget, black, strokeOptions);
+    map->DrawFocus(this, *drawTarget, black, strokeOptions);
   }
 
   if (result == ImgDrawResult::SUCCESS) {
@@ -2576,7 +2586,7 @@ void nsImageFrame::BuildDisplayList(nsDisplayListBuilder* aBuilder,
       aBuilder, this, clipFlags);
 
   if (!mComputedSize.IsEmpty()) {
-    const bool isViewTransition = mKind == Kind::ViewTransitionOld;
+    const bool isViewTransition = mKind == Kind::ViewTransition;
     const bool imageOK = mKind != Kind::ImageLoadingContent ||
                          ImageOk(mContent->AsElement()->State());
 
@@ -2886,6 +2896,21 @@ void nsImageFrame::OnVisibilityChange(
   nsAtomicContainerFrame::OnVisibilityChange(aNewVisibility, aNonvisibleAction);
 }
 
+void nsImageFrame::MarkIntrinsicISizesDirty() {
+  // Recompute our intrinsic size and ratio. It's important that we pass 'true'
+  // here -- that makes us recompute the intrinsic size *and* ratio, regardless
+  // of their current value. Without that, EnsureIntrinsicSizeAndRatio assumes
+  // the intrinsic ratio can't have changed in some cases; but if we're a
+  // "content-visibility:auto" image that's being scrolled back into view, our
+  // ratio may have changed from not-existing to existing, per spec text[1]
+  // about suppressing the natural aspect ratio when size-contained.
+  // [1] https://drafts.csswg.org/css-contain-2/#containment-size
+  EnsureIntrinsicSizeAndRatio(true);
+
+  // Call superclass method:
+  nsAtomicContainerFrame::MarkIntrinsicISizesDirty();
+}
+
 #ifdef DEBUG_FRAME_DUMP
 nsresult nsImageFrame::GetFrameName(nsAString& aResult) const {
   return MakeFrameName(u"ImageFrame"_ns, aResult);
@@ -2945,7 +2970,10 @@ static bool IsInAutoWidthTableCellForQuirk(nsIFrame* aFrame) {
   if (ancestor->Style()->GetPseudoType() == PseudoStyleType::cellContent) {
     // Assume direct parent is a table cell frame.
     nsIFrame* grandAncestor = static_cast<nsIFrame*>(ancestor->GetParent());
-    return grandAncestor && grandAncestor->StylePosition()->GetWidth().IsAuto();
+    return grandAncestor &&
+           grandAncestor->StylePosition()
+               ->GetWidth(grandAncestor->StyleDisplay()->mPosition)
+               ->IsAuto();
   }
   return false;
 }

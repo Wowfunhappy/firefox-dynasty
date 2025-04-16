@@ -82,6 +82,7 @@ class SystemEngineSession(
         flags: LoadUrlFlags,
         additionalHeaders: Map<String, String>?,
         originalInput: String?,
+        textDirectiveUserActivation: Boolean,
     ) {
         notifyObservers { onLoadUrl() }
 
@@ -432,6 +433,17 @@ class SystemEngineSession(
         onException: (Throwable) -> Unit,
     ) {
         throw UnsupportedOperationException("Getting web compat info is not available in this engine")
+    }
+
+    /**
+     * See [EngineSession.sendMoreWebCompatInfo]
+     */
+    override fun sendMoreWebCompatInfo(
+        info: JSONObject,
+        onResult: () -> Unit,
+        onException: (Throwable) -> Unit,
+    ) {
+        throw UnsupportedOperationException("Sending more web compat info is not available in this engine")
     }
 
     /**

@@ -10,6 +10,8 @@ skip-if = ["true"]
 
 ["test_decorators.py"]
 
+["test_definitions.py"]
+
 ["test_dispatcher.py"]
 
 ["test_entry_point.py"]

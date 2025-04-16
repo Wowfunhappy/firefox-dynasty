@@ -7,7 +7,7 @@ Samples a texture.
 import { makeTestGroup } from '../../../../../../common/framework/test_group.js';
 import {
   isDepthTextureFormat,
-  isFilterableAsTextureF32,
+  isTextureFormatPossiblyFilterableAsTextureF32,
   kAllTextureFormats,
   kDepthStencilFormats,
 } from '../../../../../format_info.js';
@@ -31,8 +31,7 @@ import {
   kShortAddressModeToAddressMode,
   kShortShaderStages,
   SamplePointMethods,
-  skipIfNeedsFilteringAndIsUnfilterable,
-  skipIfTextureFormatNotSupportedNotAvailableOrNotFilterable,
+  skipIfTextureFormatNotSupportedOrNeedsFilteringAndIsUnfilterable,
   TextureCall,
   vec2,
   vec3,
@@ -71,19 +70,16 @@ Parameters:
       .combine('format', kAllTextureFormats)
       .filter(t => isPotentiallyFilterableAndFillable(t.format))
       .combine('filt', ['nearest', 'linear'] as const)
-      .filter(t => t.filt === 'nearest' || isFilterableAsTextureF32(t.format))
+      .filter(t => t.filt === 'nearest' || isTextureFormatPossiblyFilterableAsTextureF32(t.format))
       .combine('modeU', kShortAddressModes)
       .combine('modeV', kShortAddressModes)
       .combine('offset', [false, true] as const)
       .beginSubcases()
       .combine('samplePoints', kSamplePointMethods)
   )
-  .beforeAllSubcases(t =>
-    skipIfTextureFormatNotSupportedNotAvailableOrNotFilterable(t, t.params.format)
-  )
   .fn(async t => {
     const { format, stage, samplePoints, modeU, modeV, filt: minFilter, offset } = t.params;
-    skipIfNeedsFilteringAndIsUnfilterable(t, minFilter, format);
+    skipIfTextureFormatNotSupportedOrNeedsFilteringAndIsUnfilterable(t, minFilter, format);
 
     // We want at least 4 blocks or something wide enough for 3 mip levels.
     const [width, height] = chooseTextureSize({ minSize: 8, minBlocks: 4, format });
@@ -93,7 +89,9 @@ Parameters:
       mipLevelCount: 3,
       usage: GPUTextureUsage.COPY_DST | GPUTextureUsage.TEXTURE_BINDING,
     };
+    const viewDescriptor = {};
     const { texels, texture } = await createTextureWithRandomDataAndGetTexels(t, descriptor);
+    const softwareTexture = { texels, descriptor, viewDescriptor };
     const sampler: GPUSamplerDescriptor = {
       addressModeU: kShortAddressModeToAddressMode[modeU],
       addressModeV: kShortAddressModeToAddressMode[modeV],
@@ -105,7 +103,7 @@ Parameters:
     const calls: TextureCall<vec2>[] = generateTextureBuiltinInputs2D(50, {
       method: samplePoints,
       sampler,
-      descriptor,
+      softwareTexture,
       mipLevel: { num: texture.mipLevelCount, type: 'f32' },
       offset,
       hashInputs: [stage, format, samplePoints, modeU, modeV, minFilter, offset],
@@ -120,7 +118,101 @@ Parameters:
       };
     });
     const textureType = appendComponentTypeForFormatToTextureType('texture_2d', format);
-    const viewDescriptor = {};
+    const results = await doTextureCalls(
+      t,
+      texture,
+      viewDescriptor,
+      textureType,
+      sampler,
+      calls,
+      stage
+    );
+    const res = await checkCallResults(
+      t,
+      { texels, descriptor, viewDescriptor },
+      textureType,
+      sampler,
+      calls,
+      results,
+      stage,
+      texture
+    );
+    t.expectOK(res);
+  });
+
+g.test('sampled_2d_coords,lodClamp')
+  .specURL('https://www.w3.org/TR/WGSL/#texturesamplelevel')
+  .desc(
+    `
+tests textureSampleLevel with 2d coordinates and various combinations of
+baseMipLevel, lodMinClamp, and lodMaxClamp, with an dwithout filtering.
+`
+  )
+  .params(u =>
+    u
+      .combine('stage', kShortShaderStages)
+      .combine('format', kAllTextureFormats)
+      .filter(t => isPotentiallyFilterableAndFillable(t.format))
+      .combine('filt', ['nearest', 'linear'] as const)
+      .filter(t => t.filt === 'nearest' || isTextureFormatPossiblyFilterableAsTextureF32(t.format))
+      .beginSubcases()
+      .combine('samplePoints', kSamplePointMethods)
+      .combineWithParams([
+        { baseMipLevel: 0, lodMinClamp: 0, lodMaxClamp: 2 },
+        { baseMipLevel: 0, lodMinClamp: 0.25, lodMaxClamp: 1.75 },
+        { baseMipLevel: 1, lodMinClamp: 0, lodMaxClamp: 1 },
+        { baseMipLevel: 0, lodMinClamp: 0, lodMaxClamp: 1 },
+        { baseMipLevel: 0, lodMinClamp: 1, lodMaxClamp: 2 },
+      ])
+  )
+  .fn(async t => {
+    const {
+      format,
+      stage,
+      samplePoints,
+      filt: minFilter,
+      baseMipLevel,
+      lodMaxClamp,
+      lodMinClamp,
+    } = t.params;
+    skipIfTextureFormatNotSupportedOrNeedsFilteringAndIsUnfilterable(t, minFilter, format);
+
+    // We want at least 4 blocks or something wide enough for 3 mip levels.
+    const [width, height] = chooseTextureSize({ minSize: 8, minBlocks: 4, format });
+    const descriptor: GPUTextureDescriptor = {
+      format,
+      size: { width, height },
+      mipLevelCount: 3,
+      usage: GPUTextureUsage.COPY_DST | GPUTextureUsage.TEXTURE_BINDING,
+    };
+    const viewDescriptor = { baseMipLevel };
+    const { texels, texture } = await createTextureWithRandomDataAndGetTexels(t, descriptor);
+    const softwareTexture = { texels, descriptor, viewDescriptor };
+    const sampler: GPUSamplerDescriptor = {
+      minFilter,
+      magFilter: minFilter,
+      mipmapFilter: minFilter,
+      lodMinClamp,
+      lodMaxClamp,
+    };
+
+    const calls: TextureCall<vec2>[] = generateTextureBuiltinInputs2D(50, {
+      method: samplePoints,
+      sampler,
+      softwareTexture,
+      mipLevel: { num: texture.mipLevelCount, type: 'f32' },
+      hashInputs: [stage, format, samplePoints, minFilter, baseMipLevel, lodMinClamp, lodMaxClamp],
+    }).map(({ coords, mipLevel, offset }) => {
+      return {
+        builtin: 'textureSampleLevel',
+        coordType: 'f',
+        coords,
+        mipLevel,
+        levelType: 'f',
+        offset,
+      };
+    });
+    const textureType = appendComponentTypeForFormatToTextureType('texture_2d', format);
     const results = await doTextureCalls(
       t,
       texture,
@@ -176,7 +268,7 @@ Parameters:
       .combine('format', kAllTextureFormats)
       .filter(t => isPotentiallyFilterableAndFillable(t.format))
       .combine('filt', ['nearest', 'linear'] as const)
-      .filter(t => t.filt === 'nearest' || isFilterableAsTextureF32(t.format))
+      .filter(t => t.filt === 'nearest' || isTextureFormatPossiblyFilterableAsTextureF32(t.format))
       .combine('modeU', kShortAddressModes)
       .combine('modeV', kShortAddressModes)
       .combine('offset', [false, true] as const)
@@ -184,9 +276,6 @@ Parameters:
       .combine('samplePoints', kSamplePointMethods)
       .combine('A', ['i32', 'u32'] as const)
       .combine('depthOrArrayLayers', [1, 8] as const)
-  )
-  .beforeAllSubcases(t =>
-    skipIfTextureFormatNotSupportedNotAvailableOrNotFilterable(t, t.params.format)
   )
   .fn(async t => {
     const {
@@ -200,7 +289,7 @@ Parameters:
       offset,
       depthOrArrayLayers,
     } = t.params;
-    skipIfNeedsFilteringAndIsUnfilterable(t, minFilter, format);
+    skipIfTextureFormatNotSupportedOrNeedsFilteringAndIsUnfilterable(t, minFilter, format);
 
     // We want at least 4 blocks or something wide enough for 3 mip levels.
     const [width, height] = chooseTextureSize({ minSize: 8, minBlocks: 4, format });
@@ -298,16 +387,13 @@ Parameters:
       .combine('dim', ['3d', 'cube'] as const)
       .filter(t => isSupportedViewFormatCombo(t.format, t.dim))
       .combine('filt', ['nearest', 'linear'] as const)
-      .filter(t => t.filt === 'nearest' || isFilterableAsTextureF32(t.format))
+      .filter(t => t.filt === 'nearest' || isTextureFormatPossiblyFilterableAsTextureF32(t.format))
       .combine('mode', kShortAddressModes)
       .combine('offset', [false, true] as const)
       .filter(t => t.dim !== 'cube' || t.offset !== true)
       .beginSubcases()
       .combine('samplePoints', kCubeSamplePointMethods)
       .filter(t => t.samplePoints !== 'cube-edges' || t.dim !== '3d')
-  )
-  .beforeAllSubcases(t =>
-    skipIfTextureFormatNotSupportedNotAvailableOrNotFilterable(t, t.params.format)
   )
   .fn(async t => {
     const {
@@ -319,7 +405,7 @@ Parameters:
       filt: minFilter,
       offset,
     } = t.params;
-    skipIfNeedsFilteringAndIsUnfilterable(t, minFilter, format);
+    skipIfTextureFormatNotSupportedOrNeedsFilteringAndIsUnfilterable(t, minFilter, format);
 
     const [width, height] = chooseTextureSize({ minSize: 32, minBlocks: 2, format, viewDimension });
     const depthOrArrayLayers = getDepthOrArrayLayersForViewDimension(viewDimension);
@@ -332,7 +418,11 @@ Parameters:
       usage: GPUTextureUsage.COPY_DST | GPUTextureUsage.TEXTURE_BINDING,
       mipLevelCount: 3,
     };
+    const viewDescriptor = {
+      dimension: viewDimension,
+    };
     const { texels, texture } = await createTextureWithRandomDataAndGetTexels(t, descriptor);
+    const softwareTexture = { texels, descriptor, viewDescriptor };
     const sampler: GPUSamplerDescriptor = {
       addressModeU: kShortAddressModeToAddressMode[mode],
       addressModeV: kShortAddressModeToAddressMode[mode],
@@ -341,14 +431,13 @@ Parameters:
       magFilter: minFilter,
       mipmapFilter: minFilter,
     };
-
     const hashInputs = [stage, format, viewDimension, samplePoints, mode, minFilter, offset];
     const calls: TextureCall<vec3>[] = (
       viewDimension === '3d'
         ? generateTextureBuiltinInputs3D(50, {
             method: samplePoints as SamplePointMethods,
             sampler,
-            descriptor,
+            softwareTexture,
             mipLevel: { num: texture.mipLevelCount, type: 'f32' },
             offset,
             hashInputs,
@@ -356,7 +445,7 @@ Parameters:
         : generateSamplePointsCube(50, {
             method: samplePoints,
             sampler,
-            descriptor,
+            softwareTexture,
             mipLevel: { num: texture.mipLevelCount, type: 'f32' },
             hashInputs,
           })
@@ -370,9 +459,130 @@ Parameters:
         offset,
       };
     });
+    const textureType = getTextureTypeForTextureViewDimension(viewDimension);
+    const results = await doTextureCalls(
+      t,
+      texture,
+      viewDescriptor,
+      textureType,
+      sampler,
+      calls,
+      stage
+    );
+    const res = await checkCallResults(
+      t,
+      { texels, descriptor, viewDescriptor },
+      textureType,
+      sampler,
+      calls,
+      results,
+      stage,
+      texture
+    );
+    t.expectOK(res);
+  });
+
+g.test('sampled_3d_coords,lodClamp')
+  .specURL('https://www.w3.org/TR/WGSL/#texturesamplelevel')
+  .desc(
+    `
+tests textureSampleLevel with 3d coordinates and various combinations of
+baseMipLevel, lodMinClamp, and lodMaxClamp, with an dwithout filtering.
+`
+  )
+  .params(u =>
+    u
+      .combine('stage', kShortShaderStages)
+      .combine('format', kAllTextureFormats)
+      .filter(t => isPotentiallyFilterableAndFillable(t.format))
+      .combine('dim', ['3d', 'cube'] as const)
+      .filter(t => isSupportedViewFormatCombo(t.format, t.dim))
+      .combine('filt', ['nearest', 'linear'] as const)
+      .filter(t => t.filt === 'nearest' || isTextureFormatPossiblyFilterableAsTextureF32(t.format))
+      .beginSubcases()
+      .combine('samplePoints', kCubeSamplePointMethods)
+      .filter(t => t.samplePoints !== 'cube-edges' || t.dim !== '3d')
+      .combineWithParams([
+        { baseMipLevel: 0, lodMinClamp: 0, lodMaxClamp: 2 },
+        { baseMipLevel: 0, lodMinClamp: 0.25, lodMaxClamp: 1.75 },
+        { baseMipLevel: 1, lodMinClamp: 0, lodMaxClamp: 1 },
+        { baseMipLevel: 0, lodMinClamp: 0, lodMaxClamp: 1 },
+        { baseMipLevel: 0, lodMinClamp: 1, lodMaxClamp: 2 },
+      ])
+  )
+  .fn(async t => {
+    const {
+      format,
+      dim: viewDimension,
+      stage,
+      samplePoints,
+      filt: minFilter,
+      baseMipLevel,
+      lodMaxClamp,
+      lodMinClamp,
+    } = t.params;
+    skipIfTextureFormatNotSupportedOrNeedsFilteringAndIsUnfilterable(t, minFilter, format);
+
+    const [width, height] = chooseTextureSize({ minSize: 32, minBlocks: 2, format, viewDimension });
+    const depthOrArrayLayers = getDepthOrArrayLayersForViewDimension(viewDimension);
+
+    const descriptor: GPUTextureDescriptor = {
+      format,
+      dimension: viewDimension === '3d' ? '3d' : '2d',
+      ...(t.isCompatibility && { textureBindingViewDimension: viewDimension }),
+      size: { width, height, depthOrArrayLayers },
+      usage: GPUTextureUsage.COPY_DST | GPUTextureUsage.TEXTURE_BINDING,
+      mipLevelCount: 3,
+    };
     const viewDescriptor = {
       dimension: viewDimension,
+      baseMipLevel,
     };
+    const { texels, texture } = await createTextureWithRandomDataAndGetTexels(t, descriptor);
+    const softwareTexture = { texels, descriptor, viewDescriptor };
+    const sampler: GPUSamplerDescriptor = {
+      minFilter,
+      magFilter: minFilter,
+      mipmapFilter: minFilter,
+      lodMinClamp,
+      lodMaxClamp,
+    };
+    const hashInputs = [
+      stage,
+      format,
+      viewDimension,
+      samplePoints,
+      minFilter,
+      baseMipLevel,
+      lodMinClamp,
+      lodMaxClamp,
+    ];
+    const calls: TextureCall<vec3>[] = (
+      viewDimension === '3d'
+        ? generateTextureBuiltinInputs3D(50, {
+            method: samplePoints as SamplePointMethods,
+            sampler,
+            softwareTexture,
+            mipLevel: { num: texture.mipLevelCount, type: 'f32' },
+            hashInputs,
+          })
+        : generateSamplePointsCube(50, {
+            method: samplePoints,
+            sampler,
+            softwareTexture,
+            mipLevel: { num: texture.mipLevelCount, type: 'f32' },
+            hashInputs,
+          })
+    ).map(({ coords, mipLevel, offset }) => {
+      return {
+        builtin: 'textureSampleLevel',
+        coordType: 'f',
+        coords,
+        mipLevel,
+        levelType: 'f',
+        offset,
+      };
+    });
     const textureType = getTextureTypeForTextureViewDimension(viewDimension);
     const results = await doTextureCalls(
       t,
@@ -430,19 +640,16 @@ Parameters:
       .combine('format', kAllTextureFormats)
       .filter(t => isPotentiallyFilterableAndFillable(t.format))
       .combine('filt', ['nearest', 'linear'] as const)
-      .filter(t => t.filt === 'nearest' || isFilterableAsTextureF32(t.format))
+      .filter(t => t.filt === 'nearest' || isTextureFormatPossiblyFilterableAsTextureF32(t.format))
       .combine('mode', kShortAddressModes)
       .beginSubcases()
       .combine('samplePoints', kCubeSamplePointMethods)
       .combine('A', ['i32', 'u32'] as const)
   )
-  .beforeAllSubcases(t => {
-    skipIfTextureFormatNotSupportedNotAvailableOrNotFilterable(t, t.params.format);
-    t.skipIfTextureViewDimensionNotSupported('cube-array');
-  })
   .fn(async t => {
     const { format, stage, samplePoints, A, mode, filt: minFilter } = t.params;
-    skipIfNeedsFilteringAndIsUnfilterable(t, minFilter, format);
+    skipIfTextureFormatNotSupportedOrNeedsFilteringAndIsUnfilterable(t, minFilter, format);
+    t.skipIfTextureViewDimensionNotSupported('cube-array');
 
     const viewDimension: GPUTextureViewDimension = 'cube-array';
     const size = chooseTextureSize({
@@ -549,12 +756,10 @@ Parameters:
       .combine('samplePoints', kSamplePointMethods)
       .combine('L', ['i32', 'u32'] as const)
   )
-  .beforeAllSubcases(t => {
-    t.skipIfDepthTextureCanNotBeUsedWithNonComparisonSampler();
-    skipIfTextureFormatNotSupportedNotAvailableOrNotFilterable(t, t.params.format);
-  })
   .fn(async t => {
     const { format, stage, samplePoints, mode, L, offset } = t.params;
+    t.skipIfTextureFormatNotSupported(format);
+    t.skipIfDepthTextureCanNotBeUsedWithNonComparisonSampler();
 
     // We want at least 4 blocks or something wide enough for 3 mip levels.
     const [width, height] = chooseTextureSize({ minSize: 8, minBlocks: 4, format });
@@ -653,12 +858,10 @@ Parameters:
       .combine('L', ['i32', 'u32'] as const)
       .combine('depthOrArrayLayers', [1, 8] as const)
   )
-  .beforeAllSubcases(t => {
-    t.skipIfDepthTextureCanNotBeUsedWithNonComparisonSampler();
-    skipIfTextureFormatNotSupportedNotAvailableOrNotFilterable(t, t.params.format);
-  })
   .fn(async t => {
     const { format, stage, samplePoints, mode, A, L, offset, depthOrArrayLayers } = t.params;
+    t.skipIfTextureFormatNotSupported(format);
+    t.skipIfDepthTextureCanNotBeUsedWithNonComparisonSampler();
 
     // We want at least 4 blocks or something wide enough for 3 mip levels.
     const [width, height] = chooseTextureSize({ minSize: 8, minBlocks: 4, format });
@@ -762,13 +965,11 @@ Parameters:
       .combine('samplePoints', kCubeSamplePointMethods)
       .combine('L', ['i32', 'u32'] as const)
   )
-  .beforeAllSubcases(t => {
-    t.skipIfDepthTextureCanNotBeUsedWithNonComparisonSampler();
-    skipIfTextureFormatNotSupportedNotAvailableOrNotFilterable(t, t.params.format);
-    t.skipIfTextureViewDimensionNotSupported(t.params.viewDimension);
-  })
   .fn(async t => {
     const { format, stage, viewDimension, samplePoints, A, L, mode } = t.params;
+    t.skipIfTextureFormatNotSupported(format);
+    t.skipIfDepthTextureCanNotBeUsedWithNonComparisonSampler();
+    t.skipIfTextureViewDimensionNotSupported(viewDimension);
 
     const size = chooseTextureSize({
       minSize: 32,

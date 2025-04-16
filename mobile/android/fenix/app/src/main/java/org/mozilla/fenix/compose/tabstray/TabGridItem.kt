@@ -223,18 +223,30 @@ private fun TabContent(
                     modifier = Modifier
                         .fillMaxWidth()
                         .wrapContentHeight(),
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Spacer(modifier = Modifier.width(8.dp))
 
-                    tab.content.icon?.let { icon ->
+                    val icon = tab.content.icon
+                    if (icon != null) {
                         icon.prepareToDraw()
                         Image(
                             bitmap = icon.asImageBitmap(),
                             contentDescription = null,
-                            modifier = Modifier
-                                .align(Alignment.CenterVertically)
-                                .size(16.dp),
+                            modifier = Modifier.size(16.dp),
                         )
+                    } else {
+                        Box(
+                            modifier = Modifier.size(24.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(
+                                painter = painterResource(id = R.drawable.mozac_ic_globe_24),
+                                contentDescription = null,
+                                modifier = Modifier.size(20.dp),
+                                tint = FirefoxTheme.colors.iconPrimary,
+                            )
+                        }
                     }
 
                     HorizontalFadingEdgeBox(
@@ -249,6 +261,7 @@ private fun TabContent(
                     ) {
                         Text(
                             text = tab.toDisplayTitle().take(MAX_URI_LENGTH),
+                            modifier = Modifier.align(Alignment.CenterStart),
                             fontSize = 14.sp,
                             maxLines = 1,
                             softWrap = false,
@@ -263,7 +276,6 @@ private fun TabContent(
                         IconButton(
                             modifier = Modifier
                                 .size(24.dp)
-                                .align(Alignment.CenterVertically)
                                 .testTag(TabsTrayTestTag.tabItemClose),
                             onClick = {
                                 onCloseClick(tab)

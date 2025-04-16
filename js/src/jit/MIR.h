@@ -43,7 +43,6 @@
 #include "js/ScalarType.h"  // js::Scalar::Type
 #include "js/Value.h"
 #include "js/Vector.h"
-#include "util/DifferentialTesting.h"
 #include "vm/BigIntType.h"
 #include "vm/EnvironmentObject.h"
 #include "vm/FunctionFlags.h"  // js::FunctionFlags
@@ -51,6 +50,7 @@
 #include "vm/RegExpObject.h"
 #include "vm/TypedArrayObject.h"
 #include "wasm/WasmJS.h"  // for WasmInstanceObject
+#include "wasm/WasmValType.h"
 
 namespace JS {
 struct ExpandoAndGeneration;
@@ -528,6 +528,13 @@ class MDefinition : public MNode {
   // for profiling and keeping track of what the last known pc was.
   const BytecodeSite* trackedSite_;
 
+  // For nodes of MIRType::WasmAnyRef, a type precisely describing the value of
+  // the node. It is set by the "Track wasm ref types" pass in Ion, and enables
+  // GVN and LICM to perform more advanced optimizations (such as allowing
+  // instructions to move if the source values are non-null, or omitting casts
+  // that are statically known to succeed or fail).
+  wasm::MaybeRefType wasmRefType_;
+
   // If we generate a bailout path for this instruction, this is the
   // bailout kind that will be encoded in the snapshot. When we bail out,
   // FinishBailoutToBaseline may take action based on the bailout kind to
@@ -564,6 +571,18 @@ class MDefinition : public MNode {
   void setPhiBlock(MBasicBlock* block) {
     MOZ_ASSERT(isPhi());
     setBlockAndKind(block, Kind::Definition);
+  }
+
+  void setWasmRefType(wasm::MaybeRefType refType) {
+    // Ensure that we do not regress from Some to Nothing.
+    MOZ_ASSERT(!(wasmRefType_.isSome() && refType.isNothing()));
+    // Ensure that the new ref type is a subtype of the previous one (i.e. we
+    // only narrow ref types).
+    MOZ_ASSERT_IF(
+        wasmRefType_.isSome(),
+        wasm::RefType::isSubTypeOf(refType.value(), wasmRefType_.value()));
+
+    wasmRefType_ = refType;
   }
 
   static HashNumber addU32ToHash(HashNumber hash, uint32_t data) {
@@ -731,6 +750,30 @@ class MDefinition : public MNode {
   using MIRTypeEnumSet = mozilla::EnumSet<MIRType, uint32_t>;
   static_assert(static_cast<size_t>(MIRType::Last) <
                 sizeof(MIRTypeEnumSet::serializedType) * CHAR_BIT);
+
+  // Get the wasm reference type stored on the node.
+  wasm::MaybeRefType wasmRefType() const { return wasmRefType_; }
+
+  // Sets the wasm reference type stored on the node. To be used for nodes that
+  // have a fixed ref type that is set up front, which is a common case. Must be
+  // called only during the node constructor and never again afterward.
+  void initWasmRefType(wasm::MaybeRefType refType) {
+    MOZ_RELEASE_ASSERT(!wasmRefType_);
+    setWasmRefType(refType);
+  }
+
+  // Compute the wasm reference type for this node. This method is called by
+  // updateWasmRefType. By default it returns the ref type stored on the node,
+  // which means it will return either Nothing or a value set by
+  // initWasmRefType.
+  virtual wasm::MaybeRefType computeWasmRefType() const { return wasmRefType_; }
+
+  // Updates the wasm reference type stored on the node by calling
+  // computeWasmRefType and setWasmRefType. Returns true if the type changed.
+  //
+  // This is used in an analysis pass to assign the type to the node, multiple
+  // times if necessary as type information is computed.
+  bool updateWasmRefType();
 
   // Return true if the result type is a member of the given types.
   bool typeIsOneOf(MIRTypeEnumSet types) const {
@@ -6244,6 +6287,28 @@ class MPhi final : public MDefinition,
     usageAnalysis_ = pu;
     MOZ_ASSERT(usageAnalysis_ != PhiUsage::Unknown);
   }
+
+  wasm::MaybeRefType computeWasmRefType() const override {
+    if (numOperands() == 0) {
+      return wasm::MaybeRefType();
+    }
+    wasm::MaybeRefType firstRefType = getOperand(0)->wasmRefType();
+    if (firstRefType.isNothing()) {
+      return wasm::MaybeRefType();
+    }
+
+    wasm::RefType topTypeOfOperands = firstRefType.value();
+    for (size_t i = 1; i < numOperands(); i++) {
+      MDefinition* op = getOperand(i);
+      wasm::MaybeRefType opType = op->wasmRefType();
+      if (opType.isNothing()) {
+        return wasm::MaybeRefType();
+      }
+      topTypeOfOperands =
+          wasm::RefType::leastUpperBound(topTypeOfOperands, opType.value());
+    }
+    return wasm::MaybeRefType(topTypeOfOperands);
+  }
 };
 
 // The goal of a Beta node is to split a def at a conditionally taken
@@ -9399,6 +9464,29 @@ class MPostIntPtrConversion : public MUnaryInstruction,
   TRIVIAL_NEW_WRAPPERS
 
   AliasSet getAliasSet() const override { return AliasSet::None(); }
+};
+
+class MCanonicalizeNaN : public MUnaryInstruction, public NoTypePolicy::Data {
+  explicit MCanonicalizeNaN(MDefinition* input)
+      : MUnaryInstruction(classOpcode, input) {
+    MOZ_ASSERT(IsFloatingPointType(input->type()));
+    setResultType(input->type());
+    setMovable();
+  }
+
+ public:
+  INSTRUCTION_HEADER(CanonicalizeNaN)
+  TRIVIAL_NEW_WRAPPERS
+
+  AliasSet getAliasSet() const override { return AliasSet::None(); }
+
+  bool congruentTo(const MDefinition* ins) const override {
+    return congruentIfOperandsEqual(ins);
+  }
+
+  bool canProduceFloat32() const override { return type() == MIRType::Float32; }
+
+  ALLOW_CLONE(MCanonicalizeNaN)
 };
 
 class MRotate : public MBinaryInstruction, public NoTypePolicy::Data {

@@ -87,6 +87,7 @@
 #include "mozilla/StaticPrefs_zoom.h"
 #include "mozilla/StyleSheet.h"
 #include "mozilla/StyleSheetInlines.h"
+#include "mozilla/glean/LayoutMetrics.h"
 #include "mozilla/Telemetry.h"
 #include "mozilla/TimelineManager.h"
 #include "mozilla/dom/Performance.h"
@@ -132,12 +133,12 @@ bool nsPresContext::IsDOMPaintEventPending() {
   }
 
   nsRootPresContext* drpc = GetRootPresContext();
-  if (drpc && drpc->mRefreshDriver->ViewManagerFlushIsPending()) {
-    // Since we're promising that there will be a MozAfterPaint event
-    // fired, we record an empty invalidation in case display list
-    // invalidation doesn't invalidate anything further.
+  if (drpc && drpc->mRefreshDriver->IsPaintPending()) {
+    // Since we're promising that there will be a MozAfterPaint event fired, we
+    // record an empty invalidation in case display list invalidation doesn't
+    // invalidate anything further.
     NotifyInvalidation(drpc->mRefreshDriver->LastTransactionId().Next(),
-                       nsRect(0, 0, 0, 0));
+                       nsRect());
     return true;
   }
   return false;
@@ -332,9 +333,6 @@ nsPresContext::nsPresContext(dom::Document* aDocument, nsPresContextType aType)
 }
 
 static const char* gExactCallbackPrefs[] = {
-    "browser.active_color",
-    "browser.anchor_color",
-    "browser.visited_color",
     "dom.meta-viewport.enabled",
     "image.animation_mode",
     "intl.accept_languages",
@@ -343,13 +341,15 @@ static const char* gExactCallbackPrefs[] = {
     "layout.css.letter-spacing.model",
     "layout.css.text-transform.uppercase-eszett.enabled",
     "privacy.trackingprotection.enabled",
-    "ui.use_standins_for_native_colors",
     nullptr,
 };
 
 static const char* gPrefixCallbackPrefs[] = {
-    "bidi.", "browser.display.",    "browser.viewport.",
-    "font.", "gfx.font_rendering.", "layout.css.font-visibility.",
+    "bidi.",
+    "browser.viewport.",
+    "font.",
+    "gfx.font_rendering.",
+    "layout.css.font-visibility.",
     nullptr,
 };
 
@@ -433,8 +433,6 @@ void nsPresContext::GetUserPreferences() {
     // get a presshell.
     return;
   }
-
-  PreferenceSheet::EnsureInitialized();
 
   Document()->SetMayNeedFontPrefsUpdate();
 
@@ -572,14 +570,6 @@ void nsPresContext::PreferenceChanged(const char* aPrefName) {
 
   auto changeHint = nsChangeHint{0};
   auto restyleHint = RestyleHint{0};
-  // Changing any of these potentially changes the value of @media
-  // (prefers-contrast).
-  if (prefName.EqualsLiteral("browser.display.document_color_use") ||
-      prefName.EqualsLiteral("browser.display.foreground_color") ||
-      prefName.EqualsLiteral("browser.display.background_color")) {
-    MediaFeatureValuesChanged({MediaFeatureChangeReason::PreferenceChange},
-                              MediaFeatureChangePropagation::JustThisDocument);
-  }
   if (prefName.EqualsLiteral(GFX_MISSING_FONTS_NOTIFY_PREF)) {
     if (StaticPrefs::gfx_missing_fonts_notify()) {
       if (!mMissingFonts) {
@@ -614,12 +604,6 @@ void nsPresContext::PreferenceChanged(const char* aPrefName) {
           "layout.css.text-transform.uppercase-eszett.enabled") ||
       prefName.EqualsLiteral("layout.css.letter-spacing.model")) {
     changeHint |= NS_STYLE_HINT_REFLOW;
-  }
-
-  if (PreferenceSheet::AffectedByPref(prefName)) {
-    restyleHint |= RestyleHint::RestyleSubtree();
-    PreferenceSheet::Refresh();
-    UpdateForcedColors();
   }
 
   // Same, this just frees a bunch of memory.
@@ -1485,7 +1469,21 @@ float nsPresContext::GetDeviceFullZoom() {
 }
 
 void nsPresContext::SetFullZoom(float aZoom) {
-  if (!mPresShell || mFullZoom == aZoom) {
+  if (!mPresShell) {
+    return;
+  }
+
+  // Sanitize aZoom to check for bogus values. (Outer iframes with small or
+  // huge css 'zoom' can end up stacking to propagate an extremely small/huge
+  // full-zoom value to inner iframes, possibly reaching 0 or infinity. We
+  // handle that edge case by just falling back to 1.0f here, so we can render
+  // something, and particularly so we don't do something invalid like trying
+  // to allocate a zero-sized or infinite-sized surface.)
+  if (MOZ_UNLIKELY(!std::isfinite(aZoom) || aZoom <= 0.0f)) {
+    aZoom = 1.0f;
+  }
+
+  if (mFullZoom == aZoom) {
     return;
   }
 
@@ -1821,12 +1819,9 @@ void nsPresContext::RecordInteractionTime(InteractionType aType,
   // Only the top level content pres context reports first interaction
   // time to telemetry (if it hasn't already done so).
   if (this == inProcessRootPresContext) {
-    if (Telemetry::CanRecordExtended()) {
-      double millis =
-          (interactionTime - mFirstNonBlankPaintTime).ToMilliseconds();
-      if (isFirstInteraction) {
-        Telemetry::Accumulate(Telemetry::TIME_TO_FIRST_INTERACTION_MS, millis);
-      }
+    if (Telemetry::CanRecordExtended() && isFirstInteraction) {
+      glean::layout::time_to_first_interaction.AccumulateRawDuration(
+          interactionTime - mFirstNonBlankPaintTime);
     }
   } else {
     inProcessRootPresContext->RecordInteractionTime(aType, aTimeStamp);
@@ -2380,81 +2375,6 @@ void nsPresContext::FireDOMPaintEvent(
                                     static_cast<Event*>(event), this, nullptr);
 }
 
-static bool MayHavePaintEventListener(nsPIDOMWindowInner* aInnerWindow) {
-  if (!aInnerWindow) {
-    return false;
-  }
-  if (aInnerWindow->HasPaintEventListeners()) {
-    return true;
-  }
-
-  EventTarget* parentTarget = aInnerWindow->GetParentTarget();
-  if (!parentTarget) {
-    return false;
-  }
-
-  EventListenerManager* manager = nullptr;
-  if ((manager = parentTarget->GetExistingListenerManager()) &&
-      manager->MayHavePaintEventListener()) {
-    return true;
-  }
-
-  nsCOMPtr<nsINode> node;
-  if (parentTarget != aInnerWindow->GetChromeEventHandler()) {
-    nsCOMPtr<nsIInProcessContentFrameMessageManager> mm =
-        do_QueryInterface(parentTarget);
-    if (mm) {
-      node = mm->GetOwnerContent();
-    }
-  }
-
-  if (!node) {
-    node = nsINode::FromEventTarget(parentTarget);
-  }
-  if (node) {
-    return MayHavePaintEventListener(node->OwnerDoc()->GetInnerWindow());
-  }
-
-  if (nsCOMPtr<nsPIDOMWindowInner> window =
-          nsPIDOMWindowInner::FromEventTarget(parentTarget)) {
-    return MayHavePaintEventListener(window);
-  }
-
-  if (nsCOMPtr<nsPIWindowRoot> root =
-          nsPIWindowRoot::FromEventTarget(parentTarget)) {
-    EventTarget* browserChildGlobal;
-    return root && (browserChildGlobal = root->GetParentTarget()) &&
-           (manager = browserChildGlobal->GetExistingListenerManager()) &&
-           manager->MayHavePaintEventListener();
-  }
-
-  return false;
-}
-
-bool nsPresContext::MayHavePaintEventListener() {
-  return ::MayHavePaintEventListener(mDocument->GetInnerWindow());
-}
-
-void nsPresContext::NotifyInvalidation(TransactionId aTransactionId,
-                                       const nsIntRect& aRect) {
-  // Prevent values from overflow after DevPixelsToAppUnits().
-  //
-  // DevPixelsTopAppUnits() will multiple a factor (60) to the value,
-  // it may make the result value over the edge (overflow) of max or
-  // min value of int32_t. Compute the max sized dev pixel rect that
-  // we can support and intersect with it.
-  nsIntRect clampedRect = nsIntRect::MaxIntRect();
-  clampedRect.ScaleInverseRoundIn(AppUnitsPerDevPixel());
-
-  clampedRect = clampedRect.Intersect(aRect);
-
-  nsRect rect(DevPixelsToAppUnits(clampedRect.x),
-              DevPixelsToAppUnits(clampedRect.y),
-              DevPixelsToAppUnits(clampedRect.width),
-              DevPixelsToAppUnits(clampedRect.height));
-  NotifyInvalidation(aTransactionId, rect);
-}
-
 nsPresContext::TransactionInvalidations* nsPresContext::GetInvalidations(
     TransactionId aTransactionId) {
   for (TransactionInvalidations& t : mTransactions) {
@@ -2469,22 +2389,14 @@ void nsPresContext::NotifyInvalidation(TransactionId aTransactionId,
                                        const nsRect& aRect) {
   MOZ_ASSERT(GetContainerWeak(), "Invalidation in detached pres context");
 
-  // If there is no paint event listener, then we don't need to fire
-  // the asynchronous event. We don't even need to record invalidation.
-  // MayHavePaintEventListener is pretty cheap and we could make it
-  // even cheaper by providing a more efficient
-  // nsPIDOMWindow::GetListenerManager.
-
-  nsPresContext* pc;
-  for (pc = this; pc; pc = pc->GetParentPresContext()) {
+  for (nsPresContext* pc = this; pc; pc = pc->GetParentPresContext()) {
     TransactionInvalidations* transaction =
         pc->GetInvalidations(aTransactionId);
     if (transaction) {
       break;
-    } else {
-      transaction = pc->mTransactions.AppendElement();
-      transaction->mTransactionId = aTransactionId;
     }
+    transaction = pc->mTransactions.AppendElement();
+    transaction->mTransactionId = aTransactionId;
   }
 
   TransactionInvalidations* transaction = GetInvalidations(aTransactionId);
@@ -3144,7 +3056,8 @@ void nsPresContext::UpdateDynamicToolbarOffset(ScreenIntCoord aOffset) {
   if (mDynamicToolbarHeight == 0 || aOffset == -mDynamicToolbarMaxHeight) {
     mPresShell->MarkFixedFramesForReflow(IntrinsicDirty::None);
     mPresShell->MarkStickyFramesForReflow();
-    mPresShell->AddResizeEventFlushObserverIfNeeded();
+    mPresShell->ScheduleResizeEventIfNeeded(
+        PresShell::ResizeEventKind::Regular);
   }
 
   mDynamicToolbarHeight = mDynamicToolbarMaxHeight + aOffset;

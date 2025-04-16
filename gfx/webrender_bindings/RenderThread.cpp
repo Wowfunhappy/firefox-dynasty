@@ -21,13 +21,13 @@
 #include "mozilla/layers/CompositorThread.h"
 #include "mozilla/layers/CompositorBridgeParent.h"
 #include "mozilla/layers/CompositorManagerParent.h"
+#include "mozilla/layers/Fence.h"
 #include "mozilla/layers/WebRenderBridgeParent.h"
 #include "mozilla/layers/SharedSurfacesParent.h"
 #include "mozilla/layers/SurfacePool.h"
 #include "mozilla/layers/SynchronousTask.h"
 #include "mozilla/PerfStats.h"
 #include "mozilla/StaticPtr.h"
-#include "mozilla/Telemetry.h"
 #include "mozilla/webrender/RendererOGL.h"
 #include "mozilla/webrender/RenderTextureHost.h"
 #include "mozilla/widget/CompositorWidget.h"
@@ -866,10 +866,10 @@ void RenderThread::UpdateAndRender(
                           renderer->GetCompositorBridge(), info, aStartId,
                           aStartTime, start, end, aRender, *aStats));
 
-  UniqueFileHandle fenceFd;
+  RefPtr<layers::Fence> fence;
 
   if (latestFrameId.IsValid()) {
-    fenceFd = renderer->GetAndResetReleaseFence();
+    fence = renderer->GetAndResetReleaseFence();
 
     // Wait for GPU after posting NotifyDidRender, since the wait is not
     // necessary for the NotifyDidRender.
@@ -898,7 +898,7 @@ void RenderThread::UpdateAndRender(
   // this code at all; it would bail out at the mRenderers.find check above.
   MOZ_ASSERT(pipelineMgr);
   pipelineMgr->NotifyPipelinesUpdated(info, latestFrameId, lastCompletedFrameId,
-                                      std::move(fenceFd));
+                                      std::move(fence));
 }
 
 void RenderThread::Pause(wr::WindowId aWindowId) {
@@ -1280,12 +1280,34 @@ void RenderThread::InitDeviceTask() {
   // lazy initialization to happen now.
   SingletonGL();
 
+  if (mShaders) {
+    // Kick off shader warmup, outside the InitDeviceTask so that this thread
+    // becomes available to handle other messages from the Compositor.
+    PostResumeShaderWarmupRunnable();
+  }
+
   const auto maxDurationMs = 3 * 1000;
   const auto end = TimeStamp::Now();
   const auto durationMs = static_cast<uint32_t>((end - start).ToMilliseconds());
   if (durationMs > maxDurationMs) {
     gfxCriticalNoteOnce << "RenderThread::InitDeviceTask is slow: "
                         << durationMs;
+  }
+}
+
+void RenderThread::PostResumeShaderWarmupRunnable() {
+  RefPtr<Runnable> runnable =
+      NewRunnableMethod("RenderThread::ResumeShaderWarmup", this,
+                        &RenderThread::ResumeShaderWarmup);
+  PostRunnable(runnable.forget());
+}
+
+void RenderThread::ResumeShaderWarmup() {
+  if (mShaders) {
+    bool needAnotherWarmupStep = mShaders->ResumeWarmup();
+    if (needAnotherWarmupStep) {
+      PostResumeShaderWarmupRunnable();
+    }
   }
 }
 
@@ -1459,12 +1481,7 @@ void RenderThread::ClearSingletonGL() {
     mProgramsForCompositorOGL->Clear();
     mProgramsForCompositorOGL = nullptr;
   }
-  if (mShaders) {
-    if (mSingletonGL) {
-      mSingletonGL->MakeCurrent();
-    }
-    mShaders = nullptr;
-  }
+  mShaders = nullptr;
   mSingletonGL = nullptr;
 }
 
@@ -1547,7 +1564,13 @@ WebRenderShaders::WebRenderShaders(gl::GLContext* gl,
 }
 
 WebRenderShaders::~WebRenderShaders() {
-  wr_shaders_delete(mShaders, mGL.get());
+  mGL->MakeCurrent();
+  wr_shaders_delete(mShaders);
+}
+
+bool WebRenderShaders::ResumeWarmup() {
+  mGL->MakeCurrent();
+  return wr_shaders_resume_warmup(mShaders);
 }
 
 WebRenderThreadPool::WebRenderThreadPool(bool low_priority) {

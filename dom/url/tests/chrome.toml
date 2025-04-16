@@ -1,5 +1,4 @@
 [DEFAULT]
-skip-if = ["os == 'android'"]
 support-files = [
   "file_url.sys.mjs",
   "file_worker_url.sys.mjs",
@@ -7,6 +6,7 @@ support-files = [
   "esm_url_worker.js",
   "!/dom/workers/test/dom_worker_helper.js",
 ]
+prefs = ["network.xhr.block_sync_system_requests=false"] # Bug 721336
 
 ["test_bug883784.xhtml"]
 

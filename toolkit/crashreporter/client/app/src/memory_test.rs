@@ -7,7 +7,7 @@
 use {
     crate::std::{env, mem::size_of},
     anyhow::Context,
-    memtest::{MemtestKind, MemtestRunner, MemtestRunnerArgs},
+    memtest::{MemtestKind, MemtestOutcome, MemtestRunner, MemtestRunnerArgs},
     rand::{seq::SliceRandom, thread_rng},
     serde_json,
 };
@@ -28,16 +28,20 @@ pub fn main() {
             std::process::exit(1);
         }
     };
-    let mut memory = vec![0; mem_usize_count];
+    let mut memory = allocate_memory(mem_usize_count);
 
-    let memtest_runner_result = MemtestRunner::from_test_kinds(&memtest_runner_args, memtest_kinds)
+    let memtest_report_list = MemtestRunner::from_test_kinds(&memtest_runner_args, memtest_kinds)
         .run(&mut memory)
         .expect("failed to run memtest-runner");
-    println!(
-        "{}",
-        serde_json::to_string(&memtest_runner_result)
-            .expect("memtest runner results failed to serialize")
-    );
+
+    let mut output_json = serde_json::to_value(&memtest_report_list)
+        .expect("memtest report list failed to serialize");
+    output_json["memtest_failed"] = memtest_report_list
+        .iter()
+        .any(|report| matches!(report.outcome, Ok(MemtestOutcome::Fail(_))))
+        .into();
+
+    println!("{}", output_json.to_string());
 }
 
 /// Parse command line arguments and environment to return the parameters for running memtest,
@@ -81,7 +85,29 @@ fn get_memtest_kinds() -> anyhow::Result<Vec<MemtestKind>> {
         .collect();
     remaining.shuffle(&mut thread_rng());
 
-    Ok([specified, remaining].concat())
+    let mut kinds = [specified, remaining].concat();
+
+    // The Block Move Test requires special care. It only performs timeout checking during its
+    // starting and ending phase. To avoid violating the timeout limit, we only run it if it is the
+    // first test, where we are certain it has enough time to run.
+    let block_move_idx = kinds
+        .iter()
+        .position(|k| matches!(k, MemtestKind::BlockMove))
+        .expect("BlockMove should exist in MemtestKind::ALL");
+    if block_move_idx != 0 {
+        kinds.remove(block_move_idx);
+    }
+
+    Ok(kinds)
+}
+
+fn allocate_memory(mut mem_usize_count: usize) -> Vec<usize> {
+    let mut memory = Vec::new();
+    while mem_usize_count > 0 && memory.try_reserve_exact(mem_usize_count).is_err() {
+        mem_usize_count /= 2;
+    }
+    memory.resize(mem_usize_count, 0);
+    memory
 }
 
 /// Encapsulated logic for launching and interacting with a memory testing process.
@@ -92,8 +118,8 @@ pub mod child {
         process::{Child, Command, Stdio},
         time::Duration,
     };
-    use ::memtest::MemtestRunnerArgs;
     use anyhow::Context;
+    use memtest::MemtestRunnerArgs;
 
     /// The memtest child process.
     pub struct Memtest {

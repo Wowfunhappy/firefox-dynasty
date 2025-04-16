@@ -84,13 +84,13 @@ def update_glean_tags(command_context):
     for bug_component in bug_components:
         product = bug_component.product.strip()
         component = bug_component.component.strip()
-        tags["{} :: {}".format(product, component)] = {
+        tags[f"{product} :: {component}"] = {
             "description": "The Bugzilla component which applies to this object."
         }
 
     open(tags_filename, "w").write(
-        "{}\n{}\n\n".format(LICENSE_HEADER, GENERATED_HEADER)
-        + yaml.dump(tags, width=78, explicit_start=True)
+        f"{LICENSE_HEADER}\n{GENERATED_HEADER}\n\n"
+        + yaml.dump(tags, width=78, explicit_start=True, line_break="\n")
     )
 
 
@@ -150,18 +150,9 @@ def update_glean(command_context, version):
     topsrcdir = Path(command_context.topsrcdir)
 
     replace_in_file_or_die(
-        topsrcdir
-        / "mobile"
-        / "android"
-        / "android-components"
-        / "plugins"
-        / "dependencies"
-        / "src"
-        / "main"
-        / "java"
-        / "DependenciesPlugin.kt",
-        r'mozilla_glean = "[0-9.]+"',
-        f'mozilla_glean = "{version}"',
+        topsrcdir / "gradle" / "libs.versions.toml",
+        r'mozilla-glean = "[0-9.]+"',
+        f'mozilla-glean = "{version}"',
     )
     replace_in_file_or_die(
         topsrcdir / "Cargo.toml",

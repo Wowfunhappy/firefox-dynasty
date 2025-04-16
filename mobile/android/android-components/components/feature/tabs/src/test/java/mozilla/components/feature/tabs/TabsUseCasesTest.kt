@@ -159,7 +159,7 @@ class TabsUseCasesTest {
         store.waitUntilIdle()
         assertEquals(1, store.state.tabs.size)
         assertEquals("https://www.mozilla.org", store.state.tabs[0].content.url)
-        verify(engineSession, never()).loadUrl(anyString(), any(), any(), any(), any())
+        verify(engineSession, never()).loadUrl(anyString(), any(), any(), any(), any(), anyBoolean())
     }
 
     @Test
@@ -181,7 +181,12 @@ class TabsUseCasesTest {
 
     @Test
     fun `AddNewTabUseCase forwards load flags to engine`() {
-        tabsUseCases.addTab.invoke("https://www.mozilla.org", flags = LoadUrlFlags.external(), startLoading = true)
+        tabsUseCases.addTab.invoke(
+            "https://www.mozilla.org",
+            flags = LoadUrlFlags.external(),
+            startLoading = true,
+            textDirectiveUserActivation = true,
+        )
 
         // Wait for CreateEngineSessionAction and middleware
         store.waitUntilIdle()
@@ -193,7 +198,7 @@ class TabsUseCasesTest {
 
         assertEquals(1, store.state.tabs.size)
         assertEquals("https://www.mozilla.org", store.state.tabs[0].content.url)
-        verify(engineSession, times(1)).loadUrl("https://www.mozilla.org", null, LoadUrlFlags.external(), null)
+        verify(engineSession, times(1)).loadUrl("https://www.mozilla.org", null, LoadUrlFlags.external(), null, null, true)
     }
 
     @Test
@@ -228,6 +233,23 @@ class TabsUseCasesTest {
         assertEquals(1, store.state.tabs.size)
         assertEquals("https://www.mozilla.org", store.state.tabs[0].content.url)
         assertEquals(contextId, store.state.tabs[0].contextId)
+    }
+
+    @Test
+    fun `AddNewTabUseCase uses provided title`() {
+        val title = "Mozilla"
+        tabsUseCases.addTab.invoke(
+            "https://www.mozilla.org",
+            flags = LoadUrlFlags.external(),
+            startLoading = true,
+            title = title,
+        )
+
+        store.waitUntilIdle()
+
+        assertEquals(1, store.state.tabs.size)
+        assertEquals("https://www.mozilla.org", store.state.tabs[0].content.url)
+        assertEquals(title, store.state.tabs[0].content.title)
     }
 
     @Test

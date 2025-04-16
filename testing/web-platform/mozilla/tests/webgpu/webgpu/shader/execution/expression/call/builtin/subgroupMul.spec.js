@@ -66,14 +66,12 @@ combine('wgSize', [
 [kStride / 2, 2, 1]]
 )
 ).
-beforeAllSubcases((t) => {
-  const features = ['subgroups'];
-  if (t.params.type === 'f16') {
-    features.push('shader-f16');
-  }
-  t.selectDeviceOrSkipTestCase(features);
-}).
 fn(async (t) => {
+  t.skipIfDeviceDoesNotHaveFeature('subgroups');
+  if (t.params.type === 'f16') {
+    t.skipIfDeviceDoesNotHaveFeature('shader-f16');
+  }
+
   await runAccuracyTest(
     t,
     t.params.case,
@@ -187,16 +185,12 @@ beginSubcases()
 ).
 combine('operation', kOperations)
 ).
-beforeAllSubcases((t) => {
-  const features = ['subgroups'];
+fn(async (t) => {
+  t.skipIfDeviceDoesNotHaveFeature('subgroups');
   const type = kDataTypes[t.params.type];
   if (type.requiresF16()) {
-    features.push('shader-f16');
+    t.skipIfDeviceDoesNotHaveFeature('shader-f16');
   }
-  t.selectDeviceOrSkipTestCase(features);
-}).
-fn(async (t) => {
-  const type = kDataTypes[t.params.type];
   let numEles = 1;
   if (type instanceof VectorType) {
     numEles = type.width;
@@ -289,7 +283,8 @@ filter)
   for (let i = 0; i < output.length; i++) {
     const size = metadata[i];
     const id = metadata[output.length + i];
-    let expected = 1;
+    const u32Boundary = Math.pow(2, 32);
+    let expectedU32 = 1;
     if (filter(id, size)) {
       // This function replicates the behavior in the shader.
       const valueModFun = function (id) {
@@ -299,15 +294,16 @@ filter)
       operation === 'subgroupInclusiveMul' ? id + 1 : operation === 'subgroupMul' ? size : id;
       for (let j = 0; j < bound; j++) {
         if (filter(j, size)) {
-          expected *= valueModFun(j);
+          // Result may overflow u32, compute it by modulo u32Boundary (2^32) after every multiplication.
+          expectedU32 = expectedU32 * valueModFun(j) % u32Boundary;
         }
       }
     } else {
-      expected = kDataSentinel;
+      expectedU32 = kDataSentinel;
     }
-    if (expected !== output[i]) {
+    if (expectedU32 !== output[i]) {
       return new Error(`Invocation ${i}: incorrect result
-- expected: ${expected}
+- expected: ${expectedU32}
 -      got: ${output[i]}`);
     }
   }
@@ -323,10 +319,8 @@ beginSubcases().
 combine('operation', kOperations).
 combine('wgSize', kWGSizes)
 ).
-beforeAllSubcases((t) => {
-  t.selectDeviceOrSkipTestCase('subgroups');
-}).
 fn(async (t) => {
+  t.skipIfDeviceDoesNotHaveFeature('subgroups');
   const testcase = kPredicateCases[t.params.case];
   const outputUintsPerElement = 1;
   const inputData = new Uint32Array([0]); // no input data
@@ -489,14 +483,16 @@ height)
       const v =
       expected.get(subgroup_id) ?? new Uint32Array([...iterRange(kMaxSize, (x) => kIdentity)]);
       const bound = op === 'subgroupMul' ? kMaxSize : op === 'subgroupInclusiveMul' ? id + 1 : id;
-      let expect = kIdentity;
+      const u32Boundary = Math.pow(2, 32);
+      let expectU32 = kIdentity;
       for (let i = 0; i < bound; i++) {
-        expect *= v[i];
+        // Result may overflow u32, compute it by modulo u32Boundary (2^32) after every multiplication.
+        expectU32 = expectU32 * v[i] % u32Boundary;
       }
 
-      if (res !== expect) {
+      if (res !== expectU32) {
         return new Error(`Row ${row}, col ${col}: incorrect results
-- expected: ${expect}
+- expected: ${expectU32}
 -      got: ${res}`);
       }
     }
@@ -515,10 +511,8 @@ beginSubcases().
 combine('quadIndex', [0, 1, 2, 3]).
 combineWithParams([{ format: 'rgba32uint' }])
 ).
-beforeAllSubcases((t) => {
-  t.selectDeviceOrSkipTestCase('subgroups');
-}).
 fn(async (t) => {
+  t.skipIfDeviceDoesNotHaveFeature('subgroups');
 
 
 

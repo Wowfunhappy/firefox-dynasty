@@ -192,8 +192,7 @@ bool nsNativeThemeGTK::GetGtkWidgetAndState(StyleAppearance aAppearance,
         aAppearance == StyleAppearance::MozWindowButtonRestore ||
         aAppearance == StyleAppearance::MozWindowButtonMaximize ||
         aAppearance == StyleAppearance::MozWindowButtonClose ||
-        aAppearance == StyleAppearance::Menulist ||
-        aAppearance == StyleAppearance::MenulistButton) {
+        aAppearance == StyleAppearance::Menulist) {
       aState->active &= aState->inHover;
     }
 
@@ -209,8 +208,7 @@ bool nsNativeThemeGTK::GetGtkWidgetAndState(StyleAppearance aAppearance,
           aAppearance == StyleAppearance::Toolbarbutton ||
           aAppearance == StyleAppearance::Dualbutton ||
           aAppearance == StyleAppearance::ToolbarbuttonDropdown ||
-          aAppearance == StyleAppearance::Menulist ||
-          aAppearance == StyleAppearance::MenulistButton) {
+          aAppearance == StyleAppearance::Menulist) {
         bool menuOpen = IsOpenButton(aFrame);
         aState->depressed = IsCheckedButton(aFrame) || menuOpen;
         // we must not highlight buttons with open drop down menus on hover.
@@ -270,7 +268,6 @@ bool nsNativeThemeGTK::GetGtkWidgetAndState(StyleAppearance aAppearance,
     case StyleAppearance::Listbox:
       aGtkWidgetType = MOZ_GTK_TREEVIEW;
       break;
-    case StyleAppearance::MenulistButton:
     case StyleAppearance::Menulist:
       aGtkWidgetType = MOZ_GTK_DROPDOWN;
       if (aWidgetFlags)
@@ -293,9 +290,6 @@ bool nsNativeThemeGTK::GetGtkWidgetAndState(StyleAppearance aAppearance,
         else if (aAppearance == StyleAppearance::ButtonArrowPrevious)
           *aWidgetFlags = GTK_ARROW_LEFT;
       }
-      break;
-    case StyleAppearance::Tooltip:
-      aGtkWidgetType = MOZ_GTK_TOOLTIP;
       break;
     case StyleAppearance::ProgressBar:
       aGtkWidgetType = MOZ_GTK_PROGRESSBAR;
@@ -871,7 +865,6 @@ bool nsNativeThemeGTK::GetWidgetPadding(nsDeviceContext* aContext,
   }
   switch (aAppearance) {
     case StyleAppearance::Toolbarbutton:
-    case StyleAppearance::Tooltip:
     case StyleAppearance::MozWindowButtonClose:
     case StyleAppearance::MozWindowButtonMinimize:
     case StyleAppearance::MozWindowButtonMaximize:
@@ -920,21 +913,6 @@ auto nsNativeThemeGTK::IsWidgetNonNative(nsIFrame* aFrame,
   if (LookAndFeel::ColorSchemeForFrame(aFrame) ==
       PreferenceSheet::ColorSchemeForChrome()) {
     return NonNative::No;
-  }
-
-  // As an special-case, for tooltips, we check if the tooltip color is the
-  // same between the light and dark themes. If so we can get away with drawing
-  // the native widget, see bug 1817396.
-  if (aAppearance == StyleAppearance::Tooltip) {
-    auto darkColor =
-        LookAndFeel::Color(StyleSystemColor::Infotext, ColorScheme::Dark,
-                           LookAndFeel::UseStandins::No);
-    auto lightColor =
-        LookAndFeel::Color(StyleSystemColor::Infotext, ColorScheme::Light,
-                           LookAndFeel::UseStandins::No);
-    if (darkColor == lightColor) {
-      return NonNative::No;
-    }
   }
 
   // If the non-native theme doesn't support the widget then oh well...
@@ -1009,10 +987,8 @@ LayoutDeviceIntSize nsNativeThemeGTK::GetMinimumWidgetSize(
       break;
     }
     case StyleAppearance::Button:
-    case StyleAppearance::Menulist:
-    case StyleAppearance::MenulistButton: {
-      if (aAppearance == StyleAppearance::Menulist ||
-          aAppearance == StyleAppearance::MenulistButton) {
+    case StyleAppearance::Menulist: {
+      if (aAppearance == StyleAppearance::Menulist) {
         // Include the arrow size.
         moz_gtk_get_arrow_size(MOZ_GTK_DROPDOWN, &result.width, &result.height);
       }
@@ -1073,7 +1049,6 @@ bool nsNativeThemeGTK::WidgetAttributeChangeRequiresRepaint(
   // Some widget types just never change state.
   if (aAppearance == StyleAppearance::Progresschunk ||
       aAppearance == StyleAppearance::ProgressBar ||
-      aAppearance == StyleAppearance::Tooltip ||
       aAppearance == StyleAppearance::MozWindowDecorations) {
     return false;
   }
@@ -1103,7 +1078,6 @@ nsNativeThemeGTK::ThemeSupportsWidget(nsPresContext* aPresContext,
   switch (aAppearance) {
     // Combobox dropdowns don't support native theming in vertical mode.
     case StyleAppearance::Menulist:
-    case StyleAppearance::MenulistButton:
       if (aFrame && aFrame->GetWritingMode().IsVertical()) {
         return false;
       }
@@ -1123,7 +1097,6 @@ nsNativeThemeGTK::ThemeSupportsWidget(nsPresContext* aPresContext,
     case StyleAppearance::Tab:
     // case StyleAppearance::Tabpanel:
     case StyleAppearance::Tabpanels:
-    case StyleAppearance::Tooltip:
     case StyleAppearance::NumberInput:
     case StyleAppearance::PasswordInput:
     case StyleAppearance::Textfield:
@@ -1166,7 +1139,6 @@ bool nsNativeThemeGTK::ThemeDrawsFocusForWidget(nsIFrame* aFrame,
   switch (aAppearance) {
     case StyleAppearance::Button:
     case StyleAppearance::Menulist:
-    case StyleAppearance::MenulistButton:
     case StyleAppearance::Textarea:
     case StyleAppearance::Textfield:
     case StyleAppearance::NumberInput:
@@ -1185,14 +1157,7 @@ nsITheme::Transparency nsNativeThemeGTK::GetWidgetTransparency(
     return Theme::GetWidgetTransparency(aFrame, aAppearance);
   }
 
-  switch (aAppearance) {
-    // Tooltips use gtk_paint_flat_box() on Gtk2
-    // but are shaped on Gtk3
-    case StyleAppearance::Tooltip:
-      return eTransparent;
-    default:
-      return eUnknownTransparency;
-  }
+  return eUnknownTransparency;
 }
 
 already_AddRefed<Theme> do_CreateNativeThemeDoNotUseDirectly() {

@@ -57,7 +57,7 @@ object DownloadUtils {
      * Format as defined in RFC 2616 and RFC 5987
      * Both inline and attachment types are supported.
      * More details can be found
-     * https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Content-Disposition
+     * https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Content-Disposition
      *
      * The first segment is the [contentDispositionType], there you can find the documentation,
      * Next, it's the filename segment, where we have a filename="filename.ext"
@@ -337,8 +337,9 @@ object DownloadUtils {
 
     private fun parseContentDisposition(contentDisposition: String): String? {
         return try {
-            parseContentDispositionWithFileName(contentDisposition)
+            val fileName = parseContentDispositionWithFileName(contentDisposition)
                 ?: parseContentDispositionWithFileNameAsterisk(contentDisposition)
+            Uri.decode(fileName)
         } catch (ex: IllegalStateException) {
             // This function is defined as returning null when it can't parse the header
             null

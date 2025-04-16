@@ -27,8 +27,8 @@
 #include "mozilla/MemoryReporting.h"
 #include "mozilla/PresShell.h"
 #include "mozilla/ServoBindings.h"
-#include "mozilla/Telemetry.h"
 #include "mozilla/TextControlElement.h"
+#include "mozilla/TextControlState.h"
 #include "mozilla/TextEditor.h"
 #include "mozilla/TimeStamp.h"
 #include "mozilla/dom/BindContext.h"
@@ -42,6 +42,7 @@
 #include "mozilla/dom/Event.h"
 #include "mozilla/dom/Exceptions.h"
 #include "mozilla/dom/Link.h"
+#include "mozilla/dom/HTMLDetailsElement.h"
 #include "mozilla/dom/HTMLImageElement.h"
 #include "mozilla/dom/HTMLMediaElement.h"
 #include "mozilla/dom/HTMLTemplateElement.h"
@@ -601,8 +602,10 @@ static nsIContent* GetRootForContentSubtree(nsIContent* aContent) {
   return nsIContent::FromNode(aContent->SubtreeRoot());
 }
 
-nsIContent* nsINode::GetSelectionRootContent(PresShell* aPresShell,
-                                             bool aAllowCrossShadowBoundary) {
+nsIContent* nsINode::GetSelectionRootContent(
+    PresShell* aPresShell,
+    IgnoreOwnIndependentSelection aIgnoreOwnIndependentSelection,
+    AllowCrossShadowBoundary aAllowCrossShadowBoundary) {
   NS_ENSURE_TRUE(aPresShell, nullptr);
 
   const bool isContent = IsContent();
@@ -616,16 +619,14 @@ nsIContent* nsINode::GetSelectionRootContent(PresShell* aPresShell,
       return nullptr;
     }
 
-    if (AsContent()->HasIndependentSelection() ||
-        IsInNativeAnonymousSubtree()) {
+    const bool computeTextEditorRoot =
+        IsInNativeAnonymousSubtree() ||
+        (aIgnoreOwnIndependentSelection == IgnoreOwnIndependentSelection::No &&
+         AsContent()->HasIndependentSelection());
+    if (computeTextEditorRoot) {
       // This node should be an inclusive descendant of input/textarea editor.
       // In that case, the anonymous <div> for TextEditor should be always the
       // selection root.
-      // FIXME: If Selection for the document is collapsed in <input> or
-      // <textarea>, returning anonymous <div> may make the callers confused.
-      // Perhaps, we should do this only when this is in the native anonymous
-      // subtree unless the callers explicitly want to retrieve the anonymous
-      // <div> from a text control element.
       if (Element* anonymousDivElement =
               GetAnonymousRootElementOfTextEditor()) {
         return anonymousDivElement;
@@ -664,7 +665,7 @@ nsIContent* nsINode::GetSelectionRootContent(PresShell* aPresShell,
       MOZ_ASSERT(IsEditable());
       MOZ_ASSERT(!IsInDesignMode());
       MOZ_ASSERT(IsContent());
-      return static_cast<nsIContent*>(this)->GetEditingHost();
+      return AsContent()->GetEditingHost();
     }
   }
 
@@ -673,14 +674,16 @@ nsIContent* nsINode::GetSelectionRootContent(PresShell* aPresShell,
   }
 
   RefPtr<nsFrameSelection> fs = aPresShell->FrameSelection();
-  nsCOMPtr<nsIContent> content = fs->GetLimiter();
+  nsCOMPtr<nsIContent> content = fs->GetIndependentSelectionRootElement();
   if (!content) {
     content = fs->GetAncestorLimiter();
     if (!content) {
       Document* doc = aPresShell->GetDocument();
       NS_ENSURE_TRUE(doc, nullptr);
       content = doc->GetRootElement();
-      if (!content) return nullptr;
+      if (!content) {
+        return nullptr;
+      }
     }
   }
 
@@ -693,14 +696,51 @@ nsIContent* nsINode::GetSelectionRootContent(PresShell* aPresShell,
     // Use the host as the root.
     if (ShadowRoot* shadowRoot = ShadowRoot::FromNode(content)) {
       content = shadowRoot->GetHost();
-      if (content && aAllowCrossShadowBoundary) {
-        content = content->GetSelectionRootContent(aPresShell,
-                                                   aAllowCrossShadowBoundary);
+      if (content && bool(aAllowCrossShadowBoundary)) {
+        content = content->GetSelectionRootContent(
+            aPresShell, aIgnoreOwnIndependentSelection,
+            aAllowCrossShadowBoundary);
       }
     }
   }
 
   return content;
+}
+
+nsFrameSelection* nsINode::GetFrameSelection() const {
+  if (!IsInComposedDoc()) {
+    return nullptr;
+  }
+  if (IsInNativeAnonymousSubtree()) {
+    auto* const textControlElement = TextControlElement::FromNodeOrNull(
+        GetClosestNativeAnonymousSubtreeRootParentOrHost());
+    if (textControlElement &&
+        textControlElement->IsSingleLineTextControlOrTextArea()) {
+      nsFrameSelection* const independentFrameSelection =
+          textControlElement->GetIndependentFrameSelection();
+      if (!independentFrameSelection) {
+        return nullptr;  // not yet initialized or being destroyed?
+      }
+      const Element* const anonymousDiv =
+          independentFrameSelection->GetIndependentSelectionRootElement();
+      if (!anonymousDiv || !IsInclusiveDescendantOf(anonymousDiv)) {
+        return nullptr;  // not in the editor root, shouldn't be selectable
+      }
+      return independentFrameSelection;
+    }
+    // Otherwise, even if we're in a native anonymous subtree, our selection
+    // should be managed by the document selection.
+  }
+  PresShell* const presShell = OwnerDoc()->GetPresShell();
+  if (!presShell) {
+    return nullptr;
+  }
+  // FIXME: PresShell::FrameSelection() returns
+  // already_AddRefed<nsFrameSelection> for making the users work safer.
+  // However, in these days, it should be managed with MOZ_CAN_RUN_SCRIPT.
+  // Therefore, for now, we should use ConstFrameSelection() and cost_cast
+  // here to avoid to AddRef/Release in unnecessary cases.
+  return const_cast<nsFrameSelection*>(presShell->ConstFrameSelection());
 }
 
 nsINodeList* nsINode::ChildNodes() {
@@ -759,9 +799,13 @@ DocumentOrShadowRoot* nsINode::GetUncomposedDocOrConnectedShadowRoot() const {
   return nullptr;
 }
 
-mozilla::SafeDoublyLinkedList<nsIMutationObserver>*
-nsINode::GetMutationObservers() {
-  return HasSlots() ? &GetExistingSlots()->mMutationObservers : nullptr;
+SafeDoublyLinkedList<nsIMutationObserver>* nsINode::GetMutationObservers() {
+  if (auto* slots = GetExistingSlots()) {
+    if (!slots->mMutationObservers.isEmpty()) {
+      return &slots->mMutationObservers;
+    }
+  }
+  return nullptr;
 }
 
 void nsINode::LastRelease() {
@@ -1118,9 +1162,7 @@ void nsINode::LookupPrefix(const nsAString& aNamespaceURI, nsAString& aPrefix) {
   SetDOMStringToNull(aPrefix);
 }
 
-uint16_t nsINode::CompareDocumentPosition(nsINode& aOtherNode,
-                                          Maybe<uint32_t>* aThisIndex,
-                                          Maybe<uint32_t>* aOtherIndex) const {
+uint16_t nsINode::CompareDocumentPosition(const nsINode& aOtherNode) const {
   if (this == &aOtherNode) {
     return 0;
   }
@@ -1157,7 +1199,7 @@ uint16_t nsINode::CompareDocumentPosition(nsINode& aOtherNode,
 
       uint32_t i;
       const nsAttrName* attrName;
-      for (i = 0; (attrName = elem->GetAttrNameAt(i)); ++i) {
+      for (i = 0; elem->GetAttrNameAt(i, &attrName); ++i) {
         if (attrName->Equals(attr1->NodeInfo())) {
           NS_ASSERTION(!attrName->Equals(attr2->NodeInfo()),
                        "Different attrs at same position");
@@ -1219,38 +1261,11 @@ uint16_t nsINode::CompareDocumentPosition(nsINode& aOtherNode,
       // child1 or child2 can be an attribute here. This will work fine since
       // ComputeIndexOf will return Nothing for the attribute making the
       // attribute be considered before any child.
-      Maybe<uint32_t> child1Index;
-      bool cachedChild1Index = false;
-      if (&aOtherNode == child1 && aOtherIndex) {
-        cachedChild1Index = true;
-        child1Index = aOtherIndex->isSome() ? *aOtherIndex
-                                            : parent->ComputeIndexOf(child1);
-      } else {
-        child1Index = parent->ComputeIndexOf(child1);
-      }
-
-      Maybe<uint32_t> child2Index;
-      bool cachedChild2Index = false;
-      if (this == child2 && aThisIndex) {
-        cachedChild2Index = true;
-        child2Index =
-            aThisIndex->isSome() ? *aThisIndex : parent->ComputeIndexOf(child2);
-      } else {
-        child2Index = parent->ComputeIndexOf(child2);
-      }
-
-      uint16_t retVal = child1Index < child2Index
-                            ? Node_Binding::DOCUMENT_POSITION_PRECEDING
-                            : Node_Binding::DOCUMENT_POSITION_FOLLOWING;
-
-      if (cachedChild1Index) {
-        *aOtherIndex = child1Index;
-      }
-      if (cachedChild2Index) {
-        *aThisIndex = child2Index;
-      }
-
-      return retVal;
+      Maybe<uint32_t> child1Index = parent->ComputeIndexOf(child1);
+      Maybe<uint32_t> child2Index = parent->ComputeIndexOf(child2);
+      return child1Index < child2Index
+                 ? Node_Binding::DOCUMENT_POSITION_PRECEDING
+                 : Node_Binding::DOCUMENT_POSITION_FOLLOWING;
     }
     parent = child1;
   }
@@ -1973,43 +1988,13 @@ bool nsINode::MaybeParentCachesComputedIndex() const {
   return parent && parent->MaybeCachesComputedIndex();
 }
 
-static Maybe<uint32_t> DoComputeFlatTreeIndexOf(FlattenedChildIterator& aIter,
-                                                const nsINode* aPossibleChild) {
-  if (aPossibleChild->GetFlattenedTreeParentNode() != aIter.Parent()) {
-    return Nothing();
-  }
-
-  uint32_t index = 0u;
-  for (nsIContent* child = aIter.GetNextChild(); child;
-       child = aIter.GetNextChild()) {
-    if (child == aPossibleChild) {
-      return Some(index);
-    }
-
-    ++index;
-  }
-
-  return Nothing();
+uint32_t nsINode::GetFlatTreeChildCount() const {
+  return FlattenedChildIterator::GetLength(this);
 }
 
 Maybe<uint32_t> nsINode::ComputeFlatTreeIndexOf(
     const nsINode* aPossibleChild) const {
-  if (!aPossibleChild) {
-    return Nothing();
-  }
-
-  if (!IsContent()) {
-    return ComputeIndexOf(aPossibleChild);
-  }
-
-  FlattenedChildIterator iter(AsContent());
-  if (!iter.ShadowDOMInvolved()) {
-    auto index = ComputeIndexOf(aPossibleChild);
-    MOZ_ASSERT(DoComputeFlatTreeIndexOf(iter, aPossibleChild) == index);
-    return index;
-  }
-
-  return DoComputeFlatTreeIndexOf(iter, aPossibleChild);
+  return FlattenedChildIterator::GetIndexOf(this, aPossibleChild);
 }
 
 static already_AddRefed<nsINode> GetNodeFromNodeOrString(
@@ -3596,9 +3581,6 @@ already_AddRefed<nsINode> nsINode::CloneAndAdopt(
         if (elm->MayHaveDOMActivateListeners()) {
           window->SetHasDOMActivateEventListeners();
         }
-        if (elm->MayHavePaintEventListener()) {
-          window->SetHasPaintEventListeners();
-        }
         if (elm->MayHaveTouchEventListener()) {
           window->SetHasTouchEventListeners();
         }
@@ -3943,6 +3925,65 @@ ShadowRoot* nsINode::GetShadowRootForSelection() const {
   }
 
   return shadowRoot;
+}
+
+// https://html.spec.whatwg.org/#ancestor-hidden-until-found-revealing-algorithm
+void nsINode::RevealAncestorHiddenUntilFoundAndFireBeforematchEvent(
+    ErrorResult& aRv) {
+  if (!StaticPrefs::dom_hidden_until_found_enabled()) {
+    return;
+  }
+  // 1. While currentNode has a parent node within the flat tree:
+  auto* currentNode = this;
+  while (RefPtr parentNode = currentNode->GetFlattenedTreeParentNode()) {
+    // 1.1. If currentNode has the hidden attribute in the hidden until found
+    //      state, then:
+    if (RefPtr currentAsElement = Element::FromNode(currentNode);
+        currentAsElement &&
+        currentAsElement->AttrValueIs(kNameSpaceID_None, nsGkAtoms::hidden,
+                                      nsGkAtoms::untilFound, eIgnoreCase)) {
+      // 1.1.1 Fire an event named beforematch at currentNode.
+      currentAsElement->FireBeforematchEvent(aRv);
+      if (MOZ_UNLIKELY(aRv.Failed())) {
+        return;
+      }
+
+      // 1.1.2 Remove the hidden attribute from currentNode.
+      currentAsElement->UnsetAttr(kNameSpaceID_None, nsGkAtoms::hidden,
+                                  /*aNotify=*/true);
+    }
+    // 1.2 Set currentNode to the parent node of currentNode within the flat
+    //     tree.
+    currentNode = parentNode;
+  }
+}
+
+// https://html.spec.whatwg.org/#ancestor-details-revealing-algorithm
+void nsINode::RevealAncestorClosedDetails() {
+  AutoTArray<RefPtr<HTMLDetailsElement>, 16> detailsElements;
+  // 1. While currentNode has a parent node within the flat tree:
+  for (auto* currentNode : InclusiveFlatTreeAncestors(*this)) {
+    // 1.1 If currentNode is slotted into the second slot of a details element:
+    auto* slot = HTMLSlotElement::FromNode(currentNode);
+    if (!slot) {
+      continue;
+    }
+    // Note: There are two slots in the details element. Gecko names the
+    //       summary, and leaves the content slot unnamed.
+    if (auto* details =
+            HTMLDetailsElement::FromNodeOrNull(slot->GetContainingShadowHost());
+        details && !details->Open() && !slot->HasName()) {
+      detailsElements.AppendElement(details);
+      // 1.1.1 Set currentNode to the details element which currentNode is
+      //       slotted into.
+      // Note: This step is omitted because we use the custom iterator.
+    }
+  }
+  // 1.1.2 If the open attribute is not set on currentNode, then set the
+  //       open attribute on currentNode to the empty string.
+  for (auto& details : detailsElements) {
+    details->SetOpen(true, IgnoreErrors());
+  }
 }
 
 NS_IMPL_ISUPPORTS(nsNodeWeakReference, nsIWeakReference)

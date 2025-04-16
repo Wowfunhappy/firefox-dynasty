@@ -249,22 +249,39 @@ export const MultiStageAboutWelcome = props => {
           const totalNumberOfScreens = screens.length;
           const isSingleScreen = totalNumberOfScreens === 1;
 
-          const setActiveMultiSelect = valueOrFn =>
-            setActiveMultiSelects(prevState => ({
-              ...prevState,
-              [currentScreen.id]:
-                typeof valueOrFn === "function"
-                  ? valueOrFn(prevState[currentScreen.id])
-                  : valueOrFn,
-            }));
-          const setScreenMultiSelects = valueOrFn =>
-            setMultiSelects(prevState => ({
-              ...prevState,
-              [currentScreen.id]:
-                typeof valueOrFn === "function"
-                  ? valueOrFn(prevState[currentScreen.id])
-                  : valueOrFn,
-            }));
+          const setActiveMultiSelect = (valueOrFn, multiSelectId) => {
+            setActiveMultiSelects(prevState => {
+              const currentScreenSelections = prevState[currentScreen.id] || {};
+
+              return {
+                ...prevState,
+                [currentScreen.id]: {
+                  ...currentScreenSelections,
+                  [multiSelectId]:
+                    typeof valueOrFn === "function"
+                      ? valueOrFn(currentScreenSelections[multiSelectId])
+                      : valueOrFn,
+                },
+              };
+            });
+          };
+
+          const setScreenMultiSelects = (valueOrFn, multiSelectId) => {
+            setMultiSelects(prevState => {
+              const currentMultiSelects = prevState[currentScreen.id] || {};
+
+              return {
+                ...prevState,
+                [currentScreen.id]: {
+                  ...currentMultiSelects,
+                  [multiSelectId]:
+                    typeof valueOrFn === "function"
+                      ? valueOrFn(currentMultiSelects[multiSelectId])
+                      : valueOrFn,
+                },
+              };
+            });
+          };
 
           const setActiveSingleSelect = valueOrFn =>
             setActiveSingleSelects(prevState => ({
@@ -310,6 +327,13 @@ export const MultiStageAboutWelcome = props => {
               }
               installedAddons={installedAddons}
               setInstalledAddons={setInstalledAddons}
+              addonId={props.addonId}
+              addonType={props.addonType}
+              addonName={props.addonName}
+              addonURL={props.addonURL}
+              addonIconURL={props.addonIconURL}
+              themeScreenshots={props.themeScreenshots}
+              isRtamo={currentScreen.content.isRtamo}
             />
           ) : null;
         })}
@@ -340,11 +364,24 @@ export const SecondaryCTA = props => {
     className += " split-button-container";
   }
   const isDisabled = React.useCallback(
-    disabledValue =>
-      disabledValue === "hasActiveMultiSelect"
-        ? !(props.activeMultiSelect?.length > 0)
-        : disabledValue,
-    [props.activeMultiSelect?.length]
+    disabledValue => {
+      if (disabledValue === "hasActiveMultiSelect") {
+        if (!props.activeMultiSelect) {
+          return true;
+        }
+
+        for (const key in props.activeMultiSelect) {
+          if (props.activeMultiSelect[key]?.length > 0) {
+            return false;
+          }
+        }
+
+        return true;
+      }
+
+      return disabledValue;
+    },
+    [props.activeMultiSelect]
   );
 
   if (isTextLink) {
@@ -364,6 +401,7 @@ export const SecondaryCTA = props => {
       </Localized>
       <Localized text={props.content[targetElement].label}>
         <button
+          id="secondary_button"
           className={buttonStyling}
           value={targetElement}
           disabled={isDisabled(props.content.secondary_button?.disabled)}
@@ -480,21 +518,29 @@ export class WelcomeScreen extends React.PureComponent {
 
     let actionResult;
     if (["OPEN_URL", "SHOW_FIREFOX_ACCOUNTS"].includes(action.type)) {
-      actionResult = this.handleOpenURL(
-        action,
-        props.flowParams,
-        props.UTMTerm
-      );
+      this.handleOpenURL(action, props.flowParams, props.UTMTerm);
     } else if (action.type) {
-      actionResult = action.needsAwait
-        ? await AboutWelcomeUtils.handleUserAction(action)
-        : AboutWelcomeUtils.handleUserAction(action);
+      let actionPromise = AboutWelcomeUtils.handleUserAction(action);
+      if (action.needsAwait) {
+        actionResult = await actionPromise;
+      }
       if (action.type === "FXA_SIGNIN_FLOW") {
         AboutWelcomeUtils.sendActionTelemetry(
           props.messageId,
           actionResult ? "sign_in" : "sign_in_cancel",
           "FXA_SIGNIN_FLOW"
         );
+      }
+
+      if (action.type === "INSTALL_ADDON_FROM_URL") {
+        const url = props.addonURL;
+        if (!action.data) {
+          return;
+        }
+        // Set add-on url in action.data.url property from JSON
+        action.data = { ...action.data, url };
+
+        AboutWelcomeUtils.handleUserAction(action);
       }
       // Wait until migration closes to complete the action
       const hasMigrate = a =>
@@ -553,6 +599,15 @@ export class WelcomeScreen extends React.PureComponent {
       props.navigate();
     }
 
+    // Used by FeatureCallout to advance screens by re-rendering the whole
+    // wrapper, updating anchor, page_event_listeners, etc. `navigate` only
+    // updates the inner content. Only implemented by FeatureCallout.
+    if (action.advance_screens) {
+      if (shouldDoBehavior(action.advance_screens.behavior ?? true)) {
+        window.AWAdvanceScreens?.(action.advance_screens);
+      }
+    }
+
     if (shouldDoBehavior(action.dismiss)) {
       window.AWFinish();
     }
@@ -586,19 +641,25 @@ export class WelcomeScreen extends React.PureComponent {
     // `orderedExecution` flag set to true.
     let multiSelectActions = [];
 
-    const processTile = tile => {
-      if (tile?.type === "multiselect" && Array.isArray(tile.data)) {
-        for (const checkbox of tile.data) {
-          let checkboxAction;
-          if (props.activeMultiSelect?.includes(checkbox.id)) {
-            checkboxAction = checkbox.checkedAction ?? checkbox.action;
-          } else {
-            checkboxAction = checkbox.uncheckedAction;
-          }
+    const processTile = (tile, tileIndex) => {
+      if (tile?.type !== "multiselect" || !Array.isArray(tile.data)) {
+        return;
+      }
 
-          if (checkboxAction) {
-            multiSelectActions.push(checkboxAction);
-          }
+      const multiSelectId = `tile-${tileIndex}`;
+
+      const activeSelections = props.activeMultiSelect[multiSelectId] || [];
+
+      for (const checkbox of tile.data) {
+        let checkboxAction;
+        if (activeSelections.includes(checkbox.id)) {
+          checkboxAction = checkbox.checkedAction ?? checkbox.action;
+        } else {
+          checkboxAction = checkbox.uncheckedAction;
+        }
+
+        if (checkboxAction) {
+          multiSelectActions.push(checkboxAction);
         }
       }
     };
@@ -610,19 +671,21 @@ export class WelcomeScreen extends React.PureComponent {
         props.content.tiles.forEach(processTile);
       } else {
         // Handle case where tiles is a single tile object
-        processTile(props.content.tiles);
+        processTile(props.content.tiles, 0);
       }
     }
 
     // Prepend the collected multi-select actions to the CTA's actions array
     action.data.actions.unshift(...multiSelectActions);
 
-    // Send telemetry with selected checkbox ids
-    AboutWelcomeUtils.sendActionTelemetry(
-      props.messageId,
-      props.activeMultiSelect,
-      "SELECT_CHECKBOX"
-    );
+    for (const value of Object.values(props.activeMultiSelect)) {
+      // Send telemetry with selected checkbox ids
+      AboutWelcomeUtils.sendActionTelemetry(
+        props.messageId,
+        value.flat(),
+        "SELECT_CHECKBOX"
+      );
+    }
   }
 
   render() {
@@ -654,6 +717,13 @@ export class WelcomeScreen extends React.PureComponent {
         forceHideStepsIndicator={this.props.forceHideStepsIndicator}
         ariaRole={this.props.ariaRole}
         aboveButtonStepsIndicator={this.props.aboveButtonStepsIndicator}
+        addonId={this.props.addonId}
+        addonType={this.props.addonType}
+        addonName={this.props.addonName}
+        addonURL={this.props.addonURL}
+        addonIconURL={this.props.addonIconURL}
+        themeScreenshots={this.props.themeScreenshots}
+        isRtamo={this.props.content.isRtamo}
       />
     );
   }

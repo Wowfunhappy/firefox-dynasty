@@ -19,6 +19,7 @@
 #include "absl/functional/any_invocable.h"
 #include "absl/strings/match.h"
 #include "absl/strings/string_view.h"
+#include "api/media_types.h"
 #include "api/rtp_parameters.h"
 #include "api/video_codecs/av1_profile.h"
 #include "api/video_codecs/h264_profile_level_id.h"
@@ -399,13 +400,20 @@ bool IsSameRtpCodecIgnoringLevel(const Codec& codec,
   CodecParameterMap params2 =
       InsertDefaultParams(rtp_codec2.name, rtp_codec2.parameters);
 
-  // Currently we only ignore H.265 level-id parameter.
-#ifdef RTC_ENABLE_H265
-  if (absl::EqualsIgnoreCase(rtp_codec.name, cricket::kH265CodecName)) {
-    params1.erase(cricket::kH265FmtpLevelId);
-    params2.erase(cricket::kH265FmtpLevelId);
+  // Some video codecs are compatible with others (e.g. same profile but
+  // different level). This comparison looks at the relevant parameters,
+  // ignoring ones that are either irrelevant or unrecognized.
+  if (rtp_codec.kind == cricket::MediaType::MEDIA_TYPE_VIDEO &&
+      rtp_codec.IsMediaCodec()) {
+    return IsSameCodecSpecific(rtp_codec.name, params1, rtp_codec2.name,
+                               params2);
   }
-#endif
+  // audio/RED should ignore the parameters which specify payload types so
+  // can not be compared.
+  if (rtp_codec.kind == cricket::MediaType::MEDIA_TYPE_AUDIO &&
+      rtp_codec.name == cricket::kRedCodecName) {
+    return true;
+  }
 
   return params1 == params2;
 }

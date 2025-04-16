@@ -210,6 +210,9 @@ bool CSP_ShouldResponseInheritCSP(nsIChannel* aChannel);
 void CSP_ApplyMetaCSPToDoc(mozilla::dom::Document& aDoc,
                            const nsAString& aPolicyStr);
 
+// Checks if the URI is "chrome://browser/content/browser.xhtml"
+bool CSP_IsBrowserXHTML(nsIURI* aURI);
+
 /* =============== nsCSPSrc ================== */
 
 class nsCSPBaseSrc {
@@ -435,6 +438,19 @@ class nsCSPTrustedTypesDirectivePolicyName : public nsCSPBaseSrc {
 
  private:
   const nsString mName;
+};
+
+class nsCSPTrustedTypesDirectiveInvalidToken : public nsCSPBaseSrc {
+ public:
+  explicit nsCSPTrustedTypesDirectiveInvalidToken(
+      const nsAString& aInvalidToken);
+  virtual ~nsCSPTrustedTypesDirectiveInvalidToken() = default;
+
+  bool visit(nsCSPSrcVisitor* aVisitor) const override;
+  void toString(nsAString& aOutStr) const override;
+
+ private:
+  const nsString mInvalidToken;
 };
 
 /* =============== nsCSPSrcVisitor ================== */

@@ -1243,12 +1243,19 @@ var AddonManagerInternal = {
       return Promise.resolve();
     }
 
-    let newPerms = info.addon.userPermissions;
+    if (info.existingAddon.isInstalledByEnterprisePolicy) {
+      return Promise.resolve();
+    }
 
+    let newPerms = info.addon.userPermissions;
     let difference = lazy.Extension.comparePermissions(oldPerms, newPerms);
 
     // If there are no new permissions, just go ahead with the update
-    if (!difference.origins.length && !difference.permissions.length) {
+    if (
+      !difference.origins.length &&
+      !difference.permissions.length &&
+      !difference.data_collection.length
+    ) {
       return Promise.resolve();
     }
 
@@ -2557,8 +2564,13 @@ var AddonManagerInternal = {
    *         The URI of the page where the installation was initiated
    * @param  install
    *         The AddonInstall to be installed
+   * @param  options
+   *         Optional - An object containing the following options:
+   *
+   *         "options.preferUpdateOverInstall" - Prefer update over install
+   *         when there is an existing add-on for the `install` object.
    */
-  installAddonFromAOM(browser, uri, install) {
+  installAddonFromAOM(browser, uri, install, options = {}) {
     if (!this.isInstallAllowedByPolicy(null, install)) {
       install.cancel();
 
@@ -2577,13 +2589,19 @@ var AddonManagerInternal = {
       );
     }
 
-    AddonManagerInternal.setupPromptHandler(
-      browser,
-      uri,
-      install,
-      true,
-      "local"
-    );
+    if (!!options.preferUpdateOverInstall && install.existingAddon) {
+      install.promptHandler = (...args) =>
+        AddonManagerInternal._updatePromptHandler(...args);
+    } else {
+      AddonManagerInternal.setupPromptHandler(
+        browser,
+        uri,
+        install,
+        true,
+        "local"
+      );
+    }
+
     AddonManagerInternal.startInstall(browser, uri, install);
   },
 
@@ -4380,6 +4398,10 @@ export var AddonManager = {
 
   installAddonFromAOM(aBrowser, aUri, aInstall) {
     AddonManagerInternal.installAddonFromAOM(aBrowser, aUri, aInstall);
+  },
+
+  installAddonFromAOMWithOptions(aBrowser, aUri, aInstall, options = {}) {
+    AddonManagerInternal.installAddonFromAOM(aBrowser, aUri, aInstall, options);
   },
 
   installTemporaryAddon(aDirectory) {

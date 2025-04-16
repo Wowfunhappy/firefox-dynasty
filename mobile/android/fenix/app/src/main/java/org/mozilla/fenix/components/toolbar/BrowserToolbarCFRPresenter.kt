@@ -212,7 +212,7 @@ class BrowserToolbarCFRPresenter(
     internal fun showCookieBannersCFR() {
         CFRPopup(
             anchor = toolbar.findViewById(
-                R.id.mozac_browser_toolbar_security_indicator,
+                R.id.mozac_browser_toolbar_site_info_indicator,
             ),
             properties = CFRPopupProperties(
                 popupAlignment = INDICATOR_CENTERED_IN_ANCHOR,
@@ -296,17 +296,8 @@ class BrowserToolbarCFRPresenter(
             text = {
                 FirefoxTheme {
                     Column {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Text(
-                                text = context.getString(R.string.address_bar_swipe_cfr_title),
-                                color = FirefoxTheme.colors.textOnColorPrimary,
-                                style = FirefoxTheme.typography.subtitle2,
-                            )
-                        }
                         Text(
-                            text = context.getString(R.string.address_bar_swipe_cfr_message),
+                            text = context.getString(R.string.address_bar_swipe_cfr_message_2),
                             color = FirefoxTheme.colors.textOnColorPrimary,
                             style = FirefoxTheme.typography.body2,
                             modifier = Modifier.padding(top = 2.dp),

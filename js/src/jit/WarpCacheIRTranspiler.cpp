@@ -482,9 +482,9 @@ bool WarpCacheIRTranspiler::emitGuardShape(ObjOperandId objId,
   return true;
 }
 
-template <auto FuseMember>
+template <auto FuseMember, CompilationDependency::Type DepType>
 struct RealmFuseDependency final : public CompilationDependency {
-  RealmFuseDependency();
+  RealmFuseDependency() : CompilationDependency(DepType) {}
 
   virtual bool registerDependency(JSContext* cx, HandleScript script) override {
     MOZ_ASSERT(checkDependency(cx));
@@ -492,35 +492,53 @@ struct RealmFuseDependency final : public CompilationDependency {
     return (cx->realm()->realmFuses.*FuseMember).addFuseDependency(cx, script);
   }
 
-  virtual UniquePtr<CompilationDependency> clone() override {
-    return MakeUnique<RealmFuseDependency<FuseMember>>();
+  virtual UniquePtr<CompilationDependency> clone() const override {
+    return MakeUnique<RealmFuseDependency<FuseMember, DepType>>();
   }
 
   virtual bool checkDependency(JSContext* cx) override {
     return (cx->realm()->realmFuses.*FuseMember).intact();
   }
 
-  virtual bool operator==(CompilationDependency& dep) override {
+  virtual bool operator==(const CompilationDependency& dep) const override {
     return dep.type == type;
   }
 };
 
-using GetIteratorDependency =
-    RealmFuseDependency<&RealmFuses::optimizeGetIteratorFuse>;
-template <>
-GetIteratorDependency::RealmFuseDependency()
-    : CompilationDependency(CompilationDependency::Type::GetIterator) {}
-
 bool WarpCacheIRTranspiler::emitGuardFuse(RealmFuses::FuseIndex fuseIndex) {
-  if (fuseIndex != RealmFuses::FuseIndex::OptimizeGetIteratorFuse) {
-    auto* ins = MGuardFuse::New(alloc(), fuseIndex);
-    add(ins);
-    return true;
+  // Register a compilation dependency (for invalidating realm fuses) or add a
+  // fuse guard (for other fuses).
+  switch (fuseIndex) {
+    case RealmFuses::FuseIndex::OptimizeGetIteratorFuse: {
+      using Dependency =
+          RealmFuseDependency<&RealmFuses::optimizeGetIteratorFuse,
+                              CompilationDependency::Type::GetIterator>;
+      return mirGen().tracker.addDependency(Dependency());
+    }
+    case RealmFuses::FuseIndex::OptimizeArraySpeciesFuse: {
+      using Dependency =
+          RealmFuseDependency<&RealmFuses::optimizeArraySpeciesFuse,
+                              CompilationDependency::Type::ArraySpecies>;
+      return mirGen().tracker.addDependency(Dependency());
+    }
+    case RealmFuses::FuseIndex::OptimizeRegExpPrototypeFuse: {
+      using Dependency =
+          RealmFuseDependency<&RealmFuses::optimizeRegExpPrototypeFuse,
+                              CompilationDependency::Type::RegExpPrototype>;
+      return mirGen().tracker.addDependency(Dependency());
+    }
+    case RealmFuses::FuseIndex::OptimizeStringPrototypeSymbolsFuse: {
+      using Dependency = RealmFuseDependency<
+          &RealmFuses::optimizeStringPrototypeSymbolsFuse,
+          CompilationDependency::Type::StringPrototypeSymbols>;
+      return mirGen().tracker.addDependency(Dependency());
+    }
+    default:
+      MOZ_ASSERT(!RealmFuses::isInvalidatingFuse(fuseIndex));
+      auto* ins = MGuardFuse::New(alloc(), fuseIndex);
+      add(ins);
+      return true;
   }
-
-  // Register the compilation dependency.
-  GetIteratorDependency dep;
-  return mirGen().tracker.addDependency(dep);
 }
 
 bool WarpCacheIRTranspiler::emitGuardMultipleShapes(ObjOperandId objId,
@@ -4203,6 +4221,18 @@ bool WarpCacheIRTranspiler::emitHasClassResult(ObjOperandId objId,
   return true;
 }
 
+bool WarpCacheIRTranspiler::emitHasShapeResult(ObjOperandId objId,
+                                               uint32_t shapeOffset) {
+  MDefinition* obj = getOperand(objId);
+  Shape* shape = shapeStubField(shapeOffset);
+
+  auto* hasShape = MHasShape::New(alloc(), obj, shape);
+  add(hasShape);
+
+  pushResult(hasShape);
+  return true;
+}
+
 bool WarpCacheIRTranspiler::emitCallRegExpMatcherResult(
     ObjOperandId regexpId, StringOperandId inputId, Int32OperandId lastIndexId,
     uint32_t stubOffset) {
@@ -4345,29 +4375,6 @@ bool WarpCacheIRTranspiler::emitStringSplitStringResult(
   add(split);
 
   pushResult(split);
-  return true;
-}
-
-bool WarpCacheIRTranspiler::emitRegExpPrototypeOptimizableResult(
-    ObjOperandId protoId) {
-  MDefinition* proto = getOperand(protoId);
-
-  auto* optimizable = MRegExpPrototypeOptimizable::New(alloc(), proto);
-  add(optimizable);
-
-  pushResult(optimizable);
-  return true;
-}
-
-bool WarpCacheIRTranspiler::emitRegExpInstanceOptimizableResult(
-    ObjOperandId regexpId, ObjOperandId protoId) {
-  MDefinition* regexp = getOperand(regexpId);
-  MDefinition* proto = getOperand(protoId);
-
-  auto* optimizable = MRegExpInstanceOptimizable::New(alloc(), regexp, proto);
-  add(optimizable);
-
-  pushResult(optimizable);
   return true;
 }
 
@@ -6582,7 +6589,7 @@ MDefinition* WarpCacheIRTranspiler::convertWasmArg(MDefinition* arg,
           break;
         case MIRType::Null:
           arg->setImplicitlyUsedUnchecked();
-          conversion = MWasmNullConstant::New(alloc());
+          conversion = MWasmNullConstant::New(alloc(), wasm::MaybeRefType());
           break;
         default:
           conversion = MWasmAnyRefFromJSValue::New(alloc(), arg);
@@ -6755,8 +6762,9 @@ bool WarpCacheIRTranspiler::emitMetaScriptedThisShape(
   uint32_t numFixedSlots = shape->numFixedSlots();
   uint32_t numDynamicSlots = NativeObject::calculateDynamicSlots(shape);
   gc::AllocKind kind = gc::GetGCObjectKind(numFixedSlots);
-  MOZ_ASSERT(gc::CanChangeToBackgroundAllocKind(kind, &PlainObject::class_));
-  kind = gc::ForegroundToBackgroundAllocKind(kind);
+  MOZ_ASSERT(gc::GetObjectFinalizeKind(&PlainObject::class_) ==
+             gc::FinalizeKind::None);
+  MOZ_ASSERT(!IsFinalizedKind(kind));
 
   auto* createThis = MNewPlainObject::New(alloc(), shapeConst, numFixedSlots,
                                           numDynamicSlots, kind, heap);

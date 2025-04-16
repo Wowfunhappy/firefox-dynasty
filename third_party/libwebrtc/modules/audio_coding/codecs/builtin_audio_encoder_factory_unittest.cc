@@ -71,8 +71,8 @@ TEST_P(AudioEncoderFactoryTest, CanRunAllSupportedEncoders) {
         factory->Create(env, spec.format, {.payload_type = kTestPayloadType});
     EXPECT_TRUE(encoder);
     encoder->Reset();
-    const int num_samples = rtc::checked_cast<int>(
-        encoder->SampleRateHz() * encoder->NumChannels() / 100);
+    const int num_samples = checked_cast<int>(encoder->SampleRateHz() *
+                                              encoder->NumChannels() / 100);
     rtc::Buffer out;
     rtc::BufferT<int16_t> audio;
     audio.SetData(num_samples, [](rtc::ArrayView<int16_t> audio) {
@@ -136,18 +136,17 @@ TEST(BuiltinAudioEncoderFactoryTest, SupportsTheExpectedFormats) {
 
   const std::vector<SdpAudioFormat> expected_formats = {
 #ifdef WEBRTC_CODEC_OPUS
-    {"opus", 48000, 2, {{"minptime", "10"}, {"useinbandfec", "1"}}},
+      {"opus", 48000, 2, {{"minptime", "10"}, {"useinbandfec", "1"}}},
 #endif
 #if defined(WEBRTC_CODEC_ISAC) || defined(WEBRTC_CODEC_ISACFX)
-    {"isac", 16000, 1},
+      {"isac", 16000, 1},
 #endif
 #ifdef WEBRTC_CODEC_ISAC
-    {"isac", 32000, 1},
+      {"isac", 32000, 1},
 #endif
-    {"G722", 8000, 1},
-    {"pcmu", 8000, 1},
-    {"pcma", 8000, 1}
-  };
+      {"G722", 8000, 1},
+      {"pcmu", 8000, 1},
+      {"pcma", 8000, 1}};
 
   ASSERT_THAT(supported_formats, ElementsAreArray(expected_formats));
 }
@@ -159,16 +158,12 @@ TEST(BuiltinAudioEncoderFactoryTest, MaxNrOfChannels) {
       CreateBuiltinAudioEncoderFactory();
   std::vector<std::string> codecs = {
 #ifdef WEBRTC_CODEC_OPUS
-    "opus",
+      "opus",
 #endif
 #if defined(WEBRTC_CODEC_ISAC) || defined(WEBRTC_CODEC_ISACFX)
-    "isac",
+      "isac",
 #endif
-    "pcmu",
-    "pcma",
-    "l16",
-    "G722",
-    "G711",
+      "pcmu", "pcma", "l16", "G722", "G711",
   };
 
   for (auto codec : codecs) {

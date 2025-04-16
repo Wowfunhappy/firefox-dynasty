@@ -55,7 +55,7 @@ const KNOWN_ERROR_TITLE_IDS = new Set([
   "unknownSocketType-title",
   "nssFailure2-title",
   "csp-xfo-error-title",
-  "corruptedContentError-title",
+  "corruptedContentErrorv2-title",
   "sslv3Used-title",
   "inadequateSecurityError-title",
   "blockedByPolicy-title",
@@ -66,6 +66,7 @@ const KNOWN_ERROR_TITLE_IDS = new Set([
   "nssBadCert-sts-title",
   "certerror-mitm-title",
   "general-body-title",
+  "problem-with-this-site-title",
 ]);
 
 /* The error message IDs from nsserror.ftl get processed into
@@ -73,7 +74,8 @@ const KNOWN_ERROR_TITLE_IDS = new Set([
 /* global KNOWN_ERROR_MESSAGE_IDS */
 const ERROR_MESSAGES_FTL = "toolkit/neterror/nsserrors.ftl";
 
-const MDN_DOCS_HEADERS = "https://developer.mozilla.org/docs/Web/HTTP/Headers/";
+const MDN_DOCS_HEADERS =
+  "https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/";
 const COOP_MDN_DOCS = MDN_DOCS_HEADERS + "Cross-Origin-Opener-Policy";
 const COEP_MDN_DOCS = MDN_DOCS_HEADERS + "Cross-Origin-Embedder-Policy";
 const HTTPS_UPGRADES_MDN_DOCS = "https://support.mozilla.org/kb/https-upgrades";
@@ -330,6 +332,11 @@ function initTitleAndBodyIds(baseURL, isTRROnlyFailure) {
     case "blockedByCOEP": {
       bodyTitleId = "general-body-title";
       document.body.classList.add("blocked");
+      tryAgain.hidden = true;
+      break;
+    }
+    case "invalidHeaderValue": {
+      bodyTitleId = "problem-with-this-site-title";
       tryAgain.hidden = true;
       break;
     }
@@ -751,6 +758,9 @@ function getNetErrorDescParts() {
         ["p", "neterror-inadequate-security-intro", { hostname: HOST_NAME }],
         ["p", "neterror-inadequate-security-code"],
       ];
+    case "invalidHeaderValue": {
+      return [["li", "neterror-http-error-page"]];
+    }
     case "mitm": {
       const failedCertInfo = document.getFailedCertSecurityInfo();
       const errArgs = {

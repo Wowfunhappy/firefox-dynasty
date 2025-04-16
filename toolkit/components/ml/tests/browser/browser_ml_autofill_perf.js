@@ -4,7 +4,7 @@ http://creativecommons.org/publicdomain/zero/1.0/ */
 
 const perfMetadata = {
   owner: "GenAI Team",
-  name: "ML Autofill Model",
+  name: "browser_ml_autofill_perf.js",
   description: "Template test for latency for ML Autofill model",
   options: {
     default: {
@@ -13,25 +13,33 @@ const perfMetadata = {
         {
           name: "AUTOFILL-pipeline-ready-latency",
           unit: "ms",
-          shouldAlert: true,
+          shouldAlert: false,
         },
         {
           name: "AUTOFILL-initialization-latency",
           unit: "ms",
-          shouldAlert: true,
+          shouldAlert: false,
         },
-        { name: "AUTOFILL-model-run-latency", unit: "ms", shouldAlert: true },
-        { name: "AUTOFILL-total-memory-usage", unit: "MiB", shouldAlert: true },
+        {
+          name: "AUTOFILL-model-run-latency",
+          unit: "ms",
+          shouldAlert: false,
+        },
+        {
+          name: "AUTOFILL-total-memory-usage",
+          unit: "MiB",
+          shouldAlert: false,
+        },
         {
           name: "tokenSpeed",
           unit: "tokens/s",
-          shouldAlert: true,
+          shouldAlert: false,
           lowerIsBetter: false,
         },
         {
           name: "charactersSpeed",
           unit: "chars/s",
-          shouldAlert: true,
+          shouldAlert: false,
           lowerIsBetter: false,
         },
       ],

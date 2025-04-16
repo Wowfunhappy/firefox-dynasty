@@ -53,24 +53,24 @@ registerCleanupFunction(async function () {
 
 pushPref("devtools.webconsole.groupWarningMessages", false);
 
-add_task(async function testContentBlockingMessage() {
+add_task(async function testEnhancedTrackingProtectionMessage() {
   await UrlClassifierTestUtils.addTestTrackers();
 
   await pushPref("privacy.trackingprotection.enabled", true);
   const hud = await openNewTabAndConsole(TRACKER_URL + TEST_FILE);
 
-  info("Test content blocking message");
+  info("Test tracking protection message");
   const message = await waitFor(() =>
     findWarningMessage(
       hud,
       `The resource at \u201chttps://tracking.example.com/\u201d was blocked because ` +
-        `content blocking is enabled`
+        `Enhanced Tracking Protection is enabled`
     )
   );
 
   await testLearnMoreClickOpenNewTab(
     message,
-    "https://developer.mozilla.org/Firefox/Privacy/Tracking_Protection" +
+    "https://developer.mozilla.org/Firefox/Privacy/Guides/Tracking_Protection" +
       DOCS_GA_PARAMS
   );
 });
@@ -88,7 +88,7 @@ add_task(async function testForeignCookieBlockedMessage() {
     findWarningMessage(
       hud,
       `Request to access cookie or storage on ${BLOCKED_URL} was blocked because we are ` +
-        `blocking all third-party storage access requests and content blocking is enabled`
+        `blocking all third-party storage access requests and Enhanced Tracking Protection is enabled`
     )
   );
   await testLearnMoreClickOpenNewTab(
@@ -116,7 +116,7 @@ add_task(async function testLimitForeignCookieBlockedMessage() {
       findWarningMessage(
         hud,
         `Request to access cookie or storage on ${BLOCKED_URL} was blocked because we are ` +
-          `blocking all third-party storage access requests and content blocking is enabled`
+          `blocking all third-party storage access requests and Enhanced Tracking Protection is enabled`
       ),
     "Wait for 'blocking all third-party storage access' message",
     100
@@ -167,7 +167,7 @@ add_task(async function testTrackerCookieBlockedMessage() {
     findWarningMessage(
       hud,
       `Request to access cookie or storage on ${BLOCKED_URL} was blocked because it came ` +
-        `from a tracker and content blocking is enabled`
+        `from a tracker and Enhanced Tracking Protection is enabled`
     )
   );
   await testLearnMoreClickOpenNewTab(
@@ -240,8 +240,7 @@ add_task(async function testCookieBlockedByPermissionMessage() {
 
 function getStorageErrorUrl(category) {
   const BASE_STORAGE_ERROR_URL =
-    "https://developer.mozilla.org/docs/Mozilla/Firefox/" +
-    "Privacy/Storage_access_policy/Errors/";
+    "https://developer.mozilla.org/docs/Web/Privacy/Guides/Storage_Access_Policy/Errors/";
   const STORAGE_ERROR_URL_PARAMS = new URLSearchParams({
     utm_source: "devtools",
     utm_medium: "firefox-cookie-errors",

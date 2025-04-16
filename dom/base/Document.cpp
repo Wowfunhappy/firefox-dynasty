@@ -84,6 +84,7 @@
 #include "mozilla/MediaFeatureChange.h"
 #include "mozilla/MediaManager.h"
 #include "mozilla/MemoryReporting.h"
+#include "mozilla/NeverDestroyed.h"
 #include "mozilla/NullPrincipal.h"
 #include "mozilla/OriginAttributes.h"
 #include "mozilla/OwningNonNull.h"
@@ -105,6 +106,7 @@
 #include "mozilla/SMILAnimationController.h"
 #include "mozilla/SMILTimeContainer.h"
 #include "mozilla/ScopeExit.h"
+#include "mozilla/ScrollContainerFrame.h"
 #include "mozilla/Components.h"
 #include "mozilla/SVGUtils.h"
 #include "mozilla/ServoStyleConsts.h"
@@ -129,7 +131,6 @@
 #include "mozilla/StorageAccess.h"
 #include "mozilla/StoragePrincipalHelper.h"
 #include "mozilla/StyleSheet.h"
-#include "mozilla/Telemetry.h"
 #include "mozilla/TelemetryScalarEnums.h"
 #include "mozilla/TextControlElement.h"
 #include "mozilla/TextEditor.h"
@@ -440,6 +441,7 @@
 #include "nsTextControlFrame.h"
 #include "nsSubDocumentFrame.h"
 #include "nsTextNode.h"
+#include "nsURLHelper.h"
 #include "nsUnicharUtils.h"
 #include "nsWrapperCache.h"
 #include "nsWrapperCacheInlines.h"
@@ -501,6 +503,11 @@ class Document::HeaderData {
 AutoTArray<Document*, 8>* Document::sLoadingForegroundTopLevelContentDocument =
     nullptr;
 
+static LinkedList<Document>& AllDocumentsList() {
+  static NeverDestroyed<LinkedList<Document>> sAllDocuments;
+  return *sAllDocuments;
+}
+
 static LazyLogModule gDocumentLeakPRLog("DocumentLeak");
 static LazyLogModule gCspPRLog("CSP");
 LazyLogModule gUserInteractionPRLog("UserInteraction");
@@ -545,6 +552,11 @@ void IdentifierMapEntry::Traverse(
                                      "mIdentifierMap mNameContentList");
   aCallback->NoteXPCOMChild(static_cast<nsINodeList*>(mNameContentList));
 
+  NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(*aCallback,
+                                     "mIdentifierMap mDocumentNameContentList");
+  aCallback->NoteXPCOMChild(
+      static_cast<nsINodeList*>(mDocumentNameContentList));
+
   if (mImageElement) {
     NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(*aCallback,
                                        "mIdentifierMap mImageElement element");
@@ -554,8 +566,8 @@ void IdentifierMapEntry::Traverse(
 }
 
 bool IdentifierMapEntry::IsEmpty() {
-  return mIdContentList->IsEmpty() && !mNameContentList && !mChangeCallbacks &&
-         !mImageElement;
+  return mIdContentList->IsEmpty() && !mNameContentList &&
+         !mDocumentNameContentList && !mChangeCallbacks && !mImageElement;
 }
 
 bool IdentifierMapEntry::HasNameElement() const {
@@ -650,6 +662,7 @@ void IdentifierMapEntry::ClearAndNotify() {
     FireChangeCallbacks(currentElement, nullptr);
   }
   mNameContentList = nullptr;
+  mDocumentNameContentList = nullptr;
   if (mImageElement) {
     SetImageElement(nullptr);
   }
@@ -752,6 +765,26 @@ void IdentifierMapEntry::RemoveNameElement(Element* aElement) {
   if (mNameContentList) {
     mNameContentList->RemoveElement(aElement);
   }
+}
+
+void IdentifierMapEntry::AddDocumentNameElement(
+    Document* aDocument, nsGenericHTMLElement* aElement) {
+  if (!mDocumentNameContentList) {
+    mDocumentNameContentList = new dom::SimpleHTMLCollection(aDocument);
+  }
+
+  mDocumentNameContentList->AppendElement(aElement);
+}
+
+void IdentifierMapEntry::RemoveDocumentNameElement(
+    nsGenericHTMLElement* aElement) {
+  if (mDocumentNameContentList) {
+    mDocumentNameContentList->RemoveElement(aElement);
+  }
+}
+
+bool IdentifierMapEntry::HasDocumentNameElement() const {
+  return mDocumentNameContentList && mDocumentNameContentList->Length() != 0;
 }
 
 bool IdentifierMapEntry::HasIdElementExposedAsHTMLDocumentProperty() const {
@@ -1323,6 +1356,7 @@ Document::Document(const char* aContentType)
       mUpgradeInsecureRequests(false),
       mUpgradeInsecurePreloads(false),
       mDevToolsWatchingDOMMutations(false),
+      mRenderingSuppressedForViewTransitions(false),
       mBidiEnabled(false),
       mMayNeedFontPrefsUpdate(true),
       mMathMLEnabled(false),
@@ -1391,7 +1425,6 @@ Document::Document(const char* aContentType)
       mParserAborted(false),
       mReportedDocumentUseCounters(false),
       mHasReportedShadowDOMUsage(false),
-      mHasDelayedRefreshEvent(false),
       mLoadEventFiring(false),
       mSkipLoadEventAfterClose(false),
       mDisableCookieAccess(false),
@@ -1682,9 +1715,10 @@ void Document::GetNetErrorInfo(NetErrorInfo& aInfo, ErrorResult& aRv) {
     }
 
     rv = httpChannel->GetResponseStatusText(responseStatusText);
-    if (NS_SUCCEEDED(rv)) {
-      aInfo.mResponseStatusText.AssignASCII(responseStatusText);
+    if (NS_FAILED(rv) || responseStatusText.IsEmpty()) {
+      net_GetDefaultStatusTextForCode(responseStatus, responseStatusText);
     }
+    aInfo.mResponseStatusText.AssignASCII(responseStatusText);
   }
 
   nsCOMPtr<nsITransportSecurityInfo> tsi;
@@ -1727,7 +1761,8 @@ bool Document::CallerIsTrustedAboutCertError(JSContext* aCx,
 #endif
 }
 
-bool Document::CallerCanAccessPrivilegeSSA(JSContext* aCx, JSObject* aObject) {
+bool Document::CallerIsSystemPrincipalOrWebCompatAddon(JSContext* aCx,
+                                                       JSObject* aObject) {
   RefPtr<BasePrincipal> principal =
       BasePrincipal::Cast(nsContentUtils::SubjectPrincipal(aCx));
 
@@ -1735,13 +1770,12 @@ bool Document::CallerCanAccessPrivilegeSSA(JSContext* aCx, JSObject* aObject) {
     return false;
   }
 
-  // We allow the privilege SSA to be called from system principal.
+  // We allow the privileged APIs to be called from system principal.
   if (principal->IsSystemPrincipal()) {
     return true;
   }
 
-  // We only allow calling the privilege SSA from the content script of the
-  // webcompat extension.
+  // We only allow calling privileged APIs from the webcompat extension.
   if (auto* policy = principal->ContentScriptAddonPolicy()) {
     nsAutoString addonID;
     policy->GetId(addonID);
@@ -2083,12 +2117,6 @@ void Document::RecordPageLoadEventTelemetry(
 
   aEventTelemetryData.loadType = mozilla::Some(loadTypeStr);
 
-#ifdef ACCESSIBILITY
-  if (GetAccService() != nullptr) {
-    SetPageloadEventFeature(pageload_event::FeatureBits::USING_A11Y);
-  }
-#endif
-
   // Sending a glean ping must be done on the parent process.
   if (ContentChild* cc = ContentChild::GetSingleton()) {
     cc->SendRecordPageLoadEvent(aEventTelemetryData);
@@ -2248,8 +2276,8 @@ void Document::AccumulatePageLoadTelemetry(
   TimeStamp asyncOpen;
   timedChannel->GetAsyncOpen(&asyncOpen);
   if (asyncOpen) {
-    Telemetry::AccumulateTimeDelta(Telemetry::DNS_PERF_FIRST_BYTE_MS, dnsKey,
-                                   asyncOpen, responseStart);
+    glean::perf::dns_first_byte.Get(dnsKey).AccumulateRawDuration(
+        responseStart - asyncOpen);
   }
 
   // First Contentful Composite
@@ -2259,9 +2287,8 @@ void Document::AccumulatePageLoadTelemetry(
         firstContentfulComposite - navigationStart);
 
     if (!http3Key.IsEmpty()) {
-      Telemetry::AccumulateTimeDelta(
-          Telemetry::HTTP3_PERF_FIRST_CONTENTFUL_PAINT_MS, http3Key,
-          navigationStart, firstContentfulComposite);
+      glean::perf::http3_first_contentful_paint.Get(http3Key)
+          .AccumulateRawDuration(firstContentfulComposite - navigationStart);
 #ifndef ANDROID
       AccumulateHttp3FcpGleanPref(http3Key,
                                   firstContentfulComposite - navigationStart);
@@ -2269,18 +2296,16 @@ void Document::AccumulatePageLoadTelemetry(
     }
 
     if (!http3WithPriorityKey.IsEmpty()) {
-      Telemetry::AccumulateTimeDelta(
-          Telemetry::H3P_PERF_FIRST_CONTENTFUL_PAINT_MS, http3WithPriorityKey,
-          navigationStart, firstContentfulComposite);
+      glean::perf::h3p_first_contentful_paint.Get(http3WithPriorityKey)
+          .AccumulateRawDuration(firstContentfulComposite - navigationStart);
 #ifndef ANDROID
       AccumulatePriorityFcpGleanPref(
           http3WithPriorityKey, firstContentfulComposite - navigationStart);
 #endif
     }
 
-    Telemetry::AccumulateTimeDelta(
-        Telemetry::DNS_PERF_FIRST_CONTENTFUL_PAINT_MS, dnsKey, navigationStart,
-        firstContentfulComposite);
+    glean::perf::dns_first_contentful_paint.Get(dnsKey).AccumulateRawDuration(
+        firstContentfulComposite - navigationStart);
 
     glean::performance_pageload::fcp_responsestart.AccumulateRawDuration(
         firstContentfulComposite - responseStart);
@@ -2306,14 +2331,13 @@ void Document::AccumulatePageLoadTelemetry(
     glean::performance_pageload::load_time.AccumulateRawDuration(
         loadEventStart - navigationStart);
     if (!http3Key.IsEmpty()) {
-      Telemetry::AccumulateTimeDelta(Telemetry::HTTP3_PERF_PAGE_LOAD_TIME_MS,
-                                     http3Key, navigationStart, loadEventStart);
+      glean::perf::http3_page_load_time.Get(http3Key).AccumulateRawDuration(
+          loadEventStart - navigationStart);
     }
 
     if (!http3WithPriorityKey.IsEmpty()) {
-      Telemetry::AccumulateTimeDelta(Telemetry::H3P_PERF_PAGE_LOAD_TIME_MS,
-                                     http3WithPriorityKey, navigationStart,
-                                     loadEventStart);
+      glean::perf::h3p_page_load_time.Get(http3WithPriorityKey)
+          .AccumulateRawDuration(loadEventStart - navigationStart);
     }
 
     glean::performance_pageload::load_time_responsestart.AccumulateRawDuration(
@@ -2340,7 +2364,25 @@ void Document::AccumulatePageLoadTelemetry(
             static_cast<uint32_t>(timeToRequestStart.ToMilliseconds()));
       }
     }
+
+    TimeStamp secureConnectStart;
+    TimeStamp connectEnd;
+    timedChannel->GetSecureConnectionStart(&secureConnectStart);
+    timedChannel->GetConnectEnd(&connectEnd);
+    if (secureConnectStart && connectEnd) {
+      TimeDuration tlsHandshakeTime = connectEnd - secureConnectStart;
+      if (tlsHandshakeTime > zeroDuration) {
+        aEventTelemetryDataOut.tlsHandshakeTime = mozilla::Some(
+            static_cast<uint32_t>(tlsHandshakeTime.ToMilliseconds()));
+      }
+    }
   }
+
+#ifdef ACCESSIBILITY
+  if (GetAccService() != nullptr) {
+    SetPageloadEventFeature(pageload_event::FeatureBits::USING_A11Y);
+  }
+#endif
 
   aEventTelemetryDataOut.features = mozilla::Some(mPageloadEventFeatures);
 }
@@ -2389,6 +2431,13 @@ void Document::AccumulateJSTelemetry(
   if (!timers.protectTime.IsZero()) {
     glean::javascript_pageload::protect_time.AccumulateRawDuration(
         timers.protectTime);
+    // GLAM EXPERIMENT
+    // This metric is temporary, disabled by default, and will be enabled only
+    // for the purpose of experimenting with client-side sampling of data for
+    // GLAM use. See Bug 1947604 for more information.
+    glean::glam_experiment::protect_time.AccumulateRawDuration(
+        timers.protectTime);
+    // END GLAM EXPERIMENT
   }
 }
 
@@ -2508,6 +2557,11 @@ Document::~Document() {
   UnlinkOriginalDocumentIfStatic();
 
   UnregisterFromMemoryReportingForDataDocument();
+
+  if (isInList()) {
+    MOZ_ASSERT(AllDocumentsList().contains(this));
+    remove();
+  }
 }
 
 void Document::DropStyleSet() { mStyleSet = nullptr; }
@@ -2586,6 +2640,7 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INTERNAL(Document)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mDocumentL10n)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mFragmentDirective)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mHighlightRegistry)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mPendingFullscreenEvents)
 
   // Traverse all Document nsCOMPtrs.
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mParser)
@@ -2632,6 +2687,7 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INTERNAL(Document)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mMidasCommandManager)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mAll)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mActiveViewTransition)
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mViewTransitionUpdateCallbacks)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mDocGroup)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mFrameRequestManager)
 
@@ -2736,6 +2792,7 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(Document)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mDocumentL10n)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mFragmentDirective)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mHighlightRegistry)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK(mPendingFullscreenEvents)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mParser)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mOnloadBlocker)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mDOMImplementation)
@@ -2763,6 +2820,7 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(Document)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mMidasCommandManager)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mAll)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mActiveViewTransition)
+  NS_IMPL_CYCLE_COLLECTION_UNLINK(mViewTransitionUpdateCallbacks)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mReferrerInfo)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mPreloadReferrerInfo)
 
@@ -2837,6 +2895,11 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(Document)
 
   tmp->mActiveLocks.Clear();
 
+  if (tmp->isInList()) {
+    MOZ_ASSERT(AllDocumentsList().contains(tmp));
+    tmp->remove();
+  }
+
   tmp->mInUnlinkOrDeletion = false;
 
   tmp->UnregisterFromMemoryReportingForDataDocument();
@@ -2892,6 +2955,8 @@ nsresult Document::Init(nsIPrincipal* aPrincipal,
   } else {
     RecomputeResistFingerprinting();
   }
+
+  AllDocumentsList().insertBack(this);
 
   return NS_OK;
 }
@@ -4182,6 +4247,9 @@ void Document::SetDocumentURI(nsIURI* aURI) {
   nsTArray<TextDirective> textDirectives;
   FragmentDirective::ParseAndRemoveFragmentDirectiveFromFragment(
       mDocumentURI, &textDirectives);
+  if (!textDirectives.IsEmpty()) {
+    SetUseCounter(eUseCounter_custom_TextDirectivePages);
+  }
   FragmentDirective()->SetTextDirectives(std::move(textDirectives));
 
   nsIURI* newBase = GetDocBaseURI();
@@ -4255,10 +4323,9 @@ static void IncrementExpandoGeneration(Document& aDoc) {
 }
 
 void Document::AddToNameTable(Element* aElement, nsAtom* aName) {
-  MOZ_ASSERT(
-      nsGenericHTMLElement::ShouldExposeNameAsHTMLDocumentProperty(aElement),
-      "Only put elements that need to be exposed as document['name'] in "
-      "the named table.");
+  MOZ_ASSERT(nsGenericHTMLElement::ShouldExposeNameAsWindowProperty(aElement),
+             "Only put elements that need to be exposed as window['name'] in "
+             "the named table.");
 
   IdentifierMapEntry* entry = mIdentifierMap.PutEntry(aName);
 
@@ -4284,6 +4351,35 @@ void Document::RemoveFromNameTable(Element* aElement, nsAtom* aName) {
   if (!entry->HasNameElement() &&
       !entry->HasIdElementExposedAsHTMLDocumentProperty()) {
     IncrementExpandoGeneration(*this);
+  }
+}
+
+void Document::AddToDocumentNameTable(nsGenericHTMLElement* aElement,
+                                      nsAtom* aName) {
+  MOZ_ASSERT(
+      nsGenericHTMLElement::ShouldExposeIdAsHTMLDocumentProperty(aElement) ||
+          nsGenericHTMLElement::ShouldExposeNameAsHTMLDocumentProperty(
+              aElement),
+      "Only put elements that need to be exposed as document['name'] in "
+      "the document named table.");
+
+  if (IdentifierMapEntry* entry = mIdentifierMap.PutEntry(aName)) {
+    entry->AddDocumentNameElement(this, aElement);
+  }
+}
+
+void Document::RemoveFromDocumentNameTable(nsGenericHTMLElement* aElement,
+                                           nsAtom* aName) {
+  if (mIdentifierMap.Count() == 0) {
+    return;
+  }
+
+  if (IdentifierMapEntry* entry = mIdentifierMap.GetEntry(aName)) {
+    entry->RemoveDocumentNameElement(aElement);
+    nsBaseContentList* list = entry->GetDocumentNameContentList();
+    if (!list || list->Length() == 0) {
+      IncrementExpandoGeneration(*this);
+    }
   }
 }
 
@@ -4372,8 +4468,7 @@ void Document::SetPrincipals(nsIPrincipal* aNewPrincipal,
   RecomputeResistFingerprinting();
 
 #ifdef DEBUG
-  // Validate that the docgroup is set correctly by calling its getter and
-  // triggering its sanity check.
+  // Validate that the docgroup is set correctly.
   //
   // If we're setting the principal to null, we don't want to perform the check,
   // as the document is entering an intermediate state where it does not have a
@@ -4381,7 +4476,7 @@ void Document::SetPrincipals(nsIPrincipal* aNewPrincipal,
   // check. It's not unsafe to have a document which has a null principal in the
   // same docgroup as another document, so this should not be a problem.
   if (aNewPrincipal) {
-    GetDocGroup();
+    AssertDocGroupMatchesKey();
   }
 #endif
 }
@@ -4389,7 +4484,9 @@ void Document::SetPrincipals(nsIPrincipal* aNewPrincipal,
 #ifdef DEBUG
 void Document::AssertDocGroupMatchesKey() const {
   // Sanity check that we have an up-to-date and accurate docgroup
-  // We only check if the principal when we can get the browsing context.
+  // We only check if the principal when we can get the browsing context, as
+  // documents without a BrowsingContext do not need to have a matching
+  // principal to their DocGroup.
 
   // Note that we can be invoked during cycle collection, so we need to handle
   // the browsingcontext being partially unlinked - normally you shouldn't
@@ -4401,16 +4498,7 @@ void Document::AssertDocGroupMatchesKey() const {
   if (mDocGroup && mDocGroup->GetBrowsingContextGroup()) {
     MOZ_ASSERT(mDocGroup->GetBrowsingContextGroup() ==
                GetBrowsingContext()->Group());
-
-    // GetKey() can fail, e.g. after the TLD service has shut down.
-    nsAutoCString docGroupKey;
-    nsresult rv = mozilla::dom::DocGroup::GetKey(
-        NodePrincipal(),
-        GetBrowsingContext()->Group()->IsPotentiallyCrossOriginIsolated(),
-        docGroupKey);
-    if (NS_SUCCEEDED(rv)) {
-      MOZ_ASSERT(mDocGroup->MatchesKey(docGroupKey));
-    }
+    mDocGroup->AssertMatches(this);
   }
 }
 #endif
@@ -7287,17 +7375,12 @@ already_AddRefed<PresShell> Document::CreatePresShell(
 
   mExternalResourceMap.ShowViewers();
 
-  MaybeScheduleFrameRequestCallbacks();
-
   if (mDocumentL10n) {
     // In case we already accumulated mutations,
     // we'll trigger the refresh driver now.
     mDocumentL10n->OnCreatePresShell();
   }
 
-  if (HasAutoFocusCandidates()) {
-    ScheduleFlushAutoFocusCandidates();
-  }
   // Now that we have a shell, we might have @font-face rules (the presence of a
   // shell may change which rules apply to us). We don't need to do anything
   // like EnsureStyleFlush or such, there's nothing to update yet and when stuff
@@ -7313,13 +7396,45 @@ already_AddRefed<PresShell> Document::CreatePresShell(
   return presShell.forget();
 }
 
-void Document::MaybeScheduleFrameRequestCallbacks() {
-  if (!HasFrameRequestCallbacks() || !ShouldFireFrameRequestCallbacks()) {
+// This roughly matches https://html.spec.whatwg.org/#update-the-rendering
+// step 3:
+//
+//     Remove from docs any Document object doc for which any of the
+//     following are true.
+//
+// If this function changes make sure to call MaybeScheduleRendering at the
+// right places.
+bool Document::IsRenderingSuppressed() const {
+  // TODO(emilio): Per spec we should suppress when doc's visibility state is
+  // "hidden", but tests rely on throttling at least (otherwise webdriver tests
+  // that test minimized windows and so on time out). Maybe we can do it only in
+  // content or something along those lines?
+  // if (Hidden()) {
+  //   return true;
+  // }
+
+  // doc's rendering is suppressed for view transitions
+  if (mRenderingSuppressedForViewTransitions) {
+    return true;
+  }
+  // The user agent believes that updating the rendering of doc's node navigable
+  // would have no visible effect.
+  if (!IsEventHandlingEnabled() && !IsBeingUsedAsImage()) {
+    return true;
+  }
+  if (!mPresShell || !mPresShell->DidInitialize()) {
+    return true;
+  }
+  return false;
+}
+
+void Document::MaybeScheduleRenderingPhases(RenderingPhases aPhases) {
+  if (IsRenderingSuppressed()) {
     return;
   }
   MOZ_ASSERT(mPresShell);
   nsRefreshDriver* rd = mPresShell->GetPresContext()->RefreshDriver();
-  rd->EnsureFrameRequestCallbacksHappen();
+  rd->ScheduleRenderingPhases(aPhases);
 }
 
 void Document::TakeVideoFrameRequestCallbacks(
@@ -7394,10 +7509,7 @@ bool Document::ShouldThrottleFrameRequests() const {
 
 void Document::DeletePresShell() {
   mExternalResourceMap.HideViewers();
-  if (nsPresContext* presContext = mPresShell->GetPresContext()) {
-    presContext->RefreshDriver()->CancelPendingFullscreenEvents(this);
-    presContext->RefreshDriver()->CancelFlushAutoFocus(this);
-  }
+  mPendingFullscreenEvents.Clear();
 
   // When our shell goes away, request that all our images be immediately
   // discarded, so we don't carry around decoded image data for a document we
@@ -7438,9 +7550,7 @@ void Document::SetBFCacheEntry(nsIBFCacheEntry* aEntry) {
   MOZ_ASSERT(IsBFCachingAllowed() || !aEntry, "You should have checked!");
 
   if (mPresShell) {
-    if (aEntry) {
-      mPresShell->StopObservingRefreshDriver();
-    } else if (mBFCacheEntry) {
+    if (!aEntry && mBFCacheEntry) {
       mPresShell->StartObservingRefreshDriver();
     }
   }
@@ -7888,13 +7998,7 @@ DocGroup* Document::GetDocGroupOrCreate() {
     BrowsingContextGroup* group = GetBrowsingContext()->Group();
     MOZ_ASSERT(group);
 
-    nsAutoCString docGroupKey;
-    nsresult rv = mozilla::dom::DocGroup::GetKey(
-        NodePrincipal(), group->IsPotentiallyCrossOriginIsolated(),
-        docGroupKey);
-    if (NS_SUCCEEDED(rv)) {
-      mDocGroup = group->AddDocument(docGroupKey, this);
-    }
+    mDocGroup = group->AddDocument(this);
   }
   return mDocGroup;
 }
@@ -7909,64 +8013,37 @@ void Document::SetScopeObject(nsIGlobalObject* aGlobal) {
       return;
     }
 
-    // Same origin data documents should have the same docGroup as their scope
-    // window.
-    if (mLoadedAsData && window->GetExtantDoc() &&
-        window->GetExtantDoc() != this &&
-        window->GetExtantDoc()->NodePrincipal() == NodePrincipal()) {
-      DocGroup* docGroup = window->GetExtantDoc()->GetDocGroup();
+    // Attempt to join a DocGroup based on our global and container now that our
+    // principal is locked in (due to being added to a window).
+    DocGroup* docGroup = GetDocGroupOrCreate();
+    if (!docGroup) {
+      // If we failed to join a DocGroup, inherit from our parent window.
+      //
+      // NOTE: It is possible for Document to be cross-origin to window while
+      // loading a cross-origin data document over XHR with CORS. In that case,
+      // the DocGroup can have a key which does not match NodePrincipal().
+      MOZ_ASSERT(!mDocumentContainer,
+                 "Must have DocGroup if loaded in a DocShell");
+      mDocGroup = window->GetDocGroup();
+      mDocGroup->AddDocument(this);
+    }
 
-      if (docGroup) {
-        if (!mDocGroup) {
-          mDocGroup = docGroup;
-          mDocGroup->AddDocument(this);
-        } else {
-          MOZ_ASSERT(mDocGroup == docGroup,
-                     "Data document has a mismatched doc group?");
-        }
 #ifdef DEBUG
-        AssertDocGroupMatchesKey();
+    AssertDocGroupMatchesKey();
 #endif
-
-        // Update data document's mMutationEventsEnabled early on so that
-        // we can avoid extra IsURIInPrefList calls.
-        if (mMutationEventsEnabled.isNothing()) {
-          mMutationEventsEnabled.emplace(
-              window->GetExtantDoc()->MutationEventsEnabled());
-        }
-
-        return;
-      }
-
-      MOZ_ASSERT_UNREACHABLE(
-          "Scope window doesn't have DocGroup when creating data document?");
-      // ... but fall through to be safe.
-    }
-
-    BrowsingContextGroup* browsingContextGroup =
-        window->GetBrowsingContextGroup();
-
-    // We should already have the principal, and now that we have been added
-    // to a window, we should be able to join a DocGroup!
-    nsAutoCString docGroupKey;
-    nsresult rv = mozilla::dom::DocGroup::GetKey(
-        NodePrincipal(),
-        browsingContextGroup->IsPotentiallyCrossOriginIsolated(), docGroupKey);
-    if (mDocGroup) {
-      if (NS_SUCCEEDED(rv)) {
-        MOZ_RELEASE_ASSERT(mDocGroup->MatchesKey(docGroupKey));
-      }
-      MOZ_RELEASE_ASSERT(mDocGroup->GetBrowsingContextGroup() ==
-                         browsingContextGroup);
-    } else {
-      mDocGroup = browsingContextGroup->AddDocument(docGroupKey, this);
-
-      MOZ_ASSERT(mDocGroup);
-    }
-
     MOZ_ASSERT_IF(
         mNodeInfoManager->GetArenaAllocator(),
         mNodeInfoManager->GetArenaAllocator() == mDocGroup->ArenaAllocator());
+
+    // Update data document's mMutationEventsEnabled early on so that we can
+    // avoid extra IsURIInPrefList calls.
+    if (mLoadedAsData && window->GetExtantDoc() &&
+        window->GetExtantDoc() != this &&
+        window->GetExtantDoc()->NodePrincipal() == NodePrincipal() &&
+        mMutationEventsEnabled.isNothing()) {
+      mMutationEventsEnabled.emplace(
+          window->GetExtantDoc()->MutationEventsEnabled());
+    }
   }
 }
 
@@ -9301,8 +9378,8 @@ void Document::SetDomain(const nsAString& aDomain, ErrorResult& rv) {
     return;
   }
 
-  if (GetBrowsingContext()->Group()->IsPotentiallyCrossOriginIsolated()) {
-    WarnOnceAbout(Document::eDocumentSetDomainNotAllowed);
+  if (!GetDocGroup() || GetDocGroup()->IsOriginKeyed()) {
+    WarnOnceAbout(Document::eDocumentSetDomainIgnored);
     return;
   }
 
@@ -12286,12 +12363,8 @@ void Document::OnPageShow(bool aPersisted, EventTarget* aDispatchStartTarget,
 }
 
 static void DispatchFullscreenChange(Document& aDocument, nsINode* aTarget) {
-  if (nsPresContext* presContext = aDocument.GetPresContext()) {
-    auto pendingEvent = MakeUnique<PendingFullscreenEvent>(
-        FullscreenEventType::Change, &aDocument, aTarget);
-    presContext->RefreshDriver()->ScheduleFullscreenEvent(
-        std::move(pendingEvent));
-  }
+  aDocument.AddPendingFullscreenEvent(
+      MakeUnique<PendingFullscreenEvent>(FullscreenEventType::Change, aTarget));
 }
 
 void Document::OnPageHide(bool aPersisted, EventTarget* aDispatchStartTarget,
@@ -12613,7 +12686,9 @@ void Document::NotifyLoading(bool aNewParentIsLoading,
        (int)aNewState, was_loading, is_loading, set_load_state));
 
   mAncestorIsLoading = aNewParentIsLoading;
-  if (set_load_state && StaticPrefs::dom_timeout_defer_during_load()) {
+  if (set_load_state && StaticPrefs::dom_timeout_defer_during_load() &&
+      !NodePrincipal()->IsURIInPrefList(
+          "dom.timeout.defer_during_load.force-disable")) {
     // Tell our innerwindow (and thus TimeoutManager)
     nsPIDOMWindowInner* inner = GetInnerWindow();
     if (inner) {
@@ -13138,19 +13213,6 @@ void Document::UnsuppressEventHandlingAndFireEvents(bool aFireEvents) {
       for (net::ChannelEventQueue* queue : queues) {
         queue->Resume();
       }
-
-      // If there have been any events driven by the refresh driver which were
-      // delayed due to events being suppressed in this document, make sure
-      // there is a refresh scheduled soon so the events will run.
-      if (doc->mHasDelayedRefreshEvent) {
-        doc->mHasDelayedRefreshEvent = false;
-
-        if (doc->mPresShell) {
-          nsRefreshDriver* rd =
-              doc->mPresShell->GetPresContext()->RefreshDriver();
-          rd->RunDelayedEventsSoon();
-        }
-      }
     }
   }
 
@@ -13208,6 +13270,57 @@ bool Document::IsActive() const {
          !GetBrowsingContext()->IsInBFCache();
 }
 
+bool Document::HasBeenScrolled() const {
+  nsGlobalWindowInner* window = nsGlobalWindowInner::Cast(GetInnerWindow());
+  if (!window) {
+    return false;
+  }
+  if (ScrollContainerFrame* frame = window->GetScrollContainerFrame()) {
+    return frame->HasBeenScrolled();
+  }
+
+  return false;
+}
+
+bool Document::CanRewriteURL(nsIURI* aTargetURL) const {
+  if (nsContentUtils::URIIsLocalFile(aTargetURL)) {
+    // It's a file:// URI
+    nsCOMPtr<nsIPrincipal> principal = NodePrincipal();
+    return NS_SUCCEEDED(principal->CheckMayLoadWithReporting(
+        mDocumentURI, false, InnerWindowID()));
+  }
+
+  nsCOMPtr<nsIScriptSecurityManager> secMan =
+      do_GetService(NS_SCRIPTSECURITYMANAGER_CONTRACTID);
+  if (!secMan) {
+    return false;
+  }
+
+  // It's very important that we check that aTargetURL is of the same
+  // origin as mDocumentURI, not docBaseURI, because a page can
+  // set docBaseURI arbitrarily to any domain.
+  bool isPrivateWin =
+      NodePrincipal()->OriginAttributesRef().IsPrivateBrowsing();
+  if (NS_FAILED(secMan->CheckSameOriginURI(mDocumentURI, aTargetURL, true,
+                                           isPrivateWin))) {
+    return false;
+  }
+
+  // In addition to checking that the security manager says that
+  // the new URI has the same origin as our current URI, we also
+  // check that the two URIs have the same userpass. (The
+  // security manager says that |http://foo.com| and
+  // |http://me@foo.com| have the same origin.)  mDocumentURI
+  // won't contain the password part of the userpass, so this
+  // means that it's never valid to specify a password in a
+  // pushState or replaceState URI.
+  nsAutoCString currentUserPass, newUserPass;
+  (void)mDocumentURI->GetUserPass(currentUserPass);
+  (void)aTargetURL->GetUserPass(newUserPass);
+
+  return currentUserPass.Equals(newUserPass);
+}
+
 nsISupports* Document::GetCurrentContentSink() {
   return mParser ? mParser->GetContentSink() : nullptr;
 }
@@ -13227,7 +13340,7 @@ Document* Document::GetTemplateContentsOwner() {
         Document::GetDocumentURI(), Document::GetDocBaseURI(), NodePrincipal(),
         true,          // aLoadedAsData
         scriptObject,  // aEventObject
-        IsHTMLDocument() ? DocumentFlavorHTML : DocumentFlavorXML);
+        IsHTMLDocument() ? DocumentFlavor::HTML : DocumentFlavor::XML);
     NS_ENSURE_SUCCESS(rv, nullptr);
 
     mTemplateContentsOwner = document;
@@ -13305,11 +13418,8 @@ void Document::ElementWithAutoFocusInserted(Element* aAutoFocusCandidate) {
 }
 
 void Document::ScheduleFlushAutoFocusCandidates() {
-  MOZ_ASSERT(mPresShell && mPresShell->DidInitialize());
-  MOZ_ASSERT(GetBrowsingContext()->IsTop());
-  if (nsRefreshDriver* rd = mPresShell->GetRefreshDriver()) {
-    rd->ScheduleAutoFocusFlush(this);
-  }
+  MOZ_ASSERT(HasAutoFocusCandidates());
+  MaybeScheduleRenderingPhases({RenderingPhase::FlushAutoFocusCandidates});
 }
 
 void Document::AppendAutoFocusCandidateToTopDocument(
@@ -13319,16 +13429,13 @@ void Document::AppendAutoFocusCandidateToTopDocument(
     return;
   }
 
-  if (!HasAutoFocusCandidates()) {
-    // PresShell may be initialized later
-    if (mPresShell && mPresShell->DidInitialize()) {
-      ScheduleFlushAutoFocusCandidates();
-    }
-  }
-
+  const bool hadCandidates = HasAutoFocusCandidates();
   nsWeakPtr element = do_GetWeakReference(aAutoFocusCandidate);
   mAutoFocusCandidates.RemoveElement(element);
   mAutoFocusCandidates.AppendElement(element);
+  if (!hadCandidates) {
+    ScheduleFlushAutoFocusCandidates();
+  }
 }
 
 void Document::SetAutoFocusFired() {
@@ -14616,7 +14723,7 @@ void Document::SetDevToolsWatchingDOMMutations(bool aValue) {
 }
 
 void EvaluateMediaQueryLists(nsTArray<RefPtr<MediaQueryList>>& aListsToNotify,
-                             Document& aDocument, bool aRecurse) {
+                             Document& aDocument) {
   if (nsPresContext* pc = aDocument.GetPresContext()) {
     pc->FlushPendingMediaFeatureValuesChanged();
   }
@@ -14626,18 +14733,11 @@ void EvaluateMediaQueryLists(nsTArray<RefPtr<MediaQueryList>>& aListsToNotify,
       aListsToNotify.AppendElement(mql);
     }
   }
-  if (!aRecurse) {
-    return;
-  }
-  aDocument.EnumerateSubDocuments([&](Document& aSubDoc) {
-    EvaluateMediaQueryLists(aListsToNotify, aSubDoc, true);
-    return CallState::Continue;
-  });
 }
 
-void Document::EvaluateMediaQueriesAndReportChanges(bool aRecurse) {
+void Document::EvaluateMediaQueriesAndReportChanges() {
   AutoTArray<RefPtr<MediaQueryList>, 32> mqls;
-  EvaluateMediaQueryLists(mqls, *this, aRecurse);
+  EvaluateMediaQueryLists(mqls, *this);
   for (auto& mql : mqls) {
     mql->FireChangeEvent();
   }
@@ -15402,7 +15502,8 @@ void Document::GetWireframeWithoutFlushing(bool aIncludeNodes,
   }
 
   auto& wireframe = aWireframe.SetValue();
-  wireframe.mCanvasBackground = shell->ComputeCanvasBackground().mViewportColor;
+  wireframe.mCanvasBackground =
+      shell->ComputeCanvasBackground().mViewport.mColor;
 
   FrameForPointOptions options;
   options.mBits += FrameForPointOption::IgnoreCrossDoc;
@@ -16036,6 +16137,23 @@ void Document::ClearPendingFullscreenRequests(Document* aDoc) {
   }
 }
 
+void Document::AddPendingFullscreenEvent(
+    UniquePtr<PendingFullscreenEvent> aPendingEvent) {
+  const bool wasEmpty = mPendingFullscreenEvents.IsEmpty();
+  mPendingFullscreenEvents.AppendElement(std::move(aPendingEvent));
+  if (wasEmpty) {
+    MaybeScheduleRenderingPhases({RenderingPhase::FullscreenSteps});
+  }
+}
+
+// https://fullscreen.spec.whatwg.org/#run-the-fullscreen-steps
+void Document::RunFullscreenSteps() {
+  auto events = std::move(mPendingFullscreenEvents);
+  for (auto& event : events) {
+    event->Dispatch(this);
+  }
+}
+
 bool Document::HasPendingFullscreenRequests() {
   PendingFullscreenChangeList::Iterator<FullscreenRequest> iter(
       this, PendingFullscreenChangeList::eDocumentsWithSameRoot);
@@ -16188,6 +16306,42 @@ void Document::MaybeSkipTransitionAfterVisibilityChange() {
   }
 }
 
+// https://drafts.csswg.org/css-view-transitions-1/#schedule-the-update-callback
+void Document::ScheduleViewTransitionUpdateCallback(ViewTransition* aVt) {
+  MOZ_ASSERT(aVt);
+  const bool hasTasks = !mViewTransitionUpdateCallbacks.IsEmpty();
+
+  // 1. Append transition to transition’s relevant settings object’s update
+  // callback queue.
+  mViewTransitionUpdateCallbacks.AppendElement(aVt);
+
+  // 2. Queue a global task on the DOM manipulation task source, given
+  // transition’s relevant global object, to flush the update callback queue.
+  // Note: |hasTasks| means the list was not empty, so there must be a global
+  // task there already.
+  if (!hasTasks) {
+    Dispatch(NewRunnableMethod(
+        "Document::FlushViewTransitionUpdateCallbackQueue", this,
+        &Document::FlushViewTransitionUpdateCallbackQueue));
+  }
+}
+
+// https://drafts.csswg.org/css-view-transitions-1/#flush-the-update-callback-queue
+void Document::FlushViewTransitionUpdateCallbackQueue() {
+  // 1. For each transition in document’s update callback queue, call the update
+  // callback given transition.
+  // Note: we move mViewTransitionUpdateCallbacks into a temporary array to make
+  // sure no one updates the array when iterating.
+  auto callbacks = std::move(mViewTransitionUpdateCallbacks);
+  MOZ_ASSERT(mViewTransitionUpdateCallbacks.IsEmpty());
+  for (RefPtr<ViewTransition>& vt : callbacks) {
+    MOZ_KnownLive(vt)->CallUpdateCallback(IgnoreErrors());
+  }
+
+  // 2. Set document’s update callback queue to an empty list.
+  // mViewTransitionUpdateCallbacks is empty after the 1st step.
+}
+
 // https://html.spec.whatwg.org/#update-the-visibility-state
 void Document::UpdateVisibilityState(DispatchVisibilityChange aDispatchEvent) {
   const dom::VisibilityState visibilityState = ComputeVisibilityState();
@@ -16218,6 +16372,7 @@ void Document::UpdateVisibilityState(DispatchVisibilityChange aDispatchEvent) {
 
   NotifyActivityChanged();
   if (visible) {
+    MaybeScheduleRendering();
     MaybeActiveMediaComponents();
   }
 
@@ -16449,7 +16604,7 @@ already_AddRefed<Document> Document::Constructor(const GlobalObject& aGlobal,
   nsCOMPtr<Document> doc;
   nsresult res = NS_NewDOMDocument(getter_AddRefs(doc), VoidString(), u""_ns,
                                    nullptr, uri, uri, prin->GetPrincipal(),
-                                   true, global, DocumentFlavorPlain);
+                                   true, global, DocumentFlavor::Plain);
   if (NS_FAILED(res)) {
     rv.Throw(res);
     return nullptr;
@@ -16718,6 +16873,12 @@ void Document::ReportLCP() {
 
   mozilla::glean::perf::largest_contentful_paint.AccumulateRawDuration(
       lcpTime - timing->GetNavigationStartTimeStamp());
+  // GLAM EXPERIMENT
+  // This metric is temporary, disabled by default, and will be enabled only
+  // for the purpose of experimenting with client-side sampling of data for
+  // GLAM use. See Bug 1947604 for more information.
+  mozilla::glean::glam_experiment::largest_contentful_paint
+      .AccumulateRawDuration(lcpTime - timing->GetNavigationStartTimeStamp());
 
   if (!GetChannel()) {
     return;
@@ -16836,7 +16997,7 @@ void Document::MaybeRecomputePartitionKey() {
       ->SetPartitionKey(originURI, false);
 }
 
-bool Document::RecomputeResistFingerprinting() {
+bool Document::RecomputeResistFingerprinting(bool aForceRefreshRTPCallerType) {
   mOverriddenFingerprintingSettings.reset();
   const bool previous = mShouldResistFingerprinting;
 
@@ -16909,7 +17070,7 @@ bool Document::RecomputeResistFingerprinting() {
            mShouldResistFingerprinting));
 
   bool changed = previous != mShouldResistFingerprinting;
-  if (changed) {
+  if (changed || aForceRefreshRTPCallerType) {
     if (auto win = nsGlobalWindowInner::Cast(GetInnerWindow())) {
       win->RefreshReduceTimerPrecisionCallerType();
     }
@@ -16993,10 +17154,6 @@ void Document::UpdateIntersections(TimeStamp aNowTime) {
     Dispatch(NewRunnableMethod("Document::NotifyIntersectionObservers", this,
                                &Document::NotifyIntersectionObservers));
   }
-  EnumerateSubDocuments([aNowTime](Document& aDoc) {
-    aDoc.UpdateIntersections(aNowTime);
-    return CallState::Continue;
-  });
 }
 
 static void UpdateEffectsOnBrowsingContext(BrowsingContext* aBc,
@@ -17265,6 +17422,7 @@ nsAutoSyncOperation::nsAutoSyncOperation(Document* aDoc,
   if (CycleCollectedJSContext* ccjs = CycleCollectedJSContext::Get()) {
     mMicroTaskLevel = ccjs->MicroTaskLevel();
     ccjs->SetMicroTaskLevel(0);
+    ccjs->EnterSyncOperation();
   }
   if (aDoc) {
     mBrowsingContext = aDoc->GetBrowsingContext();
@@ -17304,6 +17462,7 @@ nsAutoSyncOperation::~nsAutoSyncOperation() {
   CycleCollectedJSContext* ccjs = CycleCollectedJSContext::Get();
   if (ccjs) {
     ccjs->SetMicroTaskLevel(mMicroTaskLevel);
+    ccjs->LeaveSyncOperation();
   }
   if (mBrowsingContext &&
       mSyncBehavior == SyncOperationBehavior::eSuspendInput &&
@@ -17609,6 +17768,14 @@ void Document::MaybeAllowStorageForOpenerAfterUserInteraction() {
     return;
   }
 
+  // Don't trigger navigation heuristic for first-party trackers if the pref
+  // says so.
+  if (StaticPrefs::
+          privacy_restrict3rdpartystorage_heuristic_exclude_third_party_trackers() &&
+      nsContentUtils::IsFirstPartyTrackingResourceWindow(inner)) {
+    return;
+  }
+
   auto* outer = nsGlobalWindowOuter::Cast(inner->GetOuterWindow());
   if (NS_WARN_IF(!outer)) {
     return;
@@ -17879,41 +18046,65 @@ PermissionDelegateHandler* Document::GetPermissionDelegateHandler() {
   return mPermissionDelegateHandler;
 }
 
-void Document::ScheduleResizeObserversNotification() const {
-  if (!mPresShell) {
-    return;
-  }
-  if (nsRefreshDriver* rd = mPresShell->GetRefreshDriver()) {
-    rd->EnsureResizeObserverUpdateHappens();
-  }
+void Document::ScheduleResizeObserversNotification() {
+  MaybeScheduleRenderingPhases({RenderingPhase::Layout});
 }
 
-static void FlushLayoutForWholeBrowsingContextTree(Document& aDoc) {
-  const ChangesToFlush ctf(FlushType::Layout, /* aFlushAnimations = */ false);
+static void FlushLayoutForWholeBrowsingContextTree(Document& aDoc,
+                                                   const ChangesToFlush& aCtf) {
   BrowsingContext* bc = aDoc.GetBrowsingContext();
   if (bc && bc->GetExtantDocument() == &aDoc) {
     RefPtr<BrowsingContext> top = bc->Top();
-    top->PreOrderWalk([ctf](BrowsingContext* aCur) {
+    top->PreOrderWalk([aCtf](BrowsingContext* aCur) {
       if (Document* doc = aCur->GetExtantDocument()) {
-        doc->FlushPendingNotifications(ctf);
+        doc->FlushPendingNotifications(aCtf);
       }
     });
   } else {
     // If there is no browsing context, or we're not the current document of the
     // browsing context, then we just flush this document itself.
-    aDoc.FlushPendingNotifications(ctf);
+    aDoc.FlushPendingNotifications(aCtf);
   }
 }
 
+// https://html.spec.whatwg.org/#update-the-rendering steps 16 and 17
 void Document::DetermineProximityToViewportAndNotifyResizeObservers() {
-  uint32_t shallowestTargetDepth = 0;
+  RefPtr ps = GetPresShell();
+  if (!ps) {
+    return;
+  }
+
+  // Try to do an interruptible reflow if it wouldn't be observable by the page
+  // in any obvious way.
+  const bool interruptible = !ps->HasContentVisibilityAutoFrames() &&
+                             !HasResizeObservers() &&
+                             !HasElementsWithLastRememberedSize();
+  ps->ResetWasLastReflowInterrupted();
+
+  // https://github.com/whatwg/html/issues/11210 for this not being in the spec.
+  ps->UpdateRelevancyOfContentVisibilityAutoFrames();
+
+  // 1. Let resizeObserverDepth be 0.
+  uint32_t resizeObserverDepth = 0;
   bool initialResetOfScrolledIntoViewFlagsDone = false;
+  const ChangesToFlush ctf(
+      interruptible ? FlushType::InterruptibleLayout : FlushType::Layout,
+      /* aFlushAnimations = */ false);
+
+  // 2. While true:
   while (true) {
-    // Flush layout, so that any callback functions' style changes / resizes
-    // get a chance to take effect. The callback functions may do changes in its
-    // sub-documents or ancestors, so flushing layout for the whole browsing
-    // context tree makes sure we don't miss anyone.
-    FlushLayoutForWholeBrowsingContextTree(*this);
+    // 2.1. Recalculate styles and update layout for doc.
+    if (interruptible) {
+      ps->FlushPendingNotifications(ctf);
+    } else {
+      // The ResizeObserver callbacks functions may do changes in its
+      // sub-documents or ancestors, so flushing layout for the whole browsing
+      // context tree makes sure we don't miss anyone.
+      //
+      // TODO(emilio): It seems Document::FlushPendingNotifications should be
+      // able to take care of ancestors... Can we do this less often?
+      FlushLayoutForWholeBrowsingContextTree(*this, ctf);
+    }
 
     // Last remembered sizes are recorded "at the time that ResizeObserver
     // events are determined and delivered".
@@ -17924,42 +18115,49 @@ void Document::DetermineProximityToViewportAndNotifyResizeObservers() {
     // 'content-visibility: auto' nodes, and if one of such node ever becomes
     // relevant to the user, then we would be incorrectly recording the size
     // of its rendering when it was skipping its content.
+    //
+    // https://github.com/whatwg/html/issues/11210 for the timing of this.
     UpdateLastRememberedSizes();
 
-    if (PresShell* presShell = GetPresShell()) {
-      auto result = presShell->DetermineProximityToViewport();
-      if (result.mHadInitialDetermination) {
+    // 2.2. Let hadInitialVisibleContentVisibilityDetermination be false.
+    //      (this is part of "result").
+    // 2.3. For each element element with 'auto' used value of
+    //      'content-visibility' [...] Determine proximity to the viewport for
+    //      element.
+    auto result = ps->DetermineProximityToViewport();
+    if (result.mHadInitialDetermination) {
+      // 2.4. If hadInitialVisibleContentVisibilityDetermination is true, then
+      //      continue.
+      continue;
+    }
+    if (result.mAnyScrollIntoViewFlag) {
+      // Not defined in the spec: It's possible that some elements with
+      // content-visibility: auto were forced to be visible in order to
+      // perform scrollIntoView() so clear their flags now and restart the
+      // loop. See https://github.com/w3c/csswg-drafts/issues/9337
+      ps->ClearTemporarilyVisibleForScrolledIntoViewDescendantFlags();
+      ps->ScheduleContentRelevancyUpdate(ContentRelevancyReason::Visible);
+      if (!initialResetOfScrolledIntoViewFlagsDone) {
+        initialResetOfScrolledIntoViewFlagsDone = true;
         continue;
       }
-      if (result.mAnyScrollIntoViewFlag) {
-        // Not defined in the spec: It's possible that some elements with
-        // content-visibility: auto were forced to be visible in order to
-        // perform scrollIntoView() so clear their flags now and restart the
-        // loop.
-        // See https://github.com/w3c/csswg-drafts/issues/9337
-        presShell->ClearTemporarilyVisibleForScrolledIntoViewDescendantFlags();
-        presShell->ScheduleContentRelevancyUpdate(
-            ContentRelevancyReason::Visible);
-        if (!initialResetOfScrolledIntoViewFlagsDone) {
-          initialResetOfScrolledIntoViewFlagsDone = true;
-          continue;
-        }
-      }
     }
 
-    // To avoid infinite resize loop, we only gather all active observations
-    // that have the depth of observed target element more than current
-    // shallowestTargetDepth.
-    GatherAllActiveResizeObservations(shallowestTargetDepth);
-
+    // 2.5. Gather active resize observations at depth resizeObserverDepth for
+    // doc.
+    GatherAllActiveResizeObservations(resizeObserverDepth);
+    // 2.6. If doc has active resize observations: [..] steps below
     if (!HasAnyActiveResizeObservations()) {
+      // 2.7. Otherwise, break.
       break;
     }
-
-    DebugOnly<uint32_t> oldShallowestTargetDepth = shallowestTargetDepth;
-    shallowestTargetDepth = BroadcastAllActiveResizeObservations();
-    NS_ASSERTION(oldShallowestTargetDepth < shallowestTargetDepth,
-                 "shallowestTargetDepth should be getting strictly deeper");
+    // 2.6.1. Set resizeObserverDepth to the result of broadcasting active
+    // resize observations given doc.
+    DebugOnly<uint32_t> oldResizeObserverDepth = resizeObserverDepth;
+    resizeObserverDepth = BroadcastAllActiveResizeObservations();
+    NS_ASSERTION(oldResizeObserverDepth < resizeObserverDepth,
+                 "resizeObserverDepth should be getting strictly deeper");
+    // 2.6.2. Continue.
   }
 
   if (HasAnySkippedResizeObservations()) {
@@ -17986,6 +18184,28 @@ void Document::DetermineProximityToViewportAndNotifyResizeObservers() {
     // We need to deliver pending notifications in next cycle.
     ScheduleResizeObserversNotification();
   }
+
+  // Step 17: For each doc of docs, if the focused area of doc is not a
+  // focusable area, then run the focusing steps for doc's viewport, and set
+  // doc's relevant global object's navigation API's focus changed during
+  // ongoing navigation to false.
+  //
+  // We do it here rather than a separate walk over the docs for convenience,
+  // and because I don't think there's a strong reason for it to be a separate
+  // walk altogether, see https://github.com/whatwg/html/issues/11211
+  const bool fixedUpFocus = ps->FixUpFocus();
+  if (fixedUpFocus) {
+    FlushPendingNotifications(ctf);
+  }
+
+  if (NS_WARN_IF(ps->NeedStyleFlush()) || NS_WARN_IF(ps->NeedLayoutFlush()) ||
+      NS_WARN_IF(fixedUpFocus && ps->NeedsFocusFixUp())) {
+    ps->EnsureLayoutFlush();
+  }
+
+  // Inform the FontFaceSet that we ticked, so that it can resolve its ready
+  // promise if it needs to. See PresShell::MightHavePendingFontLoads.
+  ps->NotifyFontFaceSetOnRefresh();
 }
 
 void Document::GatherAllActiveResizeObservations(uint32_t aDepth) {
@@ -18074,26 +18294,33 @@ already_AddRefed<ViewTransition> Document::StartViewTransition(
 
 void Document::ClearActiveViewTransition() { mActiveViewTransition = nullptr; }
 
-void Document::PerformPendingViewTransitionOperations() {
-  if (mActiveViewTransition) {
-    mActiveViewTransition->PerformPendingOperations();
+void Document::SetRenderingSuppressedForViewTransitions(bool aValue) {
+  if (mRenderingSuppressedForViewTransitions == aValue) {
+    return;
   }
-  EnumerateSubDocuments([](Document& aDoc) {
-    aDoc.PerformPendingViewTransitionOperations();
+  mRenderingSuppressedForViewTransitions = aValue;
+  if (aValue) {
+    return;
+  }
+  // We might have missed virtually all rendering steps, ensure we run them.
+  MaybeScheduleRendering();
+}
+
+void Document::PerformPendingViewTransitionOperations() {
+  if (mActiveViewTransition && !RenderingSuppressedForViewTransitions()) {
+    RefPtr activeVT = mActiveViewTransition;
+    activeVT->PerformPendingOperations();
+  }
+  EnumerateSubDocuments([](Document& aDoc) MOZ_CAN_RUN_SCRIPT_FOR_DEFINITION {
+    // Note: EnumerateSubDocuments keeps aDoc alive in a local array, so it's
+    // fine to use MOZ_KnownLive here.
+    MOZ_KnownLive(aDoc).PerformPendingViewTransitionOperations();
     return CallState::Continue;
   });
 }
 
 void Document::EnsureViewTransitionOperationsHappen() {
-  if (!mPresShell) {
-    return;
-  }
-
-  nsRefreshDriver* rd = mPresShell->GetRefreshDriver();
-  if (!rd) {
-    return;
-  }
-  rd->EnsureViewTransitionOperationsHappen();
+  MaybeScheduleRenderingPhases({RenderingPhase::ViewTransitionOperations});
 }
 
 Selection* Document::GetSelection(ErrorResult& aRv) {
@@ -18324,14 +18551,16 @@ Document::CreatePermissionGrantPromise(
                   inner, principal, aTopLevelBaseDomain, aFrameOnly,
                   // Allow
                   [p] {
-                    Telemetry::AccumulateCategorical(
-                        Telemetry::LABELS_STORAGE_ACCESS_API_UI::Allow);
+                    glean::dom::storage_access_api_ui
+                        .EnumGet(glean::dom::StorageAccessApiUiLabel::eAllow)
+                        .Add();
                     p->Resolve(StorageAccessAPIHelper::eAllow, __func__);
                   },
                   // Block
                   [p] {
-                    Telemetry::AccumulateCategorical(
-                        Telemetry::LABELS_STORAGE_ACCESS_API_UI::Deny);
+                    glean::dom::storage_access_api_ui
+                        .EnumGet(glean::dom::StorageAccessApiUiLabel::eDeny)
+                        .Add();
                     p->Reject(false, __func__);
                   });
 
@@ -18340,8 +18569,9 @@ Document::CreatePermissionGrantPromise(
 
           if (pr == PromptResult::Pending) {
             // We're about to show a prompt, record the request attempt
-            Telemetry::AccumulateCategorical(
-                Telemetry::LABELS_STORAGE_ACCESS_API_UI::Request);
+            glean::dom::storage_access_api_ui
+                .EnumGet(glean::dom::StorageAccessApiUiLabel::eRequest)
+                .Add();
           }
 
           bool isThirdPartyTracker =
@@ -18372,9 +18602,10 @@ Document::CreatePermissionGrantPromise(
                       pr2 = PromptResult::Granted;
                       autoGrant = true;
 
-                      Telemetry::AccumulateCategorical(
-                          Telemetry::LABELS_STORAGE_ACCESS_API_UI::
-                              AllowAutomatically);
+                      glean::dom::storage_access_api_ui
+                          .EnumGet(glean::dom::StorageAccessApiUiLabel::
+                                       eAllowautomatically)
+                          .Add();
                     }
 
                     // If we can complete the permission request, do so.
@@ -19141,7 +19372,7 @@ Document::AutomaticStorageAccessPermissionCanBeGranted(
 
   if (isThirdPartyTracker &&
       StaticPrefs::
-          privacy_restrict3rdpartystorage_heuristic_exclude_third_party_trackers()) {
+          dom_storage_access_auto_grants_exclude_third_party_trackers()) {
     return AutomaticStorageAccessPermissionGrantPromise::CreateAndResolve(
         false, __func__);
   }
@@ -19245,8 +19476,8 @@ void Document::RecordNavigationTiming(ReadyState aReadyState) {
   switch (aReadyState) {
     case READYSTATE_LOADING:
       if (!mDOMLoadingSet) {
-        Telemetry::AccumulateTimeDelta(Telemetry::TIME_TO_DOM_LOADING_MS,
-                                       startTime);
+        glean::performance_time::to_dom_loading.AccumulateRawDuration(
+            TimeStamp::Now() - startTime);
         mDOMLoadingSet = true;
       }
       break;
@@ -19498,6 +19729,11 @@ bool Document::HasStorageAccessPermissionGrantedByAllowList() {
   nsCOMPtr<nsILoadInfo> loadInfo = mChannel->LoadInfo();
   return loadInfo->GetStoragePermission() ==
          nsILoadInfo::StoragePermissionAllowListed;
+}
+
+bool Document::InAndroidPipMode() const {
+  auto* bc = BrowserChild::GetFrom(GetDocShell());
+  return bc && bc->InAndroidPipMode();
 }
 
 nsIPrincipal* Document::EffectiveStoragePrincipal() const {
@@ -19963,6 +20199,13 @@ bool Document::MutationEventsEnabled() {
         NodePrincipal()->IsURIInPrefList("dom.mutation_events.forceEnable"));
   }
   return mMutationEventsEnabled.value();
+}
+
+void Document::GetAllInProcessDocuments(
+    nsTArray<RefPtr<Document>>& aAllDocuments) {
+  for (Document* doc : AllDocumentsList()) {
+    aAllDocuments.AppendElement(doc);
+  }
 }
 
 }  // namespace mozilla::dom

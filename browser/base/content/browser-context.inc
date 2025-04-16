@@ -216,11 +216,9 @@
       <menuitem id="context-saveaudio"
                 data-l10n-id="main-context-menu-audio-save-as"
                 />
-#ifdef CONTEXT_COPY_IMAGE_CONTENTS
       <menuitem id="context-copyimage-contents"
                 data-l10n-id="main-context-menu-image-copy"
                 />
-#endif
       <menuitem id="context-copyimage"
                 data-l10n-id="main-context-menu-image-copy-link"
                 />
@@ -353,6 +351,8 @@
       <menuseparator id="context-sep-screenshots"/>
       <menuitem id="context-keywordfield"
                 data-l10n-id="main-context-menu-keyword"/>
+      <menuitem id="context-add-engine"
+                data-l10n-id="main-context-menu-add-engine"/>
       <menuitem id="context-searchselect"/>
       <menuitem id="context-searchselect-private"/>
       <menuitem id="context-translate-selection"

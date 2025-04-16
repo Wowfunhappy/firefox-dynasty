@@ -109,12 +109,6 @@ enum class NativeKeyBindingsType : uint8_t;
 @end
 
 @interface NSWindow (Undocumented)
-// If a window has been explicitly removed from the "window cache" (to
-// deactivate it), it's sometimes necessary to "reset" it to reactivate it
-// (and put it back in the "window cache").  One way to do this, which Apple
-// often uses, is to set the "window number" to '-1' and then back to its
-// original value.
-- (void)_setWindowNumber:(NSInteger)aNumber;
 
 - (NSDictionary*)shadowParameters;
 - (BOOL)bottomCornerRounded;
@@ -386,7 +380,6 @@ class nsCocoaWindow final : public nsBaseWidget {
   void DestroyNativeWindow();
   void UpdateBounds();
   int32_t GetWorkspaceID();
-  void MoveVisibleWindowToWorkspace(int32_t workspaceID);
 
   void DoResize(double aX, double aY, double aWidth, double aHeight,
                 bool aRepaint, bool aConstrainToCurrentScreen);
@@ -484,11 +477,6 @@ class nsCocoaWindow final : public nsBaseWidget {
   bool mWasShown = false;
 
   int32_t mNumModalDescendants = 0;
-
-  // The workspaceID to move to once the window becomes visible. A value of 0
-  // is a no-op.
-  int32_t mDeferredWorkspaceID = 0;
-
   InputContext mInputContext;
   NSWindowAnimationBehavior mWindowAnimationBehavior;
 

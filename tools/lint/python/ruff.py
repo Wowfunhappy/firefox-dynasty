@@ -9,7 +9,6 @@ import re
 import signal
 import subprocess
 import sys
-from pathlib import Path
 
 from mozlint import result
 
@@ -41,7 +40,7 @@ def get_ruff_version(binary):
     matches = re.match(r"ruff ([0-9\.]+)", output)
     if matches:
         return matches[1]
-    print("Error: Could not parse the version '{}'".format(output))
+    print(f"Error: Could not parse the version '{output}'")
 
 
 def run_process(config, cmd, **kwargs):
@@ -66,19 +65,7 @@ def lint(paths, config, log, **lintargs):
     if not paths:
         return {"results": results, "fixed": fixed}
 
-    # Currently ruff only lints non `.py` files if they are explicitly passed
-    # in. So we need to find any non-py files manually. This can be removed
-    # after https://github.com/charliermarsh/ruff/issues/3410 is fixed.
-    exts = [e for e in config["extensions"] if e != "py"]
-    non_py_files = []
-    for path in paths:
-        p = Path(path)
-        if not p.is_dir():
-            continue
-        for ext in exts:
-            non_py_files.extend([str(f) for f in p.glob(f"**/*.{ext}")])
-
-    args = ["ruff", "check", "--force-exclude"] + paths + non_py_files
+    args = ["ruff", "check", "--force-exclude"] + paths
 
     if config.get("exclude"):
         args.append(f"--extend-exclude={','.join(config['exclude'])}")

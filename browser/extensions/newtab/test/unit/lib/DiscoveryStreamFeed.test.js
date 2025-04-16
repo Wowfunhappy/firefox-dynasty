@@ -177,6 +177,19 @@ describe("DiscoveryStreamFeed", () => {
 
       assert.equal(response, "hi");
     });
+    it("should ignore white-space added to multiple endpoints", async () => {
+      feed.store.getState = () => ({
+        Prefs: {
+          values: {
+            [ENDPOINTS_PREF_NAME]: `https://other.site, ${DUMMY_ENDPOINT}`,
+          },
+        },
+      });
+
+      const response = await feed.fetchFromEndpoint(DUMMY_ENDPOINT);
+
+      assert.equal(response, "hi");
+    });
     it("should replace urls with $apiKey", async () => {
       sandbox.stub(global.Services.prefs, "getCharPref").returns("replaced");
 
@@ -3519,6 +3532,7 @@ describe("DiscoveryStreamFeed", () => {
           settings: {},
           sections: [],
           interestPicker: {},
+          surfaceId: "",
           recommendations: [
             {
               id: 1234,

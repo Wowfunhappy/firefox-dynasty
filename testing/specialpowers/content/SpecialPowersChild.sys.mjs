@@ -14,6 +14,8 @@ ChromeUtils.defineESModuleGetters(lazy, {
   MockFilePicker: "resource://testing-common/MockFilePicker.sys.mjs",
   MockPermissionPrompt:
     "resource://testing-common/MockPermissionPrompt.sys.mjs",
+  MockPromptCollection:
+    "resource://testing-common/MockPromptCollection.sys.mjs",
   MockSound: "resource://testing-common/MockSound.sys.mjs",
   NetUtil: "resource://gre/modules/NetUtil.sys.mjs",
   PerTestCoverageUtils:
@@ -23,7 +25,6 @@ ChromeUtils.defineESModuleGetters(lazy, {
     "resource://testing-common/SpecialPowersSandbox.sys.mjs",
   WrapPrivileged: "resource://testing-common/WrapPrivileged.sys.mjs",
 });
-import { AppConstants } from "resource://gre/modules/AppConstants.sys.mjs";
 
 Cu.crashIfNotInAutomation();
 
@@ -442,6 +443,10 @@ export class SpecialPowersChild extends JSWindowActorChild {
     return lazy.MockColorPicker;
   }
 
+  get MockPromptCollection() {
+    return lazy.MockPromptCollection;
+  }
+
   get MockPermissionPrompt() {
     return lazy.MockPermissionPrompt;
   }
@@ -487,24 +492,6 @@ export class SpecialPowersChild extends JSWindowActorChild {
     }
 
     return [];
-  }
-
-  /*
-   * Load a privileged script that runs same-process. This is different from
-   * |loadChromeScript|, which will run in the parent process in e10s mode.
-   */
-  loadPrivilegedScript(aFunction) {
-    var str = "(" + aFunction.toString() + ")();";
-    let gGlobalObject = Cu.getGlobalForObject(this);
-    let sb = Cu.Sandbox(gGlobalObject);
-    var window = this.contentWindow;
-    var mc = new window.MessageChannel();
-    sb.port = mc.port1;
-    let blob = new Blob([str], { type: "application/javascript" });
-    let blobUrl = URL.createObjectURL(blob);
-    Services.scriptloader.loadSubScript(blobUrl, sb);
-
-    return mc.port2;
   }
 
   _readUrlAsString(aUrl) {
@@ -1603,6 +1590,8 @@ export class SpecialPowersChild extends JSWindowActorChild {
       { imports }
     );
 
+    // If more variables are made available, don't forget to update
+    // tools/lint/eslint/eslint-plugin-mozilla/lib/rules/import-content-task-globals.js.
     sb.sandbox.SpecialPowers = this;
     sb.sandbox.ContentTaskUtils = lazy.ContentTaskUtils;
     for (let [global, prop] of Object.entries({
@@ -2312,6 +2301,3 @@ SpecialPowersChild.prototype._proxiedObservers = {
     );
   },
 };
-
-SpecialPowersChild.prototype.EARLY_BETA_OR_EARLIER =
-  AppConstants.EARLY_BETA_OR_EARLIER;

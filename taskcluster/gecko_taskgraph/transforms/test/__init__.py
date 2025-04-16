@@ -419,10 +419,9 @@ def run_remaining_transforms(config, tasks):
         ("worker", None),
         ("confirm_failure", None),
         ("pernosco", lambda t: t["build-platform"].startswith("linux64")),
+        ("os_integration", None),
         # These transforms should run last as there is never any difference in
         # configuration from one chunk to another (other than chunk number).
-        # Although the os-integration transforms setup an index route that
-        # depends on the chunk number.
         ("chunk", None),
     )
 
@@ -436,6 +435,19 @@ def run_remaining_transforms(config, tasks):
             xforms.add(mod.transforms)
 
         yield from xforms(config, [task])
+
+
+@transforms.add
+def define_tags(config, tasks):
+    for task in tasks:
+        tags = task.setdefault("tags", {})
+        tags.setdefault("test-suite", task["suite"])
+        tags.setdefault("test-platform", task["test-platform"])
+        variant = task.get("attributes", {}).get("unittest_variant")
+        if variant:
+            tags.setdefault("test-variant", variant)
+
+        yield task
 
 
 @transforms.add

@@ -12,6 +12,7 @@
 #include "mozilla/ScopeExit.h"
 #include "mozilla/Sprintf.h"
 #include "mozilla/dom/nsCSPContext.h"
+#include "mozilla/dom/NavigatorLogin.h"
 #include "mozilla/glean/AntitrackingMetrics.h"
 #include "mozilla/glean/NetwerkMetrics.h"
 #include "mozilla/glean/NetwerkProtocolHttpMetrics.h"
@@ -101,7 +102,6 @@
 #include "mozilla/Telemetry.h"
 #include "AlternateServices.h"
 #include "NetworkMarker.h"
-#include "nsIHttpPushListener.h"
 #include "nsIDNSRecord.h"
 #include "mozilla/dom/Document.h"
 #include "nsICompressConvStats.h"
@@ -1451,7 +1451,7 @@ void nsHttpChannel::SpeculativeConnect() {
       mCaps & (NS_HTTP_DISALLOW_SPDY | NS_HTTP_TRR_MODE_MASK |
                NS_HTTP_DISABLE_IPV4 | NS_HTTP_DISABLE_IPV6 |
                NS_HTTP_DISALLOW_HTTP3 | NS_HTTP_REFRESH_DNS),
-      gHttpHandler->EchConfigEnabled() && httpsRRAllowed);
+      nsHttpHandler::EchConfigEnabled() && httpsRRAllowed);
 }
 
 void nsHttpChannel::DoNotifyListenerCleanup() {
@@ -1838,27 +1838,6 @@ nsresult nsHttpChannel::InitTransaction() {
   // nsIHttpActivityObserver.
   gHttpHandler->AddHttpChannel(mChannelId, ToSupports(this));
 
-  nsCOMPtr<nsIHttpPushListener> pushListener;
-  NS_QueryNotificationCallbacks(mCallbacks, mLoadGroup,
-                                NS_GET_IID(nsIHttpPushListener),
-                                getter_AddRefs(pushListener));
-  HttpTransactionShell::OnPushCallback pushCallback = nullptr;
-  if (pushListener) {
-    mCaps |= NS_HTTP_ONPUSH_LISTENER;
-    nsWeakPtr weakPtrThis(
-        do_GetWeakReference(static_cast<nsIHttpChannel*>(this)));
-    pushCallback = [weakPtrThis](uint32_t aPushedStreamId,
-                                 const nsACString& aUrl,
-                                 const nsACString& aRequestString,
-                                 HttpTransactionShell* aTransaction) {
-      if (nsCOMPtr<nsIHttpChannel> channel = do_QueryReferent(weakPtrThis)) {
-        return static_cast<nsHttpChannel*>(channel.get())
-            ->OnPush(aPushedStreamId, aUrl, aRequestString, aTransaction);
-      }
-      return NS_ERROR_NOT_AVAILABLE;
-    };
-  }
-
   EnsureBrowserId();
   EnsureRequestContext();
 
@@ -1877,8 +1856,7 @@ nsresult nsHttpChannel::InitTransaction() {
       LoadUploadStreamHasHeaders(), GetCurrentSerialEventTarget(), callbacks,
       this, mBrowserId, category, mRequestContext, mClassOfService,
       mInitialRwin, LoadResponseTimeoutEnabled(), mChannelId,
-      std::move(observer), std::move(pushCallback), mTransWithPushedStream,
-      mPushedStreamId);
+      std::move(observer), nullptr, nullptr, 0);
   if (NS_FAILED(rv)) {
     mTransaction = nullptr;
     return rv;
@@ -2535,7 +2513,7 @@ void nsHttpChannel::ProcessAltService(nsHttpConnectionInfo* aTransConnInfo) {
                                originAttributes, aTransConnInfo);
 }
 
-nsresult nsHttpChannel::ProcessResponse() {
+nsresult nsHttpChannel::ProcessResponse(nsHttpConnectionInfo* aConnInfo) {
   uint32_t httpStatus = mResponseHead->Status();
 
   LOG(("nsHttpChannel::ProcessResponse [this=%p httpStatus=%u]\n", this,
@@ -2690,12 +2668,13 @@ nsresult nsHttpChannel::ProcessResponse() {
   // notify "http-on-examine-response" observers
   gHttpHandler->OnExamineResponse(this);
 
-  return ContinueProcessResponse1();
+  return ContinueProcessResponse1(aConnInfo);
 }
 
-void nsHttpChannel::AsyncContinueProcessResponse() {
+void nsHttpChannel::AsyncContinueProcessResponse(
+    nsHttpConnectionInfo* aConnInfo) {
   nsresult rv;
-  rv = ContinueProcessResponse1();
+  rv = ContinueProcessResponse1(aConnInfo);
   if (NS_FAILED(rv)) {
     // A synchronous failure here would normally be passed as the return
     // value from OnStartRequest, which would in turn cancel the request.
@@ -2705,15 +2684,16 @@ void nsHttpChannel::AsyncContinueProcessResponse() {
   }
 }
 
-nsresult nsHttpChannel::ContinueProcessResponse1() {
+nsresult nsHttpChannel::ContinueProcessResponse1(
+    nsHttpConnectionInfo* aConnInfo) {
   MOZ_ASSERT(!mCallOnResume, "How did that happen?");
   nsresult rv = NS_OK;
 
   if (mSuspendCount) {
     LOG(("Waiting until resume to finish processing response [this=%p]\n",
          this));
-    mCallOnResume = [](nsHttpChannel* self) {
-      self->AsyncContinueProcessResponse();
+    mCallOnResume = [connInfo = RefPtr{aConnInfo}](nsHttpChannel* self) {
+      self->AsyncContinueProcessResponse(connInfo);
       return NS_OK;
     };
     return NS_OK;
@@ -2747,8 +2727,7 @@ nsresult nsHttpChannel::ContinueProcessResponse1() {
     }
 
     if ((httpStatus < 500) && (httpStatus != 421)) {
-      RefPtr<nsHttpConnectionInfo> connInfo = mTransaction->GetConnInfo();
-      ProcessAltService(connInfo);
+      ProcessAltService(aConnInfo);
     }
   }
 
@@ -3147,18 +3126,15 @@ void nsHttpChannel::UpdateCacheDisposition(bool aSuccessfulReval,
 nsresult nsHttpChannel::ContinueProcessResponse4(nsresult rv) {
   bool doNotRender = DoNotRender3xxBody(rv);
 
-  if (rv == NS_ERROR_DOM_BAD_URI && mRedirectURI) {
-    bool isHTTP =
-        mRedirectURI->SchemeIs("http") || mRedirectURI->SchemeIs("https");
-    if (!isHTTP) {
-      // This was a blocked attempt to redirect and subvert the system by
-      // redirecting to another protocol (perhaps javascript:)
-      // In that case we want to throw an error instead of displaying the
-      // non-redirected response body.
-      LOG(("ContinueProcessResponse4 detected rejected Non-HTTP Redirection"));
-      doNotRender = true;
-      rv = NS_ERROR_CORRUPTED_CONTENT;
-    }
+  if (rv == NS_ERROR_DOM_BAD_URI && mRedirectURI &&
+      !net::SchemeIsHttpOrHttps(mRedirectURI)) {
+    // This was a blocked attempt to redirect and subvert the system by
+    // redirecting to another protocol (perhaps javascript:)
+    // In that case we want to throw an error instead of displaying the
+    // non-redirected response body.
+    LOG(("ContinueProcessResponse4 detected rejected Non-HTTP Redirection"));
+    doNotRender = true;
+    rv = NS_ERROR_CORRUPTED_CONTENT;
   }
 
   if (doNotRender) {
@@ -4090,7 +4066,9 @@ nsresult nsHttpChannel::ProcessNotModified(
          lastModifiedCached.get(), lastModified304.get()));
 
     mCacheEntry->AsyncDoom(nullptr);
-    Telemetry::Accumulate(Telemetry::CACHE_LM_INCONSISTENT, true);
+    glean::http::cache_lm_inconsistent
+        .EnumGet(glean::http::CacheLmInconsistentLabel::eTrue)
+        .Add();
   }
 
   // merge any new headers with the cached response headers
@@ -5953,8 +5931,9 @@ nsresult nsHttpChannel::AsyncProcessRedirection(uint32_t redirectType) {
                                     &isThirdPartyRedirectURI);
     if (isThirdPartyRedirectURI && mLoadInfo->GetExternalContentPolicyType() ==
                                        ExtContentPolicy::TYPE_DOCUMENT) {
-      Telemetry::AccumulateCategorical(
-          Telemetry::LABELS_QUERY_STRIPPING_COUNT::Redirect);
+      glean::contentblocking::query_stripping_count
+          .EnumGet(glean::contentblocking::QueryStrippingCountLabel::eRedirect)
+          .Add();
 
       nsCOMPtr<nsIPrincipal> prin;
       ContentBlockingAllowList::RecomputePrincipal(
@@ -5985,10 +5964,38 @@ nsresult nsHttpChannel::AsyncProcessRedirection(uint32_t redirectType) {
           mRedirectURI = strippedURI;
 
           // Record telemetry, but only if we stripped any query params.
-          Telemetry::AccumulateCategorical(
-              Telemetry::LABELS_QUERY_STRIPPING_COUNT::StripForRedirect);
+          glean::contentblocking::query_stripping_count
+              .EnumGet(glean::contentblocking::QueryStrippingCountLabel::
+                           eStripforredirect)
+              .Add();
           glean::contentblocking::query_stripping_param_count
               .AccumulateSingleSample(numStripped);
+        }
+      }
+    }
+  }
+
+  // if we have a Set-Login header, we should try to handle it here
+  nsAutoCString setLogin;
+  if (NS_SUCCEEDED(mResponseHead->GetHeader(nsHttp::Set_Login, setLogin))) {
+    bool isDocument = mLoadInfo->GetExternalContentPolicyType() ==
+                      ExtContentPolicy::TYPE_DOCUMENT;
+    if (isDocument) {
+      auto ssm = nsContentUtils::GetSecurityManager();
+      if (ssm) {
+        nsCOMPtr<nsIPrincipal> documentPrincipal;
+        nsContentUtils::GetSecurityManager()->GetChannelResultPrincipal(
+            this, getter_AddRefs(documentPrincipal));
+        dom::NavigatorLogin::SetLoginStatus(documentPrincipal, setLogin);
+      }
+    } else {
+      bool inThirdPartyContext = mLoadInfo->GetIsInThirdPartyContext();
+      nsIPrincipal* loadingPrincipal = mLoadInfo->GetLoadingPrincipal();
+      if (loadingPrincipal) {
+        bool isSameOriginToLoadingPrincipal =
+            loadingPrincipal->IsSameOrigin(mURI);
+        if (!inThirdPartyContext && isSameOriginToLoadingPrincipal) {
+          dom::NavigatorLogin::SetLoginStatus(loadingPrincipal, setLogin);
         }
       }
     }
@@ -7005,7 +7012,7 @@ nsresult nsHttpChannel::BeginConnect() {
       wtconSettings->GetDedicated(&dedicated);
       if (dedicated) {
         connInfo->SetWebTransportId(
-            gHttpHandler->ConnMgr()->GenerateNewWebTransportId());
+            nsHttpConnectionInfo::GenerateNewWebTransportId());
       }
     } else {
       connInfo = new nsHttpConnectionInfo(host, port, ""_ns, mUsername,
@@ -8018,8 +8025,8 @@ nsHttpChannel::OnStartRequest(nsIRequest* request) {
 
     uint32_t stage = mTransaction->HTTPSSVCReceivedStage();
     if (!LoadHTTPSSVCTelemetryReported() && stage != HTTPSSVC_NOT_USED) {
-      Telemetry::Accumulate(Telemetry::DNS_HTTPSSVC_RECORD_RECEIVING_STAGE,
-                            stage);
+      glean::http::dns_httpssvc_record_receiving_stage.AccumulateSingleSample(
+          stage);
     }
 
     if (HTTPS_RR_IS_USED(stage)) {
@@ -8051,11 +8058,15 @@ nsHttpChannel::OnStartRequest(nsIRequest* request) {
     // mTransactionPump doesn't hit OnInputStreamReady and call this until
     // all of the response headers have been acquired, so we can take
     // ownership of them from the transaction.
-    mResponseHead = mTransaction->TakeResponseHead();
+    RefPtr<nsHttpConnectionInfo> connInfo;
+    mResponseHead =
+        mTransaction->TakeResponseHeadAndConnInfo(getter_AddRefs(connInfo));
     mSupportsHTTP3 = mTransaction->GetSupportsHTTP3();
     // the response head may be null if the transaction was cancelled.  in
     // which case we just need to call OnStartRequest/OnStopRequest.
-    if (mResponseHead) return ProcessResponse();
+    if (mResponseHead) {
+      return ProcessResponse(connInfo);
+    }
 
     NS_WARNING("No response head in OnStartRequest");
   }
@@ -10009,10 +10020,9 @@ void nsHttpChannel::OnHTTPSRRAvailable(nsIDNSHTTPSSVCRecord* aRecord) {
         (mFirstResponseSource != RESPONSE_FROM_CACHE)) {
       bool hasIPAddress = false;
       Unused << httprr->GetHasIPAddresses(&hasIPAddress);
-      Telemetry::Accumulate(Telemetry::DNS_HTTPSSVC_RECORD_RECEIVING_STAGE,
-                            hasIPAddress
-                                ? HTTPSSVC_WITH_IPHINT_RECEIVED_STAGE_0
-                                : HTTPSSVC_WITHOUT_IPHINT_RECEIVED_STAGE_0);
+      glean::http::dns_httpssvc_record_receiving_stage.AccumulateSingleSample(
+          hasIPAddress ? HTTPSSVC_WITH_IPHINT_RECEIVED_STAGE_0
+                       : HTTPSSVC_WITHOUT_IPHINT_RECEIVED_STAGE_0);
       StoreHTTPSSVCTelemetryReported(true);
     }
   }
@@ -10154,84 +10164,6 @@ nsHttpChannel::SetNotificationCallbacks(nsIInterfaceRequestor* aCallbacks) {
 
 bool nsHttpChannel::AwaitingCacheCallbacks() {
   return LoadWaitForCacheEntry() != 0;
-}
-
-void nsHttpChannel::SetPushedStreamTransactionAndId(
-    HttpTransactionShell* aTransWithPushedStream, uint32_t aPushedStreamId) {
-  MOZ_ASSERT(!mTransWithPushedStream);
-  LOG(("nsHttpChannel::SetPushedStreamTransaction [this=%p] trans=%p", this,
-       aTransWithPushedStream));
-
-  mTransWithPushedStream = aTransWithPushedStream;
-  mPushedStreamId = aPushedStreamId;
-}
-
-nsresult nsHttpChannel::OnPush(uint32_t aPushedStreamId, const nsACString& aUrl,
-                               const nsACString& aRequestString,
-                               HttpTransactionShell* aTransaction) {
-  MOZ_ASSERT(NS_IsMainThread());
-  MOZ_ASSERT(aTransaction);
-  LOG(("nsHttpChannel::OnPush [this=%p, trans=%p]\n", this, aTransaction));
-
-  MOZ_ASSERT(mCaps & NS_HTTP_ONPUSH_LISTENER);
-  nsCOMPtr<nsIHttpPushListener> pushListener;
-  NS_QueryNotificationCallbacks(mCallbacks, mLoadGroup,
-                                NS_GET_IID(nsIHttpPushListener),
-                                getter_AddRefs(pushListener));
-
-  if (!pushListener) {
-    LOG(
-        ("nsHttpChannel::OnPush [this=%p] notification callbacks do not "
-         "implement nsIHttpPushListener\n",
-         this));
-    return NS_ERROR_NOT_AVAILABLE;
-  }
-
-  nsCOMPtr<nsIURI> pushResource;
-  nsresult rv;
-
-  // Create a Channel for the Push Resource
-  rv = NS_NewURI(getter_AddRefs(pushResource), aUrl);
-  if (NS_FAILED(rv)) {
-    return NS_ERROR_FAILURE;
-  }
-
-  nsCOMPtr<nsIIOService> ioService;
-  rv = gHttpHandler->GetIOService(getter_AddRefs(ioService));
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  nsCOMPtr<nsIChannel> pushChannel;
-  rv = NS_NewChannelInternal(getter_AddRefs(pushChannel), pushResource,
-                             mLoadInfo,
-                             nullptr,  // PerformanceStorage
-                             nullptr,  // aLoadGroup
-                             nullptr,  // aCallbacks
-                             nsIRequest::LOAD_NORMAL, ioService);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  nsCOMPtr<nsIHttpChannel> pushHttpChannel = do_QueryInterface(pushChannel);
-  MOZ_ASSERT(pushHttpChannel);
-  if (!pushHttpChannel) {
-    return NS_ERROR_UNEXPECTED;
-  }
-
-  RefPtr<nsHttpChannel> channel;
-  CallQueryInterface(pushHttpChannel, channel.StartAssignment());
-  MOZ_ASSERT(channel);
-  if (!channel) {
-    return NS_ERROR_UNEXPECTED;
-  }
-
-  // new channel needs mrqeuesthead and headers from pushedStream
-  channel->mRequestHead.ParseHeaderSet(aRequestString.BeginReading());
-  channel->mLoadGroup = mLoadGroup;
-  channel->mLoadInfo = mLoadInfo;
-  channel->mCallbacks = mCallbacks;
-
-  // Link the trans with pushed stream and the new channel and call listener
-  channel->SetPushedStreamTransactionAndId(aTransaction, aPushedStreamId);
-  rv = pushListener->OnPush(this, pushHttpChannel);
-  return rv;
 }
 
 // static
@@ -11238,6 +11170,17 @@ void nsHttpChannel::PerformBackgroundCacheRevalidationNow() {
                              mCallbacks, loadFlags);
   if (NS_FAILED(rv)) {
     LOG(("  failed to created the channel, rv=0x%08x",
+         static_cast<uint32_t>(rv)));
+    return;
+  }
+
+  nsCOMPtr<nsIHttpChannel> httpChannel(do_QueryInterface(validatingChannel));
+  MOZ_ASSERT(httpChannel);
+  nsCOMPtr<nsIHttpHeaderVisitor> visitor =
+      new CopyNonDefaultHeaderVisitor(httpChannel);
+  rv = VisitNonDefaultRequestHeaders(visitor);
+  if (NS_FAILED(rv)) {
+    LOG(("failed to copy headers to the validating channel, rv=0x%08x",
          static_cast<uint32_t>(rv)));
     return;
   }

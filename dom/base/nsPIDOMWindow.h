@@ -340,13 +340,6 @@ class nsPIDOMWindowInner : public mozIDOMWindow {
   // indexedDB counters.
   void TryToCacheTopInnerWindow();
 
-  // Increase/Decrease the number of active IndexedDB databases for the
-  // decision making of timeout-throttling.
-  void UpdateActiveIndexedDBDatabaseCount(int32_t aDelta);
-
-  // Increase/Decrease the number of open WebSockets.
-  void UpdateWebSocketCount(int32_t aDelta);
-
   mozilla::Maybe<mozilla::dom::ClientInfo> GetClientInfo() const;
   mozilla::Maybe<mozilla::dom::ClientState> GetClientState() const;
   mozilla::Maybe<mozilla::dom::ServiceWorkerDescriptor> GetController() const;
@@ -433,18 +426,6 @@ class nsPIDOMWindowInner : public mozIDOMWindow {
   bool HasDOMActivateEventListeners() const {
     return mMayHaveDOMActivateEventListeners;
   }
-
-  /**
-   * Call this to indicate that some node (this window, its document,
-   * or content in that document) has a paint event listener.
-   */
-  void SetHasPaintEventListeners() { mMayHavePaintEventListener = true; }
-
-  /**
-   * Call this to check whether some node (this window, its document,
-   * or content in that document) has a paint event listener.
-   */
-  bool HasPaintEventListeners() { return mMayHavePaintEventListener; }
 
   /**
    * Call this to indicate that some node (this window, its document,
@@ -675,7 +656,6 @@ class nsPIDOMWindowInner : public mozIDOMWindow {
   bool mIsDocumentLoaded;
   bool mIsHandlingResizeEvent;
   bool mMayHaveDOMActivateEventListeners;
-  bool mMayHavePaintEventListener;
   bool mMayHaveTouchEventListener;
   bool mMayHaveSelectionChangeEventListener;
   bool mMayHaveFormSelectEventListener;

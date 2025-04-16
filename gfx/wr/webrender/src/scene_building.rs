@@ -393,10 +393,15 @@ impl PictureChainBuilder {
                 // If no picture was created for this stacking context, create a
                 // pass-through wrapper now. This is only needed in 1-2 edge cases
                 // now, and will be removed as a follow up.
+
+                // If the picture is snapshotted, it needs to have a surface rather
+                // than being pass-through.
+                let composite_mode = snapshot.map(|_| PictureCompositeMode::Blit(BlitReason::SNAPSHOT));
+
                 let pic_index = PictureIndex(prim_store.pictures
                     .alloc()
                     .init(PicturePrimitive::new_image(
-                        None,
+                        composite_mode,
                         Picture3DContext::Out,
                         self.flags,
                         prim_list,
@@ -641,7 +646,12 @@ impl<'a> SceneBuilder<'a> {
             &builder.spatial_tree,
             &builder.prim_instances,
             &mut builder.clip_tree_builder,
+            &builder.interners,
         );
+
+        for pic_index in &builder.snapshot_pictures {
+            builder.picture_graph.add_root(*pic_index);
+        }
 
         // Add all the tile cache pictures as roots of the picture graph
         for pic_index in &tile_cache_pictures {
@@ -782,6 +792,11 @@ impl<'a> SceneBuilder<'a> {
             _ => false,
         };
 
+        // Snapshot picture are special. All clips belonging to parents
+        // *must* be extracted from the snapshot, so we rely on this optimization
+        // taking out parent clips and it overrides other conditions.
+        let is_snapshot = pictures[pic_index.0].snapshot.is_some();
+
         // It is only safe to apply this optimisation if the old pic clip node
         // is the direct parent of the new LCA node.  If this is not the case
         // then there could be other more restrictive clips in between the two
@@ -792,7 +807,7 @@ impl<'a> SceneBuilder<'a> {
             .map(|(lca_tree_node, pic_node_id)| lca_tree_node.parent == pic_node_id)
             .unwrap_or(false);
 
-        if let Some((lca_node, pic_node)) = lca_node.zip(pic_node) {
+        let should_set_clip_root = is_snapshot || lca_node.zip(pic_node).map_or(false, |(lca_node, pic_node)| {
             // It is only safe to ignore the LCA clip (by making it the clip
             // root) if it is equal to or larger than the picture clip. But
             // this comparison also needs to take into account spatial nodes
@@ -801,9 +816,11 @@ impl<'a> SceneBuilder<'a> {
             // clips to be identical and have the same spatial node so it's
             // simplest to just test for ClipItemKey equality (which includes
             // both spatial node and the actual clip).
-            if lca_node.key == pic_node.key && !has_blur && direct_parent {
-                pictures[pic_index.0].clip_root = shared_clip_node_id;
-            }
+            lca_node.key == pic_node.key && !has_blur && direct_parent
+        });
+
+        if should_set_clip_root {
+            pictures[pic_index.0].clip_root = shared_clip_node_id;
         }
 
         // Update the spatial node of any child pictures
@@ -1942,6 +1959,7 @@ impl<'a> SceneBuilder<'a> {
 
                 self.pop_all_shadows();
             }
+            DisplayItem::DebugMarker(..) => {}
         }
     }
 
@@ -2171,7 +2189,7 @@ impl<'a> SceneBuilder<'a> {
         transform_style: TransformStyle,
         prim_flags: PrimitiveFlags,
         spatial_node_index: SpatialNodeIndex,
-        mut clip_chain_id: Option<api::ClipChainId>,
+        clip_chain_id: Option<api::ClipChainId>,
         requested_raster_space: RasterSpace,
         flags: StackingContextFlags,
         subregion_offset: LayoutVector2D,
@@ -2202,7 +2220,7 @@ impl<'a> SceneBuilder<'a> {
                 TransformStyle::Flat,
                 prim_flags,
                 spatial_node_index,
-                clip_chain_id.take(),
+                clip_chain_id,
                 requested_raster_space,
                 flags,
                 LayoutVector2D::zero(),
@@ -2609,7 +2627,10 @@ impl<'a> SceneBuilder<'a> {
                 // 3d render context.
                 for child_pic_index in &prim_list.child_pictures {
                     let child_pic = &mut self.prim_store.pictures[child_pic_index.0];
-                    child_pic.composite_mode = None;
+                    let needs_surface = child_pic.snapshot.is_some();
+                    if !needs_surface {
+                        child_pic.composite_mode = None;
+                    }
                     child_pic.context_3d = Picture3DContext::Out;
                 }
 

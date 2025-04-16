@@ -53,9 +53,6 @@ urlbar-group-local =
 urlbar-group-sponsored =
   .label = Sponsored
 
-# A message shown in a result when the user gives feedback on it.
-firefox-suggest-feedback-acknowledgment = Thanks for your feedback
-
 # A message that replaces a result when the user dismisses a single suggestion.
 firefox-suggest-dismissal-acknowledgment-one = Thanks for your feedback. You won’t see this suggestion again.
 
@@ -133,8 +130,6 @@ firefox-suggest-weather-sponsored = { $provider } · Sponsored
 
 ## These strings are used as labels of menu items in the result menu.
 
-firefox-suggest-command-show-less-frequently =
-  .label = Show less frequently
 firefox-suggest-command-dont-show-this =
   .label = Don’t show this
 firefox-suggest-command-dont-show-mdn =
@@ -143,8 +138,6 @@ firefox-suggest-command-not-relevant =
   .label = Not relevant
 firefox-suggest-command-not-interested =
   .label = Not interested
-firefox-suggest-weather-command-inaccurate-location =
-  .label = Report inaccurate location
 firefox-suggest-command-manage-fakespot =
   .label = Manage { -fakespot-brand-name } suggestions
 firefox-suggest-command-dont-show-this-suggestion =
@@ -291,7 +284,7 @@ firefox-suggest-onboarding-main-accept-option-label = Allow. <a data-l10n-name="
 firefox-suggest-onboarding-main-accept-option-label-2 = Enable
 
 firefox-suggest-onboarding-main-accept-option-description-1 = Help improve the { -firefox-suggest-brand-name } feature with more relevant suggestions. Your search queries will be processed.
-firefox-suggest-onboarding-main-accept-option-description-2 = Recommended for people who support improving the { -firefox-suggest-brand-name } feature.  Your search queries will be processed.
+firefox-suggest-onboarding-main-accept-option-description-2 = Recommended for people who support improving the { -firefox-suggest-brand-name } feature. Your search queries will be processed.
 firefox-suggest-onboarding-main-accept-option-description-3 = Help improve the { -firefox-suggest-brand-name } experience. Your search queries will be processed.
 
 firefox-suggest-onboarding-main-reject-option-label = Don’t allow.
@@ -318,3 +311,22 @@ urlbar-search-mode-bookmarks-en = Bookmarks
 urlbar-search-mode-tabs-en = Tabs
 urlbar-search-mode-history-en = History
 urlbar-search-mode-actions-en = Actions
+
+## Add search engine dialog
+## These strings will be moved to search.ftl once the dialog is finished.
+
+add-engine-suggest-url = Search suggestion URL, use %s in place of the search term
+
+# Variables:
+#   $name (string) - Name of a search engine.
+edit-engine-name-warning-duplicate = There already is a search engine with the name “{ $name }”. Please choose another name.
+
+edit-engine-dialog =
+    .buttonlabelaccept = Save Engine
+    .buttonaccesskeyaccept = S
+
+edit-engine-window =
+    .title = Edit Search Engine
+    .style = min-width: 32em;
+
+add-engine-post-data = Post data

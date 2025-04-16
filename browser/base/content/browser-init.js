@@ -89,7 +89,7 @@ var gBrowserInit = {
         document.documentElement.setAttribute("sizemode", "maximized");
       }
     }
-    if (AppConstants.MENUBAR_CAN_AUTOHIDE) {
+    if (!Services.appinfo.nativeMenubar) {
       const toolbarMenubar = document.getElementById("toolbar-menubar");
       // set a default value
       if (!toolbarMenubar.hasAttribute("autohide")) {
@@ -100,6 +100,17 @@ var gBrowserInit = {
         "toolbar-context-menu-menu-bar-cmd"
       );
       toolbarMenubar.setAttribute("data-l10n-attrs", "toolbarname");
+    }
+    // If opening a Taskbar Tab window, add an attribute to the top-level element
+    // to inform window styling.
+    if (window.arguments && window.arguments[1]) {
+      let extraOptions = window.arguments[1];
+      if (
+        extraOptions instanceof Ci.nsIWritablePropertyBag2 &&
+        extraOptions.hasKey("taskbartab")
+      ) {
+        window.document.documentElement.setAttribute("taskbartab", "");
+      }
     }
 
     // Run menubar initialization first, to avoid CustomTitlebar code picking
@@ -123,7 +134,7 @@ var gBrowserInit = {
 
     // Call this after we set attributes that might change toolbars' computed
     // text color.
-    ToolbarIconColor.init();
+    ToolbarIconColor.init(window);
   },
 
   onDOMContentLoaded() {
@@ -221,7 +232,10 @@ var gBrowserInit = {
     // have been initialized.
     Services.obs.notifyObservers(window, "browser-window-before-show");
 
-    if (!window.toolbar.visible) {
+    if (
+      !window.toolbar.visible ||
+      window.document.documentElement.hasAttribute("taskbartab")
+    ) {
       // adjust browser UI for popups
       gURLBar.readOnly = true;
     }
@@ -231,6 +245,7 @@ var gBrowserInit = {
     Win10TabletModeUpdater.init();
     CombinedStopReload.ensureInitialized();
     gPrivateBrowsingUI.init();
+    TaskbarTabUI.init(window);
     BrowserPageActions.init();
     if (gToolbarKeyNavEnabled) {
       ToolbarKeyboardNavigator.init();
@@ -255,22 +270,26 @@ var gBrowserInit = {
       gURLBar.removeAttribute("focused");
 
       let swapBrowsers = () => {
-        try {
+        if (gBrowser.isTabGroupLabel(tabToAdopt)) {
+          gBrowser.adoptTabGroup(tabToAdopt.group, 0);
+          gBrowser.removeTab(gBrowser.selectedTab);
+        } else {
           gBrowser.swapBrowsersAndCloseOther(gBrowser.selectedTab, tabToAdopt);
-        } catch (e) {
-          console.error(e);
         }
 
         // Clear the reference to the tab once its adoption has been completed.
         this._clearTabToAdopt();
       };
-      if (tabToAdopt.linkedBrowser.isRemoteBrowser) {
+      if (
+        gBrowser.isTab(tabToAdopt) &&
+        !tabToAdopt.linkedBrowser.isRemoteBrowser
+      ) {
+        swapBrowsers();
+      } else {
         // For remote browsers, wait for the paint event, otherwise the tabs
         // are not yet ready and focus gets confused because the browser swaps
         // out while tabs are switching.
         addEventListener("MozAfterPaint", swapBrowsers, { once: true });
-      } else {
-        swapBrowsers();
       }
     }
 
@@ -356,6 +375,7 @@ var gBrowserInit = {
     Services.obs.addObserver(gXPInstallObserver, "addon-install-failed");
     Services.obs.addObserver(gXPInstallObserver, "addon-install-confirmation");
     Services.obs.addObserver(gKeywordURIFixup, "keyword-uri-fixup");
+    Services.obs.addObserver(gLocaleChangeObserver, "intl:app-locales-changed");
 
     BrowserOffline.init();
     CanvasPermissionPromptHelper.init();
@@ -465,6 +485,7 @@ var gBrowserInit = {
     });
 
     window.addEventListener("mousemove", MousePosTracker);
+    window.addEventListener("mouseout", MousePosTracker);
     window.addEventListener("dragover", MousePosTracker);
 
     gNavToolbox.addEventListener("customizationstarting", CustomizationHandler);
@@ -979,7 +1000,7 @@ var gBrowserInit = {
 
     CustomTitlebar.uninit();
 
-    ToolbarIconColor.uninit();
+    ToolbarIconColor.uninit(window);
 
     // In certain scenarios it's possible for unload to be fired before onload,
     // (e.g. if the window is being closed after browser.js loads but before the
@@ -1024,6 +1045,11 @@ var gBrowserInit = {
     if (gToolbarKeyNavEnabled) {
       ToolbarKeyboardNavigator.uninit();
     }
+
+    // Bug 1952900 to allow switching to unload category without leaking
+    ChromeUtils.importESModule(
+      "moz-src:///browser/components/genai/LinkPreview.sys.mjs"
+    ).LinkPreview.teardown(window);
 
     FirefoxViewHandler.uninit();
 
@@ -1078,6 +1104,10 @@ var gBrowserInit = {
         "addon-install-confirmation"
       );
       Services.obs.removeObserver(gKeywordURIFixup, "keyword-uri-fixup");
+      Services.obs.removeObserver(
+        gLocaleChangeObserver,
+        "intl:app-locales-changed"
+      );
 
       MenuTouchModeObserver.uninit();
       BrowserOffline.uninit();

@@ -125,6 +125,12 @@ void celt_fatal(const char *str, const char *file, int line)
 #define OPUS_FAST_INT64 0
 #endif
 
+#ifdef FIXED_POINT
+#define ARG_FIXED(arg) , arg
+#else
+#define ARG_FIXED(arg)
+#endif
+
 #define PRINT_MIPS(file)
 
 #ifdef FIXED_POINT
@@ -324,6 +330,9 @@ static OPUS_INLINE int celt_isnan(float x)
 #define SUB32(a,b) ((a)-(b))
 #define ADD32_ovflw(a,b) ((a)+(b))
 #define SUB32_ovflw(a,b) ((a)-(b))
+#define SHL32_ovflw(a,shift) (a)
+#define PSHR32_ovflw(a,shift) (a)
+
 #define MULT16_16_16(a,b)     ((a)*(b))
 #define MULT16_16(a,b)     ((opus_val32)(a)*(opus_val32)(b))
 #define MAC16_16(c,a,b)     ((c)+(opus_val32)(a)*(opus_val32)(b))
@@ -331,6 +340,7 @@ static OPUS_INLINE int celt_isnan(float x)
 #define MULT16_32_Q15(a,b)     ((a)*(b))
 #define MULT16_32_Q16(a,b)     ((a)*(b))
 
+#define MULT32_32_Q16(a,b)     ((a)*(b))
 #define MULT32_32_Q31(a,b)     ((a)*(b))
 
 #define MAC16_32_Q15(c,a,b)     ((c)+(a)*(b))

@@ -11,9 +11,9 @@
 
 [package]
 edition = "2021"
-rust-version = "1.73"
+rust-version = "1.82.0"
 name = "wgpu-hal"
-version = "24.0.0"
+version = "25.0.0"
 authors = ["gfx-rs developers"]
 build = "build.rs"
 autolib = false
@@ -55,6 +55,7 @@ dx12 = [
     "naga/hlsl-out",
     "dep:arrayvec",
     "dep:bit-set",
+    "dep:bytemuck",
     "dep:hashbrown",
     "dep:libloading",
     "dep:log",
@@ -81,6 +82,7 @@ gles = [
     "naga/glsl-out",
     "dep:arrayvec",
     "dep:bytemuck",
+    "dep:cfg-if",
     "dep:glow",
     "dep:glutin_wgl_sys",
     "dep:hashbrown",
@@ -89,10 +91,10 @@ gles = [
     "dep:libloading",
     "dep:log",
     "dep:ndk-sys",
+    "dep:objc",
     "dep:profiling",
     "dep:wasm-bindgen",
     "dep:web-sys",
-    "once_cell/std",
     "windows/Win32_Graphics_OpenGL",
     "windows/Win32_Graphics_Gdi",
     "windows/Win32_System_LibraryLoader",
@@ -124,6 +126,7 @@ vulkan = [
     "dep:android_system_properties",
     "dep:arrayvec",
     "dep:ash",
+    "dep:bytemuck",
     "dep:gpu-alloc",
     "dep:gpu-descriptor",
     "dep:hashbrown",
@@ -160,15 +163,19 @@ optional = true
 default-features = false
 
 [dependencies.bitflags]
-version = "2.7"
+version = "2.9"
 
 [dependencies.bytemuck]
-version = "1.21"
+version = "1.22"
 features = [
-    "derive",
     "extern_crate_alloc",
     "min_const_generics",
+    "derive",
 ]
+optional = true
+
+[dependencies.cfg-if]
+version = "1"
 optional = true
 
 [dependencies.glow]
@@ -176,9 +183,9 @@ version = "0.16"
 optional = true
 
 [dependencies.hashbrown]
-version = "0.14.5"
+version = "0.15.2"
 features = [
-    "ahash",
+    "default-hasher",
     "inline-more",
 ]
 optional = true
@@ -189,11 +196,11 @@ version = "0.4"
 optional = true
 
 [dependencies.naga]
-version = "24.0.0"
+version = "25.0.0"
 path = "../naga"
 
 [dependencies.once_cell]
-version = "1.20.3"
+version = "1.21.3"
 optional = true
 default-features = false
 
@@ -224,7 +231,7 @@ version = "2"
 default-features = false
 
 [dependencies.wgpu-types]
-version = "24.0.0"
+version = "25.0.0"
 path = "../wgpu-types"
 
 [dev-dependencies.cfg-if]
@@ -237,7 +244,7 @@ version = "0.11"
 version = "0.29"
 
 [dev-dependencies.naga]
-version = "24.0.0"
+version = "25.0.0"
 path = "../naga"
 features = ["wgsl-in"]
 

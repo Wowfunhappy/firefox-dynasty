@@ -9,9 +9,14 @@ Cube faces are square, so the x and y components of the result are equal.
 If level is outside the range [0, textureNumLevels(t)) then any valid value for the return type may be returned.
 `;import { makeTestGroup } from '../../../../../../common/framework/test_group.js';
 import {
+  getBlockInfoForTextureFormat,
+  isDepthTextureFormat,
+  isStencilTextureFormat,
+  isTextureFormatPossiblyMultisampled,
+  isTextureFormatPossiblyStorageReadWritable,
   kAllTextureFormats,
-  kColorTextureFormats,
-  kTextureFormatInfo,
+  kDepthTextureFormats,
+  kPossibleStorageTextureFormats,
   sampleTypeForFormatAndAspect,
   textureDimensionAndFormatCompatible } from
 '../../../../../format_info.js';
@@ -41,8 +46,7 @@ const kAllViewDimensions = [
 
 /** @returns the aspects to test for the given format */
 function aspectsForFormat(format) {
-  const formatInfo = kTextureFormatInfo[format];
-  if (formatInfo.depth !== undefined && formatInfo.stencil !== undefined) {
+  if (isDepthTextureFormat(format) && isStencilTextureFormat(format)) {
     return ['depth-only', 'stencil-only'];
   }
   return ['all'];
@@ -50,8 +54,7 @@ function aspectsForFormat(format) {
 
 /** @returns the sample counts to test for the given format */
 function samplesForFormat(format) {
-  const info = kTextureFormatInfo[format];
-  return info.multisample ? [1, kMaxSamplesForTest] : [1];
+  return isTextureFormatPossiblyMultisampled(format) ? [1, kMaxSamplesForTest] : [1];
 }
 
 /**
@@ -157,7 +160,7 @@ function testValues(params)
   const kMinLen = 1 << kMaxMipsForTest;
   const kNumCubeFaces = 6;
 
-  const formatInfo = kTextureFormatInfo[params.format];
+  const formatInfo = getBlockInfoForTextureFormat(params.format);
   const bw = formatInfo.blockWidth;
   const bh = formatInfo.blockHeight;
   let mip = params.baseMipLevel;
@@ -286,7 +289,6 @@ Parameters:
 params((u) =>
 u.
 combine('format', kAllTextureFormats).
-unless((p) => kTextureFormatInfo[p.format].color?.type === 'unfilterable-float').
 expand('aspect', (u) => aspectsForFormat(u.format)).
 expand('samples', (u) => samplesForFormat(u.format)).
 beginSubcases().
@@ -296,17 +298,12 @@ expand('textureMipCount', textureMipCount).
 expand('baseMipLevel', baseMipLevel).
 expand('textureDimensionsLevel', textureDimensionsLevel)
 ).
-beforeAllSubcases((t) => {
-  const info = kTextureFormatInfo[t.params.format];
-  t.skipIfTextureFormatNotSupported(t.params.format);
-  if (t.params.samples > 1) {
-    // multisampled texture requires GPUTextureUsage.RENDER_ATTACHMENT usage
-    t.skipIfMultisampleNotSupportedForFormat(t.params.format);
-  }
-  t.selectDeviceOrSkipTestCase(info.feature);
-}).
 fn((t) => {
+  t.skipIfTextureFormatNotSupported(t.params.format);
   t.skipIfTextureViewDimensionNotSupported(t.params.dimensions);
+  if (t.params.samples > 1) {
+    t.skipIfTextureFormatNotMultisampled(t.params.format);
+  }
   const values = testValues(t.params);
   const texture = t.createTextureTracked({
     size: values.size,
@@ -333,13 +330,12 @@ fn((t) => {
     switch (sampleType) {
       case 'depth':
       case 'float':
+      case 'unfilterable-float':
         return `${base}_${dimensions}<f32>`;
       case 'uint':
         return `${base}_${dimensions}<u32>`;
       case 'sint':
         return `${base}_${dimensions}<i32>`;
-      case 'unfilterable-float':
-        throw new Error(`'${t.params.format}' does not support sampling`);
     }
   }
 
@@ -377,8 +373,7 @@ Parameters:
 ).
 params((u) =>
 u.
-combine('format', kAllTextureFormats).
-filter((p) => !!kTextureFormatInfo[p.format].depth).
+combine('format', kDepthTextureFormats).
 expand('aspect', (u) => aspectsForFormat(u.format)).
 unless((u) => u.aspect === 'stencil-only').
 expand('samples', (u) => samplesForFormat(u.format)).
@@ -389,12 +384,8 @@ expand('textureMipCount', textureMipCount).
 expand('baseMipLevel', baseMipLevel).
 expand('textureDimensionsLevel', textureDimensionsLevel)
 ).
-beforeAllSubcases((t) => {
-  const info = kTextureFormatInfo[t.params.format];
-  t.skipIfTextureFormatNotSupported(t.params.format);
-  t.selectDeviceOrSkipTestCase(info.feature);
-}).
 fn((t) => {
+  t.skipIfTextureFormatNotSupported(t.params.format);
   t.skipIfTextureViewDimensionNotSupported(t.params.dimensions);
   const values = testValues(t.params);
   const texture = t.createTextureTracked({
@@ -465,31 +456,25 @@ Parameters:
 ).
 params((u) =>
 u.
-combine('format', kColorTextureFormats).
-filter((p) => kTextureFormatInfo[p.format].color?.storage === true).
+combine('format', kPossibleStorageTextureFormats).
 expand('aspect', (u) => aspectsForFormat(u.format)).
 beginSubcases().
 combine('stage', kShaderStages).
 combine('access', ['read', 'write', 'read_write'])
 // vertex stage can not use writable storage.
 .unless((t) => t.stage === 'vertex' && t.access !== 'read')
-// Only some formats support write
+// Only some formats support read_write
 .unless(
-  (t) =>
-  kTextureFormatInfo[t.format].color.readWriteStorage === false && t.access === 'read_write'
+  (t) => !isTextureFormatPossiblyStorageReadWritable(t.format) && t.access === 'read_write'
 ).
 expand('dimensions', (u) => viewDimensions(u).filter(dimensionsValidForStorage)).
 expand('textureMipCount', textureMipCount).
 expand('baseMipLevel', baseMipLevel)
 ).
-beforeAllSubcases((t) => {
-  const info = kTextureFormatInfo[t.params.format];
-  t.skipIfTextureFormatNotSupported(t.params.format);
-  t.skipIfTextureFormatNotUsableAsStorageTexture(t.params.format);
-  t.selectDeviceOrSkipTestCase(info.feature);
-}).
 fn((t) => {
   t.skipIfNoStorageTexturesInStage(t.params.stage);
+  t.skipIfTextureFormatNotSupported(t.params.format);
+  t.skipIfTextureFormatNotUsableAsStorageTexture(t.params.format);
 
   const values = testValues(t.params);
   const texture = t.createTextureTracked({
@@ -528,19 +513,40 @@ params((u) =>
 u.
 beginSubcases().
 combine('stage', kShaderStages).
+combine('importExternalTexture', [false, true]).
 combine('width', [8, 16, 24]).
 combine('height', [8, 16, 24])
 ).
 fn((t) => {
-  const { stage, width, height } = t.params;
+  const { stage, importExternalTexture, width, height } = t.params;
+  const size = [width, height];
+
+  t.skipIf(typeof OffscreenCanvas === 'undefined', 'OffscreenCanvas is not supported');
   const canvas = new OffscreenCanvas(width, height);
-  // We have to make a context for VideoFrame to accept the canvas.
+
+  // We have to make a context so that VideoFrame and copyExternalImageToTexture accept the canvas.
   canvas.getContext('2d');
-  const videoFrame = new VideoFrame(canvas, { timestamp: 0 });
-  const texture = t.device.importExternalTexture({ source: videoFrame });
+  let texture;
+  let videoFrame;
+  if (importExternalTexture) {
+    t.skipIf(typeof VideoFrame === 'undefined', 'VideoFrames are not supported');
+
+    videoFrame = new VideoFrame(canvas, { timestamp: 0 });
+    texture = t.device.importExternalTexture({ source: videoFrame });
+  } else {
+    texture = t.createTextureTracked({
+      format: 'rgba8unorm',
+      size,
+      usage:
+      GPUTextureUsage.COPY_DST |
+      GPUTextureUsage.RENDER_ATTACHMENT |
+      GPUTextureUsage.TEXTURE_BINDING
+    });
+    t.queue.copyExternalImageToTexture({ source: canvas }, { texture }, size);
+  }
 
   run(t, stage, texture, undefined, 'texture_external', undefined, {
-    size: [width, height],
-    expected: [width, height]
+    size,
+    expected: size
   });
 });

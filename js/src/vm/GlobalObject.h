@@ -199,6 +199,9 @@ class GlobalObjectData {
   // Shape for BoundFunctionObject with %Function.prototype% as proto.
   GCPtr<SharedShape*> boundFunctionShapeWithDefaultProto;
 
+  // Shape for RegExpObject with %RegExp.prototype% as proto.
+  GCPtr<SharedShape*> regExpShapeWithDefaultProto;
+
   // Global state for regular expressions.
   RegExpRealm regExpRealm;
 
@@ -262,8 +265,10 @@ class GlobalObject : public NativeObject {
                 "GlobalObjectData should be stored in a fixed slot for "
                 "performance reasons");
 
+ public:
   using ProtoKind = GlobalObjectData::ProtoKind;
 
+ private:
   GlobalObjectData* maybeData() {
     Value v = getReservedSlot(GLOBAL_DATA_SLOT);
     return static_cast<GlobalObjectData*>(v.toPrivate());
@@ -291,9 +296,6 @@ class GlobalObject : public NativeObject {
 
   bool hasBuiltinProto(ProtoKind kind) const {
     return bool(data().builtinProtos[kind]);
-  }
-  JSObject* maybeBuiltinProto(ProtoKind kind) const {
-    return data().builtinProtos[kind];
   }
   JSObject& getBuiltinProto(ProtoKind kind) const {
     MOZ_ASSERT(hasBuiltinProto(kind));
@@ -382,10 +384,22 @@ class GlobalObject : public NativeObject {
     return data().builtinConstructors[protoKey].constructor;
   }
 
+  template <typename T>
+  T* maybeGetConstructor(JSProtoKey protoKey) const {
+    JSObject* ctor = maybeGetConstructor(protoKey);
+    return ctor ? &ctor->as<T>() : nullptr;
+  }
+
   JSObject* maybeGetPrototype(JSProtoKey protoKey) const {
     MOZ_ASSERT(JSProto_Null < protoKey);
     MOZ_ASSERT(protoKey < JSProto_LIMIT);
     return data().builtinConstructors[protoKey].prototype;
+  }
+
+  template <typename T>
+  T* maybeGetPrototype(JSProtoKey protoKey) const {
+    JSObject* proto = maybeGetPrototype(protoKey);
+    return proto ? &proto->as<T>() : nullptr;
   }
 
   static bool maybeResolveGlobalThis(JSContext* cx,
@@ -727,6 +741,10 @@ class GlobalObject : public NativeObject {
                                            Handle<GlobalObject*> global);
 
  public:
+  JSObject* maybeBuiltinProto(ProtoKind kind) const {
+    return data().builtinProtos[kind];
+  }
+
   NativeObject* maybeGetIteratorPrototype() {
     if (!hasPrototype(JSProto_Iterator)) {
       return nullptr;
@@ -1097,6 +1115,13 @@ class GlobalObject : public NativeObject {
     data().boundFunctionShapeWithDefaultProto = shape;
   }
 
+  SharedShape* maybeRegExpShapeWithDefaultProto() const {
+    return data().regExpShapeWithDefaultProto;
+  }
+  void setRegExpShapeWithDefaultProto(SharedShape* shape) {
+    data().regExpShapeWithDefaultProto = shape;
+  }
+
   static PropertyIteratorObject* getOrCreateEmptyIterator(JSContext* cx);
 
   // Returns an object that represents the realm, used by embedder.
@@ -1167,6 +1192,24 @@ JSObject* GenericCreatePrototype(JSContext* cx, JSProtoKey key) {
       InheritanceProtoKeyForStandardClass(key) == JSProto_Object,
       "subclasses (of anything but Object) can't use GenericCreatePrototype");
   return GlobalObject::createBlankPrototype(cx, cx->global(), &T::protoClass_);
+}
+
+// Which object(s) should be marked as having a fuse property in
+// GenericFinishInit.
+enum class WhichHasFuseProperty {
+  Proto,
+  ProtoAndCtor,
+};
+
+template <WhichHasFuseProperty FuseProperty>
+inline bool GenericFinishInit(JSContext* cx, HandleObject ctor,
+                              HandleObject proto) {
+  if constexpr (FuseProperty == WhichHasFuseProperty::ProtoAndCtor) {
+    if (!JSObject::setHasFuseProperty(cx, ctor)) {
+      return false;
+    }
+  }
+  return JSObject::setHasFuseProperty(cx, proto);
 }
 
 inline JSProtoKey StandardProtoKeyOrNull(const JSObject* obj) {

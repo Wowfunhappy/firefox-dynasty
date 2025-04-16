@@ -6,6 +6,7 @@
 
 XPIDL_SOURCES += [
     "mozIThirdPartyUtil.idl",
+    "nsIAndroidContentInputStream.idl",
     "nsIArrayBufferInputStream.idl",
     "nsIAsyncStreamCopier.idl",
     "nsIAsyncStreamCopier2.idl",
@@ -42,7 +43,6 @@ XPIDL_SOURCES += [
     "nsIForcePendingChannel.idl",
     "nsIFormPOSTActionChannel.idl",
     "nsIHttpAuthenticatorCallback.idl",
-    "nsIHttpPushListener.idl",
     "nsIIncrementalDownload.idl",
     "nsIIncrementalStreamLoader.idl",
     "nsIInputStreamChannel.idl",
@@ -106,6 +106,7 @@ XPIDL_SOURCES += [
     "nsIStreamListenerTee.idl",
     "nsIStreamLoader.idl",
     "nsIStreamTransportService.idl",
+    "nsISuspendableChannelWrapper.idl",
     "nsISyncStreamListener.idl",
     "nsISystemProxySettings.idl",
     "nsIThreadRetargetableRequest.idl",
@@ -248,6 +249,7 @@ UNIFIED_SOURCES += [
     "SimpleChannelParent.cpp",
     "SimpleURIUnknownSchemes.cpp",
     "SSLTokensCache.cpp",
+    "SuspendableChannelWrapper.cpp",
     "ThrottleQueue.cpp",
     "Tickler.cpp",
     "TLSServerSocket.cpp",

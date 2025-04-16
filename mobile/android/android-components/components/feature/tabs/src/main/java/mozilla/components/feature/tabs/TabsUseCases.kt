@@ -151,6 +151,7 @@ class TabsUseCases(
          * @param parentId the id of the parent tab to use for the newly created tab.
          * @param flags the [LoadUrlFlags] to use when loading the provided URL.
          * @param contextId the session context id to use for this tab.
+         * @param title The title of the new page.
          * @param engineSession (optional) engine session to use for this tab.
          * @param source The [SessionState.Source] of the new tab.
          * @param searchTerms The search terms of this new tab if it represents an active
@@ -163,6 +164,7 @@ class TabsUseCases(
          * @param additionalHeaders The extra headers to use when loading the provided URL.
          * @param originalInput If the user entered a URL, this is the
          * original user input before any fixups were applied to it.
+         * @param textDirectiveUserActivation whether loading allows the scroll by text fragmentation.
          * @return The ID of the created tab.
          */
         operator fun invoke(
@@ -172,6 +174,7 @@ class TabsUseCases(
             parentId: String? = null,
             flags: LoadUrlFlags = LoadUrlFlags.none(),
             contextId: String? = null,
+            title: String = "",
             engineSession: EngineSession? = null,
             source: SessionState.Source = SessionState.Source.Internal.NewTab,
             searchTerms: String = "",
@@ -181,6 +184,7 @@ class TabsUseCases(
             searchEngineName: String? = null,
             additionalHeaders: Map<String, String>? = null,
             originalInput: String? = null,
+            textDirectiveUserActivation: Boolean = false,
         ): String {
             val tab = createTab(
                 url = url,
@@ -188,6 +192,7 @@ class TabsUseCases(
                 source = source,
                 contextId = contextId,
                 parent = parentId?.let { store.state.findTab(it) },
+                title = title,
                 engineSession = engineSession,
                 searchTerms = searchTerms,
                 initialLoadFlags = flags,
@@ -195,6 +200,7 @@ class TabsUseCases(
                 historyMetadata = historyMetadata,
                 desktopMode = store.state.desktopMode,
                 originalInput = originalInput,
+                initialTextDirectiveUserActivation = textDirectiveUserActivation,
             )
 
             store.dispatch(TabListAction.AddTabAction(tab, select = selectTab))
@@ -211,6 +217,7 @@ class TabsUseCases(
                         flags = flags,
                         additionalHeaders = additionalHeaders,
                         includeParent = true,
+                        textDirectiveUserActivation = textDirectiveUserActivation,
                     ),
                 )
             }

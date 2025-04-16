@@ -22,7 +22,7 @@ extern NSString* const NSAppearanceNameVibrantDark;
 extern NSString* const NSAppearanceNameVibrantLight;
 #endif  // MAC_OS_X_VERSION_10_10
 }  // extern "C"
- 
+
 /**
  * This file contains header declarations from SDKs more recent than the minimum macOS SDK which we
  * require for building Firefox, which is currently the macOS 10.12 SDK.

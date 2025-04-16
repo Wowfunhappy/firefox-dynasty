@@ -8,7 +8,6 @@ use crate::parser::{Parse, ParserContext};
 use crate::values::generics::box_::PositionProperty;
 use crate::values::generics::Optional;
 use crate::values::DashedIdent;
-#[cfg(feature = "gecko")]
 use crate::Zero;
 use cssparser::Parser;
 use std::fmt::Write;
@@ -156,13 +155,10 @@ impl<LengthPercentage: Parse> Parse for LengthPercentageOrAuto<LengthPercentage>
 pub enum GenericSize<LengthPercent> {
     LengthPercentage(LengthPercent),
     Auto,
-    #[cfg(feature = "gecko")]
     #[animation(error)]
     MaxContent,
-    #[cfg(feature = "gecko")]
     #[animation(error)]
     MinContent,
-    #[cfg(feature = "gecko")]
     #[animation(error)]
     FitContent,
     #[cfg(feature = "gecko")]
@@ -181,6 +177,7 @@ pub enum GenericSize<LengthPercent> {
         #[distance(field_bound)]
         Box<GenericAnchorSizeFunction<LengthPercent>>
     ),
+    AnchorContainingCalcFunction(LengthPercent),
 }
 
 impl<LengthPercent> SpecifiedValueInfo for GenericSize<LengthPercent>
@@ -235,13 +232,10 @@ impl<LengthPercentage> Size<LengthPercentage> {
 pub enum GenericMaxSize<LengthPercent> {
     LengthPercentage(LengthPercent),
     None,
-    #[cfg(feature = "gecko")]
     #[animation(error)]
     MaxContent,
-    #[cfg(feature = "gecko")]
     #[animation(error)]
     MinContent,
-    #[cfg(feature = "gecko")]
     #[animation(error)]
     FitContent,
     #[cfg(feature = "gecko")]
@@ -260,6 +254,7 @@ pub enum GenericMaxSize<LengthPercent> {
         #[distance(field_bound)]
         Box<GenericAnchorSizeFunction<LengthPercent>>
     ),
+    AnchorContainingCalcFunction(LengthPercent),
 }
 
 impl<LP> SpecifiedValueInfo for GenericMaxSize<LP>
@@ -592,6 +587,30 @@ pub enum GenericMargin<LP> {
         #[distance(field_bound)]
         Box<GenericAnchorSizeFunction<LP>>,
     ),
+    /// A `<length-percentage>` value, guaranteed to contain `calc()`,
+    /// which then is guaranteed to contain `anchor()` or `anchor-size()`.
+    AnchorContainingCalcFunction(LP),
+}
+
+#[cfg(feature = "servo")]
+impl<LP> GenericMargin<LP> {
+    /// Return true if it is 'auto'.
+    #[inline]
+    pub fn is_auto(&self) -> bool {
+        matches!(self, Self::Auto)
+    }
+}
+
+#[cfg(feature = "servo")]
+impl GenericMargin<crate::values::computed::LengthPercentage> {
+    /// Returns true if the computed value is absolute 0 or 0%.
+    #[inline]
+    pub fn is_definitely_zero(&self) -> bool {
+        match self {
+            Self::LengthPercentage(lp) => lp.is_definitely_zero(),
+            _ => false,
+        }
+    }
 }
 
 impl<LP> SpecifiedValueInfo for GenericMargin<LP>
@@ -614,7 +633,9 @@ where
     fn is_zero(&self) -> bool {
         match self {
             Self::LengthPercentage(l) => l.is_zero(),
-            Self::Auto | Self::AnchorSizeFunction(_) => false,
+            Self::Auto | Self::AnchorSizeFunction(_) | Self::AnchorContainingCalcFunction(_) => {
+                false
+            },
         }
     }
 

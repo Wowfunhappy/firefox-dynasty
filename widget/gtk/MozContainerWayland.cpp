@@ -229,26 +229,24 @@ static bool moz_container_wayland_ensure_surface(MozContainer* container,
   LOGWAYLAND("    gtk wl_surface %p ID %d\n", (void*)parentSurface,
              wl_proxy_get_id((struct wl_proxy*)parentSurface));
 
+  nsWindow* window = moz_container_get_nsWindow(container);
+  MOZ_RELEASE_ASSERT(window);
+
   // Try to guess subsurface offset to avoid potential flickering.
   gfx::IntPoint subsurfacePosition;
   if (aPosition) {
     subsurfacePosition = *aPosition;
   } else {
-    int x = 0, y = 0;
-    moz_container_get_nsWindow(container)->GetCSDDecorationOffset(&x, &y);
-    subsurfacePosition = gfx::IntPoint(x, y);
+    auto gdkPoint = window->GetCsdOffsetInGdkCoords();
+    subsurfacePosition = gfx::IntPoint(gdkPoint.x, gdkPoint.y);
   }
 
-  if (!surface->MapLocked(lock, parentSurface, subsurfacePosition,
-                          MOZ_WL_CONTAINER(container)->commit_to_parent)) {
+  if (!surface->MapLocked(lock, parentSurface, subsurfacePosition)) {
     return false;
   }
 
   surface->AddOpaqueSurfaceHandlerLocked(lock, gdkWindow,
                                          /* aRegisterCommitHandler */ true);
-
-  nsWindow* window = moz_container_get_nsWindow(container);
-  MOZ_RELEASE_ASSERT(window);
 
   GtkWindow* parent =
       gtk_window_get_transient_for(GTK_WINDOW(window->GetGtkWidget()));
@@ -332,15 +330,6 @@ gboolean moz_container_wayland_can_draw(MozContainer* container) {
 double moz_container_wayland_get_scale(MozContainer* container) {
   nsWindow* window = moz_container_get_nsWindow(container);
   return window ? window->FractionalScaleFactor() : 1.0;
-}
-
-void moz_container_wayland_set_commit_to_parent(MozContainer* container) {
-  MOZ_DIAGNOSTIC_ASSERT(!MOZ_WL_SURFACE(container)->IsMapped());
-  MOZ_WL_CONTAINER(container)->commit_to_parent = true;
-}
-
-bool moz_container_wayland_is_commiting_to_parent(MozContainer* container) {
-  return MOZ_WL_CONTAINER(container)->commit_to_parent;
 }
 
 bool moz_container_wayland_is_waiting_to_show(MozContainer* container) {

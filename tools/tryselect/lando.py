@@ -33,6 +33,7 @@ from mozbuild.base import MozbuildObject
 from mozversioncontrol import (
     GitRepository,
     HgRepository,
+    JujutsuRepository,
 )
 
 TOKEN_FILE = (
@@ -40,7 +41,7 @@ TOKEN_FILE = (
 )
 
 # The supported variants of `Repository` for this workflow.
-SupportedVcsRepository = Union[GitRepository, HgRepository]
+SupportedVcsRepository = Union[GitRepository, HgRepository, JujutsuRepository]
 
 here = os.path.abspath(os.path.dirname(__file__))
 build = MozbuildObject.from_environment(cwd=here)
@@ -401,6 +402,7 @@ def push_to_lando_try(
     PATCH_FORMAT_STRING_MAPPING = {
         GitRepository: "git-format-patch",
         HgRepository: "hgexport",
+        JujutsuRepository: "git-format-patch",
     }
     patch_format = PATCH_FORMAT_STRING_MAPPING.get(type(vcs))
     if not patch_format:
@@ -441,12 +443,14 @@ def push_to_lando_try(
             build.notify(error_msg)
             return
 
-    duration = round(time.perf_counter() - push_start_time, ndigits=2)
+    duration = time.perf_counter() - push_start_time
 
     job_id = response_json["id"]
     success_msg = (
-        f"Lando try submission success, took {duration} seconds. "
+        f"Lando try submission success, took {duration:.1f} seconds. "
         f"Landing job id: {job_id}."
     )
     print(success_msg)
-    build.notify(success_msg)
+    # Send a notification only if the push took an unexpectedly long time
+    if duration > 30:
+        build.notify(success_msg)

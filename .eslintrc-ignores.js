@@ -82,6 +82,8 @@ module.exports = [
 
   // Ignore newtab files
   "browser/extensions/newtab/logs/",
+  // JS file using the #include pre-processor macro, leading to syntax errors.
+  "browser/extensions/newtab/webext-glue/builtin-newtab.js",
 
   // Ignore devtools debugger files which aren't intended for linting.
   "devtools/client/debugger/bin/",
@@ -99,7 +101,6 @@ module.exports = [
   // Ignore devtools generated code
   "devtools/client/webconsole/test/node/fixtures/stubs/*.js",
   "!devtools/client/webconsole/test/node/fixtures/stubs/index.js",
-  "devtools/client/shared/components/test/node/stubs/reps/*.js",
   "devtools/client/shared/source-map-loader/test/browser/fixtures/*.js",
 
   // Ignore devtools files testing sourcemaps / code style
@@ -240,11 +241,11 @@ module.exports = [
   "servo/",
 
   // Rust/Cargo output from running `cargo` directly
-  "target/",
-  "servo/ports/geckolib/target/",
-  "dom/base/rust/target/",
-  "servo/components/style/target/",
-  "dom/webgpu/tests/cts/vendor/target/",
+  "/target/",
+  "/servo/ports/geckolib/target/",
+  "/dom/base/rust/target/",
+  "/servo/components/style/target/",
+  "/dom/webgpu/tests/cts/vendor/target/",
 
   // Test files that we don't want to lint (preprocessed, minified etc)
   "testing/condprofile/condprof/tests/profile",

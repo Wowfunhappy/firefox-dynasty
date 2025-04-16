@@ -87,7 +87,7 @@
 #include "nsIConsoleService.h"
 #include "nsAsyncRedirectVerifyHelper.h"
 #include "nsIFileChannel.h"
-#include "mozilla/Telemetry.h"
+#include "mozilla/glean/DomMetrics.h"
 #include "js/ArrayBuffer.h"  // JS::{Create,Release}MappedArrayBufferContents,New{,Mapped}ArrayBufferWithContents
 #include "js/JSON.h"         // JS_ParseJSON
 #include "js/MemoryFunctions.h"
@@ -930,7 +930,7 @@ void XMLHttpRequestMainThread::GetContentRangeHeader(nsACString& out) const {
   }
 }
 
-void XMLHttpRequestMainThread::GetResponseURL(nsAString& aUrl) {
+void XMLHttpRequestMainThread::GetResponseURL(nsACString& aUrl) {
   aUrl.Truncate();
 
   if ((mState == XMLHttpRequest_Binding::UNSENT ||
@@ -950,9 +950,7 @@ void XMLHttpRequestMainThread::GetResponseURL(nsAString& aUrl) {
     return;
   }
 
-  nsAutoCString temp;
-  responseUrl->GetSpecIgnoringRef(temp);
-  CopyUTF8toUTF16(temp, aUrl);
+  responseUrl->GetSpecIgnoringRef(aUrl);
 }
 
 uint32_t XMLHttpRequestMainThread::GetStatus(ErrorResult& aRv) {
@@ -1521,25 +1519,17 @@ bool XMLHttpRequestMainThread::InUploadPhase() const {
 // This case is hit when the async parameter is outright omitted, which
 // should set it to true (and the username and password to null).
 void XMLHttpRequestMainThread::Open(const nsACString& aMethod,
-                                    const nsAString& aUrl, ErrorResult& aRv) {
-  Open(aMethod, aUrl, true, VoidString(), VoidString(), aRv);
+                                    const nsACString& aUrl, ErrorResult& aRv) {
+  Open(aMethod, aUrl, true, VoidCString(), VoidCString(), aRv);
 }
 
 // This case is hit when the async parameter is specified, even if the
 // JS value was "undefined" (which due to legacy reasons should be
 // treated as true, which is how it will already be passed in here).
 void XMLHttpRequestMainThread::Open(const nsACString& aMethod,
-                                    const nsAString& aUrl, bool aAsync,
-                                    const nsAString& aUsername,
-                                    const nsAString& aPassword,
-                                    ErrorResult& aRv) {
-  Open(aMethod, NS_ConvertUTF16toUTF8(aUrl), aAsync, aUsername, aPassword, aRv);
-}
-
-void XMLHttpRequestMainThread::Open(const nsACString& aMethod,
                                     const nsACString& aUrl, bool aAsync,
-                                    const nsAString& aUsername,
-                                    const nsAString& aPassword,
+                                    const nsACString& aUsername,
+                                    const nsACString& aPassword,
                                     ErrorResult& aRv) {
   DEBUG_WORKERREFS1(aMethod << " " << aUrl);
   NOT_CALLABLE_IN_SYNC_SEND_RV
@@ -1551,8 +1541,10 @@ void XMLHttpRequestMainThread::Open(const nsACString& aMethod,
         DeprecatedOperations::eSyncXMLHttpRequestDeprecated);
   }
 
-  Telemetry::Accumulate(Telemetry::XMLHTTPREQUEST_ASYNC_OR_SYNC,
-                        aAsync ? 0 : 1);
+  glean::dom::xmlhttprequest_async_or_sync
+      .EnumGet(static_cast<glean::dom::XmlhttprequestAsyncOrSyncLabel>(
+          aAsync ? 0 : 1))
+      .Add();
 
   // Step 1
   nsCOMPtr<Document> responsibleDocument = GetDocumentIfCurrent();
@@ -1635,10 +1627,10 @@ void XMLHttpRequestMainThread::Open(const nsACString& aMethod,
   if (!host.IsEmpty() && (!aUsername.IsVoid() || !aPassword.IsVoid())) {
     auto mutator = NS_MutateURI(parsedURL);
     if (!aUsername.IsVoid()) {
-      mutator.SetUsername(NS_ConvertUTF16toUTF8(aUsername));
+      mutator.SetUsername(aUsername);
     }
     if (!aPassword.IsVoid()) {
-      mutator.SetPassword(NS_ConvertUTF16toUTF8(aPassword));
+      mutator.SetPassword(aPassword);
     }
     Unused << mutator.Finalize(parsedURL);
   }
@@ -2190,7 +2182,7 @@ XMLHttpRequestMainThread::OnStartRequest(nsIRequest* request) {
     rv = NS_NewDOMDocument(
         getter_AddRefs(mResponseXML), emptyStr, emptyStr, nullptr, docURI,
         baseURI, requestingPrincipal, true, global,
-        mIsHtml ? DocumentFlavorHTML : DocumentFlavorLegacyGuess);
+        mIsHtml ? DocumentFlavor::HTML : DocumentFlavor::LegacyGuess);
     NS_ENSURE_SUCCESS(rv, rv);
     mResponseXML->SetChromeXHRDocURI(chromeXHRDocURI);
     mResponseXML->SetChromeXHRDocBaseURI(chromeXHRDocBaseURI);
@@ -2701,6 +2693,12 @@ nsresult XMLHttpRequestMainThread::InitiateFetch(
   DEBUG_WORKERREFS;
   nsresult rv;
   nsCOMPtr<nsIInputStream> uploadStream = std::move(aUploadStream);
+
+  if (IsSystemXHR() && mFlagSynchronous &&
+      StaticPrefs::network_xhr_block_sync_system_requests()) {
+    mState = XMLHttpRequest_Binding::DONE;
+    return NS_ERROR_DOM_NETWORK_ERR;
+  }
 
   if (!uploadStream) {
     RefPtr<PreloaderBase> preload = FindPreload();

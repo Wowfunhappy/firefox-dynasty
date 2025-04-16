@@ -32,8 +32,7 @@
 #include "mozilla/EventStateManager.h"
 #include "mozilla/ScrollContainerFrame.h"
 #include "mozilla/ServoStyleSet.h"
-#include "mozilla/SharedStyleSheetCache.h"
-#include "mozilla/dom/SharedScriptCache.h"
+#include "mozilla/css/Loader.h"
 #include "mozilla/StaticPrefs_test.h"
 #include "mozilla/InputTaskManager.h"
 #include "nsIObjectLoadingContent.h"
@@ -294,13 +293,14 @@ CompositorBridgeChild* nsDOMWindowUtils::GetCompositorBridge() {
 
 nsresult nsDOMWindowUtils::GetWidgetOpaqueRegion(
     nsTArray<RefPtr<DOMRect>>& aRects) {
+  const nsPresContext* pc = GetPresContext();
   nsIWidget* widget = GetWidget();
-  if (!widget) {
+  if (!widget || !pc) {
     return NS_ERROR_FAILURE;
   }
   auto AddRect = [&](const LayoutDeviceIntRect& aRect) {
     RefPtr rect = new DOMRect(mWindow);
-    CSSRect cssRect = aRect / widget->GetDefaultScale();
+    CSSRect cssRect = aRect / pc->CSSToDevPixelScale();
     rect->SetRect(cssRect.x, cssRect.y, cssRect.width, cssRect.height);
     aRects.AppendElement(std::move(rect));
   };
@@ -813,7 +813,8 @@ nsDOMWindowUtils::SendWheelEvent(float aX, float aY, double aDeltaX,
   wheelEvent.mRefPoint =
       nsContentUtils::ToWidgetPoint(CSSPoint(aX, aY), offset, presContext);
 
-  if (StaticPrefs::test_events_async_enabled()) {
+  if ((aOptions & WHEEL_EVENT_ASYNC_ENABLED) ||
+      StaticPrefs::test_events_async_enabled()) {
     widget->DispatchInputEvent(&wheelEvent);
   } else {
     nsEventStatus status = nsEventStatus_eIgnore;
@@ -1313,18 +1314,6 @@ nsDOMWindowUtils::SuppressAnimation(bool aSuppress) {
   if (widget) {
     widget->SuppressAnimation(aSuppress);
   }
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsDOMWindowUtils::ClearStyleSheetCache() {
-  SharedStyleSheetCache::Clear();
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsDOMWindowUtils::ClearScriptCache() {
-  SharedScriptCache::Clear();
   return NS_OK;
 }
 
@@ -2306,7 +2295,7 @@ nsDOMWindowUtils::GetCanvasBackgroundColor(nsAString& aColor) {
   }
   nscolor color = NS_RGB(255, 255, 255);
   if (PresShell* presShell = GetPresShell()) {
-    color = presShell->ComputeCanvasBackground().mViewportColor;
+    color = presShell->ComputeCanvasBackground().mViewport.mColor;
   }
   nsStyleUtil::GetSerializedColorValue(color, aColor);
   return NS_OK;
@@ -3698,7 +3687,7 @@ static void PrepareForFullscreenChange(nsIDocShell* aDocShell,
     // Since we are suppressing the resize reflow which would originally
     // be triggered by view manager, we need to ensure that the refresh
     // driver actually schedules a flush, otherwise it may get stuck.
-    rd->ScheduleViewManagerFlush();
+    rd->SchedulePaint();
   }
   if (!aSize.IsEmpty()) {
     nsCOMPtr<nsIDocumentViewer> viewer;
@@ -4874,8 +4863,7 @@ nsDOMWindowUtils::GetEffectivelyThrottlesFrameRequests(bool* aResult) {
   if (!doc) {
     return NS_ERROR_FAILURE;
   }
-  *aResult = !doc->ShouldFireFrameRequestCallbacks() ||
-             doc->ShouldThrottleFrameRequests();
+  *aResult = doc->IsRenderingSuppressed() || doc->ShouldThrottleFrameRequests();
   return NS_OK;
 }
 

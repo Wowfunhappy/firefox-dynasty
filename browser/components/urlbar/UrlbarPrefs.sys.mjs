@@ -241,9 +241,9 @@ const PREF_URLBAR_DEFAULTS = new Map([
   // Whether the Firefox Suggest data collection opt-in result is enabled.
   ["quicksuggest.contextualOptIn", false],
 
-  // The last time (as ISO string) the user dismissed the Firefox Suggest
-  // contextual opt-in result.
-  ["quicksuggest.contextualOptIn.lastDismissed", ""],
+  // The last time (as seconds) the user dismissed the Firefox Suggest contextual
+  // opt-in result.
+  ["quicksuggest.contextualOptIn.lastDismissedTime", 0],
 
   // Number that the user dismissed the Firefox Suggest contextual opt-in result.
   ["quicksuggest.contextualOptIn.dismissedCount", 0],
@@ -256,6 +256,21 @@ const PREF_URLBAR_DEFAULTS = new Map([
 
   // Period until reshow the Firefox Suggest contextual opt-in result when third dismissed.
   ["quicksuggest.contextualOptIn.thirdReshowAfterPeriodDays", 60],
+
+  // Number of impression for the Firefox Suggest contextual opt-in result.
+  ["quicksuggest.contextualOptIn.impressionCount", 0],
+
+  // Limit for impression to dismiss the Firefox Suggest contextual opt-in
+  // result.
+  ["quicksuggest.contextualOptIn.impressionLimit", 20],
+
+  // The first impression time (seconds) for the Firefox Suggest contextual
+  // opt-in result.
+  ["quicksuggest.contextualOptIn.firstImpressionTime", 0],
+
+  // Days until dismiss the Firefox Suggest contextual opt-in result after first
+  // impression.
+  ["quicksuggest.contextualOptIn.impressionDaysLimit", 5],
 
   // Whether the user has opted in to data collection for quick suggest.
   ["quicksuggest.dataCollection.enabled", false],
@@ -828,6 +843,19 @@ class Preferences {
   }
 
   /**
+   * Returns whether the given preference has a value on the user branch.
+   *
+   * @param {string} pref
+   *   The name of the preference.
+   * @returns {boolean}
+   *   Whether the pref has a value on the user branch.
+   */
+  hasUserValue(pref) {
+    let { hasUserValue } = this._getPrefDescriptor(pref);
+    return hasUserValue(pref);
+  }
+
+  /**
    * Builds the standard result groups.  See makeResultGroups.
    *
    * @param {object} options
@@ -1096,6 +1124,7 @@ class Preferences {
       // Float prefs are stored as Char.
       set: branch[`set${type == "Float" ? "Char" : type}Pref`],
       clear: branch.clearUserPref,
+      hasUserValue: branch.prefHasUserValue,
     };
   }
 
@@ -1123,6 +1152,11 @@ class Preferences {
       },
       clear() {
         throw new Error(`'${name}' is a Nimbus value and cannot be cleared`);
+      },
+      hasUserValue() {
+        throw new Error(
+          `'${name}' is a Nimbus value and does not have a user value`
+        );
       },
     };
   }

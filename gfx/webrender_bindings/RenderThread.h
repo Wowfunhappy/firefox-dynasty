@@ -36,6 +36,7 @@ class GLContext;
 }  // namespace gl
 namespace layers {
 class CompositorBridgeParent;
+class Fence;
 class ShaderProgramOGLsHolder;
 class SurfacePool;
 }  // namespace layers
@@ -103,6 +104,9 @@ class WebRenderShaders final {
  public:
   WebRenderShaders(gl::GLContext* gl, WebRenderProgramCache* programCache);
   ~WebRenderShaders();
+
+  // Returns true if ResumeWarmup() should be called again
+  bool ResumeWarmup();
 
   wr::WrShaders* RawShaders() { return mShaders; }
 
@@ -435,6 +439,8 @@ class RenderThread final {
   void DeferredRenderTextureHostDestroy();
   void ShutDownTask();
   void InitDeviceTask();
+  void PostResumeShaderWarmupRunnable();
+  void ResumeShaderWarmup();
   void HandleFrameOneDoc(wr::WindowId aWindowId, bool aRender,
                          bool aTrackedFrame, Maybe<FramePublishId> aPublishId);
   void RunEvent(wr::WindowId aWindowId, UniquePtr<RendererEvent> aEvent,

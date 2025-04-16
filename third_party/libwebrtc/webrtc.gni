@@ -177,18 +177,24 @@ declare_args() {
   rtc_build_with_neon =
       (target_cpu == "arm" && arm_use_neon) || target_cpu == "arm64"
 
-  # Enable this to build OpenH264 encoder/FFmpeg decoder. This is supported on
-  # all platforms except Android and iOS. Because FFmpeg can be built
-  # with/without H.264 support, `ffmpeg_branding` has to separately be set to a
-  # value that includes H.264, for example "Chrome". If FFmpeg is built without
-  # H.264, compilation succeeds but `H264DecoderImpl` fails to initialize.
+  # Enable this to build OpenH264 encoder/FFmpeg decoder. When building WebRTC
+  # as part of Chromium, this is delegated to `media_use_openh264`. When
+  # building WebRTC as a standalone library, this is supported on all platforms
+  # except Android and iOS. Because FFmpeg can be built with/without H.264
+  # support, `ffmpeg_branding` has to separately be set to a value that
+  # includes H.264, for example "Chrome". If FFmpeg is built without H.264,
+  # compilation succeeds but `H264DecoderImpl` fails to initialize.
   # CHECK THE OPENH264, FFMPEG AND H.264 LICENSES/PATENTS BEFORE BUILDING.
   # http://www.openh264.org, https://www.ffmpeg.org/
   #
   # Enabling H264 when building with MSVC is currently not supported, see
   # bugs.webrtc.org/9213#c13 for more info.
-  rtc_use_h264 =
-      proprietary_codecs && !is_android && !is_ios && !(is_win && !is_clang)
+  if (build_with_chromium) {
+    rtc_use_h264 = media_use_openh264
+  } else {
+    rtc_use_h264 =
+        proprietary_codecs && !is_android && !is_ios && !(is_win && !is_clang)
+  }
 
   # Use system OpenH264
   rtc_system_openh264 = false
@@ -534,13 +540,14 @@ template("rtc_test") {
       android_manifest = webrtc_root + "test/android/AndroidManifest.xml"
       use_raw_android_executable = false
       min_sdk_version = 21
-      target_sdk_version = 23
+      target_sdk_version = 24
       deps += [
         "//chromium/build/android/gtest_apk:native_test_instrumentation_test_runner_java",
         webrtc_root + "sdk/android:native_test_jni_onload",
         webrtc_root + "sdk/android:base_java",
         webrtc_root + "test:native_test_java",
         webrtc_root + "test:native_test_support",
+        "//third_party/jni_zero:jni_zero_java",
       ]
     }
 
@@ -1301,21 +1308,11 @@ if (is_android && !build_with_mozilla) {
                                "visibility",
                              ])
 
-      errorprone_args = []
-
-      # Treat warnings as errors.
-      errorprone_args += [ "-Werror" ]
-
       # Add any arguments defined by the invoker.
       if (defined(invoker.errorprone_args)) {
-        errorprone_args += invoker.errorprone_args
+        errorprone_args = invoker.errorprone_args
       }
 
-      if (!defined(deps)) {
-        deps = []
-      }
-
-      no_build_hooks = true
       not_needed([ "android_manifest" ])
     }
   }
@@ -1330,16 +1327,6 @@ if (is_android && !build_with_mozilla) {
                                "suppressed_configs",
                                "visibility",
                              ])
-
-      # Treat warnings as errors.
-      errorprone_args = []
-      errorprone_args += [ "-Werror" ]
-
-      if (!defined(deps)) {
-        deps = []
-      }
-
-      no_build_hooks = true
     }
   }
 
@@ -1353,16 +1340,7 @@ if (is_android && !build_with_mozilla) {
                                "suppressed_configs",
                                "visibility",
                              ])
-
-      # Treat warnings as errors.
-      errorprone_args = []
-      errorprone_args += [ "-Werror" ]
-
-      if (!defined(deps)) {
-        deps = []
-      }
-
-      no_build_hooks = true
+      deps += [ "//third_party/jni_zero:jni_zero_java" ]
     }
   }
 }

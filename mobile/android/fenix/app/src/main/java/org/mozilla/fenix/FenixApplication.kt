@@ -30,6 +30,7 @@ import kotlinx.coroutines.launch
 import mozilla.appservices.Megazord
 import mozilla.appservices.autofill.AutofillApiException
 import mozilla.components.browser.state.action.SystemAction
+import mozilla.components.browser.state.action.TranslationsAction
 import mozilla.components.browser.state.selector.selectedTab
 import mozilla.components.browser.state.state.searchEngines
 import mozilla.components.browser.state.state.selectedOrDefaultSearchEngine
@@ -49,6 +50,7 @@ import mozilla.components.feature.search.ext.waitForSelectedOrDefaultSearchEngin
 import mozilla.components.feature.syncedtabs.commands.GlobalSyncedTabsCommandsProvider
 import mozilla.components.feature.top.sites.TopSitesFrecencyConfig
 import mozilla.components.feature.top.sites.TopSitesProviderConfig
+import mozilla.components.feature.webcompat.reporter.WebCompatReporterFeature
 import mozilla.components.lib.crash.CrashReporter
 import mozilla.components.service.fxa.manager.SyncEnginesStorage
 import mozilla.components.service.sync.logins.LoginsApiException
@@ -114,6 +116,7 @@ import org.mozilla.fenix.wallpapers.Wallpaper
 import java.util.UUID
 import java.util.concurrent.TimeUnit
 import kotlin.math.roundToLong
+import mozilla.appservices.init_rust_components.initialize as InitializeRustComponents
 
 private const val RAM_THRESHOLD_MEGABYTES = 1024
 private const val BYTES_TO_MEGABYTES_CONVERSION = 1024.0 * 1024.0
@@ -191,12 +194,6 @@ open class FenixApplication : LocaleAwareApplication(), Provider {
         if (components.fenixOnboarding.userHasBeenOnboarded()) {
             initializeGlean(this, logger, settings.isTelemetryEnabled, components.core.client)
         }
-
-        // We avoid blocking the main thread on startup by setting startup metrics on the background thread.
-        val store = components.core.store
-        GlobalScope.launch(IO) {
-            setStartupMetrics(store, settings)
-        }
     }
 
     @VisibleForTesting
@@ -220,10 +217,9 @@ open class FenixApplication : LocaleAwareApplication(), Provider {
         ProfilerMarkerFactProcessor.create { components.core.engine.profiler }.register()
 
         run {
-            // Make sure the engine is initialized and ready to use.
-            components.strictMode.resetAfter(StrictMode.allowThreadDiskReads()) {
-                components.core.engine.warmUp()
-            }
+            // Make sure the engine and BrowserStore are initialized and ready to use.
+            components.core.engine.warmUp()
+            components.core.store
 
             initializeGlean()
 
@@ -337,11 +333,15 @@ open class FenixApplication : LocaleAwareApplication(), Provider {
                         // we can prevent with this.
                         components.core.topSitesStorage.getTopSites(
                             totalSites = components.settings.topSitesMaxLimit,
-                            frecencyConfig = TopSitesFrecencyConfig(
-                                FrecencyThresholdOption.SKIP_ONE_TIME_PAGES,
-                            ) {
-                                !it.url.toUri()
-                                    .containsQueryParameters(components.settings.frecencyFilterQuery)
+                            frecencyConfig = if (FxNimbus.features.homepageHideFrecentTopSites.value().enabled) {
+                                null
+                            } else {
+                                TopSitesFrecencyConfig(
+                                    frecencyTresholdOption = FrecencyThresholdOption.SKIP_ONE_TIME_PAGES,
+                                ) {
+                                    !it.url.toUri()
+                                        .containsQueryParameters(components.settings.frecencyFilterQuery)
+                                }
                             },
                             providerConfig = TopSitesProviderConfig(
                                 showProviderTopSites = components.settings.showContileFeature,
@@ -380,11 +380,12 @@ open class FenixApplication : LocaleAwareApplication(), Provider {
         }
 
         fun queueMetrics() {
-            if (SDK_INT >= Build.VERSION_CODES.O) { // required by StorageStatsMetrics.
-                queue.runIfReadyOrQueue {
-                    // Because it may be slow to capture the storage stats, it might be preferred to
-                    // create a WorkManager task for this metric, however, I ran out of
-                    // implementation time and WorkManager is harder to test.
+            queue.runIfReadyOrQueue {
+                setStartupMetrics(components.core.store, settings())
+                // Because it may be slow to capture the storage stats, it might be preferred to
+                // create a WorkManager task for this metric, however, I ran out of
+                // implementation time and WorkManager is harder to test.
+                if (SDK_INT >= Build.VERSION_CODES.O) { // required by StorageStatsMetrics.
                     StorageStatsMetrics.report(this.applicationContext)
                 }
             }
@@ -427,6 +428,12 @@ open class FenixApplication : LocaleAwareApplication(), Provider {
             }
         }
 
+        fun queueInitializingTranslations() {
+            queue.runIfReadyOrQueue {
+                components.core.store.dispatch(TranslationsAction.InitTranslationsBrowserState)
+            }
+        }
+
         @OptIn(DelicateCoroutinesApi::class) // GlobalScope usage
         fun queueSuggestIngest() {
             queue.runIfReadyOrQueue {
@@ -446,6 +453,7 @@ open class FenixApplication : LocaleAwareApplication(), Provider {
         queueRestoreLocale()
         queueStorageMaintenance()
         queueNimbusFetchInForeground()
+        queueInitializingTranslations()
         if (settings().enableFxSuggest) {
             queueSuggestIngest()
         }
@@ -520,7 +528,10 @@ open class FenixApplication : LocaleAwareApplication(), Provider {
      * thread, early in the app startup sequence.
      */
     private fun beginSetupMegazord() {
-        // Note: Megazord.init() must be called as soon as possible ...
+        // Rust components must be initialized at the very beginning, before any other Rust call, ...
+        InitializeRustComponents()
+
+        // ... then Megazord.init() must be called as soon as possible, ...
         Megazord.init()
 
         initializeRustErrors(components.analytics.crashReporter)
@@ -639,6 +650,7 @@ open class FenixApplication : LocaleAwareApplication(), Provider {
         }
     }
 
+    @Suppress("ForbiddenComment")
     private fun initializeWebExtensionSupport() {
         try {
             GlobalAddonDependencyProvider.initialize(
@@ -672,6 +684,15 @@ open class FenixApplication : LocaleAwareApplication(), Provider {
                 onExtensionsLoaded = { extensions ->
                     components.addonUpdater.registerForFutureUpdates(extensions)
                     subscribeForNewAddonsIfNeeded(components.supportedAddonsChecker, extensions)
+
+                    // Bug 1948634 - Make sure the webcompat-reporter extension is fully uninstalled.
+                    // This is added here because we need gecko to load the extension first.
+                    //
+                    // TODO: Bug 1953359 - remove the code below in the next release.
+                    if (Config.channel.isNightlyOrDebug || Config.channel.isBeta) {
+                        logger.debug("Attempting to uninstall the WebCompat Reporter extension")
+                        WebCompatReporterFeature.uninstall(components.core.engine)
+                    }
                 },
                 onUpdatePermissionRequest = components.addonUpdater::onUpdatePermissionRequest,
             )
@@ -705,12 +726,13 @@ open class FenixApplication : LocaleAwareApplication(), Provider {
      */
     @Suppress("ComplexMethod", "LongMethod")
     @VisibleForTesting
+    @OptIn(DelicateCoroutinesApi::class)
     internal fun setStartupMetrics(
         browserStore: BrowserStore,
         settings: Settings,
         browsersCache: BrowsersCache = BrowsersCache,
         mozillaProductDetector: MozillaProductDetector = MozillaProductDetector,
-    ) {
+    ) = GlobalScope.launch(Dispatchers.IO) {
         setPreferenceMetrics(settings)
         with(Metrics) {
             // Set this early to guarantee it's in every ping from here on.

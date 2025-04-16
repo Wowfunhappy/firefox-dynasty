@@ -15,16 +15,16 @@ export PATH=$MOZ_FETCHES_DIR/jdk-8/bin:$PATH
 
 export MOZCONFIG=mobile/android/config/mozconfigs/android-arm-gradle-dependencies/nightly
 ./mach build
-./mach gradle downloadDependencies
-./mach android gradle-dependencies
+./mach gradle downloadDependencies --no-configuration-cache
+./mach android gradle-dependencies --no-configuration-cache
 pushd mobile/android/fenix
-./gradlew detekt lint assembleDebug mozilla-lint-rules:test :benchmark:assembleBenchmark
+./gradlew detekt lint assembleDebug :benchmark:assembleBenchmark
 popd
 pushd mobile/android/focus-android
 ./gradlew lint
 popd
 pushd mobile/android/android-components
-./gradlew -Pcoverage detekt lint service-nimbus:assembleAndroidTest samples-browser:testGeckoDebugUnitTest tooling-lint:test
+./gradlew -Pcoverage detekt lint service-nimbus:testReleaseUnitTest samples-browser:testGeckoDebugUnitTest tooling-lint:test
 popd
 
 . taskcluster/scripts/misc/android-gradle-dependencies/after.sh

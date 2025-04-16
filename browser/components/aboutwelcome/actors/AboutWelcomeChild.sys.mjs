@@ -196,14 +196,6 @@ export class AboutWelcomeChild extends JSWindowActorChild {
   async getAWContent() {
     let attributionData = await this.sendQuery("AWPage:GET_ATTRIBUTION_DATA");
 
-    // Return to AMO gets returned early.
-    if (attributionData?.template) {
-      lazy.log.debug("Loading about:welcome with RTAMO attribution data");
-      return Cu.cloneInto(attributionData, this.contentWindow);
-    } else if (attributionData?.ua) {
-      lazy.log.debug("Loading about:welcome with UA attribution");
-    }
-
     let experimentMetadata =
       lazy.ExperimentAPI.getExperimentMetaData({
         featureId: "aboutwelcome",
@@ -863,8 +855,6 @@ const SHOPPING_MICROSURVEY = {
 };
 
 const OPTED_IN_TIME_PREF = "browser.shopping.experience2023.survey.optedInTime";
-const ONBOARDING_FIRST_IMPRESSION_TIME_PREF =
-  "browser.shopping.experience2023.firstImpressionTime";
 
 XPCOMUtils.defineLazyPreferenceGetter(
   lazy,
@@ -970,19 +960,6 @@ export class AboutWelcomeShoppingChild extends AboutWelcomeChild {
     });
   }
 
-  setOnBoardingImpressionTime() {
-    const now = Date.now() / 1000;
-    this.AWSendToParent("SPECIAL_ACTION", {
-      type: "SET_PREF",
-      data: {
-        pref: {
-          name: ONBOARDING_FIRST_IMPRESSION_TIME_PREF,
-          value: now,
-        },
-      },
-    });
-  }
-
   handleEvent(event) {
     // Decide when to show/hide onboarding and survey message
     const { productUrl, showOnboarding, data, isSupportedSite, isProductPage } =
@@ -1000,9 +977,27 @@ export class AboutWelcomeShoppingChild extends AboutWelcomeChild {
       // Render opt-in message
       AboutWelcomeShoppingChild.optedInSession = true;
       this.AWSetProductURL(productUrl, isProductPage, isSupportedSite);
+
+      // Don't re-render the same opt in screen if it is already
+      // showing.
+      if (
+        lazy.isIntegratedSidebar &&
+        this.showingOnboardingForProduct === isProductPage &&
+        this.showingOnboardingForSite === isSupportedSite
+      ) {
+        return;
+      }
+
       this.renderMessage();
+
+      this.showingOnboardingForProduct = !!isSupportedSite;
+      this.showingOnboardingForSite = !!isProductPage;
+
       return;
     }
+
+    this.showingOnboardingForProduct = null;
+    this.showingOnboardingForSite = null;
 
     //Store timestamp if user opts in
     if (
@@ -1057,8 +1052,6 @@ export class AboutWelcomeShoppingChild extends AboutWelcomeChild {
     if (this.showMicroSurvey && !this.showOnboarding) {
       messageContent = SHOPPING_MICROSURVEY;
       this.setShoppingSurveySeen();
-    } else {
-      this.setOnBoardingImpressionTime();
     }
     return Cu.cloneInto(messageContent, this.contentWindow);
   }
@@ -1101,12 +1094,16 @@ export class AboutWelcomeShoppingChild extends AboutWelcomeChild {
       productHostname = new URL(productUrl).hostname;
     }
     let content = lazy.isIntegratedSidebar
-      ? this._AWGetOptInSidebarVariantContent(isProductPage, isSupportedSite)
+      ? this._AWGetOptInSidebarVariantContent(
+          productUrl,
+          isProductPage,
+          isSupportedSite
+        )
       : this._AWGetOptInDefaultContent(productHostname);
     optInDynamicContent = content;
   }
 
-  _AWGetOptInSidebarVariantContent(isProductPage, isSupportedSite) {
+  _AWGetOptInSidebarVariantContent(productUrl, isProductPage, isSupportedSite) {
     let content;
 
     if (!isProductPage && !isSupportedSite) {
@@ -1115,6 +1112,33 @@ export class AboutWelcomeShoppingChild extends AboutWelcomeChild {
       );
     } else {
       content = JSON.parse(JSON.stringify(OPTIN_SIDEBAR_VARIANT));
+    }
+
+    const [optInScreen] = content.screens;
+
+    switch (productUrl) {
+      case "www.walmart.com":
+        optInScreen.content.above_button_content[0].text.args = {
+          firstSite: "Walmart",
+          secondSite: "Amazon",
+          thirdSite: "Best Buy",
+        };
+        break;
+      case "www.bestbuy.com":
+        optInScreen.content.above_button_content[0].text.args = {
+          firstSite: "Best Buy",
+          secondSite: "Amazon",
+          thirdSite: "Walmart",
+        };
+        break;
+      case "www.amazon.com":
+      // Intentional fall-through
+      default:
+        optInScreen.content.above_button_content[0].text.args = {
+          firstSite: "Amazon",
+          secondSite: "Walmart",
+          thirdSite: "Best Buy",
+        };
     }
 
     return content;

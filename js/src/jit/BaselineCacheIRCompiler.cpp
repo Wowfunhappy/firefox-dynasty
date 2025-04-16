@@ -26,6 +26,7 @@
 #include "js/friend/DOMProxy.h"       // JS::ExpandoAndGeneration
 #include "proxy/DeadObjectProxy.h"
 #include "proxy/Proxy.h"
+#include "util/DifferentialTesting.h"
 #include "util/Unicode.h"
 #include "vm/PortableBaselineInterpret.h"
 #include "vm/StaticStrings.h"
@@ -1485,6 +1486,23 @@ bool BaselineCacheIRCompiler::emitHasClassResult(ObjOperandId objId,
   Address claspAddr(stubAddress(claspOffset));
   masm.loadObjClassUnsafe(obj, scratch);
   masm.cmpPtrSet(Assembler::Equal, claspAddr, scratch.get(), scratch);
+  masm.tagValue(JSVAL_TYPE_BOOLEAN, scratch, output.valueReg());
+  return true;
+}
+
+bool BaselineCacheIRCompiler::emitHasShapeResult(ObjOperandId objId,
+                                                 uint32_t shapeOffset) {
+  JitSpew(JitSpew_Codegen, "%s", __FUNCTION__);
+
+  AutoOutputRegister output(*this);
+  Register obj = allocator.useRegister(masm, objId);
+  AutoScratchRegisterMaybeOutput scratch(allocator, masm, output);
+
+  // Note: no Spectre mitigations are needed here because this shape check only
+  // affects correctness.
+  Address shapeAddr(stubAddress(shapeOffset));
+  masm.loadObjShapeUnsafe(obj, scratch);
+  masm.cmpPtrSet(Assembler::Equal, shapeAddr, scratch.get(), scratch);
   masm.tagValue(JSVAL_TYPE_BOOLEAN, scratch, output.valueReg());
   return true;
 }
@@ -4087,8 +4105,9 @@ bool BaselineCacheIRCompiler::emitNewArrayObjectResult(uint32_t arrayLength,
   JitSpew(JitSpew_Codegen, "%s", __FUNCTION__);
 
   gc::AllocKind allocKind = GuessArrayGCKind(arrayLength);
-  MOZ_ASSERT(CanChangeToBackgroundAllocKind(allocKind, &ArrayObject::class_));
-  allocKind = ForegroundToBackgroundAllocKind(allocKind);
+  MOZ_ASSERT(gc::GetObjectFinalizeKind(&ArrayObject::class_) ==
+             gc::FinalizeKind::None);
+  MOZ_ASSERT(!IsFinalizedKind(allocKind));
 
   uint32_t slotCount = GetGCKindSlots(allocKind);
   MOZ_ASSERT(slotCount >= ObjectElements::VALUES_PER_HEADER);

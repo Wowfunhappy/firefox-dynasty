@@ -36,10 +36,10 @@ using mozilla::FloorLog2;
 using mozilla::NegativeInfinity;
 
 // shared
-CodeGeneratorMIPSShared::CodeGeneratorMIPSShared(MIRGenerator* gen,
-                                                 LIRGraph* graph,
-                                                 MacroAssembler* masm)
-    : CodeGeneratorShared(gen, graph, masm) {}
+CodeGeneratorMIPSShared::CodeGeneratorMIPSShared(
+    MIRGenerator* gen, LIRGraph* graph, MacroAssembler* masm,
+    const wasm::CodeMetadata* wasmCodeMeta)
+    : CodeGeneratorShared(gen, graph, masm, wasmCodeMeta) {}
 
 Operand CodeGeneratorMIPSShared::ToOperand(const LAllocation& a) {
   if (a.isGeneralReg()) {
@@ -1597,7 +1597,7 @@ void CodeGenerator::visitWasmSelect(LWasmSelect* ins) {
     Register out = ToRegister(ins->output());
     MOZ_ASSERT(ToRegister(ins->trueExpr()) == out,
                "true expr input is reused for output");
-    if (falseExpr->isRegister()) {
+    if (falseExpr->isGeneralReg()) {
       masm.as_movz(out, ToRegister(falseExpr), cond);
     } else {
       masm.cmp32Load32(Assembler::Zero, cond, cond, ToAddress(falseExpr), out);

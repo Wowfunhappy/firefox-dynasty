@@ -67,7 +67,7 @@ class BrowserToolbarIntegration(
     private val eraseActionListener: () -> Unit,
     private val tabCounterListener: () -> Unit,
     private val customTabId: String? = null,
-    inTesting: Boolean = false,
+    isOnboardingTab: Boolean = false,
 ) : LifecycleAwareFeature {
     private val presenter = ToolbarPresenter(
         toolbar,
@@ -123,7 +123,7 @@ class BrowserToolbarIntegration(
         toolbar.display.apply {
             colors = colors.copy(
                 hint = ContextCompat.getColor(toolbar.context, R.color.urlBarHintText),
-                securityIconInsecure = Color.TRANSPARENT,
+                siteInfoIconInsecure = Color.TRANSPARENT,
                 text = ContextCompat.getColor(toolbar.context, R.color.primaryText),
                 menu = ContextCompat.getColor(toolbar.context, R.color.primaryText),
             )
@@ -132,7 +132,7 @@ class BrowserToolbarIntegration(
 
             displayIndicatorSeparator = false
 
-            setOnSiteSecurityClickedListener {
+            setOnSiteInfoClickedListener {
                 TrackingProtection.toolbarShieldClicked.add()
                 fragment.initCookieBanner()
                 fragment.showTrackingProtectionPanel()
@@ -172,6 +172,7 @@ class BrowserToolbarIntegration(
                 context = fragment.requireContext(),
                 store = store,
                 currentTabId = customTabId,
+                isOnboardingTab = isOnboardingTab,
                 onItemTapped = { controller.handleMenuInteraction(it) },
             )
             customTabsFeature = CustomTabsToolbarFeature(
@@ -201,9 +202,7 @@ class BrowserToolbarIntegration(
 
         if (isCustomTab == false) {
             toolbar.addNavigationAction(eraseAction)
-            if (!inTesting) {
-                setUrlBackground()
-            }
+            setUrlBackground()
         }
     }
 
@@ -444,13 +443,19 @@ class BrowserToolbarIntegration(
                 .distinctUntilChangedBy { tab -> tab.content.securityInfo }
                 .collect {
                     val secure = it.content.securityInfo.secure
-                    val url = it.content.url
-                    if (secure && Indicators.SECURITY in toolbar.display.indicators) {
-                        addTrackingProtectionIndicator()
-                    } else if (!secure && Indicators.SECURITY !in toolbar.display.indicators &&
-                        !url.trim().startsWith("about:")
-                    ) {
-                        addSecurityIndicator()
+                    val url = it.content.url.trim()
+                    when {
+                        secure && Indicators.SECURITY in toolbar.display.indicators -> {
+                            addTrackingProtectionIndicator()
+                        }
+
+                        secure || Indicators.SECURITY in toolbar.display.indicators || url.startsWith("about:") -> {
+                            // do nothing
+                        }
+
+                        else -> {
+                            addSecurityIndicator()
+                        }
                     }
                 }
         }

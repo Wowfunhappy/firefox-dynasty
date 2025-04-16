@@ -194,6 +194,7 @@ class TargetCommand extends EventEmitter {
   // Called whenever a new Target front is available.
   // Either because a target was already available as we started calling startListening
   // or if it has just been created
+  // eslint-disable-next-line complexity
   async _onTargetAvailable(targetFront) {
     // We put the `commands` on the targetFront so it can be retrieved from any front easily.
     // Without this, protocol.js fronts won't have any easy access to it.
@@ -248,10 +249,6 @@ class TargetCommand extends EventEmitter {
       }
     }
 
-    // Map the descriptor typeName to a target type.
-    const targetType = this.getTargetType(targetFront);
-    targetFront.setTargetType(targetType);
-
     this._targets.add(targetFront);
     try {
       await targetFront.attachAndInitThread(this);
@@ -272,7 +269,7 @@ class TargetCommand extends EventEmitter {
     this.store.dispatch(registerTarget(targetFront));
 
     // Then, once the target is attached, notify the target front creation listeners
-    await this._createListeners.emitAsync(targetType, {
+    await this._createListeners.emitAsync(targetFront.targetType, {
       targetFront,
       isTargetSwitching,
     });
@@ -298,7 +295,7 @@ class TargetCommand extends EventEmitter {
       // When debugging Web Extension, workaround the fallback document by automatically selected any incoming target
       // as soon as we are currently selecting that fallback document.
       (this.descriptorFront.isWebExtensionDescriptor &&
-      this.#selectedTargetFront?.isFallbackExtensionDocument);
+        this.#selectedTargetFront?.isFallbackExtensionDocument);
 
     if (autoSelectTarget) {
       await this.selectTarget(targetFront);
@@ -405,7 +402,9 @@ class TargetCommand extends EventEmitter {
         // When debugging Web Extension we don't want to immediately fallback to the top level target, which is the fallback document.
         // Instead, try to lookup for the background page.
         if (this.descriptorFront.isWebExtensionDescriptor) {
-          const backgroundPageTargetFront = [...this._targets].find(target => !target.isFallbackExtensionDocument);
+          const backgroundPageTargetFront = [...this._targets].find(
+            target => !target.isFallbackExtensionDocument
+          );
           if (backgroundPageTargetFront) {
             fallbackTarget = backgroundPageTargetFront;
           }
@@ -443,8 +442,7 @@ class TargetCommand extends EventEmitter {
     }
 
     this.#selectedTargetFront = targetFront;
-    const targetType = this.getTargetType(targetFront);
-    await this._selectListeners.emitAsync(targetType, {
+    await this._selectListeners.emitAsync(targetFront.targetType, {
       targetFront,
     });
   }
@@ -573,7 +571,6 @@ class TargetCommand extends EventEmitter {
     // Note that this is a public attribute, used outside of this class
     // and helps knowing what is the current top level target we debug.
     this.targetFront = await this.descriptorFront.getTarget();
-    this.targetFront.setTargetType(this.getTargetType(this.targetFront));
     this.targetFront.setIsTopLevel(true);
     this._gotFirstTopLevelTarget = true;
 
@@ -599,7 +596,10 @@ class TargetCommand extends EventEmitter {
         SHOW_CONTENT_SCRIPTS_PREF,
         false
       );
-      if (showContentScripts && this.hasTargetWatcherSupport(TargetCommand.TYPES.CONTENT_SCRIPT)) {
+      if (
+        showContentScripts &&
+        this.hasTargetWatcherSupport(TargetCommand.TYPES.CONTENT_SCRIPT)
+      ) {
         types.push(TargetCommand.TYPES.CONTENT_SCRIPT);
       }
     } else if (
@@ -617,7 +617,9 @@ class TargetCommand extends EventEmitter {
         // Except for CONTENT_SCRIPT targets, as their scripts are already debuggable
         // via the content process targets.
         if (!this.listenForContentScripts) {
-          types = TargetCommand.ALL_TYPES.filter(t => t != TargetCommand.TYPES.CONTENT_SCRIPT);
+          types = TargetCommand.ALL_TYPES.filter(
+            t => t != TargetCommand.TYPES.CONTENT_SCRIPT
+          );
         } else {
           types = TargetCommand.ALL_TYPES;
         }
@@ -714,46 +716,6 @@ class TargetCommand extends EventEmitter {
     } else {
       throw new Error(`Unsupported target type '${type}'`);
     }
-  }
-
-  getTargetType(target) {
-    const { targetType } = target.targetForm;
-    if (targetType) {
-      return targetType;
-    }
-
-    // @backward-compat { version 137 } This can be removed as target.targetForm.targetType
-    // will always be defined. We can then remove TargetCommand.getTargetType and TargetMixin.setTargetType
-    // and instead have a getter like this `TargetMixin.targetType() this.targetForm.targetType`.
-    const { typeName } = target;
-    if (typeName == "windowGlobalTarget") {
-      return TargetCommand.TYPES.FRAME;
-    }
-
-    if (
-      typeName == "contentProcessTarget" ||
-      typeName == "parentProcessTarget"
-    ) {
-      return TargetCommand.TYPES.PROCESS;
-    }
-
-    if (typeName == "contentScriptTarget") {
-      return TargetCommand.TYPES.CONTENT_SCRIPT;
-    }
-
-    if (typeName == "workerDescriptor" || typeName == "workerTarget") {
-      if (target.isSharedWorker) {
-        return TargetCommand.TYPES.SHARED_WORKER;
-      }
-
-      if (target.isServiceWorker) {
-        return TargetCommand.TYPES.SERVICE_WORKER;
-      }
-
-      return TargetCommand.TYPES.WORKER;
-    }
-
-    throw new Error("Unsupported target typeName: " + typeName);
   }
 
   _matchTargetType(type, target) {
@@ -907,7 +869,11 @@ class TargetCommand extends EventEmitter {
     this._pendingWatchTargetInitialization.delete(onAvailable);
 
     try {
-      if (onSelected && this.selectedTargetFront && types.includes(this.selectedTargetFront.targetType)) {
+      if (
+        onSelected &&
+        this.selectedTargetFront &&
+        types.includes(this.selectedTargetFront.targetType)
+      ) {
         await onSelected({
           targetFront: this.selectedTargetFront,
         });
@@ -915,11 +881,7 @@ class TargetCommand extends EventEmitter {
     } catch (e) {
       // Prevent throwing when onSelected handler throws on one target
       // (this may make test to fail when closing the toolbox quickly after opening)
-      console.error(
-        "Exception when calling onSelected handler",
-        e.message,
-        e
-      );
+      console.error("Exception when calling onSelected handler", e.message, e);
     }
   }
 
@@ -1147,12 +1109,12 @@ class TargetCommand extends EventEmitter {
    * @param {WindowGlobalTargetFront} targetFront
    *        The target front we want the toolbox to focus on.
    */
-  selectTarget(targetFront) {
+  async selectTarget(targetFront) {
     // Ignore any target which we may try to select, but is already being destroyed
     if (targetFront.isDestroyedOrBeingDestroyed()) {
       return;
     }
-    return this._onTargetSelected(targetFront);
+    await this._onTargetSelected(targetFront);
   }
 
   /**

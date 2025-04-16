@@ -136,10 +136,7 @@ add_task(async function () {
       statusText: "OK",
       type: "plain",
       fullMimeType: "text/plain",
-      transferred: L10N.getFormatStrWithNumbers(
-        "networkMenu.sizeB",
-        AppConstants.USE_LIBZ_RS ? 333 : 324
-      ),
+      transferred: L10N.getFormatStrWithNumbers("networkMenu.sizeB", 324),
       size: L10N.getFormatStrWithNumbers("networkMenu.size.kB", 10.99),
       time: true,
     }
@@ -168,7 +165,7 @@ add_task(async function () {
 
   await teardown(monitor);
 
-  function testResponseTab(type) {
+  async function testResponseTab(type) {
     const tabpanel = document.querySelector("#response-panel");
 
     function checkVisibility(box) {
@@ -274,7 +271,10 @@ add_task(async function () {
       case "html": {
         checkVisibility("html");
 
-        const text = document.querySelector(".html-preview iframe").src;
+        const browser = document.querySelector(".html-preview browser");
+        await BrowserTestUtils.browserLoaded(browser);
+
+        const text = browser.currentURI.spec;
         const expectedText =
           "data:text/html;charset=UTF-8," +
           encodeURIComponent("<blink>Not Found</blink>");
@@ -282,7 +282,7 @@ add_task(async function () {
         is(
           text,
           expectedText,
-          "The text shown in the iframe is incorrect for the html request."
+          "The text shown in the browser is incorrect for the html request."
         );
         break;
       }

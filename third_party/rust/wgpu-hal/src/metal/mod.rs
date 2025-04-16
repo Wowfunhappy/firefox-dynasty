@@ -362,6 +362,10 @@ impl Queue {
             timestamp_period,
         }
     }
+
+    pub fn as_raw(&self) -> &Arc<Mutex<metal::CommandQueue>> {
+        &self.raw
+    }
 }
 
 pub struct Device {
@@ -609,6 +613,7 @@ impl<T> ops::Index<naga::ShaderStage> for MultiStageData<T> {
             naga::ShaderStage::Vertex => &self.vs,
             naga::ShaderStage::Fragment => &self.fs,
             naga::ShaderStage::Compute => &self.cs,
+            naga::ShaderStage::Task | naga::ShaderStage::Mesh => unreachable!(),
         }
     }
 }
@@ -777,8 +782,22 @@ unsafe impl Send for BindGroup {}
 unsafe impl Sync for BindGroup {}
 
 #[derive(Debug)]
+pub enum ShaderModuleSource {
+    Naga(crate::NagaShader),
+    Passthrough(PassthroughShader),
+}
+
+#[derive(Debug)]
+pub struct PassthroughShader {
+    pub library: metal::Library,
+    pub function: metal::Function,
+    pub entry_point: String,
+    pub num_workgroups: (u32, u32, u32),
+}
+
+#[derive(Debug)]
 pub struct ShaderModule {
-    naga: crate::NagaShader,
+    source: ShaderModuleSource,
     bounds_checks: wgt::ShaderRuntimeChecks,
 }
 
