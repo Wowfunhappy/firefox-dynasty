@@ -243,7 +243,7 @@ class FallbackRenderer : public WindowRenderer {
  public:
   FallbackRenderer* AsFallback() override { return this; }
 
-  void SetTarget(gfxContext* aContext);
+  void SetTarget(gfxContext* aContext, layers::BufferMode aDoubleBuffering);
 
   bool BeginTransaction(const nsCString& aURL = nsCString()) override;
 
@@ -255,7 +255,7 @@ class FallbackRenderer : public WindowRenderer {
     return layers::LayersBackend::LAYERS_NONE;
   }
 
-  void GetBackendName(nsAString& name) override {
+  virtual void GetBackendName(nsAString& name) override {
     name.AssignLiteral("Fallback");
   }
 
@@ -266,7 +266,8 @@ class FallbackRenderer : public WindowRenderer {
                               int32_t aAppUnitsPerDevPixel,
                               EndTransactionFlags aFlags);
 
-  gfxContext* mTarget = nullptr;
+  gfxContext* mTarget;
+  layers::BufferMode mBufferMode;
 };
 
 }  // namespace mozilla

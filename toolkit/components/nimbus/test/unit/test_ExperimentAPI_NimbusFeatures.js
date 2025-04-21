@@ -1,9 +1,5 @@
 "use strict";
 
-const { _ExperimentFeature: ExperimentFeature } = ChromeUtils.importESModule(
-  "resource://nimbus/ExperimentAPI.sys.mjs"
-);
-
 const { JsonSchema } = ChromeUtils.importESModule(
   "resource://gre/modules/JsonSchema.sys.mjs"
 );
@@ -60,6 +56,22 @@ const AW_FAKE_MANIFEST = {
   },
 };
 
+const TEST_FEATURE = new ExperimentFeature("test-feature", {
+  description: "Test feature",
+  isEarlyStartup: false,
+  hasExposure: false,
+  variables: {
+    enabled: {
+      type: "boolean",
+      description: "test variable",
+    },
+  },
+});
+
+add_setup(() => {
+  NimbusTestUtils.addTestFeatures(TEST_FEATURE);
+});
+
 add_task(async function validSchema() {
   const validator = new JsonSchema.Validator(await fetchSchema, {
     shortCircuit: false,
@@ -91,7 +103,8 @@ add_task(async function readyCallAfterStore_with_remote_value() {
 });
 
 add_task(async function has_sync_value_before_ready() {
-  const { cleanup } = await NimbusTestUtils.setupTest();
+  // We don't need to initialize Nimbus in this test.
+  const { cleanup } = await NimbusTestUtils.setupTest({ init: false });
   const feature = new ExperimentFeature("aboutwelcome", AW_FAKE_MANIFEST);
 
   Assert.equal(
@@ -137,61 +150,6 @@ add_task(async function update_remote_defaults_onUpdate() {
   Assert.equal(stub.firstCall.args[1], "rollout-updated", "Correct reason");
 
   manager.unenroll(MATCHING_ROLLOUT.slug);
-
-  cleanup();
-});
-
-add_task(async function test_features_over_feature() {
-  const { manager, cleanup } = await NimbusTestUtils.setupTest();
-  const feature = new ExperimentFeature("aboutwelcome");
-  const rollout_features_and_feature = Object.freeze(
-    ExperimentFakes.rollout("matching-rollout", {
-      branch: {
-        slug: "slug",
-        ratio: 1,
-        feature: {
-          featureId: "aboutwelcome",
-          value: { enabled: false },
-        },
-        features: [
-          {
-            featureId: "aboutwelcome",
-            value: { enabled: true },
-          },
-        ],
-      },
-    })
-  );
-  const rollout_just_feature = Object.freeze(
-    ExperimentFakes.rollout("matching-rollout", {
-      branch: {
-        slug: "slug",
-        ratio: 1,
-        feature: {
-          featureId: "aboutwelcome",
-          value: { enabled: false },
-        },
-      },
-    })
-  );
-
-  await manager.store.addEnrollment(rollout_features_and_feature);
-  Assert.ok(
-    feature.getVariable("enabled"),
-    "Should read from the features property over feature"
-  );
-
-  manager.store._deleteForTests("aboutwelcome");
-  manager.store._deleteForTests("matching-rollout");
-
-  await manager.store.addEnrollment(rollout_just_feature);
-  Assert.ok(
-    !feature.getVariable("enabled"),
-    "Should read from the feature property when features doesn't exist"
-  );
-
-  manager.store._deleteForTests("aboutwelcome");
-  manager.store._deleteForTests("matching-rollout");
 
   cleanup();
 });
@@ -255,41 +213,6 @@ add_task(async function test_getVariable_no_mutation() {
   const feature = new ExperimentFeature("aboutwelcome", AW_FAKE_MANIFEST);
 
   Assert.ok(feature.getVariable("mochitest"), "Got back the expected feature");
-
-  cleanup();
-});
-
-add_task(async function remote_isEarlyStartup_config() {
-  const { manager, cleanup } = await NimbusTestUtils.setupTest();
-  const rollout = ExperimentFakes.rollout("password-autocomplete", {
-    branch: {
-      slug: "remote-config-isEarlyStartup",
-      ratio: 1,
-      features: [
-        {
-          featureId: "password-autocomplete",
-          enabled: true,
-          value: { remote: true },
-          isEarlyStartup: true,
-        },
-      ],
-    },
-  });
-
-  await manager.store.addEnrollment(rollout);
-
-  Assert.ok(
-    Services.prefs.prefHasUserValue(
-      "nimbus.syncdefaultsstore.password-autocomplete"
-    ),
-    "Configuration is marked early startup"
-  );
-
-  Services.prefs.clearUserPref(
-    "nimbus.syncdefaultsstore.password-autocomplete"
-  );
-
-  manager.unenroll(rollout.slug);
 
   cleanup();
 });

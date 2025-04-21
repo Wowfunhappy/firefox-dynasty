@@ -36,27 +36,6 @@ const STUDIES_OPT_OUT_PREF = "app.shield.optoutstudies.enabled";
 
 const STUDIES_ENABLED_CHANGED = "nimbus:studies-enabled-changed";
 
-const FORCE_ENROLLMENT_SOURCE = "force-enrollment";
-
-function featuresCompat(branch) {
-  if (!branch || (!branch.feature && !branch.features)) {
-    return [];
-  }
-  let { features } = branch;
-  // In <=v1.5.0 of the Nimbus API, experiments had single feature
-  if (!features) {
-    features = [branch.feature];
-  }
-
-  return features;
-}
-
-function getFeatureFromBranch(branch, featureId) {
-  return featuresCompat(branch).find(
-    featureConfig => featureConfig.featureId === featureId
-  );
-}
-
 export const UnenrollmentCause = {
   fromCheckRecipeResult(result) {
     const { UnenrollReason } = lazy.NimbusTelemetry;
@@ -562,8 +541,7 @@ export class _ExperimentManager {
       branch = await this.chooseBranch(slug, branches, userId);
     }
 
-    const features = featuresCompat(branch);
-    for (const feature of features) {
+    for (const feature of branch.features) {
       const existingEnrollment = storeLookupByFeature(feature?.featureId);
       if (existingEnrollment) {
         lazy.log.debug(
@@ -605,8 +583,7 @@ export class _ExperimentManager {
       requiresRestart = false,
     },
     branch,
-    source,
-    options = {}
+    source
   ) {
     const { prefs, prefsToSet } = this._getPrefsForBranch(branch, isRollout);
     const prefNames = new Set(prefs.map(entry => entry.name));
@@ -620,7 +597,7 @@ export class _ExperimentManager {
     ].filter(enrollment => enrollment);
 
     for (const enrollment of prefFlipEnrollments) {
-      const featureValue = getFeatureFromBranch(
+      const featureValue = _ExperimentManager.getFeatureConfigFromBranch(
         enrollment.branch,
         PrefFlipsFeature.FEATURE_ID
       ).value;
@@ -666,12 +643,6 @@ export class _ExperimentManager {
       enrollment.isRollout = isRollout;
     }
 
-    // Tag this as a forced enrollment. This prevents all unenrolling unless
-    // manually triggered from about:studies
-    if (options.force) {
-      enrollment.force = true;
-    }
-
     if (isRollout) {
       enrollment.experimentType = "rollout";
       this.store.addEnrollment(enrollment);
@@ -700,8 +671,7 @@ export class _ExperimentManager {
      * If the experiment has the same slug after unenrollment adding it to the
      * store will overwrite the initial experiment.
      */
-    const features = featuresCompat(branch);
-    for (let feature of features) {
+    for (let feature of branch.features) {
       const isRollout = recipe.isRollout ?? false;
       let enrollment = isRollout
         ? this.store.getRolloutForFeature(feature?.featureId)
@@ -731,8 +701,7 @@ export class _ExperimentManager {
         slug,
       },
       branch,
-      FORCE_ENROLLMENT_SOURCE,
-      { force: true }
+      lazy.NimbusTelemetry.EnrollmentSource.FORCE_ENROLLMENT
     );
 
     Services.obs.notifyObservers(null, "nimbus:enrollments-updated", slug);
@@ -1074,7 +1043,7 @@ export class _ExperimentManager {
 
     const getConflictingEnrollment = this._makeEnrollmentCache(isRollout);
 
-    for (const { featureId, value: featureValue } of featuresCompat(branch)) {
+    for (const { featureId, value: featureValue } of branch.features) {
       const feature = lazy.NimbusFeatures[featureId];
 
       if (!feature) {
@@ -1254,7 +1223,7 @@ export class _ExperimentManager {
             // If we are an unenrolling from an experiment, we have a rollout that would
             // set the same pref, so we update the pref to that value instead of
             // the original value.
-            newValue = getFeatureFromBranch(
+            newValue = _ExperimentManager.getFeatureConfigFromBranch(
               conflictingEnrollment.branch,
               pref.featureId
             ).value[pref.variable];
@@ -1300,8 +1269,8 @@ export class _ExperimentManager {
       return false;
     }
 
-    const featuresById = Object.assign(
-      ...featuresCompat(branch).map(f => ({ [f.featureId]: f }))
+    const featuresById = Object.fromEntries(
+      branch.features.map(f => [f.featureId, f])
     );
 
     for (const { name, featureId, variable } of prefs) {
@@ -1556,7 +1525,7 @@ export class _ExperimentManager {
       }
     }
 
-    const feature = getFeatureFromBranch(
+    const feature = _ExperimentManager.getFeatureConfigFromBranch(
       enrollments.at(-1).branch,
       pref.featureId
     );
@@ -1573,6 +1542,23 @@ export class _ExperimentManager {
     for (const enrollment of enrollments) {
       this._unenroll(enrollment, UnenrollmentCause.ChangedPref(changedPref));
     }
+  }
+
+  /**
+   * Return the feature configuration with the matching feature ID from the
+   * given branch.
+   *
+   * @param {object} branch
+   *        The branch object.
+   *
+   * @param {string} featureId
+   *        The feature to search for.
+   *
+   * @returns {object}
+   *          The feature configuration, including the feature ID and the value.
+   */
+  static getFeatureConfigFromBranch(branch, featureId) {
+    return branch.features.find(f => f.featureId === featureId);
   }
 }
 

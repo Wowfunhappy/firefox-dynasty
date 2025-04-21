@@ -219,6 +219,37 @@ export const PREFS_CONFIG = new Map([
     },
   ],
   [
+    "mobileDownloadModal.enabled",
+    {
+      title: "Boolean flag to show download Firefox for mobile QR code modal",
+      value: false,
+    },
+  ],
+  [
+    "mobileDownloadModal.variant-a",
+    {
+      title:
+        "Boolean flag to turn download Firefox for mobile promo variant A on and off",
+      value: false,
+    },
+  ],
+  [
+    "mobileDownloadModal.variant-b",
+    {
+      title:
+        "Boolean flag to turn download Firefox for mobile promo variant B on and off",
+      value: false,
+    },
+  ],
+  [
+    "mobileDownloadModal.variant-c",
+    {
+      title:
+        "Boolean flag to turn download Firefox for mobile promo variant C on and off",
+      value: false,
+    },
+  ],
+  [
     "unifiedAds.adsFeed.enabled",
     {
       title:
@@ -605,6 +636,22 @@ export const PREFS_CONFIG = new Map([
     "discoverystream.sections.personalization.inferred.enabled",
     {
       title: "Boolean flag to enable inferred personalizaton",
+      value: false,
+    },
+  ],
+  [
+    "discoverystream.sections.personalization.inferred.position",
+    {
+      title:
+        "Position of inferred personalizaton card. Should correlate to a row in Card Sections",
+      value: "1",
+    },
+  ],
+  [
+    "discoverystream.sections.personalization.inferred.blocked",
+    {
+      title:
+        "Boolean determining if personalized card is dismissed or visible on the page",
       value: false,
     },
   ],

@@ -2631,12 +2631,6 @@
   value: false
   mirror: always
 
-# Enable/disable contenteditable="plaintext-only".
-- name: dom.element.contenteditable.plaintext-only.enabled
-  type: bool
-  value: true
-  mirror: always
-
 # Whether Dialog elements emit beforetoggle and toggle events during opening and closing.
 # See https://github.com/whatwg/html/pull/10091
 - name: dom.element.dialog.toggle_events.enabled
@@ -3805,6 +3799,19 @@
 - name: dom.quotaManager.temporaryStorage.fixedLimit
   type: RelaxedAtomicInt32
   value: -1
+  mirror: always
+
+# Controls whether the quota manager updates the last access time for origins
+# in temporary storage. When enabled, the access time is updated only when an
+# origin is accessed by a quota client for the first time during a session or
+# when the last quota client stops accessing the origin. This allows eviction
+# based on the LRU policy. When disabled, the access time is stored only once
+# when the corresponding origin directory is created for the first time.
+#
+# This setting is currently intended for manual testing purposes only.
+- name: dom.quotaManager.temporaryStorage.updateOriginAccessTime
+  type: RelaxedAtomicBool
+  value: true
   mirror: always
 
 # Should we do lazy initialization of origins ?
@@ -5329,13 +5336,13 @@
 # Is support for the Web GPU API enabled?
 - name: dom.webgpu.enabled
   type: RelaxedAtomicBool
-  value: @IS_NIGHTLY_BUILD@
+  value: @IS_EARLY_BETA_OR_EARLIER@
   mirror: always
 
 # Is support for the Web GPU API enabled on DOM workers?
 - name: dom.webgpu.workers.enabled
   type: RelaxedAtomicBool
-  value: @IS_NIGHTLY_BUILD@
+  value: @IS_EARLY_BETA_OR_EARLIER@
   mirror: always
 
 # Comma-separated list of wgpu backend names to permit in WebGPU adapters.
@@ -5663,7 +5670,7 @@
 # Gecko's traditional white-space normalizer.
 - name: editor.white_space_normalization.blink_compatible
   type: bool
-  value: @IS_EARLY_BETA_OR_EARLIER@
+  value: true
   mirror: always
 
 # General prefs for editor, indicating whether Gecko-specific editing UI is
@@ -9949,7 +9956,7 @@
 # Is support for -moz-prefixed transition properties enabled?
 - name: layout.css.prefixes.transitions
   type: bool
-  value: false
+  value: true
   mirror: always
 
 # Enable relative color syntax: https://drafts.csswg.org/css-color-5/#relative-colors
@@ -15835,6 +15842,12 @@
   value: false
   mirror: always
 
+  # Full isolation (referrer, cookie jar, etc) of resources injected by content-scripts.
+- name: privacy.antitracking.isolateContentScriptResources
+  type: bool
+  value: false
+  mirror: always
+
 # Controls the anti-tracking webcompat features. This includes:
 # - All URL-Classifier and state partitioning skip lists (prefs and remote
 #   settings)
@@ -16614,18 +16627,6 @@
   type: RelaxedAtomicBool
   value: true
   mirror: always
-
-# If true, assume tokens accessed via osclientcerts implement RSA-PSS. If a
-# given token does not support RSA-PSS, users may see the error
-# 'SEC_ERROR_PKCS11_GENERAL_ERROR' if a server indicates it will accept an
-# RSA-PSS signature in the client's certificate verify message.
-# Setting this to false may allow such connections to succeed, if the server
-# also accepts RSA-PKCS1 signatures.
-- name: security.osclientcerts.assume_rsa_pss_support
-  type: RelaxedAtomicBool
-  value: true
-  mirror: always
-  rust: true
 
 - name: security.pki.cert_short_lifetime_in_days
   type: RelaxedAtomicUint32
@@ -17584,6 +17585,13 @@
 #endif
   mirror: always
 
+# If this pref and ui.touch.radious.enabled are both true, clickable content is
+# also treated as touchable content if and only if a sigle touch.
+- name: ui.touch.radius.single_touch.treat_clickable_as_touchable
+  type: bool
+  value: true
+  mirror: always
+
 - name: ui.touch.radius.visitedWeight
   type: uint32_t
   value: 120
@@ -18417,13 +18425,6 @@
   type: bool
   value: false
   mirror: once
-
-# Use DMABuf for content textures.
-# For testing purposes only.
-- name: widget.dmabuf-textures.enabled
-  type: RelaxedAtomicBool
-  value: false
-  mirror: always
 
 # Get DMABuf format feedback from compositor.
 # For testing only

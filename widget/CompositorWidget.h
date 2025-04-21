@@ -137,7 +137,8 @@ class CompositorWidget {
    */
   virtual already_AddRefed<gfx::DrawTarget> StartRemoteDrawing();
   virtual already_AddRefed<gfx::DrawTarget> StartRemoteDrawingInRegion(
-      const LayoutDeviceIntRegion& aInvalidRegion) {
+      const LayoutDeviceIntRegion& aInvalidRegion,
+      layers::BufferMode* aBufferMode) {
     return StartRemoteDrawing();
   }
 

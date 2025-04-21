@@ -153,7 +153,8 @@ MOZ_PUSH_IGNORE_THREAD_SAFETY
 
 already_AddRefed<gfx::DrawTarget>
 WindowSurfaceProvider::StartRemoteDrawingInRegion(
-    const LayoutDeviceIntRegion& aInvalidRegion) {
+    const LayoutDeviceIntRegion& aInvalidRegion,
+    layers::BufferMode* aBufferMode) {
   if (aInvalidRegion.IsEmpty()) {
     return nullptr;
   }
@@ -178,6 +179,7 @@ WindowSurfaceProvider::StartRemoteDrawingInRegion(
     }
   }
 
+  *aBufferMode = BufferMode::BUFFER_NONE;
   RefPtr<gfx::DrawTarget> dt = mWindowSurface->Lock(aInvalidRegion);
 #ifdef MOZ_X11
   if (!dt && GdkIsX11Display() && !mWindowSurface->IsFallback()) {

@@ -168,6 +168,7 @@
 #include "mozilla/dom/DocumentL10n.h"
 #include "mozilla/dom/DocumentTimeline.h"
 #include "mozilla/dom/DocumentType.h"
+#include "mozilla/dom/Sanitizer.h"
 #include "mozilla/dom/ElementBinding.h"
 #include "mozilla/dom/ErrorEvent.h"
 #include "mozilla/dom/Event.h"
@@ -1359,7 +1360,6 @@ Document::Document(const char* aContentType)
       mRenderingSuppressedForViewTransitions(false),
       mBidiEnabled(false),
       mMayNeedFontPrefsUpdate(true),
-      mMathMLEnabled(false),
       mIsInitialDocumentInWindow(false),
       mIsEverInitialDocumentInWindow(false),
       mIgnoreDocGroupMismatches(false),
@@ -2450,13 +2450,6 @@ Document::~Document() {
 
   if (IsTopLevelContentDocument()) {
     RemoveToplevelLoadingDocument(this);
-
-    // don't report for about: pages
-    if (!IsAboutPage()) {
-      if (MOZ_UNLIKELY(mMathMLEnabled)) {
-        glean::mathml::doc_count.Add(1);
-      }
-    }
   }
 
   mInDestructor = true;
@@ -8224,6 +8217,13 @@ void Document::SetScriptGlobalObject(
   nsCOMPtr<nsPIDOMWindowInner> window = do_QueryInterface(mScriptGlobalObject);
   mWindow = window;
 
+  if (mReadyState != READYSTATE_COMPLETE) {
+    if (auto* wgc = GetWindowGlobalChild()) {
+      // This gets unset on OnPageShow.
+      wgc->BlockBFCacheFor(BFCacheStatus::PAGE_LOADING);
+    }
+  }
+
   // Now that we know what our window is, we can flush the CSP errors to the
   // Web Console. We are flushing all messages that occurred and were stored in
   // the queue prior to this point.
@@ -12154,7 +12154,10 @@ void Document::BlockOnload() {
 
   // If mScriptGlobalObject is null, we shouldn't be messing with the loadgroup
   // -- it's not ours.
-  if (mOnloadBlockCount == 0 && mScriptGlobalObject) {
+  // If we're already complete there's no need to mess with the loadgroup
+  // either, we're not blocking the load event after all.
+  if (mOnloadBlockCount == 0 && mScriptGlobalObject &&
+      mReadyState != ReadyState::READYSTATE_COMPLETE) {
     if (nsCOMPtr<nsILoadGroup> loadGroup = GetDocumentLoadGroup()) {
       loadGroup->AddRequest(mOnloadBlocker, nullptr);
     }
@@ -12170,29 +12173,30 @@ void Document::UnblockOnload(bool aFireSync) {
 
   --mOnloadBlockCount;
 
-  if (mOnloadBlockCount == 0) {
-    if (mScriptGlobalObject) {
-      // Only manipulate the loadgroup in this case, because if
-      // mScriptGlobalObject is null, it's not ours.
-      if (aFireSync) {
-        // Increment mOnloadBlockCount, since DoUnblockOnload will decrement it
-        ++mOnloadBlockCount;
-        DoUnblockOnload();
-      } else {
-        PostUnblockOnloadEvent();
-      }
-    } else if (mIsBeingUsedAsImage) {
-      // To correctly unblock onload for a document that contains an SVG
-      // image, we need to know when all of the SVG document's resources are
-      // done loading, in a way comparable to |window.onload|. We fire this
-      // event to indicate that the SVG should be considered fully loaded.
-      // Because scripting is disabled on SVG-as-image documents, this event
-      // is not accessible to content authors. (See bug 837315.)
-      RefPtr<AsyncEventDispatcher> asyncDispatcher =
-          new AsyncEventDispatcher(this, u"MozSVGAsImageDocumentLoad"_ns,
-                                   CanBubble::eNo, ChromeOnlyDispatch::eNo);
-      asyncDispatcher->PostDOMEvent();
+  if (mOnloadBlockCount != 0) {
+    return;
+  }
+  if (mScriptGlobalObject) {
+    // Only manipulate the loadgroup in this case, because if
+    // mScriptGlobalObject is null, it's not ours.
+    if (aFireSync) {
+      // Increment mOnloadBlockCount, since DoUnblockOnload will decrement it
+      ++mOnloadBlockCount;
+      DoUnblockOnload();
+    } else {
+      PostUnblockOnloadEvent();
     }
+  } else if (mIsBeingUsedAsImage) {
+    // To correctly unblock onload for a document that contains an SVG
+    // image, we need to know when all of the SVG document's resources are
+    // done loading, in a way comparable to |window.onload|. We fire this
+    // event to indicate that the SVG should be considered fully loaded.
+    // Because scripting is disabled on SVG-as-image documents, this event
+    // is not accessible to content authors. (See bug 837315.)
+    RefPtr<AsyncEventDispatcher> asyncDispatcher =
+        new AsyncEventDispatcher(this, u"MozSVGAsImageDocumentLoad"_ns,
+                                 CanBubble::eNo, ChromeOnlyDispatch::eNo);
+    asyncDispatcher->PostDOMEvent();
   }
 }
 
@@ -12359,6 +12363,10 @@ void Document::OnPageShow(bool aPersisted, EventTarget* aDispatchStartTarget,
     }
     DispatchPageTransition(target, u"pageshow"_ns, inFrameLoaderSwap,
                            aPersisted, aOnlySystemGroup);
+  }
+
+  if (auto* wgc = GetWindowGlobalChild()) {
+    wgc->UnblockBFCacheFor(BFCacheStatus::PAGE_LOADING);
   }
 }
 
@@ -20145,24 +20153,11 @@ bool Document::AllowsDeclarativeShadowRoots() const {
   return mAllowDeclarativeShadowRoots;
 }
 
-/* static */
-already_AddRefed<Document> Document::ParseHTMLUnsafe(
-    GlobalObject& aGlobal, const TrustedHTMLOrString& aHTML,
-    ErrorResult& aError) {
+static already_AddRefed<Document> CreateHTMLDocument(GlobalObject& aGlobal,
+                                                     bool aLoadedAsData,
+                                                     ErrorResult& aError) {
   nsCOMPtr<nsIURI> uri;
-  NS_NewURI(getter_AddRefs(uri), "about:blank");
-  if (!uri) {
-    return nullptr;
-  }
-
-  nsCOMPtr<nsIGlobalObject> global = do_QueryInterface(aGlobal.GetAsSupports());
-
-  constexpr nsLiteralString sink = u"Document parseHTMLUnsafe"_ns;
-  Maybe<nsAutoString> compliantStringHolder;
-  const nsAString* compliantString =
-      TrustedTypeUtils::GetTrustedTypesCompliantString(
-          aHTML, sink, kTrustedTypesOnlySinkGroup, *global,
-          compliantStringHolder, aError);
+  aError = NS_NewURI(getter_AddRefs(uri), "about:blank");
   if (aError.Failed()) {
     return nullptr;
   }
@@ -20170,7 +20165,7 @@ already_AddRefed<Document> Document::ParseHTMLUnsafe(
   nsCOMPtr<Document> doc;
   aError =
       NS_NewHTMLDocument(getter_AddRefs(doc), aGlobal.GetSubjectPrincipal(),
-                         aGlobal.GetSubjectPrincipal());
+                         aGlobal.GetSubjectPrincipal(), aLoadedAsData);
   if (aError.Failed()) {
     return nullptr;
   }
@@ -20182,11 +20177,78 @@ already_AddRefed<Document> Document::ParseHTMLUnsafe(
       do_QueryInterface(aGlobal.GetAsSupports());
   doc->SetScriptHandlingObject(scriptHandlingObject);
   doc->SetDocumentCharacterSet(UTF_8_ENCODING);
+
+  return doc.forget();
+}
+
+/* static */
+already_AddRefed<Document> Document::ParseHTMLUnsafe(
+    GlobalObject& aGlobal, const TrustedHTMLOrString& aHTML,
+    ErrorResult& aError) {
+  nsCOMPtr<nsIGlobalObject> global = do_QueryInterface(aGlobal.GetAsSupports());
+  constexpr nsLiteralString sink = u"Document parseHTMLUnsafe"_ns;
+  Maybe<nsAutoString> compliantStringHolder;
+  const nsAString* compliantString =
+      TrustedTypeUtils::GetTrustedTypesCompliantString(
+          aHTML, sink, kTrustedTypesOnlySinkGroup, *global,
+          compliantStringHolder, aError);
+  if (aError.Failed()) {
+    return nullptr;
+  }
+
+  RefPtr<Document> doc = CreateHTMLDocument(aGlobal, false, aError);
+  if (aError.Failed()) {
+    return nullptr;
+  }
+
   aError = nsContentUtils::ParseDocumentHTML(*compliantString, doc, false);
   if (aError.Failed()) {
     return nullptr;
   }
 
+  return doc.forget();
+}
+
+// https://wicg.github.io/sanitizer-api/#document-parsehtml
+/* static */
+already_AddRefed<Document> Document::ParseHTML(GlobalObject& aGlobal,
+                                               const nsAString& aHTML,
+                                               const SetHTMLOptions& aOptions,
+                                               ErrorResult& aError) {
+  // Step 1. Let document be a new Document, whose content type is "text/html".
+  // Step 2. Set document’s allow declarative shadow roots to true.
+  RefPtr<Document> doc = CreateHTMLDocument(aGlobal, true, aError);
+  if (aError.Failed()) {
+    return nullptr;
+  }
+
+  // Step 3. Parse HTML from a string given document and html.
+  // TODO(bug 1960845): Investigate the behavior around <noscript> with
+  // parseHTML
+  aError = nsContentUtils::ParseDocumentHTML(
+      aHTML, doc, /* aScriptingEnabledForNoscriptParsing */ true);
+  if (aError.Failed()) {
+    return nullptr;
+  }
+
+  // Step 4. Let sanitizer be the result of calling get a sanitizer instance
+  // from options with options and true.
+  nsCOMPtr<nsIGlobalObject> global = do_QueryInterface(aGlobal.GetAsSupports());
+  RefPtr<Sanitizer> sanitizer =
+      Sanitizer::GetInstance(global, aOptions.mSanitizer, true, aError);
+  if (aError.Failed()) {
+    return nullptr;
+  }
+
+  // Step 5. Call sanitize on document’s root node with sanitizer and true.
+  nsCOMPtr<nsINode> root = doc->GetRootElement();
+  MOZ_DIAGNOSTIC_ASSERT(root, "HTML parser should have create the <html> root");
+  sanitizer->Sanitize(root, /* aSafe */ true, aError);
+  if (aError.Failed()) {
+    return nullptr;
+  }
+
+  // Step 6. Return document.
   return doc.forget();
 }
 

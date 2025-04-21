@@ -24,6 +24,7 @@ const { FIELD_STATES } = FormAutofillUtils;
 export const FORM_CHANGE_REASON = {
   NODES_ADDED: "nodes-added",
   NODES_REMOVED: "nodes-removed",
+  SELECT_OPTIONS_CHANGED: "select-options-changed",
   ELEMENT_INVISIBLE: "visible-element-became-invisible",
   ELEMENT_VISIBLE: "invisible-element-became-visible",
 };
@@ -268,6 +269,11 @@ export class FormAutofillHandler {
     return false;
   }
 
+  updateFormByElement(element) {
+    const formLike = lazy.AutofillFormFactory.createFromField(element);
+    this._updateForm(formLike);
+  }
+
   /**
    * Update the form with a new FormLike, and the related fields should be
    * updated or clear to ensure the data consistency.
@@ -344,7 +350,7 @@ export class FormAutofillHandler {
   }
 
   /**
-   * Resetting the state element's fieldDetail after it was removed from the form
+   * Resetting the filled state after an element was removed from the form
    * Todo: We'll need to update this.filledResult in FormAutofillParent (Bug 1948077).
    *
    * @param {HTMLElement} element that was removed
@@ -353,8 +359,7 @@ export class FormAutofillHandler {
     if (this.getFilledStateByElement(element) != FIELD_STATES.AUTO_FILLED) {
       return;
     }
-    const fieldDetail = this.getFieldDetailByElement(element);
-    this.#filledStateByElement.delete(fieldDetail);
+    this.#filledStateByElement.delete(element);
   }
 
   /**
@@ -493,6 +498,14 @@ export class FormAutofillHandler {
       } else if (HTMLSelectElement.isInstance(element)) {
         const option = this.matchSelectOptions(fieldDetail, profile);
         if (!option) {
+          if (
+            this.getFilledStateByElement(element) == FIELD_STATES.AUTO_FILLED
+          ) {
+            // The select element was previously autofilled, but there
+            // is no matching option under the current set of options anymore.
+            // Changing the state will also remove the highlighting from the element
+            this.changeFieldState(fieldDetail, FIELD_STATES.NORMAL);
+          }
           continue;
         }
 
@@ -684,18 +697,21 @@ export class FormAutofillHandler {
     const mutationObserver = new this.window.MutationObserver(
       (mutations, _) => {
         const collectMutatedNodes = mutations => {
-          let removedNodes = [];
-          let addedNodes = [];
+          let removedNodes = new Set();
+          let addedNodes = new Set();
+          let changedSelectElements = new Set();
           mutations.forEach(mutation => {
             if (mutation.type == "childList") {
-              if (mutation.addedNodes.length) {
-                addedNodes.push(...mutation.addedNodes);
+              if (HTMLSelectElement.isInstance(mutation.target)) {
+                changedSelectElements.add(mutation.target);
+              } else if (mutation.addedNodes.length) {
+                addedNodes.add(...mutation.addedNodes);
               } else if (mutation.removedNodes.length) {
-                removedNodes.push(...mutation.removedNodes);
+                removedNodes.add(...mutation.removedNodes);
               }
             }
           });
-          return [addedNodes, removedNodes];
+          return [addedNodes, removedNodes, changedSelectElements];
         };
 
         const collectAllSubtreeElements = node => {
@@ -715,22 +731,35 @@ export class FormAutofillHandler {
             );
         };
 
-        let [addedNodes, removedNodes] = collectMutatedNodes(mutations);
-        let relevantAddedElements = getCCAndAddressElements(addedNodes);
-        // We only care about removed elements that might change the
-        // currently detected fieldDetails
-        let relevantRemovedElements = getCCAndAddressElements(
-          removedNodes
-        ).filter(
+        const [addedNodes, removedNodes, changedSelectElements] =
+          collectMutatedNodes(mutations);
+        let relevantAddedElements = getCCAndAddressElements([...addedNodes]);
+        // We only care about removed elements and changed select options
+        // from the current set of detected fieldDetails
+        let relevantRemovedElements = getCCAndAddressElements([
+          ...removedNodes,
+        ]).filter(
+          element =>
+            this.#fieldDetails && !!this.getFieldDetailByElement(element)
+        );
+        let relevantChangedSelectElements = [...changedSelectElements].filter(
           element =>
             this.#fieldDetails && !!this.getFieldDetailByElement(element)
         );
 
-        if (!relevantRemovedElements.length && !relevantAddedElements.length) {
+        if (
+          !relevantRemovedElements.length &&
+          !relevantAddedElements.length &&
+          !relevantChangedSelectElements.length
+        ) {
           return;
         }
 
         let changes = {};
+        if (relevantChangedSelectElements.length) {
+          changes[FORM_CHANGE_REASON.SELECT_OPTIONS_CHANGED] =
+            relevantChangedSelectElements;
+        }
         if (relevantRemovedElements.length) {
           changes[FORM_CHANGE_REASON.NODES_REMOVED] = relevantRemovedElements;
         }
@@ -875,7 +904,8 @@ export class FormAutofillHandler {
     const value = profile[fieldName];
 
     let option = cache[value]?.deref();
-    if (!option) {
+
+    if (!option || !option.isConnected) {
       option = FormAutofillUtils.findSelectOption(element, profile, fieldName);
 
       if (option) {

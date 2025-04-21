@@ -4018,7 +4018,8 @@ gboolean nsWindow::OnExposeEvent(cairo_t* cr) {
     return TRUE;
   }
 
-  RefPtr<DrawTarget> dt = StartRemoteDrawingInRegion(region);
+  BufferMode layerBuffering = BufferMode::BUFFERED;
+  RefPtr<DrawTarget> dt = StartRemoteDrawingInRegion(region, &layerBuffering);
   if (!dt || !dt->IsValid()) {
     return FALSE;
   }
@@ -4050,13 +4051,14 @@ gboolean nsWindow::OnExposeEvent(cairo_t* cr) {
   {
     if (renderer->GetBackendType() == LayersBackend::LAYERS_NONE) {
       if (GetTransparencyMode() == TransparencyMode::Transparent &&
-          mHasAlphaVisual) {
+          layerBuffering == BufferMode::BUFFER_NONE && mHasAlphaVisual) {
         // If our draw target is unbuffered and we use an alpha channel,
         // clear the image beforehand to ensure we don't get artifacts from a
         // reused SHM image. See bug 1258086.
         dt->ClearRect(Rect(boundsRect));
       }
-      AutoLayerManagerSetup setupLayerManager(this, ctx.ptrOr(nullptr));
+      AutoLayerManagerSetup setupLayerManager(
+          this, ctx.isNothing() ? nullptr : &ctx.ref(), layerBuffering);
       listener->PaintWindow(this, region);
 
       // Re-get the listener since the will paint notification might have
@@ -8390,7 +8392,10 @@ static gboolean generic_event_cb(GtkWidget* widget, GdkEvent* aEvent) {
 }
 
 void nsWindow::GtkWidgetDestroyHandler(GtkWidget* aWidget) {
-  MOZ_RELEASE_ASSERT(mIsDestroyed, "Releasing live widget!");
+  if (!mIsDestroyed) {
+    NS_WARNING("GtkWidgetDestroyHandler called for live nsWindow!");
+    Destroy();
+  }
   if (aWidget == mShell) {
     mShell = nullptr;
     return;
@@ -8692,8 +8697,9 @@ bool nsWindow::GetEditCommands(NativeKeyBindingsType aType,
 }
 
 already_AddRefed<DrawTarget> nsWindow::StartRemoteDrawingInRegion(
-    const LayoutDeviceIntRegion& aInvalidRegion) {
-  return mSurfaceProvider.StartRemoteDrawingInRegion(aInvalidRegion);
+    const LayoutDeviceIntRegion& aInvalidRegion, BufferMode* aBufferMode) {
+  return mSurfaceProvider.StartRemoteDrawingInRegion(aInvalidRegion,
+                                                     aBufferMode);
 }
 
 void nsWindow::EndRemoteDrawingInRegion(

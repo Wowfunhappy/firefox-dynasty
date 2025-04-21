@@ -66,9 +66,10 @@ InProcessCompositorWidget::StartRemoteDrawing() {
 
 already_AddRefed<gfx::DrawTarget>
 InProcessCompositorWidget::StartRemoteDrawingInRegion(
-    const LayoutDeviceIntRegion& aInvalidRegion) {
+    const LayoutDeviceIntRegion& aInvalidRegion,
+    layers::BufferMode* aBufferMode) {
   CheckWidgetSanity();
-  return mWidget->StartRemoteDrawingInRegion(aInvalidRegion);
+  return mWidget->StartRemoteDrawingInRegion(aInvalidRegion, aBufferMode);
 }
 
 void InProcessCompositorWidget::EndRemoteDrawing() {

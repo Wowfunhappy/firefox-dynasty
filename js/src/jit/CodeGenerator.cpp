@@ -7909,8 +7909,8 @@ void CodeGenerator::emitWasmAnyrefResultChecks(LInstruction* lir,
   }
 
   Label ok;
-  masm.branchWasmRefIsSubtype(output, destType.value().topType(),
-                              destType.value(), &ok, true, temp1, temp2, temp3);
+  masm.branchWasmRefIsSubtype(output, wasm::MaybeRefType(), destType.value(),
+                              &ok, true, temp1, temp2, temp3);
   masm.breakpoint();
   masm.bind(&ok);
 
@@ -19878,22 +19878,23 @@ void CodeGenerator::visitWasmTrap(LWasmTrap* lir) {
   masm.wasmTrap(mir->trap(), mir->trapSiteDesc());
 }
 
-void CodeGenerator::visitWasmTrapIfNull(LWasmTrapIfNull* lir) {
+void CodeGenerator::visitWasmRefAsNonNull(LWasmRefAsNonNull* lir) {
   MOZ_ASSERT(gen->compilingWasm());
-  const MWasmTrapIfNull* mir = lir->mir();
+  const MWasmRefAsNonNull* mir = lir->mir();
   Label nonNull;
   Register ref = ToRegister(lir->ref());
 
-  masm.branchWasmAnyRefIsNull(false, ref, &nonNull);
-  masm.wasmTrap(mir->trap(), mir->trapSiteDesc());
-  masm.bind(&nonNull);
+  auto* ool = new (alloc()) LambdaOutOfLineCode([=](OutOfLineCode& ool) {
+    masm.wasmTrap(wasm::Trap::NullPointerDereference, mir->trapSiteDesc());
+  });
+  addOutOfLineCode(ool, mir);
+  masm.branchWasmAnyRefIsNull(true, ref, ool->entry());
 }
 
-void CodeGenerator::visitWasmRefIsSubtypeOfAbstract(
-    LWasmRefIsSubtypeOfAbstract* ins) {
+void CodeGenerator::visitWasmRefTestAbstract(LWasmRefTestAbstract* ins) {
   MOZ_ASSERT(gen->compilingWasm());
 
-  const MWasmRefIsSubtypeOfAbstract* mir = ins->mir();
+  const MWasmRefTestAbstract* mir = ins->mir();
   MOZ_ASSERT(!mir->destType().isTypeRef());
 
   Register ref = ToRegister(ins->ref());
@@ -19904,7 +19905,7 @@ void CodeGenerator::visitWasmRefIsSubtypeOfAbstract(
   Label onSuccess;
   Label onFail;
   Label join;
-  masm.branchWasmRefIsSubtype(ref, mir->sourceType(), mir->destType(),
+  masm.branchWasmRefIsSubtype(ref, mir->ref()->wasmRefType(), mir->destType(),
                               &onSuccess, /*onSuccess=*/true, superSTV,
                               scratch1, scratch2);
   masm.bind(&onFail);
@@ -19915,11 +19916,10 @@ void CodeGenerator::visitWasmRefIsSubtypeOfAbstract(
   masm.bind(&join);
 }
 
-void CodeGenerator::visitWasmRefIsSubtypeOfConcrete(
-    LWasmRefIsSubtypeOfConcrete* ins) {
+void CodeGenerator::visitWasmRefTestConcrete(LWasmRefTestConcrete* ins) {
   MOZ_ASSERT(gen->compilingWasm());
 
-  const MWasmRefIsSubtypeOfConcrete* mir = ins->mir();
+  const MWasmRefTestConcrete* mir = ins->mir();
   MOZ_ASSERT(mir->destType().isTypeRef());
 
   Register ref = ToRegister(ins->ref());
@@ -19929,7 +19929,7 @@ void CodeGenerator::visitWasmRefIsSubtypeOfConcrete(
   Register result = ToRegister(ins->output());
   Label onSuccess;
   Label join;
-  masm.branchWasmRefIsSubtype(ref, mir->sourceType(), mir->destType(),
+  masm.branchWasmRefIsSubtype(ref, mir->ref()->wasmRefType(), mir->destType(),
                               &onSuccess, /*onSuccess=*/true, superSTV,
                               scratch1, scratch2);
   masm.move32(Imm32(0), result);
@@ -19939,8 +19939,8 @@ void CodeGenerator::visitWasmRefIsSubtypeOfConcrete(
   masm.bind(&join);
 }
 
-void CodeGenerator::visitWasmRefIsSubtypeOfAbstractAndBranch(
-    LWasmRefIsSubtypeOfAbstractAndBranch* ins) {
+void CodeGenerator::visitWasmRefTestAbstractAndBranch(
+    LWasmRefTestAbstractAndBranch* ins) {
   MOZ_ASSERT(gen->compilingWasm());
   Register ref = ToRegister(ins->ref());
   Register scratch1 = ToTempRegisterOrInvalid(ins->temp0());
@@ -19952,8 +19952,8 @@ void CodeGenerator::visitWasmRefIsSubtypeOfAbstractAndBranch(
   masm.jump(onFail);
 }
 
-void CodeGenerator::visitWasmRefIsSubtypeOfConcreteAndBranch(
-    LWasmRefIsSubtypeOfConcreteAndBranch* ins) {
+void CodeGenerator::visitWasmRefTestConcreteAndBranch(
+    LWasmRefTestConcreteAndBranch* ins) {
   MOZ_ASSERT(gen->compilingWasm());
   Register ref = ToRegister(ins->ref());
   Register superSTV = ToRegister(ins->superSTV());
@@ -19965,6 +19965,46 @@ void CodeGenerator::visitWasmRefIsSubtypeOfConcreteAndBranch(
                               onSuccess, /*onSuccess=*/true, superSTV, scratch1,
                               scratch2);
   masm.jump(onFail);
+}
+
+void CodeGenerator::visitWasmRefCastAbstract(LWasmRefCastAbstract* ins) {
+  MOZ_ASSERT(gen->compilingWasm());
+
+  const MWasmRefCastAbstract* mir = ins->mir();
+  MOZ_ASSERT(!mir->destType().isTypeRef());
+
+  Register ref = ToRegister(ins->ref());
+  Register superSTV = Register::Invalid();
+  Register scratch1 = ToTempRegisterOrInvalid(ins->temp0());
+  Register scratch2 = Register::Invalid();
+  MOZ_ASSERT(ref == ToRegister(ins->output()));
+  auto* ool = new (alloc()) LambdaOutOfLineCode([=](OutOfLineCode& ool) {
+    masm.wasmTrap(wasm::Trap::BadCast, mir->trapSiteDesc());
+  });
+  addOutOfLineCode(ool, ins->mir());
+  masm.branchWasmRefIsSubtype(ref, mir->ref()->wasmRefType(), mir->destType(),
+                              ool->entry(), /*onSuccess=*/false, superSTV,
+                              scratch1, scratch2);
+}
+
+void CodeGenerator::visitWasmRefCastConcrete(LWasmRefCastConcrete* ins) {
+  MOZ_ASSERT(gen->compilingWasm());
+
+  const MWasmRefCastConcrete* mir = ins->mir();
+  MOZ_ASSERT(mir->destType().isTypeRef());
+
+  Register ref = ToRegister(ins->ref());
+  Register superSTV = ToRegister(ins->superSTV());
+  Register scratch1 = ToRegister(ins->temp0());
+  Register scratch2 = ToTempRegisterOrInvalid(ins->temp1());
+  MOZ_ASSERT(ref == ToRegister(ins->output()));
+  auto* ool = new (alloc()) LambdaOutOfLineCode([=](OutOfLineCode& ool) {
+    masm.wasmTrap(wasm::Trap::BadCast, mir->trapSiteDesc());
+  });
+  addOutOfLineCode(ool, ins->mir());
+  masm.branchWasmRefIsSubtype(ref, mir->ref()->wasmRefType(), mir->destType(),
+                              ool->entry(), /*onSuccess=*/false, superSTV,
+                              scratch1, scratch2);
 }
 
 void CodeGenerator::callWasmStructAllocFun(

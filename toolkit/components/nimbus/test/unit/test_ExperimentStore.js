@@ -49,6 +49,59 @@ add_task(async function test_usageBeforeInitialization() {
   cleanup();
 });
 
+add_task(async function test_initOnUpdateEventsFire() {
+  let storePath;
+
+  {
+    const store = NimbusTestUtils.stubs.store();
+    await store.init();
+
+    store.addEnrollment(NimbusTestUtils.factories.experiment("foo"));
+    store.addEnrollment(NimbusTestUtils.factories.rollout("bar"));
+    store.addEnrollment(
+      NimbusTestUtils.factories.experiment("baz", { active: false })
+    );
+    store.addEnrollment(
+      NimbusTestUtils.factories.rollout("qux", { active: false })
+    );
+
+    storePath = await NimbusTestUtils.saveStore(store);
+  }
+
+  const { sandbox, store, initExperimentAPI, cleanup } = await setupTest({
+    storePath,
+    init: false,
+  });
+
+  const onFeatureUpdate = sandbox.stub();
+
+  NimbusFeatures.testFeature.onUpdate(onFeatureUpdate);
+
+  await initExperimentAPI();
+
+  Assert.equal(onFeatureUpdate.callCount, 2, "onFeatureUpdate called twice");
+
+  Assert.ok(
+    onFeatureUpdate.calledWithExactly(
+      "featureUpdate:testFeature",
+      "feature-experiment-loaded"
+    )
+  );
+  Assert.ok(
+    onFeatureUpdate.calledWithExactly(
+      "featureUpdate:testFeature",
+      "feature-rollout-loaded"
+    )
+  );
+
+  NimbusFeatures.testFeature.offUpdate(onFeatureUpdate);
+
+  store.updateExperiment("foo", { active: false });
+  store.updateExperiment("bar", { active: false });
+
+  cleanup();
+});
+
 add_task(async function test_getExperimentForGroup() {
   const { store, cleanup } = await setupTest();
 
@@ -83,7 +136,7 @@ add_task(async function test_hasExperimentForFeature() {
       branch: {
         ratio: 1,
         slug: "variant",
-        feature: { featureId: "green" },
+        features: [{ featureId: "green", value: {} }],
       },
     })
   );
@@ -92,7 +145,7 @@ add_task(async function test_hasExperimentForFeature() {
       branch: {
         ratio: 1,
         slug: "variant",
-        feature: { featureId: "yellow" },
+        features: [{ featureId: "yellow", value: {} }],
       },
     })
   );
@@ -102,7 +155,7 @@ add_task(async function test_hasExperimentForFeature() {
       branch: {
         ratio: 1,
         slug: "variant",
-        feature: { featureId: "purple" },
+        features: [{ featureId: "purple", value: {} }],
       },
     })
   );
@@ -292,7 +345,7 @@ add_task(async function test_sync_access_update() {
   Assert.deepEqual(
     // `branch.feature` and not `features` because for sync access (early startup)
     // experiments we only store the `isEarlyStartup` feature
-    cachedExperiment.branch.feature.value,
+    cachedExperiment.branch.features[0].value,
     { bar: "bar", enabled: true },
     "Got updated value"
   );
@@ -319,28 +372,6 @@ add_task(async function test_sync_features_only() {
     0,
     "cfr is not a sync access experiment"
   );
-
-  store.updateExperiment("foo", { active: false });
-
-  cleanup();
-});
-
-add_task(async function test_sync_features_remotely() {
-  const { store, cleanup } = await setupTest();
-
-  store.addEnrollment(
-    ExperimentFakes.experiment("foo", {
-      features: [{ featureId: "cfr", isEarlyStartup: true, value: {} }],
-    })
-  );
-
-  Assert.ok(
-    Services.prefs.prefHasUserValue("nimbus.syncdatastore.cfr"),
-    "The cfr feature was stored as early access in prefs"
-  );
-
-  const newStore = ExperimentFakes.store();
-  Assert.equal(newStore.getAll().length, 0, "Feature restored from prefs");
 
   store.updateExperiment("foo", { active: false });
 
@@ -465,7 +496,7 @@ add_task(async function test_getRolloutForFeature_fromSyncCache() {
     "Should return back the same rollout"
   );
   Assert.deepEqual(
-    newStore.getRolloutForFeature(rollout.featureIds[0]).branch.feature,
+    newStore.getRolloutForFeature(rollout.featureIds[0]).branch.features[0],
     rollout.branch.features[0],
     "Should return back the same feature"
   );
@@ -618,128 +649,12 @@ add_task(async function test_addEnrollment_rollout() {
   cleanup();
 });
 
-add_task(async function test_storeValuePerPref_noVariables() {
-  const { store, cleanup } = await setupTest();
-
-  const experiment = ExperimentFakes.experiment("foo", {
-    branch: {
-      slug: "variant",
-      ratio: 1,
-      features: [
-        {
-          // Ensure it gets saved to prefs
-          isEarlyStartup: true,
-          featureId: "purple",
-          value: {},
-        },
-      ],
-    },
-  });
-
-  store.addEnrollment(experiment);
-
-  const branch = Services.prefs.getBranch(`${SYNC_DATA_PREF_BRANCH}purple.`);
-
-  Assert.ok(
-    Services.prefs.getStringPref(`${SYNC_DATA_PREF_BRANCH}purple`, ""),
-    "Experiment metadata saved to prefs"
-  );
-
-  Assert.equal(branch.getChildList("").length, 0, "No variables to store");
-
-  store.updateExperiment(experiment.slug, { active: false });
-  Assert.ok(
-    !Services.prefs.getStringPref(`${SYNC_DATA_PREF_BRANCH}purple`, ""),
-    "Experiment cleanup"
-  );
-
-  cleanup();
-});
-
-add_task(async function test_storeValuePerPref_withVariables() {
-  const { store, cleanup } = await setupTest();
-
-  const experiment = ExperimentFakes.experiment("foo", {
-    branch: {
-      slug: "variant",
-      ratio: 1,
-      features: [
-        {
-          // Ensure it gets saved to prefs
-          isEarlyStartup: true,
-          featureId: "purple",
-          value: { color: "purple", enabled: true },
-        },
-      ],
-    },
-  });
-
-  store.addEnrollment(experiment);
-
-  const branch = Services.prefs.getBranch(`${SYNC_DATA_PREF_BRANCH}purple.`);
-  const val = Services.prefs.getStringPref(`${SYNC_DATA_PREF_BRANCH}purple`);
-  Assert.equal(
-    val.indexOf("color"),
-    -1,
-    `Experiment metadata does not contain variables ${val}`
-  );
-
-  Assert.equal(branch.getChildList("").length, 2, "Enabled and color");
-
-  store.updateExperiment(experiment.slug, { active: false });
-  Assert.ok(
-    !Services.prefs.getStringPref(`${SYNC_DATA_PREF_BRANCH}purple`, ""),
-    "Experiment cleanup"
-  );
-  Assert.equal(branch.getChildList("").length, 0, "Variables are also removed");
-
-  cleanup();
-});
-
-add_task(async function test_storeValuePerPref_returnsSameValue() {
-  const { store, cleanup } = await setupTest();
-
-  const experiment = ExperimentFakes.experiment("foo", {
-    branch: {
-      slug: "variant",
-      ratio: 1,
-      features: [
-        {
-          // Ensure it gets saved to prefs
-          isEarlyStartup: true,
-          featureId: "purple",
-          value: { color: "purple", enabled: true },
-        },
-      ],
-    },
-  });
-
-  store.addEnrollment(experiment);
-  const branch = Services.prefs.getBranch(`${SYNC_DATA_PREF_BRANCH}purple.`);
-
-  const newStore = NimbusTestUtils.stubs.store();
-  const cachedExperiment = newStore.getExperimentForFeature("purple");
-  // Cached experiment format only stores early access feature
-  cachedExperiment.branch.features = [cachedExperiment.branch.feature];
-  delete cachedExperiment.branch.feature;
-  Assert.deepEqual(cachedExperiment, experiment, "Returns the same value");
-
-  // Cleanup
-  store.updateExperiment(experiment.slug, { active: false });
-  Assert.ok(
-    !Services.prefs.getStringPref(`${SYNC_DATA_PREF_BRANCH}purple`, ""),
-    "Experiment cleanup"
-  );
-  Assert.deepEqual(branch.getChildList(""), [], "Variables are also removed");
-
-  cleanup();
-});
-
 add_task(async function test_storeValuePerPref_returnsSameValue_allTypes() {
   const { store, cleanup } = await setupTest();
 
   // Add a fake feature that matches the variables we're testing
   FeatureManifest.purple = {
+    isEarlyStartup: true,
     variables: {
       string: { type: "string" },
       bool: { type: "boolean" },
@@ -757,7 +672,6 @@ add_task(async function test_storeValuePerPref_returnsSameValue_allTypes() {
       features: [
         {
           // Ensure it gets saved to prefs
-          isEarlyStartup: true,
           featureId: "purple",
           value: {
             string: "string",
@@ -778,7 +692,7 @@ add_task(async function test_storeValuePerPref_returnsSameValue_allTypes() {
 
   const newStore = NimbusTestUtils.stubs.store();
   Assert.deepEqual(
-    newStore.getExperimentForFeature("purple").branch.feature.value,
+    newStore.getExperimentForFeature("purple").branch.features[0].value,
     experiment.branch.features[0].value,
     "Returns the same value"
   );
@@ -876,6 +790,31 @@ add_task(async function test_cleanupOldRecipes() {
   );
 
   store.updateExperiment("active-6hrs", { active: false });
+
+  cleanup();
+});
+
+add_task(async function test_restore() {
+  let storePath;
+  {
+    const store = NimbusTestUtils.stubs.store();
+    await store.init();
+
+    store.addEnrollment(NimbusTestUtils.factories.experiment("experiment"));
+    store.addEnrollment(
+      NimbusTestUtils.factories.rollout("rollout", { active: true })
+    );
+
+    storePath = await NimbusTestUtils.saveStore(store);
+  }
+
+  const { store, cleanup } = await setupTest({ storePath });
+
+  Assert.ok(store.get("experiment"));
+  Assert.ok(store.get("rollout"));
+
+  store.updateExperiment("experiment", { active: false });
+  store.updateExperiment("rollout", { active: false });
 
   cleanup();
 });

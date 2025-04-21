@@ -244,7 +244,10 @@ class HomeFragment : Fragment() {
     private var sessionControlView: SessionControlView? = null
 
     @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
-    internal lateinit var toolbarView: FenixHomeToolbar
+    internal var nullableToolbarView: FenixHomeToolbar? = null
+
+    private val toolbarView: FenixHomeToolbar
+        get() = nullableToolbarView!!
 
     private var lastAppliedWallpaperName: String = Wallpaper.defaultName
 
@@ -519,6 +522,8 @@ class HomeFragment : Fragment() {
             recentVisitsController = DefaultRecentVisitsController(
                 navController = findNavController(),
                 appStore = components.appStore,
+                settings = components.settings,
+                fenixBrowserUseCases = requireComponents.useCases.fenixBrowserUseCases,
                 selectOrAddTabUseCase = components.useCases.tabsUseCases.selectOrAddTab,
                 storage = components.core.historyStorage,
                 scope = viewLifecycleOwner.lifecycleScope,
@@ -547,7 +552,7 @@ class HomeFragment : Fragment() {
             ),
         )
 
-        toolbarView = buildToolbar(activity)
+        nullableToolbarView = buildToolbar(activity)
 
         if (requireContext().settings().microsurveyFeatureEnabled) {
             listenForMicrosurveyMessage(requireContext())
@@ -1288,6 +1293,11 @@ class HomeFragment : Fragment() {
                             browsingModeManager = browsingModeManager,
                         ),
                         interactor = sessionControlInteractor,
+                        onMiddleSearchBarVisibilityChanged = { isVisible ->
+                            // Hide the main address bar in the toolbar when the middle search is
+                            // visible (and vice versa)
+                            toolbarView.updateAddressBarVisibility(!isVisible)
+                        },
                         onTopSitesItemBound = {
                             StartupTimeline.onTopSitesItemBound(activity = (requireActivity() as HomeActivity))
                         },
@@ -1392,6 +1402,8 @@ class HomeFragment : Fragment() {
 
     override fun onDestroyView() {
         super.onDestroyView()
+
+        nullableToolbarView = null
 
         _sessionControlInteractor = null
         sessionControlView = null

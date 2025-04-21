@@ -34,14 +34,14 @@ ignored = ["cfg_aliases"]
 [package.metadata.docs.rs]
 all-features = true
 rustdoc-args = [
-"--cfg",
-"docsrs",
+    "--cfg",
+    "docsrs",
 ]
 targets = [
-"x86_64-unknown-linux-gnu",
-"x86_64-apple-darwin",
-"x86_64-pc-windows-msvc",
-"wasm32-unknown-unknown",
+    "x86_64-unknown-linux-gnu",
+    "x86_64-apple-darwin",
+    "x86_64-pc-windows-msvc",
+    "wasm32-unknown-unknown",
 ]
 
 [features]
@@ -52,48 +52,48 @@ default = ["std"]
 dx12 = ["wgpu-core-deps-windows-linux-android/dx12"]
 fragile-send-sync-non-atomic-wasm = ["wgpu-hal/fragile-send-sync-non-atomic-wasm"]
 gles = [
-"wgpu-core-deps-windows-linux-android/gles",
-"wgpu-core-deps-emscripten/gles",
+    "wgpu-core-deps-windows-linux-android/gles",
+    "wgpu-core-deps-emscripten/gles",
 ]
 glsl = ["naga/glsl-in"]
 metal = ["wgpu-core-deps-apple/metal"]
 noop = []
 observe_locks = [
-"std",
-"dep:ron",
-"serde/serde_derive",
+    "std",
+    "dep:ron",
+    "serde/serde_derive",
 ]
 portable-atomic = [
-"dep:portable-atomic",
-"wgpu-hal/portable-atomic",
+    "dep:portable-atomic",
+    "wgpu-hal/portable-atomic",
 ]
 raw-window-handle = ["dep:raw-window-handle"]
 renderdoc = ["wgpu-core-deps-windows-linux-android/renderdoc"]
 replay = [
-"serde",
-"naga/deserialize",
+    "serde",
+    "naga/deserialize",
 ]
 resource_log_info = []
 serde = [
-"dep:serde",
-"wgpu-types/serde",
-"arrayvec/serde",
-"hashbrown/serde",
+    "dep:serde",
+    "wgpu-types/serde",
+    "arrayvec/serde",
+    "hashbrown/serde",
 ]
 spirv = [
-"naga/spv-in",
-"dep:bytemuck",
+    "naga/spv-in",
+    "dep:bytemuck",
 ]
 static-dxc = ["wgpu-hal/static-dxc"]
 std = []
 strict_asserts = ["wgpu-types/strict_asserts"]
 trace = [
-"serde",
-"std",
-"dep:ron",
-"naga/serialize",
-"wgpu-types/trace",
-"dep:bytemuck",
+    "serde",
+    "std",
+    "dep:ron",
+    "naga/serialize",
+    "wgpu-types/trace",
+    "dep:bytemuck",
 ]
 vulkan = ["wgpu-core-deps-windows-linux-android/vulkan"]
 vulkan-portability = ["wgpu-core-deps-apple/vulkan-portability"]
@@ -122,8 +122,8 @@ version = "2.9"
 [dependencies.bytemuck]
 version = "1.22"
 features = [
-"extern_crate_alloc",
-"min_const_generics",
+    "extern_crate_alloc",
+    "min_const_generics",
 ]
 optional = true
 
@@ -133,8 +133,8 @@ version = "0.2.11"
 [dependencies.hashbrown]
 version = "0.15.2"
 features = [
-"default-hasher",
-"inline-more",
+    "default-hasher",
+    "inline-more",
 ]
 default-features = false
 
@@ -177,8 +177,8 @@ default-features = false
 [dependencies.serde]
 version = "1"
 features = [
-"default",
-"derive",
+    "default",
+    "derive",
 ]
 optional = true
 default-features = false

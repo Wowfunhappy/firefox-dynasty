@@ -654,6 +654,8 @@
   <string name="onboarding_marketing_positive_button" tools:ignore="UnusedResources">Растау және шолуды бастау</string>
   <!-- Marketing onboarding page title variant. “One last thing” refers to the final step or action in the onboarding process that we’re asking users to take before they can start using the browser. -->
   <string name="onboarding_marketing_title_1" tools:ignore="UnusedResources">Соңғы бір нәрсе</string>
+  <!-- Marketing onboarding page body variant. 'Firefox' is intentionally hardcoded. -->
+  <string name="onboarding_marketing_body_1" tools:ignore="BrandUsage,UnusedResources">Firefox-ты өзіңіз үшін қалай ашқаныңызды және оны қалай пайдаланғаныңызды Mozilla маркетинг серіктестерімен бөлісіңіз. Бұл деректер ешқашан сатылмайды.</string>
   <!-- Marketing onboarding page button label variant. Button to confirm choice and start browsing. -->
   <string name="onboarding_marketing_positive_button_1" tools:ignore="UnusedResources">Келісу және шолуды бастау</string>
   <!-- Onboarding header for the toolbar selection card, used by Nimbus experiments. -->
@@ -1469,11 +1471,11 @@
   <!-- Text for the button to share the download file -->
   <string name="download_share_file">Файлды бөлісу</string>
   <!-- Alert dialog confirmation before deleting multiple download items, this is the title. -->
-  <string name="download_delete_multi_select_dialog_confirmation" tools:ignore="UnusedResources">Таңдалған нәрселерді өшіруді шынымен қалайсыз ба?</string>
+  <string name="download_delete_multi_select_dialog_confirmation">Таңдалған нәрселерді өшіруді шынымен қалайсыз ба?</string>
   <!-- Alert dialog confirmation before deleting multiple download items, this is the positive action. -->
-  <string name="download_delete_multi_select_dialog_confirm" tools:ignore="UnusedResources">Өшіру</string>
+  <string name="download_delete_multi_select_dialog_confirm">Өшіру</string>
   <!-- Alert dialog confirmation before deleting multiple download items, this is the negative action. -->
-  <string name="download_delete_multi_select_dialog_cancel" tools:ignore="UnusedResources">Бас тарту</string>
+  <string name="download_delete_multi_select_dialog_cancel">Бас тарту</string>
   <!-- Text for the header of in progress downloads -->
   <string name="download_header_in_progress" tools:ignore="UnusedResources">Орындалуда</string>
   <!--

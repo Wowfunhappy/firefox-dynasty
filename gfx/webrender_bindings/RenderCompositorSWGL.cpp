@@ -76,7 +76,8 @@ bool RenderCompositorSWGL::AllocateMappedBuffer(
     const wr::DeviceIntRect* aOpaqueRects, size_t aNumOpaqueRects) {
   // Request a new draw target to use from the widget...
   MOZ_ASSERT(!mDT);
-  mDT = mWidget->StartRemoteDrawingInRegion(mDirtyRegion);
+  layers::BufferMode bufferMode = layers::BufferMode::BUFFERED;
+  mDT = mWidget->StartRemoteDrawingInRegion(mDirtyRegion, &bufferMode);
   if (!mDT) {
     gfxCriticalNoteOnce
         << "RenderCompositorSWGL failed mapping default framebuffer, no dt";
@@ -89,7 +90,8 @@ bool RenderCompositorSWGL::AllocateMappedBuffer(
   gfx::IntSize size;
   int32_t stride = 0;
   gfx::SurfaceFormat format = gfx::SurfaceFormat::UNKNOWN;
-  if (!mSurface && mDT->LockBits(&data, &size, &stride, &format) &&
+  if (bufferMode != layers::BufferMode::BUFFERED && !mSurface &&
+      mDT->LockBits(&data, &size, &stride, &format) &&
       (format != gfx::SurfaceFormat::B8G8R8A8 &&
        format != gfx::SurfaceFormat::B8G8R8X8)) {
     // We tried to lock the DT and it succeeded, but the size or format

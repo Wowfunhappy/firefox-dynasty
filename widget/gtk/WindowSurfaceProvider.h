@@ -61,7 +61,8 @@ class WindowSurfaceProvider final {
   void CleanupResources();
 
   already_AddRefed<gfx::DrawTarget> StartRemoteDrawingInRegion(
-      const LayoutDeviceIntRegion& aInvalidRegion);
+      const LayoutDeviceIntRegion& aInvalidRegion,
+      layers::BufferMode* aBufferMode);
   void EndRemoteDrawingInRegion(gfx::DrawTarget* aDrawTarget,
                                 const LayoutDeviceIntRegion& aInvalidRegion);
 
