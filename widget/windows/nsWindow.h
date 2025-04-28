@@ -247,8 +247,7 @@ class nsWindow final : public nsBaseWidget,
   nsresult SetTitle(const nsAString& aTitle) override;
   void SetIcon(const nsAString& aIconSpec) override;
   LayoutDeviceIntPoint WidgetToScreenOffset() override;
-  LayoutDeviceIntSize ClientToWindowSize(
-      const LayoutDeviceIntSize& aClientSize) override;
+  LayoutDeviceIntMargin NormalSizeModeClientToWindowMargin() override;
   nsresult DispatchEvent(mozilla::WidgetGUIEvent* aEvent,
                          nsEventStatus& aStatus) override;
   void EnableDragDrop(bool aEnable) override;
@@ -613,6 +612,10 @@ class nsWindow final : public nsBaseWidget,
   void OnSysColorChanged();
   void OnDPIChanged(int32_t x, int32_t y, int32_t width, int32_t height);
   bool OnPointerEvents(UINT msg, WPARAM wParam, LPARAM lParam);
+  bool OnPenPointerEvents(uint32_t aPointerId, UINT aMsg, WPARAM aWParam,
+                          LPARAM aLParam);
+  bool OnTouchPointerEvents(uint32_t aPointerId, UINT aMsg, WPARAM aWParam,
+                            LPARAM aLParam);
 
   /**
    * Function that registers when the user has been active (used for detecting
