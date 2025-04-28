@@ -67,11 +67,6 @@ set_config("MOZ_AUTOMATION", depends_if("MOZ_AUTOMATION")(lambda x: True))
 
 option(env="MOZCONFIG", nargs=1, help="Mozconfig location")
 
-option(env="MOZ_AUTOMATION_MOZCONFIG", help="Indicates mozconfig from automated builds")
-set_config(
-    "MOZ_AUTOMATION_MOZCONFIG", depends_if("MOZ_AUTOMATION_MOZCONFIG")(lambda x: True)
-)
-
 # Read user mozconfig
 # ==============================================================
 # Note: the dependency on --help is only there to always read the mozconfig,
@@ -84,6 +79,21 @@ set_config(
 @imports(_from="mozboot.mozconfig", _import="find_mozconfig")
 @imports("os")
 def mozconfig(mozconfig, build_env, help):
+    # Don't read the mozconfig for the js configure (yay backwards
+    # compatibility)
+    # While the long term goal is that js and top-level use the same configure
+    # and the same overall setup, including the possibility to use mozconfigs,
+    # figuring out what we want to do wrt mozconfig vs. command line and
+    # environment variable is not a clear-cut case, and it's more important to
+    # fix the immediate problem mozconfig causes to js developers by
+    # "temporarily" returning to the previous behavior of not loading the
+    # mozconfig for the js configure.
+    # Separately to the immediate problem for js developers, there is also the
+    # need to not load a mozconfig when running js configure as a subconfigure.
+    is_js_configure = "MOZ_JS_CONFIGURE" in os.environ
+    if is_js_configure or (mozconfig and mozconfig[0] == os.devnull):
+        return {"path": None}
+
     topsrcdir = build_env.topsrcdir
     loader = MozconfigLoader(topsrcdir)
     mozconfig = mozconfig[0] if mozconfig else None
@@ -214,6 +224,10 @@ def mozconfig_options(mozconfig, early_options, automation, help):
         for key, (_, value) in mozconfig["env"]["modified"].items():
             add(key, value)
             os.environ[key] = value
+        for key, value in mozconfig["vars"]["added"].items():
+            add(key, value)
+        for key, (_, value) in mozconfig["vars"]["modified"].items():
+            add(key, value)
 
 
 @depends(build_environment, "--help")

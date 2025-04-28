@@ -323,6 +323,9 @@ void Element::SetPointerCapture(int32_t aPointerId, ErrorResult& aError) {
     aError.Throw(NS_ERROR_DOM_INVALID_STATE_ERR);
     return;
   }
+  // XXX If pointerInfo->mIsSynthesizedForTests does not match the last
+  // WidgetPointerEvent's mFlags.mIsSynthesizedForTests, should we treat it
+  // as unknown pointerId?
   if (!pointerInfo->mActiveState ||
       pointerInfo->mActiveDocument != OwnerDoc()) {
     return;
@@ -4125,7 +4128,8 @@ void Element::GetAnimations(const GetAnimationsOptions& aOptions,
     // be reflected in the flags passed in DocumentOrShadowRoot::GetAnimations
     // too.
     doc->FlushPendingNotifications(
-        ChangesToFlush(FlushType::Style, false /* flush animations */));
+        ChangesToFlush(FlushType::Style, /* aFlushAnimations = */ false,
+                       /* aUpdateRelevancy = */ false));
   }
 
   GetAnimationsWithoutFlush(aOptions, aAnimations);

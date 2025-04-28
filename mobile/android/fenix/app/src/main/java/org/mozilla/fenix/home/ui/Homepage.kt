@@ -34,6 +34,7 @@ import androidx.compose.ui.unit.dp
 import mozilla.components.compose.base.button.TertiaryButton
 import mozilla.telemetry.glean.private.NoExtras
 import org.mozilla.fenix.GleanMetrics.History
+import org.mozilla.fenix.GleanMetrics.HomeBookmarks
 import org.mozilla.fenix.GleanMetrics.RecentlyVisitedHomepage
 import org.mozilla.fenix.R
 import org.mozilla.fenix.compose.MessageCard
@@ -155,7 +156,7 @@ internal fun Homepage(
                         }
                     }
 
-                    if (setupChecklistState != null) {
+                    if (setupChecklistState != null && setupChecklistState.isVisible) {
                         SetupChecklist(
                             setupChecklistState = setupChecklistState,
                             interactor = interactor,
@@ -285,6 +286,10 @@ private fun BookmarksSection(
     cardBackgroundColor: Color,
     interactor: BookmarksInteractor,
 ) {
+    LaunchedEffect(Unit) {
+        HomeBookmarks.shown.record(NoExtras())
+    }
+
     Spacer(modifier = Modifier.height(40.dp))
 
     HomeSectionHeader(

@@ -220,11 +220,11 @@ for (const type of [
   "SAVE_SESSION_PERF_DATA",
   "SAVE_TO_POCKET",
   "SCREENSHOT_UPDATED",
-  "SECTION_DATA_UPDATE",
   "SECTION_DEREGISTER",
   "SECTION_DISABLE",
   "SECTION_ENABLE",
   "SECTION_OPTIONS_CHANGED",
+  "SECTION_PERSONALIZATION_UPDATE",
   "SECTION_REGISTER",
   "SECTION_UPDATE",
   "SECTION_UPDATE_CARD",
@@ -1764,9 +1764,6 @@ const LinkMenuOptions = {
         typedBonus: site.typedBonus,
         url: site.url,
         sponsored_tile_id: site.sponsored_tile_id,
-        title: site.title,
-        publisher: site.publisher,
-        time_sensitive: site.time_sensitive,
         ...(site.section
           ? {
               section: site.section,
@@ -1821,9 +1818,6 @@ const LinkMenuOptions = {
         ...(site.sponsored_tile_id ? { tile_id: site.sponsored_tile_id } : {}),
         is_pocket_card: site.type === "CardGrid",
         is_list_card: site.is_list_card,
-        title: site.title,
-        publisher: site.publisher,
-        time_sensitive: site.time_sensitive,
         ...(site.format ? { format: site.format } : {}),
         ...(site.section
           ? {
@@ -2142,7 +2136,12 @@ const LinkMenuOptions = {
       type: actionTypes.OPEN_ABOUT_FAKESPOT,
     }),
   }),
-  SectionBlock: ({ sectionData, sectionKey, sectionPosition, title }) => ({
+  SectionBlock: ({
+    sectionPersonalization,
+    sectionKey,
+    sectionPosition,
+    title,
+  }) => ({
     id: "newtab-menu-section-block",
     icon: "delete",
     action: {
@@ -2153,9 +2152,9 @@ const LinkMenuOptions = {
           // Once the user confirmed their intention to block this section,
           // update their preferences.
           actionCreators.AlsoToMain({
-            type: actionTypes.SECTION_DATA_UPDATE,
+            type: actionTypes.SECTION_PERSONALIZATION_UPDATE,
             data: {
-              ...sectionData,
+              ...sectionPersonalization,
               [sectionKey]: {
                 isBlocked: true,
                 isFollowed: false,
@@ -2190,12 +2189,16 @@ const LinkMenuOptions = {
     },
     userEvent: "DIALOG_OPEN",
   }),
-  SectionUnfollow: ({ sectionData, sectionKey, sectionPosition }) => ({
+  SectionUnfollow: ({
+    sectionPersonalization,
+    sectionKey,
+    sectionPosition,
+  }) => ({
     id: "newtab-menu-section-unfollow",
     action: actionCreators.AlsoToMain({
-      type: actionTypes.SECTION_DATA_UPDATE,
+      type: actionTypes.SECTION_PERSONALIZATION_UPDATE,
       data: (({ sectionKey: _sectionKey, ...remaining }) => remaining)(
-        sectionData
+        sectionPersonalization
       ),
     }),
     impression: actionCreators.OnlyToMain({
@@ -2782,10 +2785,6 @@ class ImpressionStats_ImpressionStats extends (external_React_default()).PureCom
             received_rank: link.received_rank,
             topic: link.topic,
             is_list_card: link.is_list_card,
-            url: link.url,
-            title: link.title,
-            publisher: link.publisher,
-            time_sensitive: link.time_sensitive,
             ...(link.format ? {
               format: link.format
             } : {
@@ -3656,10 +3655,6 @@ class _DSCard extends (external_React_default()).PureComponent {
             matches_selected_topic: matchesSelectedTopic,
             selected_topics: this.props.selectedTopics,
             is_list_card: this.props.isListCard,
-            title: this.props.title,
-            url: this.props.url,
-            publisher: this.props.publisher,
-            time_sensitive: this.props.isTimeSensitive,
             ...(this.props.format ? {
               format: this.props.format
             } : {
@@ -3688,10 +3683,6 @@ class _DSCard extends (external_React_default()).PureComponent {
             topic: this.props.topic,
             selected_topics: this.props.selectedTopics,
             is_list_card: this.props.isListCard,
-            title: this.props.title,
-            url: this.props.url,
-            publisher: this.props.publisher,
-            time_sensitive: this.props.isTimeSensitive,
             ...(this.props.format ? {
               format: this.props.format
             } : {
@@ -3736,10 +3727,6 @@ class _DSCard extends (external_React_default()).PureComponent {
         thumbs_up: true,
         thumbs_down: false,
         topic: this.props.topic,
-        title: this.props.title,
-        url: this.props.url,
-        publisher: this.props.publisher,
-        time_sensitive: this.props.isTimeSensitive,
         format: getActiveCardSize(window.innerWidth, this.props.sectionsClassNames, this.props.section, false // (thumbs up/down only exist on organic content)
         ),
         ...(this.props.section ? {
@@ -3817,10 +3804,6 @@ class _DSCard extends (external_React_default()).PureComponent {
           thumbs_up: false,
           thumbs_down: true,
           topic: this.props.topic,
-          title: this.props.title,
-          url: this.props.url,
-          publisher: this.props.publisher,
-          time_sensitive: this.props.isTimeSensitive,
           format: getActiveCardSize(window.innerWidth, this.props.sectionsClassNames, this.props.section, false // (thumbs up/down only exist on organic content)
           ),
           ...(this.props.section ? {
@@ -4119,9 +4102,7 @@ class _DSCard extends (external_React_default()).PureComponent {
       format: format,
       isSectionsCard: this.props.mayHaveSectionsCards,
       topic: this.props.topic,
-      selected_topics: this.props.selected_topics,
-      time_sensitive: this.props.isTimeSensitive,
-      publisher: this.props.publisher
+      selected_topics: this.props.selected_topics
     }))));
   }
 }
@@ -7368,7 +7349,7 @@ const INITIAL_STATE = {
       visible: false,
       data: {},
     },
-    sectionData: {},
+    sectionPersonalization: {},
   },
   // Messages received from ASRouter to render in newtab
   Messages: {
@@ -8157,7 +8138,7 @@ function DiscoveryStream(prevState = INITIAL_STATE.DiscoveryStream, action) {
       return {
         ...prevState,
         showBlockSectionConfirmation: true,
-        sectionData: action.data,
+        sectionPersonalization: action.data,
       };
     case actionTypes.REPORT_AD_OPEN:
       return {
@@ -8201,8 +8182,8 @@ function DiscoveryStream(prevState = INITIAL_STATE.DiscoveryStream, action) {
           visible: false,
         },
       };
-    case actionTypes.SECTION_DATA_UPDATE:
-      return { ...prevState, sectionData: action.data };
+    case actionTypes.SECTION_PERSONALIZATION_UPDATE:
+      return { ...prevState, sectionPersonalization: action.data };
     default:
       return prevState;
   }
@@ -10711,7 +10692,7 @@ function SectionContextMenu({
   dispatch,
   sectionKey,
   following,
-  sectionData,
+  sectionPersonalization,
   sectionPosition
 }) {
   // Initial context menu options: block this section only.
@@ -10743,7 +10724,7 @@ function SectionContextMenu({
     options: SECTIONS_CONTEXT_MENU_OPTIONS,
     shouldSendImpressionStats: true,
     site: {
-      sectionData,
+      sectionPersonalization,
       sectionKey,
       sectionPosition,
       title
@@ -10780,7 +10761,7 @@ function InterestPicker({
   const [focusedIndex, setFocusedIndex] = (0,external_React_namespaceObject.useState)(0);
   const prefs = (0,external_ReactRedux_namespaceObject.useSelector)(state => state.Prefs.values);
   const {
-    sectionData
+    sectionPersonalization
   } = (0,external_ReactRedux_namespaceObject.useSelector)(state => state.DiscoveryStream);
   const visibleSections = prefs[PREF_VISIBLE_SECTIONS]?.split(",").map(item => item.trim()).filter(item => item);
   const handleIntersection = (0,external_React_namespaceObject.useCallback)(() => {
@@ -10824,7 +10805,7 @@ function InterestPicker({
       checked
     } = e.target;
     let updatedSections = {
-      ...sectionData
+      ...sectionPersonalization
     };
     if (checked) {
       updatedSections[topic] = {
@@ -10851,7 +10832,7 @@ function InterestPicker({
       }
     }));
     dispatch(actionCreators.AlsoToMain({
-      type: actionTypes.SECTION_DATA_UPDATE,
+      type: actionTypes.SECTION_PERSONALIZATION_UPDATE,
       data: updatedSections
     }));
   }
@@ -10874,7 +10855,7 @@ function InterestPicker({
     onBlur: onWrapperBlur,
     ref: focusRef
   }, interests.map((interest, index) => {
-    const checked = sectionData[interest.sectionId]?.isFollowed;
+    const checked = sectionPersonalization[interest.sectionId]?.isFollowed;
     return /*#__PURE__*/external_React_default().createElement("li", {
       key: interest.sectionId,
       ref: index === focusedIndex ? focusedRef : null
@@ -11030,7 +11011,7 @@ function CardSection({
 }) {
   const prefs = (0,external_ReactRedux_namespaceObject.useSelector)(state => state.Prefs.values);
   const {
-    sectionData
+    sectionPersonalization
   } = (0,external_ReactRedux_namespaceObject.useSelector)(state => state.DiscoveryStream);
   const showTopics = prefs[CardSections_PREF_TOPICS_ENABLED];
   const mayHaveSectionsCards = prefs[CardSections_PREF_SECTIONS_CARDS_ENABLED];
@@ -11050,7 +11031,7 @@ function CardSection({
   const {
     responsiveLayouts
   } = section.layout;
-  const following = sectionData[sectionKey]?.isFollowed;
+  const following = sectionPersonalization[sectionKey]?.isFollowed;
   const handleIntersection = (0,external_React_namespaceObject.useCallback)(() => {
     dispatch(actionCreators.AlsoToMain({
       type: actionTypes.CARD_SECTION_IMPRESSION,
@@ -11069,7 +11050,7 @@ function CardSection({
   const mayHaveCombinedThumbsUpDown = mayHaveSectionsCardsThumbsUpDown && mayHaveThumbsUpDown;
   const onFollowClick = (0,external_React_namespaceObject.useCallback)(() => {
     const updatedSectionData = {
-      ...sectionData,
+      ...sectionPersonalization,
       [sectionKey]: {
         isFollowed: true,
         isBlocked: false,
@@ -11077,7 +11058,7 @@ function CardSection({
       }
     };
     dispatch(actionCreators.AlsoToMain({
-      type: actionTypes.SECTION_DATA_UPDATE,
+      type: actionTypes.SECTION_PERSONALIZATION_UPDATE,
       data: updatedSectionData
     }));
     // Telemetry Event Dispatch
@@ -11089,14 +11070,14 @@ function CardSection({
         event_source: "MOZ_BUTTON"
       }
     }));
-  }, [dispatch, sectionData, sectionKey, sectionPosition]);
+  }, [dispatch, sectionPersonalization, sectionKey, sectionPosition]);
   const onUnfollowClick = (0,external_React_namespaceObject.useCallback)(() => {
     const updatedSectionData = {
-      ...sectionData
+      ...sectionPersonalization
     };
     delete updatedSectionData[sectionKey];
     dispatch(actionCreators.AlsoToMain({
-      type: actionTypes.SECTION_DATA_UPDATE,
+      type: actionTypes.SECTION_PERSONALIZATION_UPDATE,
       data: updatedSectionData
     }));
 
@@ -11109,7 +11090,7 @@ function CardSection({
         event_source: "MOZ_BUTTON"
       }
     }));
-  }, [dispatch, sectionData, sectionKey, sectionPosition]);
+  }, [dispatch, sectionPersonalization, sectionKey, sectionPosition]);
   const {
     maxTile
   } = getMaxTiles(responsiveLayouts);
@@ -11141,7 +11122,7 @@ function CardSection({
     dispatch: dispatch,
     index: sectionPosition,
     following: following,
-    sectionData: sectionData,
+    sectionPersonalization: sectionPersonalization,
     sectionKey: sectionKey,
     title: title,
     type: type,
@@ -11246,7 +11227,7 @@ function CardSections({
   const prefs = (0,external_ReactRedux_namespaceObject.useSelector)(state => state.Prefs.values);
   const {
     spocs,
-    sectionData
+    sectionPersonalization
   } = (0,external_ReactRedux_namespaceObject.useSelector)(state => state.DiscoveryStream);
   const personalizationEnabled = prefs[PREF_SECTIONS_PERSONALIZATION_ENABLED];
   const interestPickerEnabled = prefs[PREF_INTEREST_PICKER_ENABLED];
@@ -11259,7 +11240,7 @@ function CardSections({
   const {
     interestPicker
   } = data;
-  let filteredSections = data.sections.filter(section => !sectionData[section.sectionKey]?.isBlocked);
+  let filteredSections = data.sections.filter(section => !sectionPersonalization[section.sectionKey]?.isBlocked);
   if (interestPickerEnabled && visibleSections.length) {
     filteredSections = visibleSections.reduce((acc, visibleSection) => {
       const found = filteredSections.find(({
@@ -11732,7 +11713,7 @@ function SectionsMgmtPanel({
 }) {
   const [showPanel, setShowPanel] = (0,external_React_namespaceObject.useState)(false); // State management with useState
   const {
-    sectionData
+    sectionPersonalization
   } = (0,external_ReactRedux_namespaceObject.useSelector)(state => state.DiscoveryStream);
   const layoutComponents = (0,external_ReactRedux_namespaceObject.useSelector)(state => state.DiscoveryStream.layout[0].components);
   const sections = (0,external_ReactRedux_namespaceObject.useSelector)(state => state.DiscoveryStream.feeds.data);
@@ -11748,21 +11729,21 @@ function SectionsMgmtPanel({
   if (sectionsFeedName) {
     sectionsList = sections[sectionsFeedName].data.sections;
   }
-  const [sectionsState, setSectionState] = (0,external_React_namespaceObject.useState)(sectionData); // State management with useState
+  const [sectionsState, setSectionState] = (0,external_React_namespaceObject.useState)(sectionPersonalization); // State management with useState
 
   let followedSectionsData = sectionsList.filter(item => sectionsState[item.sectionKey]?.isFollowed);
   let blockedSectionsData = sectionsList.filter(item => sectionsState[item.sectionKey]?.isBlocked);
   function updateCachedData() {
     // Reset cached followed/blocked list data while panel is open
-    setSectionState(sectionData);
+    setSectionState(sectionPersonalization);
     followedSectionsData = sectionsList.filter(item => sectionsState[item.sectionKey]?.isFollowed);
     blockedSectionsData = sectionsList.filter(item => sectionsState[item.sectionKey]?.isBlocked);
   }
   const onFollowClick = (0,external_React_namespaceObject.useCallback)((sectionKey, receivedRank) => {
     dispatch(actionCreators.AlsoToMain({
-      type: actionTypes.SECTION_DATA_UPDATE,
+      type: actionTypes.SECTION_PERSONALIZATION_UPDATE,
       data: {
-        ...sectionData,
+        ...sectionPersonalization,
         [sectionKey]: {
           isFollowed: true,
           isBlocked: false,
@@ -11779,12 +11760,12 @@ function SectionsMgmtPanel({
         event_source: "CUSTOMIZE_PANEL"
       }
     }));
-  }, [dispatch, sectionData]);
+  }, [dispatch, sectionPersonalization]);
   const onBlockClick = (0,external_React_namespaceObject.useCallback)((sectionKey, receivedRank) => {
     dispatch(actionCreators.AlsoToMain({
-      type: actionTypes.SECTION_DATA_UPDATE,
+      type: actionTypes.SECTION_PERSONALIZATION_UPDATE,
       data: {
-        ...sectionData,
+        ...sectionPersonalization,
         [sectionKey]: {
           isFollowed: false,
           isBlocked: true
@@ -11801,14 +11782,14 @@ function SectionsMgmtPanel({
         event_source: "CUSTOMIZE_PANEL"
       }
     }));
-  }, [dispatch, sectionData]);
+  }, [dispatch, sectionPersonalization]);
   const onUnblockClick = (0,external_React_namespaceObject.useCallback)((sectionKey, receivedRank) => {
     const updatedSectionData = {
-      ...sectionData
+      ...sectionPersonalization
     };
     delete updatedSectionData[sectionKey];
     dispatch(actionCreators.AlsoToMain({
-      type: actionTypes.SECTION_DATA_UPDATE,
+      type: actionTypes.SECTION_PERSONALIZATION_UPDATE,
       data: updatedSectionData
     }));
     // Telemetry Event Dispatch
@@ -11820,14 +11801,14 @@ function SectionsMgmtPanel({
         event_source: "CUSTOMIZE_PANEL"
       }
     }));
-  }, [dispatch, sectionData]);
+  }, [dispatch, sectionPersonalization]);
   const onUnfollowClick = (0,external_React_namespaceObject.useCallback)((sectionKey, receivedRank) => {
     const updatedSectionData = {
-      ...sectionData
+      ...sectionPersonalization
     };
     delete updatedSectionData[sectionKey];
     dispatch(actionCreators.AlsoToMain({
-      type: actionTypes.SECTION_DATA_UPDATE,
+      type: actionTypes.SECTION_PERSONALIZATION_UPDATE,
       data: updatedSectionData
     }));
     // Telemetry Event Dispatch
@@ -11839,7 +11820,7 @@ function SectionsMgmtPanel({
         event_source: "CUSTOMIZE_PANEL"
       }
     }));
-  }, [dispatch, sectionData]);
+  }, [dispatch, sectionPersonalization]);
 
   // Close followed/blocked topic subpanel when parent menu is closed
   (0,external_React_namespaceObject.useEffect)(() => {
@@ -11860,7 +11841,7 @@ function SectionsMgmtPanel({
     title,
     receivedRank
   }) => {
-    const following = sectionData[sectionKey]?.isFollowed;
+    const following = sectionPersonalization[sectionKey]?.isFollowed;
     return /*#__PURE__*/external_React_default().createElement("li", {
       key: sectionKey
     }, /*#__PURE__*/external_React_default().createElement("label", {
@@ -11889,7 +11870,7 @@ function SectionsMgmtPanel({
     title,
     receivedRank
   }) => {
-    const blocked = sectionData[sectionKey]?.isBlocked;
+    const blocked = sectionPersonalization[sectionKey]?.isBlocked;
     return /*#__PURE__*/external_React_default().createElement("li", {
       key: sectionKey
     }, /*#__PURE__*/external_React_default().createElement("label", {
@@ -13482,7 +13463,7 @@ class _Weather extends (external_React_default()).PureComponent {
         className: "weatherCard"
       }, /*#__PURE__*/external_React_default().createElement("a", {
         "data-l10n-id": "newtab-weather-see-forecast",
-        "data-l10n-args": "{\"provider\": \"AccuWeather\"}",
+        "data-l10n-args": "{\"provider\": \"AccuWeather\xAE\"}",
         href: WEATHER_SUGGESTION.forecast.url,
         className: "weatherInfoLink",
         onClick: this.onProviderClick
@@ -13510,7 +13491,7 @@ class _Weather extends (external_React_default()).PureComponent {
         className: "weatherSponsorText"
       }, /*#__PURE__*/external_React_default().createElement("span", {
         "data-l10n-id": "newtab-weather-sponsored",
-        "data-l10n-args": "{\"provider\": \"AccuWeather\"}"
+        "data-l10n-args": "{\"provider\": \"AccuWeather\xAE\"}"
       })));
     }
     return /*#__PURE__*/external_React_default().createElement("div", {
@@ -13607,7 +13588,7 @@ function ReportContentToast({
     type: "success",
     class: "notification-feed-item",
     dismissable: true,
-    "data-l10n-id": "newtab-toast-thanks-for-feedback",
+    "data-l10n-id": "newtab-toast-thanks-for-reporting",
     ref: mozMessageBarRef,
     onAnimationEnd: onAnimationEnd
   });
@@ -14747,8 +14728,9 @@ class BaseContent extends (external_React_default()).PureComponent {
     const sectionsEnabled = prefs["discoverystream.sections.enabled"];
     const topicLabelsEnabled = prefs["discoverystream.topicLabels.enabled"];
     const sectionsCustomizeMenuPanelEnabled = prefs["discoverystream.sections.customizeMenuPanel.enabled"];
+    const sectionsPersonalizationEnabled = prefs["discoverystream.sections.personalization.enabled"];
     // Logic to show follow/block topic mgmt panel in Customize panel
-    const mayHaveTopicSections = topicLabelsEnabled && sectionsEnabled && sectionsCustomizeMenuPanelEnabled && DiscoveryStream.feeds.loaded;
+    const mayHavePersonalizedTopicSections = sectionsPersonalizationEnabled && topicLabelsEnabled && sectionsEnabled && sectionsCustomizeMenuPanelEnabled && DiscoveryStream.feeds.loaded;
     const featureClassName = [mobileDownloadPromoEnabled && mobileDownloadPromoVariantABorC && "has-mobile-download-promo",
     // Mobile download promo modal is enabled/visible
     weatherEnabled && mayHaveWeather && "has-weather",
@@ -14785,7 +14767,7 @@ class BaseContent extends (external_React_default()).PureComponent {
       wallpapersV2Enabled: wallpapersV2Enabled,
       activeWallpaper: activeWallpaper,
       pocketRegion: pocketRegion,
-      mayHaveTopicSections: mayHaveTopicSections,
+      mayHaveTopicSections: mayHavePersonalizedTopicSections,
       mayHaveSponsoredTopSites: mayHaveSponsoredTopSites,
       mayHaveSponsoredStories: mayHaveSponsoredStories,
       mayHaveInferredPersonalization: mayHaveInferredPersonalization,

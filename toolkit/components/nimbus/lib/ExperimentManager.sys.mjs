@@ -541,8 +541,12 @@ export class _ExperimentManager {
       branch = await this.chooseBranch(slug, branches, userId);
     }
 
-    for (const feature of branch.features) {
-      const existingEnrollment = storeLookupByFeature(feature?.featureId);
+    for (const { featureId } of branch.features) {
+      if (lazy.NimbusFeatures[featureId]?.allowCoenrollment) {
+        continue;
+      }
+
+      const existingEnrollment = storeLookupByFeature(featureId);
       if (existingEnrollment) {
         lazy.log.debug(
           `Skipping enrollment for "${slug}" because there is an existing ${
@@ -832,8 +836,8 @@ export class _ExperimentManager {
    * @param {string} slug
    *        The slug of the enrollment to stop.
    * @param {object?} cause
-   *        The cause of this unenrollment. If not provided, "unknown" will be
-   *        used for the unenrollment reason.
+   *        The cause of this unenrollment. All non-object causes will be
+   *        coerced into the "unknown" reason.
    *
    *        See `UnenrollCause` for details.
    */
@@ -848,7 +852,12 @@ export class _ExperimentManager {
       return;
     }
 
-    this._unenroll(enrollment, cause ?? UnenrollmentCause.Unknown());
+    this._unenroll(
+      enrollment,
+      typeof cause === "object" && cause !== null
+        ? cause
+        : UnenrollmentCause.Unknown()
+    );
   }
 
   /**

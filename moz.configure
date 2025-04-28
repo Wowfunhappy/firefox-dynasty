@@ -945,6 +945,26 @@ with only_when(cross_compiling):
 # Please do not add configure checks from here on.
 
 
+# Assuming no other option is declared after this function, handle the
+# env options that were injected by mozconfig_options by creating dummy
+# Option instances and having the sandbox's CommandLineHelper handle
+# them. We only do so for options that haven't been declared so far,
+# which should be a proxy for the options that old-configure handles
+# and that we don't know anything about.
+@depends("--help")
+@imports("__sandbox__")
+@imports(_from="mozbuild.configure.options", _import="Option")
+def remaining_mozconfig_options(_):
+    helper = __sandbox__._helper
+    for arg in list(helper):
+        if helper._origins[arg] != "mozconfig":
+            continue
+        name = arg.split("=", 1)[0]
+        if name.isupper() and name not in __sandbox__._options:
+            option = Option(env=name, nargs="*", help=name)
+            helper.handle(option)
+
+
 @depends(build_environment, configure_cache)
 @imports(_import="json")
 @imports(_from="pathlib", _import="Path")

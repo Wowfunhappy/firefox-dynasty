@@ -1919,33 +1919,6 @@ nsIBidiKeyboard* nsContentUtils::GetBidiKeyboard() {
   return sBidiKeyboard;
 }
 
-/**
- * This is used to determine whether a character is in one of the classes
- * which CSS says should be part of the first-letter.  Currently, that is
- * all punctuation classes (P*).  Note that this is a change from CSS2
- * which excluded Pc and Pd.
- *
- * https://www.w3.org/TR/css-pseudo-4/#first-letter-pseudo
- * "Punctuation (i.e, characters that belong to the Punctuation (P*) Unicode
- *  general category [UAX44]) [...]"
- */
-
-// static
-bool nsContentUtils::IsFirstLetterPunctuation(uint32_t aChar) {
-  switch (mozilla::unicode::GetGeneralCategory(aChar)) {
-    case HB_UNICODE_GENERAL_CATEGORY_CONNECT_PUNCTUATION: /* Pc */
-    case HB_UNICODE_GENERAL_CATEGORY_DASH_PUNCTUATION:    /* Pd */
-    case HB_UNICODE_GENERAL_CATEGORY_CLOSE_PUNCTUATION:   /* Pe */
-    case HB_UNICODE_GENERAL_CATEGORY_FINAL_PUNCTUATION:   /* Pf */
-    case HB_UNICODE_GENERAL_CATEGORY_INITIAL_PUNCTUATION: /* Pi */
-    case HB_UNICODE_GENERAL_CATEGORY_OTHER_PUNCTUATION:   /* Po */
-    case HB_UNICODE_GENERAL_CATEGORY_OPEN_PUNCTUATION:    /* Ps */
-      return true;
-    default:
-      return false;
-  }
-}
-
 // static
 bool nsContentUtils::IsAlphanumeric(uint32_t aChar) {
   nsUGenCategory cat = mozilla::unicode::GetGenCategory(aChar);
@@ -9685,6 +9658,20 @@ class StringBuilder {
           aAppender.AppendLiteral(u"&nbsp;");
           flushedUntil = currentPosition + 1;
           break;
+        case '<':
+          if (StaticPrefs::dom_security_html_serialization_escape_lt_gt()) {
+            aAppender.Append(aStr.FromTo(flushedUntil, currentPosition));
+            aAppender.AppendLiteral(u"&lt;");
+            flushedUntil = currentPosition + 1;
+          }
+          break;
+        case '>':
+          if (StaticPrefs::dom_security_html_serialization_escape_lt_gt()) {
+            aAppender.Append(aStr.FromTo(flushedUntil, currentPosition));
+            aAppender.AppendLiteral(u"&gt;");
+            flushedUntil = currentPosition + 1;
+          }
+          break;
         default:
           break;
       }
@@ -9808,7 +9795,9 @@ static CheckedInt<uint32_t> ExtraSpaceNeededForAttrEncoding(
     switch (*c) {
       case '"':
       case '&':
-      case 0x00A0:
+      case 0x00A0: // NO-BREAK SPACE
+      case '<':
+      case '>':
         ++numEncodedChars;
         break;
       default:
@@ -9827,7 +9816,7 @@ static CheckedInt<uint32_t> ExtraSpaceNeededForAttrEncoding(
   // & in it. We subtract 1 for the null terminator, then 1 more for the
   // existing character that will be replaced.
   constexpr uint32_t maxCharExtraSpace =
-      std::max({std::size("&quot;"), std::size("&amp;"), std::size("&nbsp;")}) -
+      std::max({std::size("&quot;"), std::size("&amp;"), std::size("&nbsp;"), std::size("&lt;"), std::size("&gt;")}) -
       2;
   static_assert(maxCharExtraSpace < 100, "Possible underflow");
   return CheckedInt<uint32_t>(numEncodedChars) * maxCharExtraSpace;

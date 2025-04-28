@@ -1393,7 +1393,7 @@ static TimeStamp EnsurePaintIsScheduled(Document& aDoc) {
   if (!rd->IsInRefresh()) {
     return {};
   }
-  return rd->MostRecentRefresh(/* aEnsureTimerStarted = */ false);
+  return rd->MostRecentRefresh();
 }
 
 // https://drafts.csswg.org/web-animations/#play-an-animation
@@ -1708,7 +1708,8 @@ void Animation::UpdateEffect(PostRestyleMode aPostRestyle) {
 void Animation::FlushUnanimatedStyle() const {
   if (Document* doc = GetRenderedDocument()) {
     doc->FlushPendingNotifications(
-        ChangesToFlush(FlushType::Style, false /* flush animations */));
+        ChangesToFlush(FlushType::Style, /* aFlushAnimations = */ false,
+                       /* aUpdateRelevancy = */ false));
   }
 }
 

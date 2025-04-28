@@ -9,12 +9,15 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.PreviewLightDark
 import mozilla.components.compose.browser.toolbar.BrowserDisplayToolbar
 import mozilla.components.compose.browser.toolbar.BrowserToolbarDefaults
+import mozilla.components.compose.browser.toolbar.concept.PageOrigin
+import mozilla.components.compose.browser.toolbar.store.BrowserToolbarInteraction.BrowserToolbarEvent
 import org.mozilla.fenix.R
 import org.mozilla.fenix.theme.FirefoxTheme
+
+private data object URLCLicked : BrowserToolbarEvent
 
 /**
  * Search bar.
@@ -26,10 +29,19 @@ internal fun SearchBar(
     onClick: () -> Unit,
 ) {
     BrowserDisplayToolbar(
-        url = stringResource(R.string.search_hint),
+        pageOrigin = PageOrigin(
+            hint = R.string.search_hint,
+            title = null,
+            url = null,
+            onClick = URLCLicked,
+        ),
         colors = BrowserToolbarDefaults.colors().displayToolbarColors.copy(background = Color.Transparent),
-        onUrlClicked = onClick,
-        onInteraction = {},
+        progressBarConfig = null,
+        onInteraction = {
+            if (it is URLCLicked) {
+                onClick()
+            }
+        },
     )
 }
 

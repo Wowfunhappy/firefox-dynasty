@@ -505,6 +505,9 @@ MSG_DEF(JSMSG_WASM_NONSHARED_WAIT,     0, JSEXN_WASMRUNTIMEERROR, "atomic wait o
 MSG_DEF(JSMSG_WASM_SUPPLY_ONLY_ONE,    2, JSEXN_TYPEERR,     "exactly one of {0} and {1} must be supplied")
 MSG_DEF(JSMSG_WASM_MISSING_REQUIRED,   1, JSEXN_TYPEERR,     "Missing required argument {0}")
 MSG_DEF(JSMSG_WASM_MODIFIED_GC_OBJECT,   0, JSEXN_TYPEERR,     "can't modify WebAssembly GC objects")
+MSG_DEF(JSMSG_WASM_ARRAYBUFFER_PAGE_MULTIPLE, 0, JSEXN_RANGEERR, "can only grow by WebAssembly page multiples")
+MSG_DEF(JSMSG_WASM_ARRAYBUFFER_CANNOT_SHRINK, 0, JSEXN_RANGEERR, "cannot shrink WebAssembly memory")
+MSG_DEF(JSMSG_WASM_MEMORY_NOT_RESIZABLE,      0, JSEXN_TYPEERR,  "WebAssembly memory non-resizable, maximum length is not provided")
 
 // JSPI
 MSG_DEF(JSMSG_JSPI_ARG_POSITION,       0, JSEXN_TYPEERR, "Invalid argument position value")
@@ -896,7 +899,7 @@ MSG_DEF(JSMSG_TEMPORAL_PLAIN_DATE_TIME_INVALID,     0, JSEXN_RANGEERR, "argument
 MSG_DEF(JSMSG_TEMPORAL_PLAIN_TIME_INVALID,          0, JSEXN_RANGEERR, "arguments must be valid ISO time values")
 MSG_DEF(JSMSG_TEMPORAL_PLAIN_TIME_INVALID_VALUE,    4, JSEXN_RANGEERR, "time value \"{0}\" not in {1}..{2}: {3}")
 MSG_DEF(JSMSG_TEMPORAL_PLAIN_TIME_MISSING_UNIT,     0, JSEXN_TYPEERR, "Time-like objects must have at least one time unit")
-MSG_DEF(JSMSG_TEMPORAL_PLAIN_MONTH_DAY_INVALID,     0, JSEXN_RANGEERR, "year-month-day must be valid iso dates")
+MSG_DEF(JSMSG_TEMPORAL_PLAIN_MONTH_DAY_INVALID,     0, JSEXN_RANGEERR, "month-day must be valid ISO date values")
 MSG_DEF(JSMSG_TEMPORAL_PLAIN_YEAR_MONTH_INVALID,    0, JSEXN_RANGEERR, "year-month must be valid ISO date values")
 MSG_DEF(JSMSG_TEMPORAL_ZONED_DATE_TIME_NO_TIME_FOUND, 0, JSEXN_RANGEERR, "date-time can't be represented in the given time zone")
 MSG_DEF(JSMSG_TEMPORAL_ZONED_DATE_TIME_INCONSISTENT_INSTANT, 0, JSEXN_RANGEERR, "time zone computed inconsistent instant values")

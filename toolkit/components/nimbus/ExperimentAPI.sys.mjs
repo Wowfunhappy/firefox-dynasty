@@ -157,41 +157,6 @@ export const ExperimentAPI = {
   },
 
   /**
-   * Returns an experiment, including all its metadata
-   * Sends exposure event
-   *
-   * @param {{slug?: string, featureId?: string}} options slug = An experiment identifier
-   * or feature = a stable identifier for a type of experiment
-   * @returns {{slug: string, active: bool}} A matching experiment if one is found.
-   */
-  getExperiment({ slug, featureId } = {}) {
-    if (!slug && !featureId) {
-      throw new Error(
-        "getExperiment(options) must include a slug or a feature."
-      );
-    }
-    let experimentData;
-    try {
-      if (slug) {
-        experimentData = this._manager.store.get(slug);
-      } else if (featureId) {
-        experimentData = this._manager.store.getExperimentForFeature(featureId);
-      }
-    } catch (e) {
-      console.error(e);
-    }
-    if (experimentData) {
-      return {
-        slug: experimentData.slug,
-        active: experimentData.active,
-        branch: new Proxy(experimentData.branch, experimentBranchAccessor),
-      };
-    }
-
-    return null;
-  },
-
-  /**
    * Used by getExperimentMetaData and getRolloutMetaData
    *
    * @param {{slug: string, featureId: string}} options Enrollment identifier
@@ -201,7 +166,13 @@ export const ExperimentAPI = {
   getEnrollmentMetaData({ slug, featureId }, isRollout) {
     if (!slug && !featureId) {
       throw new Error(
-        "getExperiment(options) must include a slug or a feature."
+        "getEnrollmentMetaData(options) must include a slug or a feature."
+      );
+    }
+
+    if (featureId && (NimbusFeatures[featureId]?.allowCoenrollment ?? false)) {
+      throw new Error(
+        "Co-enrolling features must use the getAllEnrollments or getAllEnrollmentMetadata APIs"
       );
     }
 
@@ -406,6 +377,12 @@ export class _ExperimentFeature {
    * @returns {{[variableName: string]: any}} The feature value
    */
   getAllVariables({ defaultValues = null } = {}) {
+    if (this.allowCoenrollment) {
+      throw new Error(
+        "Co-enrolling features must use the getAllEnrollments API"
+      );
+    }
+
     let enrollment = null;
     try {
       enrollment = ExperimentAPI._manager.store.getExperimentForFeature(
@@ -435,6 +412,12 @@ export class _ExperimentFeature {
   }
 
   getVariable(variable) {
+    if (this.allowCoenrollment) {
+      throw new Error(
+        "Co-enrolling features must use the getAllEnrollments API"
+      );
+    }
+
     if (!this.manifest?.variables?.[variable]) {
       // Only throw in nightly/tests
       if (Cu.isInAutomation || AppConstants.NIGHTLY_BUILD) {
@@ -476,44 +459,82 @@ export class _ExperimentFeature {
     return prefName ? this.prefGetters[variable] : undefined;
   }
 
-  getRollout() {
-    let remoteConfig = ExperimentAPI._manager.store.getRolloutForFeature(
-      this.featureId
-    );
-    if (!remoteConfig) {
-      return null;
-    }
+  /**
+   * Return all active enrollments.
+   *
+   * @param {object[]}
+   *        An array containing metadata and the feature value for every active
+   *        enrollment using this feature.
+   */
+  getAllEnrollments() {
+    return ExperimentAPI._manager.store
+      .getAll()
+      .filter(e => e.active && e.featureIds.includes(this.featureId))
+      .map(enrollment => {
+        const meta = {
+          slug: enrollment.slug,
+          branch: enrollment.branch.slug,
+          isRollout: enrollment.isRollout,
+        };
 
-    if (remoteConfig.branch?.features) {
-      return remoteConfig.branch?.features.find(
-        f => f.featureId === this.featureId
-      );
-    }
+        const values = this._getLocalizedValue(enrollment);
+        const value = {
+          ...this.prefGetters,
+          ...values,
+        };
 
-    // This path is deprecated and will be removed in the future
-    if (remoteConfig.branch?.feature) {
-      return remoteConfig.branch.feature;
-    }
-
-    return null;
+        return {
+          meta,
+          value,
+        };
+      });
   }
 
-  recordExposureEvent({ once = false } = {}) {
+  /**
+   * Return metadata for all active enrollments that use this feature.
+   *
+   * @returns {object[]}
+   *          Metadata for each active enrollment, including
+   *          - the slug;
+   *          - the branch slug; and
+   *          - whether or not the enrollment is a rollout.
+   */
+  getAllEnrollmentMetadata() {
+    return ExperimentAPI._manager.store
+      .getAll()
+      .filter(e => e.active && e.featureIds.includes(this.featureId))
+      .map(enrollment => ({
+        slug: enrollment.slug,
+        branch: enrollment.branch.slug,
+        isRollout: enrollment.isRollout,
+      }));
+  }
+
+  recordExposureEvent({ once = false, slug } = {}) {
+    if (this.allowCoenrollment && typeof slug !== "string") {
+      throw new Error("Co-enrolling features must provide slug");
+    }
+
     if (once && this._didSendExposureEvent) {
       return;
     }
 
-    let enrollmentData = ExperimentAPI.getExperimentMetaData({
-      featureId: this.featureId,
-    });
-    if (!enrollmentData) {
-      enrollmentData = ExperimentAPI.getRolloutMetaData({
+    let enrollmentData;
+    if (this.allowCoenrollment) {
+      enrollmentData = ExperimentAPI.getEnrollmentMetaData({ slug });
+    } else {
+      enrollmentData = ExperimentAPI.getExperimentMetaData({
         featureId: this.featureId,
       });
+      if (!enrollmentData) {
+        enrollmentData = ExperimentAPI.getRolloutMetaData({
+          featureId: this.featureId,
+        });
+      }
     }
 
     // Exposure only sent if user is enrolled in an experiment
-    if (enrollmentData) {
+    if (enrollmentData?.active) {
       lazy.NimbusTelemetry.recordExposure(
         enrollmentData.slug,
         enrollmentData.branch.slug,
@@ -539,18 +560,8 @@ export class _ExperimentFeature {
     return this.manifest.applications ?? ["firefox-desktop"];
   }
 
-  debug() {
-    return {
-      variables: this.getAllVariables(),
-      experiment: ExperimentAPI.getExperimentMetaData({
-        featureId: this.featureId,
-      }),
-      fallbackPrefs: Object.keys(this.prefGetters).map(prefName => [
-        prefName,
-        this.prefGetters[prefName],
-      ]),
-      rollouts: this.getRollout(),
-    };
+  get allowCoenrollment() {
+    return this.manifest.allowCoenrollment ?? false;
   }
 
   /**
