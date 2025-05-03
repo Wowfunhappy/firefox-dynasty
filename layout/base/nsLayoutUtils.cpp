@@ -817,8 +817,6 @@ FrameChildListID nsLayoutUtils::GetChildListNameFor(nsIFrame* aChildFrame) {
     LayoutFrameType childType = aChildFrame->Type();
     if (LayoutFrameType::TableColGroup == childType) {
       id = FrameChildListID::ColGroup;
-    } else if (aChildFrame->IsTableCaption()) {
-      id = FrameChildListID::Caption;
     } else {
       id = FrameChildListID::Principal;
     }
@@ -2405,33 +2403,10 @@ nsRect nsLayoutUtils::TransformFrameRectToAncestor(
       NSFloatPixelsToAppUnits(float(result.height), destAppUnitsPerDevPixel));
 }
 
-static LayoutDeviceIntPoint GetWidgetOffset(nsIWidget* aWidget,
-                                            nsIWidget*& aRootWidget) {
-  LayoutDeviceIntPoint offset(0, 0);
-  while (aWidget->GetWindowType() == widget::WindowType::Child) {
-    nsIWidget* parent = aWidget->GetParent();
-    if (!parent) {
-      break;
-    }
-    LayoutDeviceIntRect bounds = aWidget->GetBounds();
-    offset += bounds.TopLeft();
-    aWidget = parent;
-  }
-  aRootWidget = aWidget;
-  return offset;
-}
-
 LayoutDeviceIntPoint nsLayoutUtils::WidgetToWidgetOffset(nsIWidget* aFrom,
                                                          nsIWidget* aTo) {
-  nsIWidget* fromRoot;
-  LayoutDeviceIntPoint fromOffset = GetWidgetOffset(aFrom, fromRoot);
-  nsIWidget* toRoot;
-  LayoutDeviceIntPoint toOffset = GetWidgetOffset(aTo, toRoot);
-
-  if (fromRoot != toRoot) {
-    fromOffset = aFrom->WidgetToScreenOffset();
-    toOffset = aTo->WidgetToScreenOffset();
-  }
+  auto fromOffset = aFrom->WidgetToScreenOffset();
+  auto toOffset = aTo->WidgetToScreenOffset();
   return fromOffset - toOffset;
 }
 
@@ -3393,12 +3368,10 @@ void nsLayoutUtils::AddBoxesForFrame(nsIFrame* aFrame,
   auto pseudoType = aFrame->Style()->GetPseudoType();
 
   if (pseudoType == PseudoStyleType::tableWrapper) {
-    AddBoxesForFrame(aFrame->PrincipalChildList().FirstChild(), aCallback);
-    if (aCallback->mIncludeCaptionBoxForTable) {
-      nsIFrame* kid =
-          aFrame->GetChildList(FrameChildListID::Caption).FirstChild();
-      if (kid) {
-        AddBoxesForFrame(kid, aCallback);
+    for (nsIFrame* kid : aFrame->PrincipalChildList()) {
+      AddBoxesForFrame(kid, aCallback);
+      if (!aCallback->mIncludeCaptionBoxForTable) {
+        break;
       }
     }
   } else if (pseudoType == PseudoStyleType::mozBlockInsideInlineWrapper ||
@@ -3424,26 +3397,11 @@ void nsLayoutUtils::GetAllInFlowBoxes(nsIFrame* aFrame,
 nsIFrame* nsLayoutUtils::GetFirstNonAnonymousFrame(nsIFrame* aFrame) {
   while (aFrame) {
     auto pseudoType = aFrame->Style()->GetPseudoType();
-
-    if (pseudoType == PseudoStyleType::tableWrapper) {
-      nsIFrame* f =
-          GetFirstNonAnonymousFrame(aFrame->PrincipalChildList().FirstChild());
-      if (f) {
-        return f;
-      }
-      nsIFrame* kid =
-          aFrame->GetChildList(FrameChildListID::Caption).FirstChild();
-      if (kid) {
-        f = GetFirstNonAnonymousFrame(kid);
-        if (f) {
-          return f;
-        }
-      }
-    } else if (pseudoType == PseudoStyleType::mozBlockInsideInlineWrapper ||
-               pseudoType == PseudoStyleType::mozMathMLAnonymousBlock) {
+    if (pseudoType == PseudoStyleType::tableWrapper ||
+        pseudoType == PseudoStyleType::mozBlockInsideInlineWrapper ||
+        pseudoType == PseudoStyleType::mozMathMLAnonymousBlock) {
       for (nsIFrame* kid : aFrame->PrincipalChildList()) {
-        nsIFrame* f = GetFirstNonAnonymousFrame(kid);
-        if (f) {
+        if (nsIFrame* f = GetFirstNonAnonymousFrame(kid)) {
           return f;
         }
       }
@@ -4494,8 +4452,13 @@ static nscoord AddIntrinsicSizeOffset(
   }
 
   // Compute size.
-  if (aType == IntrinsicISizeType::MinISize &&
+  const bool isInlineAxis =
+      aAxis == aFrame->GetWritingMode().PhysicalAxis(LogicalAxis::Inline);
+  if (aType == IntrinsicISizeType::MinISize && isInlineAxis &&
       aFrame->IsPercentageResolvedAgainstZero(aStyleSize, aStyleMaxSize)) {
+    // Apply the compressible min-content contribution rule only in aFrame's
+    // *inline* axis, to maintain web-compatibility with Chrome and Safari.
+    // https://drafts.csswg.org/css-sizing-3/#min-content-zero
     // XXX bug 1463700: this doesn't handle calc() according to spec
     result = 0;
   } else if (Maybe<nscoord> size =

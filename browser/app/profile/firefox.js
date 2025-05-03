@@ -569,8 +569,8 @@ pref("browser.urlbar.quicksuggest.ampTopPickCharThreshold", 5);
 // value).
 pref("browser.urlbar.quicksuggest.ampMatchingStrategy", 0);
 
-// Comma-separated list of Suggest exposure suggestion types to enable.
-pref("browser.urlbar.quicksuggest.exposureSuggestionTypes", "");
+// Comma-separated list of Suggest dynamic suggestion types to enable.
+pref("browser.urlbar.quicksuggest.dynamicSuggestionTypes", "");
 
 // Whether Suggest will use the ML backend in addition to Rust.
 pref("browser.urlbar.quicksuggest.mlEnabled", false);
@@ -674,6 +674,17 @@ pref("browser.urlbar.contextualSearch.enabled", true);
 
 // Feature gate pref for addon suggestions in the urlbar.
 pref("browser.urlbar.addons.featureGate", true);
+
+// Feature gate pref for semanticHistory
+pref("places.semanticHistory.featureGate", false);
+
+// If `places.semanticHistory.featureGate` is enabled
+// then this will control whether semantic search will be enabled
+// for history.
+pref("browser.urlbar.suggest.semanticHistory", false);
+
+// Minimum length threshold for semantic history search
+pref("browser.urlbar.suggest.semanticHistory.minLength", 5);
 
 // If `browser.urlbar.addons.featureGate` is true, this controls whether
 // addons suggestions are turned on.
@@ -1041,9 +1052,12 @@ pref("browser.tabs.groups.smart.enabled", true);
 pref("browser.tabs.groups.smart.enabled", false);
 #endif
 
-// KMEANS_WITH_ANCHOR or NEAREST_NEIGHBOR
+// KMEANS_WITH_ANCHOR or NEAREST_NEIGHBOR or LOGISTIC_REGRESSION
 pref("browser.tabs.groups.smart.suggestOtherTabsMethod", "NEAREST_NEIGHBOR");
-
+pref("browser.tabs.groups.smart.topicModelRevision", "latest");
+pref("browser.tabs.groups.smart.embeddingModelRevision", "latest");
+// value should be <= 1000 to be correctly converted (275 -> 0.275)
+pref("browser.tabs.groups.smart.nearestNeighborThresholdInt", 275);
 pref("browser.tabs.groups.smart.optin", false);
 
 pref("browser.tabs.dragDrop.createGroup.delayMS", 240);
@@ -1787,11 +1801,6 @@ pref("browser.partnerlink.campaign.topsites", "amzn_2020_a1");
 
 // Activates preloading of the new tab url.
 pref("browser.newtab.preload", true);
-
-// If an on-train limited rollout of the preonboarding modal is enabled, the
-// percentage of the Mac, Linux, and MSIX population to enroll. Default to 25% of
-// population (2500 / 10000).
-pref("browser.preonboarding.onTrainRolloutPopulation",  2500);
 
 // Show "Download Firefox for mobile" QR code modal on newtab
 pref("browser.newtabpage.activity-stream.mobileDownloadModal.enabled", false);

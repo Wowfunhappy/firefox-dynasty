@@ -55,6 +55,7 @@ STATIC_ATOMS = [
     Atom("mozsignature", "moz-signature"),  # Used by MailNews.
     Atom("_moz_bullet_font", "-moz-bullet-font"),
     Atom("_moz_is_glyph", "-moz-is-glyph"),
+    Atom("_moz_in_android_pip_mode", "-moz-in-android-pip-mode"),
     Atom("_moz_original_size", "_moz_original_size"),
     Atom("_moz_print_preview", "-moz-print-preview"),
     Atom("menuactive", "_moz-menuactive"),
@@ -249,6 +250,7 @@ STATIC_ATOMS = [
     Atom("clip", "clip"),
     Atom("close", "close"),
     Atom("closed", "closed"),
+    Atom("closedby", "closedby"),
     Atom("closemenu", "closemenu"),
     Atom("code", "code"),
     Atom("codebase", "codebase"),
@@ -2441,6 +2443,7 @@ STATIC_ATOMS = [
     Atom("layout_css_always_underline_links", "layout.css.always_underline_links"),
     Atom("layout_css_cached_scrollbar_styles_enabled", "layout.css.cached-scrollbar-styles.enabled"),
     Atom("layout_css_h1_in_section_ua_styles_enabled", "layout.css.h1-in-section-ua-styles.enabled"),
+    Atom("layout_css_android_pip_enabled", "layout.css.android-pip.enabled"),
     # Contextual Identity / Containers
     Atom("usercontextid", "usercontextid"),
     Atom("geckoViewSessionContextId", "geckoViewSessionContextId"),
@@ -2526,6 +2529,7 @@ STATIC_ATOMS = [
     PseudoElementAtom("PseudoElement_viewTransitionImagePair", ":view-transition-image-pair"),
     PseudoElementAtom("PseudoElement_viewTransitionOld", ":view-transition-old"),
     PseudoElementAtom("PseudoElement_viewTransitionNew", ":view-transition-new"),
+    PseudoElementAtom("PseudoElement_mozSnapshotContainingBlock", ":-moz-snapshot-containing-block"),
     PseudoElementAtom("PseudoElement_mozFocusInner", ":-moz-focus-inner"),
     PseudoElementAtom("PseudoElement_mozNumberSpinBox", ":-moz-number-spin-box"),
     PseudoElementAtom("PseudoElement_mozNumberSpinUp", ":-moz-number-spin-up"),

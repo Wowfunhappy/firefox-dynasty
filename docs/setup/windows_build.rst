@@ -20,11 +20,7 @@ System Requirements
 
 Required Installations
 ----------------------
--  **Mercurial:** Ensure that the ``hg`` command works from PowerShell. If it is not set up,
-   download `Mercurial/TortoiseHg <https://www.mercurial-scm.org/downloads>`_ and ensure
-   the hg directory is added to your path. For example, this could be
-   ``C:\Program Files\Mercurial`` or
-   ``C:\Program Files\TortoiseHg``.
+-  **git:** Ensure that the ``git`` command works from PowerShell.
 -  **Python:** Ensure that the ``python`` and ``pip3`` commands work from PowerShell. If it is not
    set up, download `python 3.11 <https://www.python.org/downloads/release/python-3119/>`_, and add
    the python directory
@@ -76,10 +72,6 @@ the interactive setup process.
     cd mozilla-source
     wget https://hg.mozilla.org/mozilla-central/raw-file/default/python/mozboot/bin/bootstrap.py
 
-    # To use Git as your VCS
-    python3 bootstrap.py --vcs=git
-
-    # To use Mercurial as your VCS
     python3 bootstrap.py
 .. note::
 
@@ -88,17 +80,6 @@ the interactive setup process.
     necessary to add the Microsoft Defender Antivirus exclusions automatically. You
     should select ``Yes`` on the UAC prompt, otherwise you will need
     to :ref:`follow some manual steps below <Ensure antivirus exclusions>`.
-
-.. note::
-
-    To use ``git``, you can grab the source code in "git" form by running the
-    bootstrap script with the ``vcs`` parameter:
-
-    .. code-block:: shell
-
-        python3 bootstrap.py --vcs=git
-
-    This uses `Git Cinnabar <https://github.com/glandium/git-cinnabar/>`_ under the hood.
 
 Choosing a build type
 ~~~~~~~~~~~~~~~~~~~~~
@@ -143,7 +124,7 @@ Now that your system is bootstrapped, you should be able to build!
 
 .. code-block:: shell
 
-    cd c:/mozilla-source/mozilla-unified
+    cd c:/mozilla-source/firefox
     hg up -C central
     ./mach build
 
@@ -225,7 +206,7 @@ Python failed to find files in directories
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Python can sometimes fail to find files in directories when path length limits are reached,
-even when the root directory is kept relatively short: ``C:\mozilla-source\mozilla-unified``. This can be resolved by
+even when the root directory is kept relatively short: ``C:\mozilla-source\firefox``. This can be resolved by
 `turning Windows long paths on <https://learn.microsoft.com/en-us/windows/win32/fileio/maximum-file-path-limitation?tabs=registry>`_.
 
 ``PYTHON`` environment variable

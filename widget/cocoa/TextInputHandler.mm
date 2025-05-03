@@ -20,7 +20,7 @@
 #include "mozilla/TextEvents.h"
 #include "mozilla/ToString.h"
 
-#include "nsChildView.h"
+#include "nsCocoaWindow.h"
 #include "nsCocoaFeatures.h"
 #include "nsObjCExceptions.h"
 #include "nsBidiUtils.h"
@@ -1790,7 +1790,7 @@ void TextInputHandler::DebugPrintAllKeyboardLayouts() {
  *
  ******************************************************************************/
 
-TextInputHandler::TextInputHandler(nsChildView* aWidget,
+TextInputHandler::TextInputHandler(nsCocoaWindow* aWidget,
                                    NSView<mozView>* aNativeView)
     : IMEInputHandler(aWidget, aNativeView) {
   EnsureToLogAllKeyboardLayoutsAndIMEs();
@@ -1833,7 +1833,7 @@ bool TextInputHandler::HandleKeyDownEvent(NSEvent* aNativeEvent,
     [NSCursor setHiddenUntilMouseMoves:YES];
   }
 
-  RefPtr<nsChildView> widget(mWidget);
+  RefPtr<nsCocoaWindow> widget(mWidget);
 
   KeyEventState* currentKeyEvent = PushKeyEvent(aNativeEvent, aUniqueId);
   AutoKeyEventStateCleaner remover(this);
@@ -2048,7 +2048,7 @@ void TextInputHandler::HandleFlagsChanged(NSEvent* aNativeEvent) {
     return;
   }
 
-  RefPtr<nsChildView> kungFuDeathGrip(mWidget);
+  RefPtr<nsCocoaWindow> kungFuDeathGrip(mWidget);
   mozilla::Unused << kungFuDeathGrip;  // Not referenced within this function
 
   MOZ_LOG_KEY_OR_IME(
@@ -2569,7 +2569,7 @@ void TextInputHandler::InsertText(NSString* aString,
   }
 
   // XXX Shouldn't we hold mDispatcher instead of mWidget?
-  RefPtr<nsChildView> widget(mWidget);
+  RefPtr<nsCocoaWindow> widget(mWidget);
   nsresult rv = mDispatcher->BeginNativeInputTransaction();
   if (NS_WARN_IF(NS_FAILED(rv))) {
     MOZ_LOG_KEY_OR_IME(LogLevel::Error,
@@ -2609,8 +2609,16 @@ void TextInputHandler::InsertText(NSString* aString,
   // If mCurrentKeyEvent.mKeyEvent is null, the text should be inputted as
   // composition events.
   nsEventStatus status = nsEventStatus_eIgnore;
-  bool keyPressDispatched = mDispatcher->MaybeDispatchKeypressEvents(
-      keypressEvent, status, currentKeyEvent);
+  bool keyPressDispatched = [&]() {
+    // If text content is chrome process, OnTextChange etc will be dispatched
+    // synchronously. We don't want to dismiss text substitution panel at this
+    // point.
+    AutoRestore<bool> block(mBlockDismissTextSubstitutionPanel);
+    mBlockDismissTextSubstitutionPanel = true;
+
+    return mDispatcher->MaybeDispatchKeypressEvents(keypressEvent, status,
+                                                    currentKeyEvent);
+  }();
   bool keyPressHandled = (status == nsEventStatus_eConsumeNoDefault);
 
   // WebKit and text editor dismisses autocorrect panel by space, then process
@@ -2743,7 +2751,7 @@ bool TextInputHandler::HandleCommand(Command aCommand) {
     }
   }
 
-  RefPtr<nsChildView> widget(mWidget);
+  RefPtr<nsCocoaWindow> widget(mWidget);
   nsresult rv = mDispatcher->BeginNativeInputTransaction();
   if (NS_WARN_IF(NS_FAILED(rv))) {
     MOZ_LOG_KEY_OR_IME(LogLevel::Error,
@@ -3052,7 +3060,7 @@ bool TextInputHandler::HandleCommand(Command aCommand) {
 }
 
 bool TextInputHandler::DoCommandBySelector(const char* aSelector) {
-  RefPtr<nsChildView> widget(mWidget);
+  RefPtr<nsCocoaWindow> widget(mWidget);
 
   KeyEventState* currentKeyEvent = GetCurrentKeyEvent();
 
@@ -3113,9 +3121,17 @@ bool TextInputHandler::DoCommandBySelector(const char* aSelector) {
     currentKeyEvent->InitKeyEvent(this, keypressEvent, false);
 
     nsEventStatus status = nsEventStatus_eIgnore;
-    currentKeyEvent->mKeyPressDispatched =
-        mDispatcher->MaybeDispatchKeypressEvents(keypressEvent, status,
-                                                 currentKeyEvent);
+    // If text content is chrome process, OnTextChange etc will be dispatched
+    // synchronously. We don't want to dismiss text substitution panel at this
+    // point.
+    {
+      AutoRestore<bool> block(mBlockDismissTextSubstitutionPanel);
+      mBlockDismissTextSubstitutionPanel = true;
+
+      currentKeyEvent->mKeyPressDispatched =
+          mDispatcher->MaybeDispatchKeypressEvents(keypressEvent, status,
+                                                   currentKeyEvent);
+    }
     currentKeyEvent->mKeyPressHandled =
         (status == nsEventStatus_eConsumeNoDefault);
     MOZ_LOG_KEY_OR_IME(
@@ -3978,7 +3994,7 @@ bool IMEInputHandler::MaybeDispatchCurrentKeydownEvent(bool aIsProcessedByIME) {
   // Mark currentKeyEvent as "dispatched eKeyDown event" and actually do it.
   currentKeyEvent->mKeyDownDispatched = true;
 
-  RefPtr<nsChildView> widget(mWidget);
+  RefPtr<nsCocoaWindow> widget(mWidget);
 
   WidgetKeyboardEvent keydownEvent(true, eKeyDown, widget);
   // Don't mark the eKeyDown event as "processed by IME" if the composition
@@ -4636,7 +4652,7 @@ NSArray* IMEInputHandler::GetValidAttributesForMarkedText() {
  *
  ******************************************************************************/
 
-IMEInputHandler::IMEInputHandler(nsChildView* aWidget,
+IMEInputHandler::IMEInputHandler(nsCocoaWindow* aWidget,
                                  NSView<mozView>* aNativeView)
     : TextInputHandlerBase(aWidget, aNativeView),
       mPendingMethods(0),
@@ -4702,7 +4718,7 @@ void IMEInputHandler::OnFocusChangeInGecko(bool aFocus) {
   ResetTimer();
 }
 
-bool IMEInputHandler::OnDestroyWidget(nsChildView* aDestroyingWidget) {
+bool IMEInputHandler::OnDestroyWidget(nsCocoaWindow* aDestroyingWidget) {
   MOZ_LOG(gIMELog, LogLevel::Info,
           ("%p IMEInputHandler::OnDestroyWidget, aDestroyingWidget=%p, "
            "sFocusedIMEHandler=%p, IsIMEComposing()=%s",
@@ -4710,7 +4726,7 @@ bool IMEInputHandler::OnDestroyWidget(nsChildView* aDestroyingWidget) {
            TrueOrFalse(IsIMEComposing())));
 
   // If we're not focused, the focused IMEInputHandler may have been
-  // created by another widget/nsChildView.
+  // created by another widget/nsCocoaWindow.
   if (sFocusedIMEHandler && sFocusedIMEHandler != this) {
     sFocusedIMEHandler->OnDestroyWidget(aDestroyingWidget);
   }
@@ -5023,8 +5039,10 @@ void IMEInputHandler::HandleTextSubstitution(
   }
 
   // Dismiss text substitution panel since this text change might be script etc
-  mProcessTextSubstitution = false;
-  DismissTextSubstitutionPanel();
+  if (!mBlockDismissTextSubstitutionPanel) {
+    mProcessTextSubstitution = false;
+    DismissTextSubstitutionPanel();
+  }
 
   // Set new text substitution data to show its panel by current changed text.
   //
@@ -5267,6 +5285,11 @@ void IMEInputHandler::ShowTextSubstitutionPanel() {
 void IMEInputHandler::DismissTextSubstitutionPanel() {
   NS_OBJC_BEGIN_TRY_IGNORE_BLOCK;
 
+  MOZ_LOG(gIMELog, LogLevel::Info,
+          ("%p IMEInputHandler::DismissTextSubstitutionPanel, "
+           "mProcessTextSubstitution=%s",
+           this, mProcessTextSubstitution ? "true" : "false"));
+
   NSSpellChecker* spellchecker = [NSSpellChecker sharedSpellChecker];
   if (!spellchecker) {
     return;
@@ -5350,7 +5373,7 @@ int32_t TextInputHandlerBase::sSecureEventInputCount = 0;
 NS_IMPL_ISUPPORTS(TextInputHandlerBase, TextEventDispatcherListener,
                   nsISupportsWeakReference)
 
-TextInputHandlerBase::TextInputHandlerBase(nsChildView* aWidget,
+TextInputHandlerBase::TextInputHandlerBase(nsCocoaWindow* aWidget,
                                            NSView<mozView>* aNativeView)
     : mWidget(aWidget), mDispatcher(aWidget->GetTextEventDispatcher()) {
   gHandlerInstanceCount++;
@@ -5364,7 +5387,7 @@ TextInputHandlerBase::~TextInputHandlerBase() {
   }
 }
 
-bool TextInputHandlerBase::OnDestroyWidget(nsChildView* aDestroyingWidget) {
+bool TextInputHandlerBase::OnDestroyWidget(nsCocoaWindow* aDestroyingWidget) {
   MOZ_LOG_KEY_OR_IME(LogLevel::Info,
                      ("%p TextInputHandlerBase::OnDestroyWidget, "
                       "aDestroyingWidget=%p, mWidget=%p",

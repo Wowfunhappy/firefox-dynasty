@@ -1774,6 +1774,12 @@ class nsContentUtils {
   static nsAtom* GetEventTypeFromMessage(EventMessage aEventMessage);
 
   /**
+   * Return the event type atom from a given event.
+   */
+  static already_AddRefed<nsAtom> GetEventType(
+      const mozilla::WidgetEvent* aEvent);
+
+  /**
    * Returns the EventMessage and nsAtom to be used for event listener
    * registration.
    */
@@ -1889,7 +1895,8 @@ class nsContentUtils {
   static void SetHTMLUnsafe(mozilla::dom::FragmentOrElement* aTarget,
                             Element* aContext,
                             const mozilla::dom::TrustedHTMLOrString& aSource,
-                            bool aIsShadowRoot, mozilla::ErrorResult& aError);
+                            bool aIsShadowRoot, nsIPrincipal* aSubjectPrincipal,
+                            mozilla::ErrorResult& aError);
   /**
    * Invoke the fragment parsing algorithm (innerHTML) using the HTML parser.
    *

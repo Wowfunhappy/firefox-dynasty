@@ -23,10 +23,15 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.testTag
+import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.tooling.preview.PreviewLightDark
 import androidx.compose.ui.unit.Dp
@@ -37,6 +42,7 @@ import org.mozilla.fenix.GleanMetrics.History
 import org.mozilla.fenix.GleanMetrics.HomeBookmarks
 import org.mozilla.fenix.GleanMetrics.RecentlyVisitedHomepage
 import org.mozilla.fenix.R
+import org.mozilla.fenix.components.appstate.setup.checklist.SetupChecklistState
 import org.mozilla.fenix.compose.MessageCard
 import org.mozilla.fenix.compose.home.HomeSectionHeader
 import org.mozilla.fenix.home.bookmarks.Bookmark
@@ -69,8 +75,10 @@ import org.mozilla.fenix.home.store.HomepageState
 import org.mozilla.fenix.home.store.NimbusMessageState
 import org.mozilla.fenix.home.topsites.TopSiteColors
 import org.mozilla.fenix.home.topsites.TopSites
+import org.mozilla.fenix.home.ui.HomepageTestTag.homepage
 import org.mozilla.fenix.theme.FirefoxTheme
 import org.mozilla.fenix.theme.Theme
+import org.mozilla.fenix.utils.isLargeScreenSize
 import org.mozilla.fenix.wallpapers.WallpaperState
 
 private const val MIDDLE_SEARCH_SCROLL_THRESHOLD_PX = 10
@@ -83,6 +91,7 @@ private const val MIDDLE_SEARCH_SCROLL_THRESHOLD_PX = 10
  * @param onMiddleSearchBarVisibilityChanged Invoked when the middle search is shown/hidden.
  * @param onTopSitesItemBound Invoked during the composition of a top site item.
  */
+@OptIn(ExperimentalComposeUiApi::class)
 @Suppress("LongMethod")
 @Composable
 internal fun Homepage(
@@ -95,6 +104,10 @@ internal fun Homepage(
 
     Column(
         modifier = Modifier
+            .semantics {
+                testTagsAsResourceId = true
+                testTag = homepage
+            }
             .verticalScroll(scrollState)
             .animateContentSize(),
     ) {
@@ -156,12 +169,7 @@ internal fun Homepage(
                         }
                     }
 
-                    if (setupChecklistState != null && setupChecklistState.isVisible) {
-                        SetupChecklist(
-                            setupChecklistState = setupChecklistState,
-                            interactor = interactor,
-                        )
-                    }
+                    MaybeAddSetupChecklist(setupChecklistState, interactor)
 
                     if (showRecentTabs) {
                         RecentTabsSection(
@@ -231,6 +239,20 @@ internal fun Homepage(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun MaybeAddSetupChecklist(
+    setupChecklistState: SetupChecklistState?,
+    interactor: HomepageInteractor,
+) {
+    val isTabletDevice = LocalContext.current.isLargeScreenSize()
+    if (!isTabletDevice && setupChecklistState != null && setupChecklistState.isVisible) {
+        SetupChecklist(
+            setupChecklistState = setupChecklistState,
+            interactor = interactor,
+        )
     }
 }
 

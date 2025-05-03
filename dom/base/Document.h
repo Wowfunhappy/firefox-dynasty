@@ -359,9 +359,10 @@ enum class DeprecatedOperations : uint16_t {
 #undef DEPRECATED_OPERATION
 
 class ExternalResourceMap {
-  using SubDocEnumFunc = FunctionRef<CallState(Document&)>;
-
  public:
+  using SubDocEnumFunc = FunctionRef<CallState(Document&)>;
+  using SubDocTestFunc = FunctionRef<bool(const Document* aDocument)>;
+
   /**
    * A class that represents an external resource load that has begun but
    * doesn't have a document yet.  Observers can be registered on this object,
@@ -402,7 +403,11 @@ class ExternalResourceMap {
    * Enumerate the resource documents.  See
    * Document::EnumerateExternalResources.
    */
-  void EnumerateResources(SubDocEnumFunc aCallback);
+  void EnumerateResources(SubDocEnumFunc aCallback) const;
+
+  /** Recursively collect subresources and their subdocuments too */
+  void CollectDescendantDocuments(nsTArray<RefPtr<Document>>& aDocs,
+                                  SubDocTestFunc) const;
 
   /**
    * Traverse ourselves for cycle-collection
@@ -1905,8 +1910,25 @@ class Document : public nsINode,
    */
   MOZ_CAN_RUN_SCRIPT void ProcessCloseRequest();
 
+  /**
+   * When pointer events on the document occur, close the top-most
+   * light-dismiss dialog as mLastDialogPointerdownTarget.
+   */
+  MOZ_CAN_RUN_SCRIPT void HandleLightDismissOpenDialogs(WidgetEvent*);
+
   void AddModalDialog(HTMLDialogElement&);
   void RemoveModalDialog(HTMLDialogElement&);
+  void AddOpenDialog(HTMLDialogElement&);
+  void RemoveOpenDialog(HTMLDialogElement&);
+  bool HasOpenDialogs() const;
+  HTMLDialogElement* GetTopMostOpenDialog();
+  bool DialogIsInOpenDialogsList(HTMLDialogElement&);
+
+  void SetLastDialogPointerdownTarget(HTMLDialogElement&);
+  void ClearLastDialogPointerdownTarget() {
+    mLastDialogPointerdownTarget = nullptr;
+  }
+  HTMLDialogElement* GetLastDialogPointerdownTarget();
 
   /**
    * Called when a frame in a child process has entered fullscreen or when a
@@ -2322,16 +2344,19 @@ class Document : public nsINode,
    * enumerating, or CallState::Stop to stop.  This will never get passed a null
    * aDocument.
    */
-  using SubDocEnumFunc = FunctionRef<CallState(Document&)>;
+  using SubDocEnumFunc = dom::ExternalResourceMap::SubDocEnumFunc;
   void EnumerateSubDocuments(SubDocEnumFunc aCallback);
 
   /**
    * Collect all the descendant documents for which |aCalback| returns true.
    * The callback function must not mutate any state for the given document.
+   * Note that, unlike EnumerateSubDocuments, this recurses into nested
+   * subdocuments.
    */
-  using nsDocTestFunc = mozilla::FunctionRef<bool(const Document* aDocument)>;
+  using SubDocTestFunc = dom::ExternalResourceMap::SubDocTestFunc;
+  enum class IncludeSubResources : bool { No, Yes };
   void CollectDescendantDocuments(nsTArray<RefPtr<Document>>& aDescendants,
-                                  nsDocTestFunc aCallback) const;
+                                  IncludeSubResources, SubDocTestFunc) const;
 
   /**
    * Check whether it is safe to cache the presentation of this document
@@ -2651,7 +2676,7 @@ class Document : public nsINode,
    * enumerating, or CallState::Stop to stop.  This callback will never get
    * passed a null aDocument.
    */
-  void EnumerateExternalResources(SubDocEnumFunc aCallback);
+  void EnumerateExternalResources(SubDocEnumFunc aCallback) const;
 
   dom::ExternalResourceMap& ExternalResourceMap() {
     return mExternalResourceMap;
@@ -4142,12 +4167,15 @@ class Document : public nsINode,
     --mThrowOnDynamicMarkupInsertionCounter;
   }
 
+  // https://html.spec.whatwg.org/#unload-counter
   bool ShouldIgnoreOpens() const { return mIgnoreOpensDuringUnloadCounter; }
 
+  // https://html.spec.whatwg.org/#unload-counter
   void IncrementIgnoreOpensDuringUnloadCounter() {
     ++mIgnoreOpensDuringUnloadCounter;
   }
 
+  // https://html.spec.whatwg.org/#unload-counter
   void DecrementIgnoreOpensDuringUnloadCounter() {
     MOZ_ASSERT(mIgnoreOpensDuringUnloadCounter);
     --mIgnoreOpensDuringUnloadCounter;
@@ -4488,6 +4516,7 @@ class Document : public nsINode,
    *                            execCommand().
    * @param aValue              The value which is set to the 3rd parameter
    *                            of execCommand().
+   * @param aSubjectPrincipal   Principal used for execCommand().
    * @param aRv                 ErrorResult used for Trusted Type conversion.
    * @param aAdjustedValue      [out] Must be empty string if set non-nullptr.
    *                            Will be set to adjusted value for executing
@@ -4503,7 +4532,8 @@ class Document : public nsINode,
    */
   MOZ_CAN_RUN_SCRIPT InternalCommandData ConvertToInternalCommand(
       const nsAString& aHTMLCommandName,
-      const TrustedHTMLOrString* aValue = nullptr, ErrorResult* aRv = nullptr,
+      const TrustedHTMLOrString* aValue = nullptr,
+      nsIPrincipal* aSubjectPrincipal = nullptr, ErrorResult* aRv = nullptr,
       nsAString* aAdjustedValue = nullptr);
 
   /**
@@ -5351,6 +5381,14 @@ class Document : public nsINode,
   // Stack of top layer elements.
   nsTArray<nsWeakPtr> mTopLayer;
 
+  // Stack of open dialogs
+  // https://html.spec.whatwg.org/#open-dialogs-list
+  nsTArray<HTMLDialogElement*> mOpenDialogs;
+
+  // The last dialog pointer-down target
+  // https://html.spec.whatwg.org/#dialog-pointerdown-target
+  nsWeakPtr mLastDialogPointerdownTarget;
+
   // The root of the doc tree in which this document is in. This is only
   // non-null when this document is in fullscreen mode.
   WeakPtr<Document> mFullscreenRoot;
@@ -5572,7 +5610,7 @@ class Document : public nsINode,
 
   MOZ_CAN_RUN_SCRIPT static already_AddRefed<Document> ParseHTMLUnsafe(
       GlobalObject& aGlobal, const TrustedHTMLOrString& aHTML,
-      ErrorResult& aError);
+      nsIPrincipal* aSubjectPrincipal, ErrorResult& aError);
 
   static already_AddRefed<Document> ParseHTML(GlobalObject& aGlobal,
                                               const nsAString& aHTML,

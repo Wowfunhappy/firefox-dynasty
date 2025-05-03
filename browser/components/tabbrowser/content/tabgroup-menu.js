@@ -328,6 +328,7 @@
     #suggestionsLoadCancel;
     #suggestionsSeparator;
     #smartTabGroupingManager;
+    #smartTabGroupsInitiated = false;
     #suggestionsOptinContainer;
     #suggestionsOptin;
     #suggestionsRunToken;
@@ -354,7 +355,8 @@
         this,
         "smartTabGroupsOptin",
         "browser.tabs.groups.smart.optin",
-        false
+        false,
+        this.#onSmartTabGroupsOptInPrefChange.bind(this)
       );
     }
 
@@ -473,6 +475,7 @@
       this.panel.addEventListener("popuphidden", this);
       this.panel.addEventListener("keypress", this);
       this.#swatchesContainer.addEventListener("change", this);
+      Glean.tabgroup.smartTabEnabled.set(this.smartTabGroupsPrefEnabled);
     }
 
     get smartTabGroupsEnabled() {
@@ -483,13 +486,35 @@
       );
     }
 
+    get smartTabGroupsPrefEnabled() {
+      return (
+        this.smartTabGroupsUserEnabled &&
+        this.smartTabGroupsFeatureConfigEnabled &&
+        this.smartTabGroupsOptin
+      );
+    }
+
     #onSmartTabGroupsPrefChange(_preName, _prev, _latest) {
+      if (!this.#smartTabGroupsInitiated && this.smartTabGroupsEnabled) {
+        this.#initSuggestions();
+      }
       const icon = this.smartTabGroupsEnabled
         ? MozTabbrowserTabGroupMenu.AI_ICON
         : "";
 
       this.#suggestionButton.iconSrc = icon;
       this.#suggestionsMessage.iconSrc = icon;
+      Glean.tabgroup.smartTab.record({
+        enabled: this.smartTabGroupsPrefEnabled,
+      });
+      Glean.tabgroup.smartTabEnabled.set(this.smartTabGroupsPrefEnabled);
+    }
+
+    #onSmartTabGroupsOptInPrefChange(_preName, _prev, _latest) {
+      Glean.tabgroup.smartTab.record({
+        enabled: this.smartTabGroupsPrefEnabled,
+      });
+      Glean.tabgroup.smartTabEnabled.set(this.smartTabGroupsPrefEnabled);
     }
 
     #initSmartTabGroupsOptin() {
@@ -562,6 +587,9 @@
     }
 
     #initSuggestions() {
+      if (!this.smartTabGroupsEnabled || this.#smartTabGroupsInitiated) {
+        return;
+      }
       const { SmartTabGroupingManager } = ChromeUtils.importESModule(
         "moz-src:///browser/components/tabbrowser/SmartTabGrouping.sys.mjs"
       );
@@ -647,6 +675,7 @@
         this.#suggestionsRunToken = null;
         this.#handleLoadSuggestionsCancel();
       });
+      this.#smartTabGroupsInitiated = true;
     }
 
     #populateSwatches() {

@@ -1181,6 +1181,16 @@ nsAtom* nsContentUtils::GetEventTypeFromMessage(EventMessage aEventMessage) {
   }
 }
 
+/* static */
+already_AddRefed<nsAtom> nsContentUtils::GetEventType(
+    const WidgetEvent* aEvent) {
+  RefPtr<nsAtom> typeAtom =
+      aEvent->mMessage == eUnidentifiedEvent
+          ? aEvent->mSpecifiedEventType.get()
+          : nsContentUtils::GetEventTypeFromMessage(aEvent->mMessage);
+  return typeAtom.forget();
+}
+
 bool nsContentUtils::InitializeEventTable() {
   NS_ASSERTION(!sAtomEventTable, "EventTable already initialized!");
   NS_ASSERTION(!sStringEventTable, "EventTable already initialized!");
@@ -5857,14 +5867,17 @@ uint32_t computeSanitizationFlags(nsIPrincipal* aPrincipal, int32_t aFlags) {
 void nsContentUtils::SetHTMLUnsafe(FragmentOrElement* aTarget,
                                    Element* aContext,
                                    const TrustedHTMLOrString& aSource,
-                                   bool aIsShadowRoot, ErrorResult& aError) {
+                                   bool aIsShadowRoot,
+                                   nsIPrincipal* aSubjectPrincipal,
+                                   ErrorResult& aError) {
   constexpr nsLiteralString elementSink = u"Element setHTMLUnsafe"_ns;
   constexpr nsLiteralString shadowRootSink = u"ShadowRoot setHTMLUnsafe"_ns;
   Maybe<nsAutoString> compliantStringHolder;
   const nsAString* compliantString =
       TrustedTypeUtils::GetTrustedTypesCompliantString(
           aSource, aIsShadowRoot ? shadowRootSink : elementSink,
-          kTrustedTypesOnlySinkGroup, *aContext, compliantStringHolder, aError);
+          kTrustedTypesOnlySinkGroup, *aContext, aSubjectPrincipal,
+          compliantStringHolder, aError);
   if (aError.Failed()) {
     return;
   }
@@ -9795,7 +9808,7 @@ static CheckedInt<uint32_t> ExtraSpaceNeededForAttrEncoding(
     switch (*c) {
       case '"':
       case '&':
-      case 0x00A0: // NO-BREAK SPACE
+      case 0x00A0:  // NO-BREAK SPACE
       case '<':
       case '>':
         ++numEncodedChars;
@@ -9816,7 +9829,8 @@ static CheckedInt<uint32_t> ExtraSpaceNeededForAttrEncoding(
   // & in it. We subtract 1 for the null terminator, then 1 more for the
   // existing character that will be replaced.
   constexpr uint32_t maxCharExtraSpace =
-      std::max({std::size("&quot;"), std::size("&amp;"), std::size("&nbsp;"), std::size("&lt;"), std::size("&gt;")}) -
+      std::max({std::size("&quot;"), std::size("&amp;"), std::size("&nbsp;"),
+                std::size("&lt;"), std::size("&gt;")}) -
       2;
   static_assert(maxCharExtraSpace < 100, "Possible underflow");
   return CheckedInt<uint32_t>(numEncodedChars) * maxCharExtraSpace;
@@ -10746,12 +10760,12 @@ nsContentUtils::ExtractFormAssociatedCustomElementValue(
       for (auto i = 0ul; i < array.Length(); ++i) {
         const auto& item = array.ElementAt(i);
         switch (item.value().type()) {
-          case FormDataValue::TnsString:
+          case IPCFormDataValue::TnsString:
             formData->AddNameValuePair(item.name(),
                                        item.value().get_nsString());
             break;
 
-          case FormDataValue::TBlobImpl: {
+          case IPCFormDataValue::TBlobImpl: {
             auto blobImpl = item.value().get_BlobImpl();
             auto* blob = Blob::Create(aGlobal, blobImpl);
             formData->AddNameBlobPair(item.name(), blob);
@@ -10830,7 +10844,7 @@ void nsContentUtils::AppendNativeAnonymousChildren(const nsIContent* aContent,
     // View transition pseudos.
     if (aContent->IsRootElement()) {
       if (auto* vt = aContent->OwnerDoc()->GetActiveViewTransition()) {
-        if (auto* root = vt->GetRoot()) {
+        if (auto* root = vt->GetSnapshotContainingBlock()) {
           aKids.AppendElement(root);
         }
       }

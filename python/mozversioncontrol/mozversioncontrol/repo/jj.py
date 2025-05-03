@@ -86,9 +86,12 @@ class JujutsuRepository(Repository):
         # This is not really a defined concept in jj. Map it to @, or rather the
         # persistent change id for the current @. Warning: this cannot be passed
         # directly to a git command, it must be converted to a commit id first
-        # (eg via convert_change_to_commit). This isn't done here because
+        # (eg via resolve_to_commit). This isn't done here because
         # callers should be aware when they're dropping down to git semantics.
         return self.resolve_to_change("@")
+
+    def is_cinnabar_repo(self) -> bool:
+        return self._git.is_cinnabar_repo()
 
     @property
     def base_ref(self):
@@ -102,11 +105,10 @@ class JujutsuRepository(Repository):
         return commit
 
     def base_ref_as_hg(self):
-        base_ref = self.resolve_to_commit(self.base_ref)
-        try:
-            return self._git._run("cinnabar", "git2hg", base_ref).strip()
-        except subprocess.CalledProcessError:
-            return
+        return self._git.base_ref_as_hg()
+
+    def base_ref_as_commit(self):
+        return self.resolve_to_commit(self.base_ref)
 
     @property
     def branch(self):
@@ -299,21 +301,28 @@ class JujutsuRepository(Repository):
     def set_config(self, name, value):
         self._run_read_only("config", name, value)
 
-    def get_branch_nodes(self, head: Optional[str] = "@") -> List[str]:
+    def get_branch_nodes(
+        self,
+        head: Optional[str] = "@",
+        limit: Optional[int] = None,
+        follow: Optional[List[str]] = None,
+    ) -> List[str]:
         """Return a list of commit SHAs for nodes on the current branch, in order that they should be applied."""
         # Note: lando gets grumpy if you try to push empty commits.
-        return list(
-            reversed(
-                self._run_read_only(
-                    "log",
-                    "--no-graph",
-                    "-r",
-                    f"(::{head} & mutable()) ~ empty()",
-                    "-T",
-                    'commit_id ++ "\n"',
-                ).splitlines()
-            )
-        )
+        cmd = [
+            "log",
+            "--no-graph",
+            "-r",
+            f"(::{head} & mutable()) ~ empty()",
+            "-T",
+            'commit_id ++ "\n"',
+        ]
+        if limit is not None:
+            cmd.append(f"-n{limit}")
+        if follow is not None:
+            cmd.extend(follow)
+
+        return list(reversed(self._run_read_only(*cmd).splitlines()))
 
     def looks_like_change_id(self, id):
         return len(id) > 0 and all(letter >= "k" and letter <= "z" for letter in id)

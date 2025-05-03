@@ -15,10 +15,13 @@ add_setup(function () {
 add_task(async function test_getExperimentMetaData() {
   const { sandbox, manager, cleanup } = await NimbusTestUtils.setupTest();
 
-  const expected = ExperimentFakes.experiment("foo");
+  const expected = NimbusTestUtils.factories.recipe.withFeatureConfig("foo", {
+    featureId: "testFeature",
+  });
+
   let exposureStub = sandbox.stub(NimbusTelemetry, "recordExposure");
 
-  manager.store.addEnrollment(expected);
+  await manager.enroll(expected, "test");
 
   let metadata = ExperimentAPI.getExperimentMetaData({ slug: expected.slug });
 
@@ -29,7 +32,7 @@ add_task(async function test_getExperimentMetaData() {
   );
   Assert.equal(
     metadata.branch.slug,
-    expected.branch.slug,
+    expected.branches[0].slug,
     "Should have the slug prop"
   );
 
@@ -42,10 +45,11 @@ add_task(async function test_getExperimentMetaData() {
 add_task(async function test_getRolloutMetaData() {
   const { sandbox, manager, cleanup } = await NimbusTestUtils.setupTest();
 
-  const expected = ExperimentFakes.rollout("foo");
+  const expected = NimbusTestUtils.factories.recipe("foo", { isRollout: true });
+
   let exposureStub = sandbox.stub(NimbusTelemetry, "recordExposure");
 
-  manager.store.addEnrollment(expected);
+  await manager.enroll(expected, "test");
 
   let metadata = ExperimentAPI.getExperimentMetaData({ slug: expected.slug });
 
@@ -56,7 +60,7 @@ add_task(async function test_getRolloutMetaData() {
   );
   Assert.equal(
     metadata.branch.slug,
-    expected.branch.slug,
+    expected.branches[0].slug,
     "Should have the slug prop"
   );
 
@@ -100,7 +104,7 @@ add_task(async function test_getExperimentMetaData_safe() {
  */
 add_task(async function test_getRecipe() {
   const { sandbox, cleanup } = await NimbusTestUtils.setupTest();
-  const RECIPE = ExperimentFakes.recipe("foo");
+  const RECIPE = NimbusTestUtils.factories.recipe("foo");
   const collectionName = Services.prefs.getStringPref(COLLECTION_ID_PREF);
   sandbox.stub(ExperimentAPI._remoteSettingsClient, "get").resolves([RECIPE]);
 
@@ -134,7 +138,7 @@ add_task(async function test_getRecipe_Failure() {
  */
 add_task(async function test_getAllBranches() {
   const { sandbox, cleanup } = await NimbusTestUtils.setupTest();
-  const RECIPE = ExperimentFakes.recipe("foo");
+  const RECIPE = NimbusTestUtils.factories.recipe("foo");
   sandbox.stub(ExperimentAPI._remoteSettingsClient, "get").resolves([RECIPE]);
 
   const branches = await ExperimentAPI.getAllBranches("foo");
@@ -151,7 +155,7 @@ add_task(async function test_getAllBranches() {
 add_task(async function test_getAllBranches_featureIdAccessor() {
   const { sandbox, cleanup } = await NimbusTestUtils.setupTest();
 
-  const RECIPE = ExperimentFakes.recipe("foo");
+  const RECIPE = NimbusTestUtils.factories.recipe("foo");
   sandbox.stub(ExperimentAPI._remoteSettingsClient, "get").resolves([RECIPE]);
 
   const branches = await ExperimentAPI.getAllBranches("foo");
@@ -176,7 +180,7 @@ add_task(async function test_getAllBranches_featureIdAccessor() {
 add_task(async function test_getAllBranches_backwardsCompat() {
   const { sandbox, cleanup } = await NimbusTestUtils.setupTest();
 
-  const RECIPE = ExperimentFakes.recipe("foo");
+  const RECIPE = NimbusTestUtils.factories.recipe("foo");
   delete RECIPE.branches[0].features;
   delete RECIPE.branches[1].features;
   let feature = {
@@ -225,7 +229,7 @@ add_task(async function test_addEnrollment_eventEmit_add() {
   const store = manager.store;
 
   const featureStub = sandbox.stub();
-  const experiment = ExperimentFakes.experiment("foo", {
+  const experiment = NimbusTestUtils.factories.experiment("foo", {
     branch: {
       slug: "variant",
       ratio: 1,
@@ -258,7 +262,7 @@ add_task(async function test_updateExperiment_eventEmit_add_and_update() {
   const store = manager.store;
 
   const featureStub = sandbox.stub();
-  const experiment = ExperimentFakes.experiment("foo", {
+  const experiment = NimbusTestUtils.factories.experiment("foo", {
     branch: {
       slug: "variant",
       ratio: 1,
@@ -293,7 +297,7 @@ add_task(async function test_updateExperiment_eventEmit_off() {
   const store = manager.store;
 
   const featureStub = sandbox.stub();
-  const experiment = ExperimentFakes.experiment("foo", {
+  const experiment = NimbusTestUtils.factories.experiment("foo", {
     branch: {
       slug: "variant",
       ratio: 1,
@@ -319,7 +323,7 @@ add_task(async function test_getActiveBranch() {
   const { manager, cleanup } = await NimbusTestUtils.setupTest();
   const store = manager.store;
 
-  const experiment = ExperimentFakes.experiment("foo", {
+  const experiment = NimbusTestUtils.factories.experiment("foo", {
     branch: {
       slug: "variant",
       ratio: 1,
@@ -361,7 +365,7 @@ add_task(async function test_getActiveBranch_storeFailure() {
   const { sandbox, manager, cleanup } = await NimbusTestUtils.setupTest();
   const store = manager.store;
 
-  const experiment = ExperimentFakes.experiment("foo", {
+  const experiment = NimbusTestUtils.factories.experiment("foo", {
     branch: {
       slug: "variant",
       ratio: 1,
@@ -390,7 +394,7 @@ add_task(async function test_getActiveBranch_noActivationEvent() {
   const { sandbox, manager, cleanup } = await NimbusTestUtils.setupTest();
   const store = manager.store;
 
-  const experiment = ExperimentFakes.experiment("foo", {
+  const experiment = NimbusTestUtils.factories.experiment("foo", {
     branch: {
       slug: "variant",
       ratio: 1,
@@ -786,6 +790,11 @@ add_task(async function testCoenrollingTraditionalApis() {
     /Co-enrolling features must provide slug/
   );
 
+  Assert.throws(
+    () => NimbusFeatures.foo.getEnrollmentMetadata(),
+    /Co-enrolling features must use the getAllEnrollments or getAllEnrollmentMetadata APIs/
+  );
+
   NimbusFeatures.foo.recordExposureEvent({ slug: "experiment-1" });
   NimbusFeatures.foo.recordExposureEvent({ slug: "rollout-2" });
 
@@ -811,5 +820,161 @@ add_task(async function testCoenrollingTraditionalApis() {
   );
 
   cleanupFeature();
+  cleanup();
+});
+
+add_task(async function testGetEnrollmentMetadata() {
+  const feature = new ExperimentFeature("test-feature", {
+    variables: {},
+  });
+  const featureId = feature.featureId;
+  const cleanupFeature = NimbusTestUtils.addTestFeatures(feature);
+
+  const { manager, cleanup } = await NimbusTestUtils.setupTest();
+
+  const experimentMeta = {
+    slug: "experiment-slug",
+    branch: "treatment",
+    isRollout: false,
+  };
+
+  const rolloutMeta = {
+    slug: "rollout-slug",
+    branch: "control",
+    isRollout: true,
+  };
+
+  // There are no active enrollments.
+  Assert.equal(
+    NimbusFeatures[featureId].getEnrollmentMetadata("experiment"),
+    null
+  );
+  Assert.equal(
+    NimbusFeatures[featureId].getEnrollmentMetadata("rollout"),
+    null
+  );
+  Assert.equal(NimbusFeatures[featureId].getEnrollmentMetadata(), null);
+
+  await manager.enroll(
+    NimbusTestUtils.factories.recipe.withFeatureConfig(
+      "rollout-slug",
+      { featureId },
+      { isRollout: true }
+    )
+  );
+
+  // Thre are no active experiments, but there is an active rollout.
+  Assert.equal(
+    NimbusFeatures[featureId].getEnrollmentMetadata("experiment"),
+    null
+  );
+  Assert.deepEqual(
+    NimbusFeatures[featureId].getEnrollmentMetadata("rollout"),
+    rolloutMeta
+  );
+  Assert.deepEqual(
+    NimbusFeatures[featureId].getEnrollmentMetadata(),
+    rolloutMeta
+  );
+
+  await manager.enroll(
+    NimbusTestUtils.factories.recipe.withFeatureConfig("experiment-slug", {
+      featureId,
+      branchSlug: "treatment",
+    })
+  );
+
+  // There is an active experiment and rollout, so we should get the experiment metadata by default.
+  Assert.deepEqual(
+    NimbusFeatures[featureId].getEnrollmentMetadata("experiment"),
+    experimentMeta
+  );
+  Assert.deepEqual(
+    NimbusFeatures[featureId].getEnrollmentMetadata("rollout"),
+    rolloutMeta
+  );
+  Assert.deepEqual(
+    NimbusFeatures[featureId].getEnrollmentMetadata(),
+    experimentMeta
+  );
+
+  manager.unenroll("rollout-slug");
+
+  // There is only an active experiment.
+  Assert.deepEqual(
+    NimbusFeatures[featureId].getEnrollmentMetadata("experiment"),
+    experimentMeta
+  );
+  Assert.equal(
+    NimbusFeatures[featureId].getEnrollmentMetadata("rollout"),
+    null
+  );
+  Assert.deepEqual(
+    NimbusFeatures[featureId].getEnrollmentMetadata(),
+    experimentMeta
+  );
+
+  manager.unenroll("experiment-slug");
+
+  // There are no active enrollments.
+  Assert.equal(
+    NimbusFeatures[featureId].getEnrollmentMetadata("experiment"),
+    null
+  );
+  Assert.equal(
+    NimbusFeatures[featureId].getEnrollmentMetadata("rollout"),
+    null
+  );
+  Assert.equal(NimbusFeatures[featureId].getEnrollmentMetadata(), null);
+
+  cleanup();
+  cleanupFeature();
+});
+
+add_task(async function testGetEnrollmentMetadataSafe() {
+  const { sandbox, manager, cleanup } = await NimbusTestUtils.setupTest();
+
+  sandbox.stub(NimbusTelemetry, "recordExposure");
+  sandbox.stub(manager.store, "getExperimentForFeature").throws();
+  sandbox.stub(manager.store, "getRolloutForFeature").throws();
+
+  Assert.equal(
+    NimbusFeatures.testFeature.getEnrollmentMetadata(),
+    null,
+    "Should not throw"
+  );
+  Assert.equal(
+    NimbusFeatures.testFeature.getEnrollmentMetadata("experiment"),
+    null,
+    "Should not throw"
+  );
+  Assert.equal(
+    NimbusFeatures.testFeature.getEnrollmentMetadata("rollout"),
+    null,
+    "Should not throw"
+  );
+
+  Assert.equal(
+    manager.store.getExperimentForFeature.callCount,
+    2,
+    "getExperimentForFeature called"
+  );
+  Assert.equal(
+    manager.store.getRolloutForFeature.callCount,
+    1,
+    "getRolloutForFeature called"
+  );
+
+  NimbusFeatures.testFeature.recordExposureEvent();
+  Assert.ok(
+    NimbusTelemetry.recordExposure.notCalled,
+    "Should not record exposure"
+  );
+  Assert.equal(
+    manager.store.getExperimentForFeature.callCount,
+    3,
+    "getExperimentForFeature called"
+  );
+
   cleanup();
 });

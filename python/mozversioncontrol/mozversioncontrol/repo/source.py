@@ -26,11 +26,17 @@ class SrcRepository(Repository):
     def head_ref(self):
         pass
 
+    def is_cinnabar_repo(self) -> bool:
+        return False
+
     @property
     def base_ref(self):
         pass
 
     def base_ref_as_hg(self):
+        pass
+
+    def base_ref_as_commit(self):
         pass
 
     @property
@@ -137,6 +143,9 @@ class SrcRepository(Repository):
 
     def set_config(self, name, value):
         pass
+
+    def get_branch_nodes(self, head=None, limit=None, follow=None):
+        return []
 
     def get_last_modified_time_for_file(self, path: Path):
         """Return last modified in VCS time for the specified file."""

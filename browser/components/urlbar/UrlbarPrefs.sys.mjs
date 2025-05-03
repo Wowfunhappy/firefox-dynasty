@@ -266,12 +266,12 @@ const PREF_URLBAR_DEFAULTS = new Map([
   // Whether the user has opted in to data collection for quick suggest.
   ["quicksuggest.dataCollection.enabled", false],
 
+  // Comma-separated list of Suggest dynamic suggestion types to enable.
+  ["quicksuggest.dynamicSuggestionTypes", ""],
+
   // Global toggle for whether the quick suggest feature is enabled, i.e.,
   // sponsored and recommended results related to the user's search string.
   ["quicksuggest.enabled", false],
-
-  // Comma-separated list of Suggest exposure suggestion types to enable.
-  ["quicksuggest.exposureSuggestionTypes", ""],
 
   // Whether non-sponsored quick suggest results are subject to impression
   // frequency caps. This pref is a fallback for the Nimbus variable
@@ -478,6 +478,12 @@ const PREF_URLBAR_DEFAULTS = new Map([
 
   // How old history results have to be to be deduplicated.
   ["deduplication.thresholdDays", 0],
+
+  // Whether semanticHistory search will be enabled.
+  ["suggest.semanticHistory", false],
+
+  // semanticHistory search query minLength threshold to be enabled.
+  ["suggest.semanticHistory.minLength", 5],
 
   // When using switch to tabs, if set to true this will move the tab into the
   // active window.
@@ -712,6 +718,10 @@ function makeResultGroups({ showSearchSuggestionsFirst }) {
           {
             availableSpan: 3,
             group: lazy.UrlbarUtils.RESULT_GROUP.INPUT_HISTORY,
+          },
+          {
+            availableSpan: 2,
+            group: lazy.UrlbarUtils.RESULT_GROUP.HISTORY_SEMANTIC,
           },
           {
             flexChildren: true,
@@ -1063,7 +1073,7 @@ class Preferences {
       }
       case "exposureResults":
       case "keywordExposureResults":
-      case "quicksuggest.exposureSuggestionTypes":
+      case "quicksuggest.dynamicSuggestionTypes":
         return new Set(
           this._readPref(pref)
             .split(",")

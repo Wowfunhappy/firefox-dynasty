@@ -322,9 +322,8 @@ pref("media.videocontrols.keyboard-tab-to-all-controls", true);
   #endif
 
   // 770 = DTLS 1.0, 771 = DTLS 1.2, 772 = DTLS 1.3
-  // TODO(bug 1952950) Re-enable this once 1952706 lands everywhere.
   pref("media.peerconnection.dtls.version.min", 771);
-  pref("media.peerconnection.dtls.version.max", 771);
+  pref("media.peerconnection.dtls.version.max", 772);
 
 #if defined(XP_MACOSX)
   pref("media.getusermedia.audio.processing.platform.enabled", true);
@@ -3752,11 +3751,15 @@ pref("toolkit.legacyUserProfileCustomizations.stylesheets", false);
   pref("datareporting.policy.dataSubmissionEnabled", true);
   pref("datareporting.policy.dataSubmissionPolicyNotifiedTime", "0");
   pref("datareporting.policy.dataSubmissionPolicyAcceptedVersion", 0);
-  pref("datareporting.policy.dataSubmissionPolicyBypassNotification", false);
   pref("datareporting.policy.currentPolicyVersion", 2);
   pref("datareporting.policy.minimumPolicyVersion", 1);
   pref("datareporting.policy.minimumPolicyVersion.channel-beta", 2);
   pref("datareporting.policy.firstRunURL", "https://www.mozilla.org/privacy/firefox/");
+  #ifdef MOZILLA_OFFICIAL
+    pref("datareporting.policy.dataSubmissionPolicyBypassNotification", false);
+  #else
+    pref("datareporting.policy.dataSubmissionPolicyBypassNotification", true);
+  #endif
 #endif
 
 #ifdef MOZ_SERVICES_HEALTHREPORT
@@ -3918,6 +3921,9 @@ pref("services.common.log.logger.tokenserverclient", "Debug");
   // Enable retrying to execute commands in the child process in case the
   // JSWindowActor gets destroyed.
   pref("remote.retry-on-abort", true);
+
+  // Enable the NavigationManager using parent process WebProgress listeners
+  pref("remote.experimental-parent-navigation.enabled", false);
 #endif
 
 // Enable the JSON View tool (an inspector for application/json documents).

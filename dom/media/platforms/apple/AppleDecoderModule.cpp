@@ -40,6 +40,7 @@ using media::MCSInfo;
 using media::MediaCodec;
 
 bool AppleDecoderModule::sIsCoreMediaAvailable = false;
+bool AppleDecoderModule::sIsCoreVideoAvailable = false;
 bool AppleDecoderModule::sIsVTAvailable = false;
 bool AppleDecoderModule::sIsVDAAvailable = false;
 
@@ -65,6 +66,7 @@ void AppleDecoderModule::Init() {
 
   //10.7.3 - > 10.7 need these (thanks jya)
   sIsCoreMediaAvailable = AppleCMLinker::Link();
+  sIsCoreVideoAvailable = AppleCVLinker::Link();
   sIsVDAAvailable = AppleVDALinker::Link();
   sIsVTAvailable = AppleVTLinker::Link();
   

@@ -47,6 +47,7 @@ EXTRA_JS_MODULES += [
     "UrlbarProviderRestrictKeywordsAutofill.sys.mjs",
     "UrlbarProviderSearchSuggestions.sys.mjs",
     "UrlbarProviderSearchTips.sys.mjs",
+    "UrlbarProviderSemanticHistorySearch.sys.mjs",
     "UrlbarProvidersManager.sys.mjs",
     "UrlbarProviderTabToSearch.sys.mjs",
     "UrlbarProviderTokenAliasEngines.sys.mjs",
@@ -65,7 +66,7 @@ EXTRA_JS_MODULES += [
 EXTRA_JS_MODULES["urlbar/private"] += [
     "private/AddonSuggestions.sys.mjs",
     "private/AmpSuggestions.sys.mjs",
-    "private/ExposureSuggestions.sys.mjs",
+    "private/DynamicSuggestions.sys.mjs",
     "private/FakespotSuggestions.sys.mjs",
     "private/GeolocationUtils.sys.mjs",
     "private/ImpressionCaps.sys.mjs",
