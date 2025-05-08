@@ -42,7 +42,6 @@ ChromeUtils.defineESModuleGetters(lazy, {
   TelemetryEnvironment: "resource://gre/modules/TelemetryEnvironment.sys.mjs",
   TelemetryEventPing: "resource://gre/modules/EventPing.sys.mjs",
   TelemetryHealthPing: "resource://gre/modules/HealthPing.sys.mjs",
-  TelemetryModules: "resource://gre/modules/ModulesPing.sys.mjs",
   TelemetryReportingPolicy:
     "resource://gre/modules/TelemetryReportingPolicy.sys.mjs",
   TelemetrySend: "resource://gre/modules/TelemetrySend.sys.mjs",
@@ -818,11 +817,8 @@ var Impl = {
           lazy.TelemetryStorage.removeFHRDatabase();
 
           // The init sequence is forced to run on shutdown for short sessions and
-          // we don't want to start TelemetryModules as the timer registration will fail.
+          // we don't want to start everything.
           if (!this._shuttingDown) {
-            // Report the modules loaded in the Firefox process.
-            lazy.TelemetryModules.start();
-
             // Send coverage ping.
             await lazy.CoveragePing.startup();
 
@@ -1029,7 +1025,7 @@ var Impl = {
       let p = (async () => {
         await lazy.ClientID.resetIdentifiers();
         // For the time being this is tied to the telemetry upload preference.
-        await lazy.ClientID.resetUsageProfileIdentifier();
+        await lazy.ClientID.resetUsageProfileIdentifiers();
         this._clientID = await lazy.ClientID.getClientID();
         this._profileGroupID = await lazy.ClientID.getProfileGroupID();
         Glean.telemetry.dataUploadOptin.set(true);

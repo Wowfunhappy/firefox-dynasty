@@ -34,6 +34,13 @@
 #endif
 #include <sys/ioctl.h>
 
+// DMABufLibWrapper defines its own version of this which collides with the
+// official version in drm_fourcc.h
+#ifdef DRM_FORMAT_MOD_INVALID
+#  undef DRM_FORMAT_MOD_INVALID
+#endif
+#include <libdrm/drm_fourcc.h>
+
 #include "mozilla/widget/va_drmcommon.h"
 #include "mozilla/gfx/2D.h"
 #include "mozilla/gfx/FileHandleWrapper.h"
@@ -333,7 +340,7 @@ void DMABufSurface::GlobalRefCountDelete() {
 
 void DMABufSurface::ReleaseDMABuf() {
   LOGDMABUF("DMABufSurface::ReleaseDMABuf() UID %d", mUID);
-#ifdef DEBUG
+#ifdef MOZ_LOGGING
   for (int i = 0; i < mBufferPlaneCount; i++) {
     Unmap(i);
   }
@@ -357,7 +364,7 @@ DMABufSurface::DMABufSurface(SurfaceType aSurfaceType)
       mOffsets(),
       mGbmBufferObject(),
       mGbmBufferFlags(0),
-#ifdef DEBUG
+#ifdef MOZ_LOGGING
       mMappedRegion(),
       mMappedRegionStride(),
 #endif
@@ -1171,7 +1178,7 @@ wl_buffer* DMABufSurfaceRGBA::CreateWlBuffer() {
 }
 #endif
 
-#ifdef DEBUG
+#ifdef MOZ_LOGGING
 // We should synchronize DMA Buffer object access from CPU to avoid potential
 // cache incoherency and data loss.
 // See
@@ -1265,7 +1272,7 @@ void DMABufSurface::Unmap(int aPlane) {
     mMappedRegionStride[aPlane] = 0;
   }
 }
-#endif  // DEBUG
+#endif  // MOZ_LOGGING
 
 nsresult DMABufSurface::BuildSurfaceDescriptorBuffer(
     SurfaceDescriptorBuffer& aSdBuffer, Image::BuildSdbFlags aFlags,
@@ -1273,7 +1280,7 @@ nsresult DMABufSurface::BuildSurfaceDescriptorBuffer(
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 
-#ifdef DEBUG
+#ifdef MOZ_LOGGING
 void DMABufSurfaceRGBA::DumpToFile(const char* pFile) {
   uint32_t stride;
 
@@ -1317,6 +1324,20 @@ void DMABufSurfaceRGBA::Clear() {
   uint32_t destStride;
   void* destData = Map(&destStride);
   memset(destData, 0, GetHeight() * destStride);
+  Unmap();
+}
+#endif
+
+#ifdef MOZ_LOGGING
+void DMABufSurfaceRGBA::Clear(unsigned int aValue) {
+  uint32_t destStride;
+  void* destData = Map(&destStride);
+
+  unsigned int* data = (unsigned int*)destData;
+  for (unsigned int i = 0; i < (GetHeight() * destStride) >> 2; i++) {
+    *data++ = aValue;
+  }
+
   Unmap();
 }
 #endif
@@ -2014,9 +2035,10 @@ gfx::SurfaceFormat DMABufSurfaceYUV::GetFormat() {
     case VA_FOURCC_NV12:
       return gfx::SurfaceFormat::NV12;
     case VA_FOURCC_YV12:
+    case VA_FOURCC_I420:
       return gfx::SurfaceFormat::YUV420;
     default:
-      gfxCriticalNoteOnce << "DMABufSurfaceYUV::GetFormat() unknow format: "
+      gfxCriticalNoteOnce << "DMABufSurfaceYUV::GetFormat() unknown format: "
                           << mFOURCCFormat;
       return gfx::SurfaceFormat::UNKNOWN;
   }
@@ -2139,11 +2161,18 @@ wl_buffer* DMABufSurfaceYUV::CreateWlBuffer() {
         mBufferModifiers[i] >> 32, mBufferModifiers[i] & 0xffffffff);
   }
 
+  // The format passed to wayland needs to be a DRM_FORMAT_* enum.  These are
+  // largely the same as VA_FOURCC_* values except for I420/YUV420
+  uint32_t format = GetFOURCCFormat();
+  if (format == VA_FOURCC_I420) {
+    format = DRM_FORMAT_YUV420;
+  }
+
   LOGDMABUF(
       "  zwp_linux_buffer_params_v1_create_immed() [%d x %d], fourcc [%x]",
-      GetWidth(), GetHeight(), GetFOURCCFormat());
+      GetWidth(), GetHeight(), format);
   wl_buffer* buffer = zwp_linux_buffer_params_v1_create_immed(
-      params, GetWidth(), GetHeight(), GetFOURCCFormat(), 0);
+      params, GetWidth(), GetHeight(), format, 0);
   if (!buffer) {
     LOGDMABUF(
         "  zwp_linux_buffer_params_v1_create_immed(): failed to create "

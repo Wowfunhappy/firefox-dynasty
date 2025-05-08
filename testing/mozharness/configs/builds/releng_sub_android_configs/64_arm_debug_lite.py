@@ -4,6 +4,7 @@
 
 config = {
     "stage_platform": "android-arm-lite-debug",
-    "src_mozconfig": "mobile/android/config/mozconfigs/android-arm/debug-lite",
+    "mozconfig_platform": "android-arm",
+    "extra_mozconfig_content": ["ac_add_options --enable-geckoview-lite"],
     "debug_build": True,
 }

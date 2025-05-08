@@ -76,8 +76,8 @@ data class DownloadUIState(
     private val itemsToDisplay: List<DownloadListItem> = itemsMatchingFilters
         .groupBy { it.createdTime }
         .toSortedMap()
-        .flatMap { (key, value) ->
-            listOf(HeaderItem(key)) + value
+        .flatMap { (createdTime, fileItems) ->
+            listOf(HeaderItem(createdTime)) + fileItems
         }
 
     /**
@@ -111,6 +111,9 @@ data class DownloadUIState(
     val isSearchIconVisible: Boolean
         get() = isSearchEnabled && itemsNotPendingDeletion.isNotEmpty() && !isSearchFieldVisible &&
             mode is Mode.Normal
+
+    val isBackHandlerEnabled: Boolean
+        get() = isSearchFieldRequested || mode is Mode.Editing
 
     /**
      * @see [DownloadUIState].

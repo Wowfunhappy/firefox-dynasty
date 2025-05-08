@@ -10,12 +10,12 @@ ChromeUtils.defineESModuleGetters(this, {
   CFRMessageProvider: "resource:///modules/asrouter/CFRMessageProvider.sys.mjs",
   ClientID: "resource://gre/modules/ClientID.sys.mjs",
   ExperimentAPI: "resource://nimbus/ExperimentAPI.sys.mjs",
-  ExperimentFakes: "resource://testing-common/NimbusTestUtils.sys.mjs",
   FxAccounts: "resource://gre/modules/FxAccounts.sys.mjs",
   HomePage: "resource:///modules/HomePage.sys.mjs",
   InfoBar: "resource:///modules/asrouter/InfoBar.sys.mjs",
   NewTabUtils: "resource://gre/modules/NewTabUtils.sys.mjs",
   NimbusFeatures: "resource://nimbus/ExperimentAPI.sys.mjs",
+  NimbusTestUtils: "resource://testing-common/NimbusTestUtils.sys.mjs",
   PlacesTestUtils: "resource://testing-common/PlacesTestUtils.sys.mjs",
   ProfileAge: "resource://gre/modules/ProfileAge.sys.mjs",
   QueryCache: "resource:///modules/asrouter/ASRouterTargeting.sys.mjs",
@@ -2029,5 +2029,24 @@ add_task(async function check_profileGroupIdTargeting() {
     await ASRouterTargeting.findMatchingMessage({ messages: [message] }),
     message,
     "should select correct item by profile group id"
+  );
+});
+
+add_task(async function test_buildId() {
+  is(
+    typeof ASRouterTargeting.Environment.buildId,
+    "number",
+    "Should return a number"
+  );
+
+  const message = {
+    id: "foo",
+    // Later than January 2025
+    targeting: `buildId >= 20251010000`,
+  };
+  is(
+    await ASRouterTargeting.findMatchingMessage({ messages: [message] }),
+    message,
+    "should select correct item when filtering by build ID"
   );
 });

@@ -23,10 +23,13 @@ exclude: true
   `ACTION_CRASHED` intents to avoid confusion with "process type" terminology in crash handling
   code. The `CRASHED_PROCESS_TYPE_*` constants are deprecated (to be removed in v142) and equivalent
   `CRASHED_PROCESS_VISIBILITY_*` constants have been added. ([bug 1959799]({{bugzilla}}1959799)
+- Added `setEnhancedTrackingProtectionCategory` to [`ContentBlocking.Settings`][139.4].
+  ([bug 1956620]({{bugzilla}}1956620))
 
 [139.1]: {{javadoc_uri}}/CompositorController.html#onPipModeChanged
 [139.2]: {{javadoc_uri}}/GeckoRuntimeSettings.html#getLowMemoryDetection
 [139.3]: {{javadoc_uri}}/GeckoRuntimeSettings.Builder.html#lowMemoryDetection
+[139.4]: {{javadoc_uri}}/ContentBlocking.html
 
 ## v138
 - Added [`GeckoSession.Loader.originalInput`][138.1] option, which allows passing through the original user address bar input
@@ -1714,4 +1717,4 @@ to allow adding gecko profiler markers.
 [65.24]: {{javadoc_uri}}/CrashReporter.html#sendCrashReport(android.content.Context,android.os.Bundle,java.lang.String)
 [65.25]: {{javadoc_uri}}/GeckoResult.html
 
-[api-version]: af2315bcd2dc1a42a64c5370d5e2dbedffc8f931
+[api-version]: 8049c9a609fef2413d0d58ea344528f7c515570d

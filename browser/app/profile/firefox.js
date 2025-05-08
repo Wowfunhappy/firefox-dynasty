@@ -452,6 +452,11 @@ pref("browser.urlbar.scotchBonnet.enableOverride", true);
 pref("browser.urlbar.scotchBonnet.enableOverride", false);
 #endif
 
+// Once Perplexity has entered search mode at least once,
+// we no longer show the Perplexity onboarding callout.
+// This pref will be set to true when perplexity search mode is detected.
+pref("browser.urlbar.perplexity.hasBeenInSearchMode", false);
+
 // Whether or not Unified Search Button is shown always.
 pref("browser.urlbar.unifiedSearchButton.always", false);
 
@@ -881,9 +886,6 @@ pref("browser.shopping.experience2023.showKeepSidebarClosedMessage", true);
 // `enabled` pref should be opposite of this to disable
 // the custom shopping sidebar.
 pref("browser.shopping.experience2023.integratedSidebar", false);
-
-// Adds the Review Checker tool to the sidebar if the integratedSidebar pref is enabled.
-pref("sidebar.newTool.migration.reviewchecker", '{"visibilityPref": "browser.shopping.experience2023.integratedSidebar"}');
 
 // If true, users have already seen a card in the Review Checker sidebar panel
 // notifying users of the feature's new location and asking if they want to

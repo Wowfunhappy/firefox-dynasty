@@ -1410,7 +1410,7 @@
   <!-- Content description for the toolbar "Navigate back" button -->
   <string name="download_navigate_back_description">പുറകോട്ട് ചെല്ലുക</string>
   <!-- Content description for the toolbar "Navigate up" button -->
-  <string name="download_navigate_up_description">മുകളിലേക്ക്  ചെല്ലുക</string>
+  <string name="download_navigate_up_description" moz:removedIn="139" tools:ignore="UnusedResources">മുകളിലേക്ക്  ചെല്ലുക</string>
   <!-- Text for the button to share the download URL -->
   <string name="download_share_url">കണ്ണി പങ്കിടുക</string>
   <!-- Text for the button to share the download file -->
@@ -3379,9 +3379,9 @@
   <!-- Title text instructing the user to unlock private tabs -->
   <string name="pbm_authentication_unlock_private_tabs">സ്വകാര്യ ടാബുകളിലുള്ള പൂട്ടുതുറക്കുക</string>
   <!-- Title text for the contextual feature recommendation (CFR) suggesting the user enable a screen lock to protect private tabs -->
-  <string name="private_tab_cfr_title" tools:ignore="UnusedResources">സ്വകാര്യ ടാബുകൾ മറയ്ക്കാൻ പ്രതലപ്പൂട്ടുപയോഗിക്കണോ?</string>
+  <string name="private_tab_cfr_title">സ്വകാര്യ ടാബുകൾ മറയ്ക്കാൻ പ്രതലപ്പൂട്ടുപയോഗിക്കണോ?</string>
   <!-- Negative button text for the contextual feature recommendation (CFR) dismissing the screen lock suggestion -->
-  <string name="private_tab_cfr_negative" tools:ignore="UnusedResources">വേണ്ട, നന്ദി</string>
+  <string name="private_tab_cfr_negative">വേണ്ട, നന്ദി</string>
   <!-- Positive button text for the contextual feature recommendation (CFR) enabling screen lock for private tabs -->
-  <string name="private_tab_cfr_positive" tools:ignore="UnusedResources">ടാബുകൾ പൂട്ടുക</string>
+  <string name="private_tab_cfr_positive">ടാബുകൾ പൂട്ടുക</string>
 </resources>

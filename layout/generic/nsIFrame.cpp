@@ -40,6 +40,7 @@
 #include "mozilla/ResultExtensions.h"
 #include "mozilla/ScrollContainerFrame.h"
 #include "mozilla/SelectionMovementUtils.h"
+#include "mozilla/ServoStyleConsts.h"
 #include "mozilla/Sprintf.h"
 #include "mozilla/StaticAnalysisFunctions.h"
 #include "mozilla/StaticPrefs_layout.h"
@@ -795,6 +796,23 @@ void nsIFrame::HandlePrimaryFrameStyleChange(ComputedStyle* aOldStyle) {
     }
   }
 
+  bool handleAnchorPosAnchorNameChange =
+      oldDisp ? oldDisp->mAnchorName != disp->mAnchorName
+              : disp->HasAnchorName();
+  if (handleAnchorPosAnchorNameChange &&
+      !HasAnyStateBits(NS_FRAME_IS_NONDISPLAY)) {
+    // TODO: Add invalidation.
+    // TODO: Only remove/add the necessary names below.
+    if (oldDisp && oldDisp->HasAnchorName()) {
+      for (auto& name : oldDisp->mAnchorName.AsSpan()) {
+        PresShell()->RemoveAnchorPosAnchor(name.AsAtom(), this);
+      }
+    }
+    for (auto& name : disp->mAnchorName.AsSpan()) {
+      PresShell()->AddAnchorPosAnchor(name.AsAtom(), this);
+    }
+  }
+
   const auto cv = disp->ContentVisibility(*this);
   if (!oldDisp || oldDisp->ContentVisibility(*this) != cv) {
     if (cv == StyleContentVisibility::Auto) {
@@ -869,6 +887,12 @@ void nsIFrame::Destroy(DestroyContext& aContext) {
     // AnimationsWithDestroyedFrame only lives during the restyling process.
     if (adf) {
       adf->Put(mContent, mComputedStyle);
+    }
+  }
+
+  if (HasAnchorPosName()) {
+    for (auto& name : disp->mAnchorName.AsSpan()) {
+      PresShell()->RemoveAnchorPosAnchor(name.AsAtom(), this);
     }
   }
 
@@ -3638,9 +3662,14 @@ void nsIFrame::BuildDisplayListForStackingContext(
     createdContainer = true;
   }
 
+  // Root gets handled in
+  // ScrollContainerFrame::MaybeCreateTopLayerAndWrapRootItems.
+  const bool capturedByViewTransition =
+      HasAnyStateBits(NS_FRAME_CAPTURED_IN_VIEW_TRANSITION) &&
+      !style.IsRootElementStyle();
+
   // FIXME: Ensure this is the right place to do this.
-  if (HasAnyStateBits(NS_FRAME_CAPTURED_IN_VIEW_TRANSITION) &&
-      StaticPrefs::dom_viewTransitions_live_capture()) {
+  if (capturedByViewTransition) {
     resultList.AppendNewToTop<nsDisplayViewTransitionCapture>(
         aBuilder, this, &resultList, containerItemASR, /* aIsRoot = */ false);
     createdContainer = true;
@@ -6495,7 +6524,8 @@ nsIFrame::SizeComputationResult nsIFrame::ComputeSize(
           aCBSize.BSize(aWM), aMargin.BSize(aWM), aBorderPadding.BSize(aWM),
           stylePos->mBoxSizing);
       // Note(dshin): This allocates.
-      return AnchorResolvedSizeHelper::LengthPercentage(LengthPercentage::FromAppUnits(stretchBSize));
+      return AnchorResolvedSizeHelper::LengthPercentage(
+          LengthPercentage::FromAppUnits(stretchBSize));
     }
     return styleBSizeConsideringOverrides;
   }();
@@ -8646,6 +8676,13 @@ nsIFrame* nsIFrame::GetContainingBlock(
     f = f->GetParent();
   }
   return f;
+}
+
+nsIFrame* nsIFrame::FindAnchorPosAnchor(const nsAtom* aAnchorSpec) const {
+  if (!StyleDisplay()->IsAbsolutelyPositionedStyle()) {
+    return nullptr;
+  }
+  return PresShell()->GetAnchorPosAnchor(aAnchorSpec);
 }
 
 #ifdef DEBUG_FRAME_DUMP

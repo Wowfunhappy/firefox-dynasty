@@ -11,6 +11,7 @@ import android.content.Intent
 import android.content.res.Configuration
 import android.os.Build
 import android.os.Bundle
+import android.os.storage.StorageManager
 import android.provider.Settings
 import android.util.Log
 import android.view.Gravity
@@ -40,6 +41,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.coordinatorlayout.widget.CoordinatorLayout
 import androidx.core.content.ContextCompat.getColor
 import androidx.core.content.getSystemService
+import androidx.core.text.HtmlCompat
 import androidx.core.view.OnApplyWindowInsetsListener
 import androidx.core.view.isVisible
 import androidx.fragment.app.Fragment
@@ -128,6 +130,7 @@ import mozilla.components.feature.session.ScreenOrientationFeature
 import mozilla.components.feature.session.SessionFeature
 import mozilla.components.feature.session.SwipeRefreshFeature
 import mozilla.components.feature.sitepermissions.SitePermissionsFeature
+import mozilla.components.feature.tabs.LastTabFeature
 import mozilla.components.feature.webauthn.WebAuthnFeature
 import mozilla.components.lib.state.ext.consumeFlow
 import mozilla.components.lib.state.ext.consumeFrom
@@ -214,7 +217,6 @@ import org.mozilla.fenix.customtabs.ExternalAppBrowserActivity
 import org.mozilla.fenix.databinding.FragmentBrowserBinding
 import org.mozilla.fenix.downloads.DownloadService
 import org.mozilla.fenix.downloads.dialog.DynamicDownloadDialog
-import org.mozilla.fenix.downloads.dialog.FirstPartyDownloadDialog
 import org.mozilla.fenix.downloads.dialog.StartDownloadDialog
 import org.mozilla.fenix.downloads.dialog.ThirdPartyDownloadDialog
 import org.mozilla.fenix.ext.accessibilityManager
@@ -325,6 +327,7 @@ abstract class BaseBrowserFragment :
     internal val messagingFeatureMicrosurvey = ViewBoundFeatureWrapper<MessagingFeature>()
 
     private val sessionFeature = ViewBoundFeatureWrapper<SessionFeature>()
+    private val lastTabFeature = ViewBoundFeatureWrapper<LastTabFeature>()
     private val contextMenuFeature = ViewBoundFeatureWrapper<ContextMenuFeature>()
     private val downloadsFeature = ViewBoundFeatureWrapper<DownloadsFeature>()
     private val shareResourceFeature = ViewBoundFeatureWrapper<ShareResourceFeature>()
@@ -370,6 +373,7 @@ abstract class BaseBrowserFragment :
     private val homeViewModel: HomeScreenViewModel by activityViewModels()
 
     private var currentStartDownloadDialog: StartDownloadDialog? = null
+    private var firstPartyDownloadDialog: AlertDialog? = null
 
     private lateinit var savedLoginsLauncher: ActivityResultLauncher<Intent>
 
@@ -756,32 +760,41 @@ abstract class BaseBrowserFragment :
             },
             customFirstPartyDownloadDialog = { filename, contentSize, positiveAction, negativeAction ->
                 run {
-                    if (currentStartDownloadDialog == null) {
-                        context.components.analytics.crashReporter.recordCrashBreadcrumb(
+                    if (firstPartyDownloadDialog == null && currentStartDownloadDialog == null) {
+                        requireContext().components.analytics.crashReporter.recordCrashBreadcrumb(
                             Breadcrumb("FirstPartyDownloadDialog created"),
                         )
-                        FirstPartyDownloadDialog(
-                            activity = requireActivity(),
-                            filename = filename.value,
-                            contentSize = contentSize.value,
-                            fileSizeFormatter = requireComponents.core.fileSizeFormatter,
-                            positiveButtonAction = positiveAction.value,
-                            negativeButtonAction = negativeAction.value,
-                        ).onDismiss {
-                            context.components.analytics.crashReporter.recordCrashBreadcrumb(
-                                Breadcrumb("FirstPartyDownloadDialog onDismiss"),
+
+                        val contentSizeInBytes =
+                            requireComponents.core.fileSizeFormatter.formatSizeInBytes(contentSize.value)
+
+                        firstPartyDownloadDialog = AlertDialog.Builder(requireContext())
+                            .setTitle(
+                                getString(
+                                    R.string.mozac_feature_downloads_dialog_title_3,
+                                    contentSizeInBytes,
+                                ),
                             )
-                            currentStartDownloadDialog = null
-                        }.show(binding.startDownloadDialogContainer)
-                            .also {
-                                currentStartDownloadDialog = it
+                            .setMessage(filename.value)
+                            .setPositiveButton(R.string.mozac_feature_downloads_dialog_download) { dialog, _ ->
+                                positiveAction.value.invoke()
+                                dialog.dismiss()
                             }
+                            .setNegativeButton(R.string.mozac_feature_downloads_dialog_cancel) { dialog, _ ->
+                                negativeAction.value.invoke()
+                                dialog.dismiss()
+                            }.setOnDismissListener {
+                                firstPartyDownloadDialog = null
+                                context.components.analytics.crashReporter.recordCrashBreadcrumb(
+                                    Breadcrumb("FirstPartyDownloadDialog onDismiss"),
+                                )
+                            }.show()
                     }
                 }
             },
             customThirdPartyDownloadDialog = { downloaderApps, onAppSelected, negativeActionCallback ->
                 run {
-                    if (currentStartDownloadDialog == null) {
+                    if (firstPartyDownloadDialog == null && currentStartDownloadDialog == null) {
                         context.components.analytics.crashReporter.recordCrashBreadcrumb(
                             Breadcrumb("ThirdPartyDownloadDialog created"),
                         )
@@ -800,6 +813,30 @@ abstract class BaseBrowserFragment :
                         }
                     }
                 }
+            },
+            fileHasNotEnoughStorageDialog = { filename ->
+                AlertDialog.Builder(requireContext())
+                    .setTitle(R.string.download_file_has_not_enough_storage_dialog_title)
+                    .setMessage(
+                        HtmlCompat.fromHtml(
+                            getString(
+                                R.string.download_file_has_not_enough_storage_dialog_message,
+                                filename.value,
+                            ),
+                            HtmlCompat.FROM_HTML_MODE_COMPACT,
+                        ),
+                    )
+                    .setPositiveButton(
+                        R.string.download_file_has_not_enough_storage_dialog_confirm_button_text,
+                    ) { dialog, _ ->
+                        openManageStorageSettings()
+                        dialog.dismiss()
+                    }
+                    .setNegativeButton(
+                        R.string.download_file_has_not_enough_storage_dialog_cancel_button_text,
+                    ) { dialog, _ ->
+                        dialog.dismiss()
+                    }.show()
             },
         )
 
@@ -1051,6 +1088,17 @@ abstract class BaseBrowserFragment :
                 requireComponents.useCases.sessionUseCases.goForward,
                 binding.engineView,
                 customTabSessionId,
+            ),
+            owner = this,
+            view = view,
+        )
+
+        lastTabFeature.set(
+            feature = LastTabFeature(
+                requireComponents.core.store,
+                customTabSessionId,
+                requireComponents.useCases.tabsUseCases.removeTab,
+                requireActivity(),
             ),
             owner = this,
             view = view,
@@ -2080,10 +2128,15 @@ abstract class BaseBrowserFragment :
                     it.selectedTab
                 }
                 .collect {
-                    currentStartDownloadDialog?.dismiss()
+                    dismissDownloadDialogs()
                     handleTabSelected(it, isCustomTabSession)
                 }
         }
+    }
+
+    private fun dismissDownloadDialogs() {
+        currentStartDownloadDialog?.dismiss()
+        firstPartyDownloadDialog?.dismiss()
     }
 
     @VisibleForTesting
@@ -2181,7 +2234,7 @@ abstract class BaseBrowserFragment :
     @CallSuper
     override fun onStop() {
         super.onStop()
-        currentStartDownloadDialog?.dismiss()
+        dismissDownloadDialogs()
 
         requireComponents.core.store.state.findTabOrCustomTabOrSelectedTab(customTabSessionId)
             ?.let { session ->
@@ -2202,7 +2255,7 @@ abstract class BaseBrowserFragment :
                 true
             } ?: false ||
             sessionFeature.onBackPressed() ||
-            removeSessionIfNeeded()
+            lastTabFeature.onBackPressed()
     }
 
     @CallSuper
@@ -2279,29 +2332,6 @@ abstract class BaseBrowserFragment :
             else -> null
         }
         feature?.onPermissionsResult(permissions, grantResults)
-    }
-
-    /**
-     * Removes the session if it was opened by an ACTION_VIEW intent
-     * or if it has a parent session and no more history
-     */
-    protected open fun removeSessionIfNeeded(): Boolean {
-        getCurrentTab()?.let { session ->
-            return if (session.source is SessionState.Source.External && !session.restored) {
-                activity?.finish()
-                requireComponents.useCases.tabsUseCases.removeTab(session.id)
-                true
-            } else {
-                val hasParentSession = session is TabSessionState && session.parentId != null
-                if (hasParentSession) {
-                    requireComponents.useCases.tabsUseCases.removeTab(session.id, selectParentIfExists = true)
-                }
-                // We want to return to home if this session didn't have a parent session to select.
-                val goToOverview = !hasParentSession
-                !goToOverview
-            }
-        }
-        return false
     }
 
     protected abstract fun navToQuickSettingsSheet(
@@ -2944,5 +2974,17 @@ abstract class BaseBrowserFragment :
             } as T
 
         else -> throw IllegalArgumentException("Unknown type: ${T::class.java}")
+    }
+
+    private fun openManageStorageSettings() {
+        val intent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            Intent(StorageManager.ACTION_MANAGE_STORAGE)
+        } else {
+            Intent("android.intent.action.INTERNAL_STORAGE_SETTINGS")
+        }
+
+        if (intent.resolveActivity(requireContext().packageManager) != null) {
+            requireContext().startActivity(intent)
+        }
     }
 }

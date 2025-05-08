@@ -572,62 +572,66 @@ enum AutocompleteCategory {
 #undef AUTOCOMPLETE_CATEGORY
 };
 
-static const nsAttrValue::EnumTable kAutocompleteUnsupportedFieldNameTable[] = {
+static constexpr nsAttrValue::EnumTableEntry
+    kAutocompleteUnsupportedFieldNameTable[]{
 #define AUTOCOMPLETE_UNSUPPORTED_FIELD_NAME(name_, value_) \
   {value_, eAutocompleteUnsupportedFieldName_##name_},
 #include "AutocompleteFieldList.h"
 #undef AUTOCOMPLETE_UNSUPPORTED_FIELD_NAME
-    {nullptr, 0}};
+    };
 
-static const nsAttrValue::EnumTable kAutocompleteNoPersistFieldNameTable[] = {
+static constexpr nsAttrValue::EnumTableEntry
+    kAutocompleteNoPersistFieldNameTable[] = {
 #define AUTOCOMPLETE_NO_PERSIST_FIELD_NAME(name_, value_) \
   {value_, eAutocompleteNoPersistFieldName_##name_},
 #include "AutocompleteFieldList.h"
 #undef AUTOCOMPLETE_NO_PERSIST_FIELD_NAME
-    {nullptr, 0}};
-
-static const nsAttrValue::EnumTable
+};
+static constexpr nsAttrValue::EnumTableEntry
     kAutocompleteUnsupportedContactFieldHintTable[] = {
 #define AUTOCOMPLETE_UNSUPPORTED_FIELD_CONTACT_HINT(name_, value_) \
   {value_, eAutocompleteUnsupportedFieldContactHint_##name_},
 #include "AutocompleteFieldList.h"
 #undef AUTOCOMPLETE_UNSUPPORTED_FIELD_CONTACT_HINT
-        {nullptr, 0}};
+};
 
-static const nsAttrValue::EnumTable kAutocompleteFieldNameTable[] = {
+static constexpr nsAttrValue::EnumTableEntry kAutocompleteFieldNameTable[] = {
 #define AUTOCOMPLETE_FIELD_NAME(name_, value_) \
   {value_, eAutocompleteFieldName_##name_},
 #include "AutocompleteFieldList.h"
 #undef AUTOCOMPLETE_FIELD_NAME
-    {nullptr, 0}};
+};
 
-static const nsAttrValue::EnumTable kAutocompleteContactFieldNameTable[] = {
+static constexpr nsAttrValue::EnumTableEntry
+    kAutocompleteContactFieldNameTable[] = {
 #define AUTOCOMPLETE_CONTACT_FIELD_NAME(name_, value_) \
   {value_, eAutocompleteFieldName_##name_},
 #include "AutocompleteFieldList.h"
 #undef AUTOCOMPLETE_CONTACT_FIELD_NAME
-    {nullptr, 0}};
+};
 
-static const nsAttrValue::EnumTable kAutocompleteFieldHintTable[] = {
+static constexpr nsAttrValue::EnumTableEntry kAutocompleteFieldHintTable[] = {
 #define AUTOCOMPLETE_FIELD_HINT(name_, value_) \
   {value_, eAutocompleteFieldHint_##name_},
 #include "AutocompleteFieldList.h"
 #undef AUTOCOMPLETE_FIELD_HINT
-    {nullptr, 0}};
+};
 
-static const nsAttrValue::EnumTable kAutocompleteContactFieldHintTable[] = {
+static constexpr nsAttrValue::EnumTableEntry
+    kAutocompleteContactFieldHintTable[] = {
 #define AUTOCOMPLETE_FIELD_CONTACT_HINT(name_, value_) \
   {value_, eAutocompleteFieldContactHint_##name_},
 #include "AutocompleteFieldList.h"
 #undef AUTOCOMPLETE_FIELD_CONTACT_HINT
-    {nullptr, 0}};
+};
 
-static const nsAttrValue::EnumTable kAutocompleteCredentialTypeTable[] = {
+static constexpr nsAttrValue::EnumTableEntry
+    kAutocompleteCredentialTypeTable[] = {
 #define AUTOCOMPLETE_CREDENTIAL_TYPE(name_, value_) \
   {value_, eAutocompleteCredentialType_##name_},
 #include "AutocompleteFieldList.h"
 #undef AUTOCOMPLETE_CREDENTIAL_TYPE
-    {nullptr, 0}};
+};
 
 namespace {
 
@@ -2547,6 +2551,7 @@ bool nsContentUtils::ShouldResistFingerprinting(CallerType aCallerType,
   return ShouldResistFingerprinting(aGlobalObject, aTarget);
 }
 
+/* static */
 bool nsContentUtils::ShouldResistFingerprinting(nsIDocShell* aDocShell,
                                                 RFPTarget aTarget) {
   if (!aDocShell) {
@@ -2555,14 +2560,20 @@ bool nsContentUtils::ShouldResistFingerprinting(nsIDocShell* aDocShell,
              "with NULL docshell"));
     return ShouldResistFingerprinting("Null Object", aTarget);
   }
-  Document* doc = aDocShell->GetDocument();
-  if (!doc) {
-    MOZ_LOG(nsContentUtils::ResistFingerprintingLog(), LogLevel::Info,
-            ("Called nsContentUtils::ShouldResistFingerprinting(nsIDocShell*) "
-             "with NULL doc"));
+  return ShouldResistFingerprinting(aDocShell->GetDocument(), aTarget);
+}
+
+/* static */
+bool nsContentUtils::ShouldResistFingerprinting(const Document* aDocument,
+                                                RFPTarget aTarget) {
+  if (!aDocument) {
+    MOZ_LOG(
+        nsContentUtils::ResistFingerprintingLog(), LogLevel::Info,
+        ("Called nsContentUtils::ShouldResistFingerprinting(const Document*) "
+         "with NULL document"));
     return ShouldResistFingerprinting("Null Object", aTarget);
   }
-  return doc->ShouldResistFingerprinting(aTarget);
+  return aDocument->ShouldResistFingerprinting(aTarget);
 }
 
 /* static */
@@ -4657,25 +4668,13 @@ void nsContentUtils::AsyncPrecreateStringBundles() {
   }
 }
 
-/* static */
-bool nsContentUtils::SpoofLocaleEnglish() {
-  // 0 - will prompt
-  // 1 - don't spoof
-  // 2 - spoof
-  return StaticPrefs::privacy_spoof_english() == 2;
-}
-
-/* static */
-bool nsContentUtils::SpoofLocaleEnglish(const Document* aDocument) {
-  return SpoofLocaleEnglish() && (!aDocument || !aDocument->AllowsL10n());
-}
-
 static nsContentUtils::PropertiesFile GetMaybeSpoofedPropertiesFile(
     nsContentUtils::PropertiesFile aFile, const char* aKey,
     Document* aDocument) {
   // When we spoof English, use en-US properties in strings that are accessible
   // by content.
-  bool spoofLocale = nsContentUtils::SpoofLocaleEnglish(aDocument);
+  bool spoofLocale = nsContentUtils::ShouldResistFingerprinting(
+      aDocument, RFPTarget::JSLocale);
   if (spoofLocale) {
     switch (aFile) {
       case nsContentUtils::eFORMS_PROPERTIES:
@@ -6476,14 +6475,17 @@ nsIWidget* nsContentUtils::GetTopLevelWidget(nsIWidget* aWidget) {
 const nsDependentString nsContentUtils::GetLocalizedEllipsis() {
   static char16_t sBuf[4] = {0, 0, 0, 0};
   if (!sBuf[0]) {
-    if (!SpoofLocaleEnglish()) {
+    if (!nsContentUtils::ShouldResistFingerprinting("No context",
+                                                    RFPTarget::JSLocale)) {
       nsAutoString tmp;
       Preferences::GetLocalizedString("intl.ellipsis", tmp);
       uint32_t len =
           std::min(uint32_t(tmp.Length()), uint32_t(std::size(sBuf) - 1));
       CopyUnicodeTo(tmp, 0, sBuf, len);
     }
-    if (!sBuf[0]) sBuf[0] = char16_t(0x2026);
+    if (!sBuf[0]) {
+      sBuf[0] = char16_t(0x2026);
+    }
   }
   return nsDependentString(sBuf);
 }

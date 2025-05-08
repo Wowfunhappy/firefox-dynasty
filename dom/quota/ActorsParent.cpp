@@ -3480,16 +3480,23 @@ nsresult QuotaManager::CreateDirectoryMetadata2(
   // Reserved data 2
   QM_TRY(MOZ_TO_RESULT(stream->Write32(0)));
 
-  // Currently unused (used to be suffix).
-  QM_TRY(MOZ_TO_RESULT(stream->WriteStringZ("")));
+  // Legacy field, previously used for suffix. The value is no longer used, but
+  // we continue writing the correct suffix value to preserve compatibility
+  // with older builds that may still expect it.
+  QM_TRY(MOZ_TO_RESULT(stream->WriteStringZ(aOriginMetadata.mSuffix.get())));
 
-  // Currently unused (used to be group).
-  QM_TRY(MOZ_TO_RESULT(stream->WriteStringZ("")));
+  // Legacy field, previously used for group. The value is no longer used, but
+  // we continue writing the correct group value to preserve compatibility with
+  // older builds that may still expect it.
+  QM_TRY(MOZ_TO_RESULT(stream->WriteStringZ(aOriginMetadata.mGroup.get())));
 
   QM_TRY(MOZ_TO_RESULT(
       stream->WriteStringZ(aOriginMetadata.mStorageOrigin.get())));
 
-  // Currently used for isPrivate (used to be used for isApp).
+  // Legacy field, previously used for isPrivate (and before that, for isApp).
+  // The value is no longer used, but we continue writing the correct isPrivate
+  // value (true or false) to preserve compatibility with older builds that may
+  // still expect it.
   QM_TRY(MOZ_TO_RESULT(stream->WriteBoolean(aOriginMetadata.mIsPrivate)));
 
   QM_TRY(MOZ_TO_RESULT(stream->Flush()));
@@ -3548,21 +3555,32 @@ Result<FullOriginMetadata, nsresult> QuotaManager::LoadFullOriginMetadata(
 
   fullOriginMetadata.mPersistenceType = aPersistenceType;
 
-  QM_TRY_INSPECT(const auto& suffix, MOZ_TO_RESULT_INVOKE_MEMBER_TYPED(
-                                         nsCString, binaryStream, ReadCString));
-  Unused << suffix;
+  // Legacy field, previously used for suffix. This value is no longer used,
+  // but still read and discarded to preserve compatibility with older builds
+  // that may still expect it.
+  QM_TRY_INSPECT(
+      const auto& unusedData1,
+      MOZ_TO_RESULT_INVOKE_MEMBER_TYPED(nsCString, binaryStream, ReadCString));
+  Unused << unusedData1;
 
-  QM_TRY_INSPECT(const auto& group, MOZ_TO_RESULT_INVOKE_MEMBER_TYPED(
-                                        nsCString, binaryStream, ReadCString));
-  Unused << group;
+  // Legacy field, previously used for group. This value is no longer used, but
+  // still read and discarded to preserve compatibility with older builds that
+  // may still expect it.
+  QM_TRY_INSPECT(
+      const auto& unusedData2,
+      MOZ_TO_RESULT_INVOKE_MEMBER_TYPED(nsCString, binaryStream, ReadCString));
+  Unused << unusedData2;
 
   QM_TRY_UNWRAP(
       fullOriginMetadata.mStorageOrigin,
       MOZ_TO_RESULT_INVOKE_MEMBER_TYPED(nsCString, binaryStream, ReadCString));
 
-  // Currently used for isPrivate (used to be used for isApp).
-  QM_TRY_UNWRAP(fullOriginMetadata.mIsPrivate,
-                MOZ_TO_RESULT_INVOKE_MEMBER(binaryStream, ReadBoolean));
+  // Legacy field, previously used for isPrivate (and before that, for isApp).
+  // This value is no longer used, but still read and discarded to preserve
+  // compatibility with older builds that may still expect it.
+  QM_TRY_INSPECT(const bool& unusedData3,
+                 MOZ_TO_RESULT_INVOKE_MEMBER(binaryStream, ReadBoolean));
+  Unused << unusedData3;
 
   QM_TRY(MOZ_TO_RESULT(binaryStream->Close()));
 
@@ -3588,6 +3606,7 @@ Result<FullOriginMetadata, nsresult> QuotaManager::LoadFullOriginMetadata(
   fullOriginMetadata.mSuffix = std::move(principalMetadata.mSuffix);
   fullOriginMetadata.mGroup = std::move(principalMetadata.mGroup);
   fullOriginMetadata.mOrigin = std::move(principalMetadata.mOrigin);
+  fullOriginMetadata.mIsPrivate = principalMetadata.mIsPrivate;
 
   QM_TRY_INSPECT(const bool& groupUpdated,
                  MaybeUpdateGroupForOrigin(fullOriginMetadata));
@@ -8214,9 +8233,6 @@ nsresult StorageOperationBase::CreateDirectoryMetadata2(
     const OriginMetadata& aOriginMetadata) {
   AssertIsOnIOThread();
 
-  QM_TRY(ArtificialFailure(
-      nsIQuotaArtificialFailure::CATEGORY_CREATE_DIRECTORY_METADATA2));
-
   QM_TRY_INSPECT(const auto& file, MOZ_TO_RESULT_INVOKE_MEMBER_TYPED(
                                        nsCOMPtr<nsIFile>, aDirectory, Clone));
 
@@ -8237,17 +8253,17 @@ nsresult StorageOperationBase::CreateDirectoryMetadata2(
   // Reserved data 2
   QM_TRY(MOZ_TO_RESULT(stream->Write32(0)));
 
-  // Currently unused (used to be suffix).
-  QM_TRY(MOZ_TO_RESULT(stream->WriteStringZ("")));
+  // The suffix isn't used right now, but we might need it in future. It's
+  // a bit of redundancy we can live with given how painful is to upgrade
+  // metadata files.
+  QM_TRY(MOZ_TO_RESULT(stream->WriteStringZ(aOriginMetadata.mSuffix.get())));
 
-  // Currently unused (used to be group).
-  QM_TRY(MOZ_TO_RESULT(stream->WriteStringZ("")));
+  QM_TRY(MOZ_TO_RESULT(stream->WriteStringZ(aOriginMetadata.mGroup.get())));
 
-  QM_TRY(MOZ_TO_RESULT(
-      stream->WriteStringZ(aOriginMetadata.mStorageOrigin.get())));
+  QM_TRY(MOZ_TO_RESULT(stream->WriteStringZ(aOriginMetadata.mOrigin.get())));
 
-  // Currently used for isPrivate (used to be used for isApp).
-  QM_TRY(MOZ_TO_RESULT(stream->WriteBoolean(aOriginMetadata.mIsPrivate)));
+  // Currently unused (used to be isApp).
+  QM_TRY(MOZ_TO_RESULT(stream->WriteBoolean(false)));
 
   QM_TRY(MOZ_TO_RESULT(stream->Flush()));
 

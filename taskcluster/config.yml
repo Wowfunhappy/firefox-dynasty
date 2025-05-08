@@ -840,6 +840,11 @@ workers:
             implementation: generic-worker
             os: linux-lambda
             worker-type: 'gecko-{alias}'
+        t-linux-docker(|-noscratch):
+            provisioner: '{trust-domain}-t'
+            implementation: docker-worker
+            os: linux
+            worker-type: '{alias}'
         t-linux(-large|-xlarge|-xlarge-source):
             provisioner: '{trust-domain}-t'
             implementation: docker-worker
@@ -910,11 +915,6 @@ workers:
             implementation: generic-worker
             os: macosx
             worker-type: 'gecko-{alias}'
-        t-osx-1400-m2:
-            provisioner: releng-hardware
-            implementation: generic-worker
-            os: macosx
-            worker-type: 'gecko-{alias}'
         t-osx-1500-m4:
             provisioner: releng-hardware
             implementation: generic-worker
@@ -941,42 +941,17 @@ workers:
                 by-level:
                     '3': 'gecko-3-b-osx-arm64'
                     default: 'gecko-1-b-osx-arm64'
-        t-win10-64(|-gpu-s|-source):
-            provisioner: '{trust-domain}-t'
-            implementation: generic-worker
-            os: windows
-            worker-type: '{alias}'
-        t-win10-64(-hw|-1803-hw):
-            provisioner: releng-hardware
-            implementation: generic-worker
-            os: windows
-            worker-type: 'gecko-{alias}'
-        win11-64-2009(-hw-ref):
-            provisioner: releng-hardware
-            implementation: generic-worker
-            os: windows
-            worker-type: '{alias}'
         win10-64-2009-hw:
             provisioner: releng-hardware
             implementation: generic-worker
             os: windows
             worker-type: '{alias}'
-        win11-64-2009-hw:
-            provisioner: releng-hardware
-            implementation: generic-worker
-            os: windows
-            worker-type: '{alias}'
-        win10-64-2009(|-gpu|-ssd|-source|-ssd-gpu):
+        win10-64-2009:
             provisioner: 'gecko-t'
             implementation: generic-worker
             os: windows
             worker-type: '{alias}'
-        t-win11-64(|-gpu-s|-source):
-            provisioner: '{trust-domain}-t'
-            implementation: generic-worker
-            os: windows
-            worker-type: '{alias}'
-        win11-64-2009(|-gpu|-ssd|-source|-ssd-gpu):
+        win10-64-2009(-gpu):
             provisioner: 'gecko-t'
             implementation: generic-worker
             os: windows
@@ -1006,11 +981,6 @@ workers:
             implementation: generic-worker
             os: windows
             worker-type: 'gecko-{alias}-hw'
-        t-win64-aarch64-laptop:
-            provisioner: bitbar
-            implementation: generic-worker
-            os: windows
-            worker-type: 'gecko-{alias}'
         succeed:
             provisioner: built-in
             implementation: succeed
