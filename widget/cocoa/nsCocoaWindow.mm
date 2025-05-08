@@ -384,9 +384,6 @@ void nsCocoaWindow::SetCursor(const Cursor& aCursor) {
 // paint has been handled completely, which is when we return to the event loop
 // after layer display.
 void nsCocoaWindow::SuspendAsyncCATransactions() {
-  if (!nsCocoaFeatures::OnMavericksOrLater()) {
-    return;
-  }
   if (mUnsuspendAsyncCATransactionsRunnable) {
     mUnsuspendAsyncCATransactionsRunnable->Cancel();
     mUnsuspendAsyncCATransactionsRunnable = nullptr;
@@ -1102,6 +1099,13 @@ NSView<mozView>* nsCocoaWindow::GetEditorView() {
 }
 
 #pragma mark -
+
+void nsCocoaWindow::CreateCompositor() {
+  nsBaseWidget::CreateCompositor();
+  if (mCompositorBridgeChild) {
+    [mChildView setUsingOMTCompositor:true];
+  }
+}
 
 bool nsCocoaWindow::PreRender(WidgetRenderingContext* aContext)
 MOZ_NO_THREAD_SAFETY_ANALYSIS {
@@ -2028,7 +2032,6 @@ static void DrawTopLeftCornerMask(CGContextRef aCtx, int aRadius) {
     }
 
     if (mUsingOMTCompositor) {
-
       if (WindowRenderer* slf = mGeckoChild->GetWindowRenderer()) {
         slf->GetCompositorBridgeChild()->WindowOverlayChanged();
       } else if (WebRenderLayerManager* wrlm =
@@ -5567,7 +5570,7 @@ bool nsCocoaWindow::NeedsRecreateToReshow() {
 bool nsCocoaWindow::ShouldUseOffMainThreadCompositing() {
   // We need to enable OMTC in popups which contain remote layer
   // trees, since the remote content won't be rendered at all otherwise.
-  if (HasRemoteContent()) {
+  if (HasRemoteContent() && nsCocoaFeatures::OnMountainLionOrLater()) {
     return true;
   }
 
@@ -5582,6 +5585,8 @@ bool nsCocoaWindow::ShouldUseOffMainThreadCompositing() {
     // Use main-thread BasicLayerManager for drawing menus.
     return false;
   }
+  if(!nsCocoaFeatures::OnMountainLionOrLater())
+  return false;
   return nsBaseWidget::ShouldUseOffMainThreadCompositing();
 }
 

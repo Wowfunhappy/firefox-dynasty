@@ -399,6 +399,7 @@ class nsCocoaWindow final : public nsBaseWidget {
 #endif
 
   bool WidgetPaintsBackground() override { return true; }
+  void CreateCompositor() override;
 
   bool PreRender(mozilla::widget::WidgetRenderingContext* aContext) override;
   void PostRender(mozilla::widget::WidgetRenderingContext* aContext) override;
