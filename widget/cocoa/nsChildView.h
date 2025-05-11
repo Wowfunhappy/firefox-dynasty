@@ -51,6 +51,7 @@ class PanGestureInput;
 class VibrancyManager;
 namespace layers {
 class GLManager;
+class IAPZCTreeManager;
 class NativeLayerRootCA;
 class NativeLayerCA;
 }  // namespace layers
@@ -120,7 +121,7 @@ class WidgetRenderingContext;
  @private
   // the nsChildView that created the view. It retains this NSView, so
   // the link back to it must be weak.
-  nsCocoaWindow* mGeckoChild;
+  nsChildView* mGeckoChild;
 
   // Text input handler for mGeckoChild and us.  Note that this is a weak
   // reference.  Ideally, this should be a strong reference but a ChildView
@@ -238,6 +239,8 @@ class WidgetRenderingContext;
 - (NSView*)vibrancyViewsContainer;
 - (NSView*)nonDraggableViewsContainer;
 - (NSView*)pixelHostingView;
+
+- (BOOL)isCoveringTitlebar;
 
 - (void)viewWillStartLiveResize;
 - (void)viewDidEndLiveResize;
