@@ -882,17 +882,6 @@ pref("browser.shopping.experience2023.sidebarClosedCount", 0);
 // When conditions are met, shows a prompt on the shopping sidebar asking users if they want to disable auto-open behavior
 pref("browser.shopping.experience2023.showKeepSidebarClosedMessage", true);
 
-// Integrates the Review Checker feature into the global sidebar.
-// `enabled` pref should be opposite of this to disable
-// the custom shopping sidebar.
-pref("browser.shopping.experience2023.integratedSidebar", false);
-
-// If true, users have already seen a card in the Review Checker sidebar panel
-// notifying users of the feature's new location and asking if they want to
-// move the sidebar to the left or right side. Else if false, users are yet to
-// see the card.
-pref("browser.shopping.experience2023.newPositionCard.hasSeen", false);
-
 // Spin the cursor while the page is loading
 pref("browser.spin_cursor_while_busy", false);
 
@@ -1804,6 +1793,11 @@ pref("browser.partnerlink.campaign.topsites", "amzn_2020_a1");
 // Activates preloading of the new tab url.
 pref("browser.newtab.preload", true);
 
+// Do not enable the preonboarding experience on Linux
+#ifdef XP_LINUX
+  pref("browser.preonboarding.enabled", false);
+#endif
+
 // Show "Download Firefox for mobile" QR code modal on newtab
 pref("browser.newtabpage.activity-stream.mobileDownloadModal.enabled", false);
 pref("browser.newtabpage.activity-stream.mobileDownloadModal.variant-a", false);
@@ -1816,6 +1810,7 @@ pref("browser.newtabpage.activity-stream.unifiedAds.spocs.enabled", true);
 pref("browser.newtabpage.activity-stream.unifiedAds.endpoint", "https://ads.mozilla.org/");
 pref("browser.newtabpage.activity-stream.unifiedAds.adsFeed.enabled", false);
 pref("browser.newtabpage.activity-stream.unifiedAds.adsFeed.tiles.enabled", false);
+pref("browser.newtabpage.activity-stream.unifiedAds.ohttp.enabled", false);
 
 // Weather widget for newtab
 pref("browser.newtabpage.activity-stream.showWeather", true);
@@ -1989,7 +1984,6 @@ pref("browser.newtabpage.activity-stream.discoverystream.sections.personalizatio
 pref("browser.newtabpage.activity-stream.discoverystream.sections.personalization.inferred.locale-config", "en-US,en-GB,en-CA");
 
 pref("browser.newtabpage.activity-stream.discoverystream.sections.personalization.inferred.user.enabled", true);
-pref("browser.newtabpage.activity-stream.discoverystream.sections.personalization.inferred.blocked", false);
 
 pref("browser.newtabpage.activity-stream.discoverystream.sections.interestPicker.enabled", false);
 pref("browser.newtabpage.activity-stream.discoverystream.sections.interestPicker.visibleSections", "");
@@ -1997,6 +1991,10 @@ pref("browser.newtabpage.activity-stream.discoverystream.sections.interestPicker
 
 
 pref("browser.newtabpage.activity-stream.discoverystream.merino-provider.endpoint", "merino.services.mozilla.com");
+pref("browser.newtabpage.activity-stream.discoverystream.merino-provider.ohttp.enabled", false);
+pref("browser.newtabpage.activity-stream.discoverystream.ohttp.relayURL", "https://mozilla-ohttp.fastly-edge.com/");
+pref("browser.newtabpage.activity-stream.discoverystream.ohttp.configURL", "https://prod.ohttp-gateway.prod.webservices.mozgcp.net/ohttp-configs");
+
 // List of regions that get spocs by default.
 pref("browser.newtabpage.activity-stream.discoverystream.region-spocs-config", "US,CA,DE,GB,FR,IT,ES");
 // List of regions that don't get the 7 row layout.
@@ -2560,19 +2558,11 @@ pref("browser.tabs.crashReporting.sendReport", true);
 pref("browser.tabs.crashReporting.includeURL", false);
 
 // Enables the "Unload Tab" context menu item
-#ifdef EARLY_BETA_OR_EARLIER
 pref("browser.tabs.unloadTabInContextMenu", true);
-#else
-pref("browser.tabs.unloadTabInContextMenu", false);
-#endif
 
 // Whether tabs that have been explicitly unloaded
 // are faded out in the tab bar.
-#ifdef EARLY_BETA_OR_EARLIER
 pref("browser.tabs.fadeOutExplicitlyUnloadedTabs", true);
-#else
-pref("browser.tabs.fadeOutExplicitlyUnloadedTabs", false);
-#endif
 
 // Whether unloaded tabs (either from session restore or because
 // they are explicitly unloaded) are faded out in the tab bar.

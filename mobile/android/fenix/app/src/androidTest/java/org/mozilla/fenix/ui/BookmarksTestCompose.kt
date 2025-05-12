@@ -39,8 +39,6 @@ class BookmarksTestCompose : TestSetup() {
         AndroidComposeTestRule(
             HomeActivityIntentTestRule(
                 isNewBookmarksEnabled = true,
-                isNavigationToolbarEnabled = false,
-                isNavigationBarCFREnabled = false,
                 isMenuRedesignEnabled = false,
                 isMenuRedesignCFREnabled = false,
                 shouldUseBottomToolbar = true,
@@ -225,7 +223,7 @@ class BookmarksTestCompose : TestSetup() {
         homeScreen {
         }.openThreeDotMenu {
         }.openBookmarksMenu(composeTestRule) {
-        }.clickSearchButton() {
+        }.clickSearchButton {
             // Search for a valid term
             typeSearch(firstWebPage.title)
             verifySearchSuggestionsAreDisplayed(composeTestRule, firstWebPage.url.toString())

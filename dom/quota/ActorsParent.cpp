@@ -1837,6 +1837,31 @@ nsIObserver* QuotaManager::GetObserver() {
 }
 
 // static
+void QuotaManager::ProcessPendingNormalOriginOperations() {
+  MOZ_ASSERT(IsRunningGTests());
+
+  // Processes any pending events that may create normal origin operations.
+  // This is needed in cases where an async method (e.g., InitializeStorage)
+  // is called without a pre-acquired directory lock, which causes the
+  // operation to be created and scheduled after the directory lock is
+  // acquired.
+  NS_ProcessPendingEvents(nullptr);
+
+  // Wait until all normal origin operations have completed.
+  MOZ_ALWAYS_TRUE(SpinEventLoopUntil(
+      "QuotaManager::ProcessPendingNormalOriginOperations"_ns,
+      []() { return !gNormalOriginOps; }));
+
+  // Once an operation completes, it is removed from gNormalOriginOps. However,
+  // there may still be a follow-up event pending that updates a flag after the
+  // operation has finished. We need to process that event as well; otherwise,
+  // callers of this helper may see inconsistent state.
+  // For example, IsStorageInitialized could still return false even after
+  // calling InitializeStorage and ProcessPendingNormalOriginOperations.
+  NS_ProcessPendingEvents(nullptr);
+}
+
+// static
 bool QuotaManager::IsShuttingDown() { return gShutdown; }
 
 // static
@@ -3546,7 +3571,9 @@ Result<FullOriginMetadata, nsresult> QuotaManager::LoadFullOriginMetadata(
 
   QM_TRY_INSPECT(const bool& reservedData1,
                  MOZ_TO_RESULT_INVOKE_MEMBER(binaryStream, Read32));
-  Unused << reservedData1;
+  if (reservedData1 != 0) {
+    QM_TRY(MOZ_TO_RESULT(false));
+  }
 
   // XXX Use for the persistence type.
   QM_TRY_INSPECT(const bool& reservedData2,
@@ -3575,12 +3602,23 @@ Result<FullOriginMetadata, nsresult> QuotaManager::LoadFullOriginMetadata(
       fullOriginMetadata.mStorageOrigin,
       MOZ_TO_RESULT_INVOKE_MEMBER_TYPED(nsCString, binaryStream, ReadCString));
 
+  const auto extraInfo =
+      ScopedLogExtraInfo{ScopedLogExtraInfo::kTagStorageOriginTainted,
+                         fullOriginMetadata.mStorageOrigin};
+
   // Legacy field, previously used for isPrivate (and before that, for isApp).
   // This value is no longer used, but still read and discarded to preserve
   // compatibility with older builds that may still expect it.
   QM_TRY_INSPECT(const bool& unusedData3,
                  MOZ_TO_RESULT_INVOKE_MEMBER(binaryStream, ReadBoolean));
   Unused << unusedData3;
+
+  QM_VERBOSEONLY_TRY_UNWRAP(const auto unexpectedData,
+                            MOZ_TO_RESULT_INVOKE_MEMBER(binaryStream, Read32));
+
+  if (unexpectedData) {
+    QM_TRY(MOZ_TO_RESULT(false));
+  }
 
   QM_TRY(MOZ_TO_RESULT(binaryStream->Close()));
 
@@ -6578,7 +6616,15 @@ RefPtr<BoolPromise> QuotaManager::SaveOriginAccessTime(
 
   saveOriginAccessTimeOp->RunImmediately();
 
-  return saveOriginAccessTimeOp->OnResults();
+  return Map<BoolPromise>(
+      saveOriginAccessTimeOp->OnResults(),
+      [self = RefPtr(this)](const BoolPromise::ResolveOrRejectValue& aValue) {
+        if (aValue.ResolveValue()) {
+          self->IncreaseSaveOriginAccessTimeCount();
+        }
+
+        return aValue.ResolveValue();
+      });
 }
 
 RefPtr<OriginUsageMetadataArrayPromise> QuotaManager::GetUsage(
@@ -7132,6 +7178,18 @@ uint64_t QuotaManager::TotalDirectoryIterations() const {
   AssertIsOnIOThread();
 
   return mIOThreadAccessible.Access()->mTotalDirectoryIterations;
+}
+
+uint64_t QuotaManager::SaveOriginAccessTimeCount() const {
+  AssertIsOnOwningThread();
+
+  return mBackgroundThreadAccessible.Access()->mSaveOriginAccessTimeCount;
+}
+
+uint64_t QuotaManager::SaveOriginAccessTimeCountInternal() const {
+  AssertIsOnIOThread();
+
+  return mIOThreadAccessible.Access()->mSaveOriginAccessTimeCount;
 }
 
 // static
@@ -8045,6 +8103,24 @@ void QuotaManager::IncreaseTotalDirectoryIterations() {
 
   AssertNoOverflow(ioThreadData->mTotalDirectoryIterations, 1);
   ioThreadData->mTotalDirectoryIterations++;
+}
+
+void QuotaManager::IncreaseSaveOriginAccessTimeCount() {
+  AssertIsOnOwningThread();
+
+  auto backgroundThreadData = mBackgroundThreadAccessible.Access();
+
+  AssertNoOverflow(backgroundThreadData->mSaveOriginAccessTimeCount, 1);
+  backgroundThreadData->mSaveOriginAccessTimeCount++;
+}
+
+void QuotaManager::IncreaseSaveOriginAccessTimeCountInternal() {
+  AssertIsOnIOThread();
+
+  auto ioThreadData = mIOThreadAccessible.Access();
+
+  AssertNoOverflow(ioThreadData->mSaveOriginAccessTimeCount, 1);
+  ioThreadData->mSaveOriginAccessTimeCount++;
 }
 
 /*******************************************************************************

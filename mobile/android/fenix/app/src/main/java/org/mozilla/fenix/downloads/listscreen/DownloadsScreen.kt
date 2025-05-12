@@ -8,7 +8,6 @@ import android.content.Context
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -16,7 +15,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -24,7 +22,6 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -173,10 +170,8 @@ fun DownloadsScreen(
                     if (!uiState.isSearchFieldVisible) {
                         IconButton(onClick = onNavigationIconClick) {
                             Icon(
-                                painter =
-                                painterResource(R.drawable.mozac_ic_back_24),
-                                contentDescription =
-                                stringResource(R.string.download_navigate_back_description),
+                                painter = painterResource(R.drawable.mozac_ic_back_24),
+                                contentDescription = stringResource(R.string.download_navigate_back_description),
                                 tint = toolbarConfig.iconColor,
                             )
                         }
@@ -221,7 +216,12 @@ fun DownloadsScreen(
             }
         },
         backgroundColor = FirefoxTheme.colors.layer1,
-        snackbarHost = { SnackbarHost(snackbarHostState) },
+        snackbarHost = {
+            SnackbarHost(
+                snackbarHostState = snackbarHostState,
+                modifier = Modifier.imePadding(),
+            )
+        },
     ) { paddingValues ->
         DownloadsScreenContent(
             uiState = uiState,
@@ -344,10 +344,8 @@ private fun DownloadsScreenContent(
 ) {
     Column(
         modifier = Modifier
-            .fillMaxSize()
-            .background(FirefoxTheme.colors.layer1)
-            .widthIn(max = FirefoxTheme.layout.size.containerMaxWidth)
-            .padding(paddingValues),
+            .padding(paddingValues)
+            .imePadding(),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         if (uiState.filtersToDisplay.isNotEmpty()) {
@@ -355,7 +353,7 @@ private fun DownloadsScreenContent(
                 selectedContentTypeFilter = uiState.selectedContentTypeFilter,
                 contentTypeFilters = uiState.filtersToDisplay,
                 modifier = Modifier
-                    .fillMaxWidth()
+                    .width(FirefoxTheme.layout.size.containerMaxWidth)
                     .padding(vertical = FirefoxTheme.layout.space.static200),
                 onContentTypeSelected = onContentTypeSelected,
             )
@@ -364,9 +362,7 @@ private fun DownloadsScreenContent(
         when (uiState.itemsState) {
             is DownloadUIState.ItemsState.NoItems -> EmptyState(modifier = Modifier.fillMaxSize())
             is DownloadUIState.ItemsState.NoSearchResults -> NoSearchResults(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .imePadding(),
+                modifier = Modifier.fillMaxSize(),
             )
 
             is DownloadUIState.ItemsState.Items -> DownloadsContent(
@@ -377,7 +373,7 @@ private fun DownloadsScreenContent(
                 onDeleteClick = onDeleteClick,
                 onShareUrlClick = onShareUrlClick,
                 onShareFileClick = onShareFileClick,
-                modifier = Modifier.fillMaxHeight(),
+                modifier = Modifier.fillMaxSize(),
             )
         }
     }
@@ -399,6 +395,7 @@ private fun DownloadsContent(
 
     LazyColumn(
         modifier = modifier,
+        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         itemsIndexed(
             items = items,
@@ -414,7 +411,9 @@ private fun DownloadsContent(
                 is HeaderItem -> {
                     HeaderListItem(
                         headerItem = listItem,
-                        modifier = Modifier.animateItem(),
+                        modifier = Modifier
+                            .animateItem()
+                            .width(FirefoxTheme.layout.size.containerMaxWidth),
                     )
                 }
 
@@ -426,8 +425,9 @@ private fun DownloadsContent(
                         onDeleteClick = onDeleteClick,
                         onShareUrlClick = onShareUrlClick,
                         onShareFileClick = onShareFileClick,
-                        modifier = modifier
+                        modifier = Modifier
                             .animateItem()
+                            .width(FirefoxTheme.layout.size.containerMaxWidth)
                             .combinedClickable(
                                 onClick = {
                                     if (mode is Mode.Normal) {
@@ -754,6 +754,24 @@ private class DownloadsScreenPreviewModelParameterProvider :
                         createdTime = CreatedTime.OLDER,
                     ),
                 ),
+                mode = Mode.Normal,
+                pendingDeletionIds = emptySet(),
+                userSelectedContentTypeFilter = FileItem.ContentTypeFilter.All,
+            ),
+            DownloadUIState(
+                items = List(size = 20) { index ->
+                    FileItem(
+                        id = "$index",
+                        fileName = "File $index",
+                        url = "https://example.com/file$index",
+                        formattedSize = "1.2 MB",
+                        displayedShortUrl = "example.com",
+                        contentType = "application/zip",
+                        status = DownloadState.Status.COMPLETED,
+                        filePath = "/path/to/file1",
+                        createdTime = CreatedTime.TODAY,
+                    )
+                },
                 mode = Mode.Normal,
                 pendingDeletionIds = emptySet(),
                 userSelectedContentTypeFilter = FileItem.ContentTypeFilter.All,

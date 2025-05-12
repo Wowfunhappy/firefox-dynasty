@@ -280,6 +280,7 @@ include = [
   "CounterSet",
   "CounterIncrement",
   "WritingMode",
+  "WritingModeProperty",
   "Content",
   "ContentItem",
   "AlignSelf",
@@ -331,6 +332,7 @@ include = [
   "Margin",
   "PositionProperty",
   "PhysicalAxis",
+  "PhysicalSide",
   "QueryFontMetricsFlags",
 ]
 item_types = [

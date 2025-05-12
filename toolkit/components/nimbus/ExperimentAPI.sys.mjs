@@ -33,6 +33,9 @@ const CRASHREPORTER_ENABLED =
 const IS_MAIN_PROCESS =
   Services.appinfo.processType === Services.appinfo.PROCESS_TYPE_DEFAULT;
 
+const UPLOAD_ENABLED_PREF = "datareporting.healthreport.uploadEnabled";
+const STUDIES_OPT_OUT_PREF = "app.shield.optoutstudies.enabled";
+
 const COLLECTION_ID_PREF = "messaging-system.rsexperimentloader.collection_id";
 const COLLECTION_ID_FALLBACK = "nimbus-desktop-experiments";
 XPCOMUtils.defineLazyPreferenceGetter(
@@ -111,6 +114,17 @@ export const EnrollmentType = Object.freeze({
 
 export const ExperimentAPI = {
   /**
+   * The topic that is notified when either the studies enabled pref or the
+   * telemetry enabled pref changes.
+   *
+   * Consumers can listen for notifications on this topic to react to
+   * Nimbus being enabled or disabled.
+   */
+  get STUDIES_ENABLED_CHANGED() {
+    return "nimbus:studies-enabled-changed";
+  },
+
+  /**
    * Initialize the ExperimentAPI.
    *
    * This will initialize the ExperimentManager and the
@@ -124,40 +138,86 @@ export const ExperimentAPI = {
    * @param {boolean?} options.forceSync
    *        Force the RemoteSettingsExperimentLoader to trigger a RemoteSettings
    *        sync before updating recipes for the first time.
+   *
+   * @returns {boolean}
+   *          Whether or not the ExperimentAPI was initialized.
    */
   async init({ extraContext, forceSync = false } = {}) {
-    if (!initialized) {
-      initialized = true;
-
-      try {
-        await this._manager.onStartup(extraContext);
-      } catch (e) {
-        lazy.log.error("Failed to initialize ExperimentManager:", e);
-      }
-
-      try {
-        await this._rsLoader.enable({ forceSync });
-      } catch (e) {
-        lazy.log.error("Failed to enable RemoteSettingsExperimentLoader:", e);
-      }
-
-      try {
-        await lazy.NimbusMigrations.applyMigrations();
-      } catch (e) {
-        lazy.log.error("Failed to apply migrations", e);
-      }
-
-      if (CRASHREPORTER_ENABLED) {
-        this._manager.store.on("update", this._annotateCrashReport);
-        this._annotateCrashReport();
-      }
+    if (initialized) {
+      return false;
     }
+
+    initialized = true;
+
+    const studiesEnabled = this.studiesEnabled;
+
+    try {
+      await this.manager.onStartup(extraContext);
+    } catch (e) {
+      lazy.log.error("Failed to initialize ExperimentManager:", e);
+    }
+
+    try {
+      await this._rsLoader.enable({ forceSync });
+    } catch (e) {
+      lazy.log.error("Failed to enable RemoteSettingsExperimentLoader:", e);
+    }
+
+    try {
+      await lazy.NimbusMigrations.applyMigrations();
+    } catch (e) {
+      lazy.log.error("Failed to apply migrations", e);
+    }
+
+    if (CRASHREPORTER_ENABLED) {
+      this.manager.store.on("update", this._annotateCrashReport);
+      this._annotateCrashReport();
+
+      lazy.CleanupManager.addCleanupHandler(
+        ExperimentAPI._removeCrashReportAnnotator
+      );
+    }
+
+    Services.prefs.addObserver(
+      UPLOAD_ENABLED_PREF,
+      this._onStudiesEnabledChanged
+    );
+    Services.prefs.addObserver(
+      STUDIES_OPT_OUT_PREF,
+      this._onStudiesEnabledChanged
+    );
+
+    // If Nimbus was disabled between the start of this function and registering
+    // the pref observers we have not handled it yet.
+    if (studiesEnabled !== this.studiesEnabled) {
+      this._onStudiesEnabledChanged();
+    }
+
+    return true;
+  },
+
+  /**
+   * Return the global ExperimentManager.
+   */
+  get manager() {
+    return this._manager;
   },
 
   _resetForTests() {
     this._rsLoader.disable();
-    this._manager.store.off("update", this._annotateCrashReport);
+    this.manager.store.off("update", this._annotateCrashReport);
+    lazy.CleanupManager.removeCleanupHandler(
+      ExperimentAPI._removeCrashReportAnnotator
+    );
     initialized = false;
+  },
+
+  get studiesEnabled() {
+    return (
+      Services.prefs.getBoolPref(UPLOAD_ENABLED_PREF, false) &&
+      Services.prefs.getBoolPref(STUDIES_OPT_OUT_PREF, false) &&
+      Services.policies.isAllowed("Shield")
+    );
   },
 
   /**
@@ -172,16 +232,18 @@ export const ExperimentAPI = {
    *          store
    */
   async ready() {
-    return this._manager.store.ready();
+    return this.manager.store.ready();
   },
 
-  async _annotateCrashReport() {
+  /**
+   * Annotate the current crash report with current enrollments.
+   */
+  _annotateCrashReport() {
     if (!Services.appinfo.crashReporterEnabled) {
       return;
     }
 
-    await this.ready();
-    const activeEnrollments = this._manager.store
+    const activeEnrollments = this.manager.store
       .getAll()
       .filter(e => e.active)
       .map(e => `${e.slug}:${e.branch.slug}`)
@@ -193,13 +255,27 @@ export const ExperimentAPI = {
     );
   },
 
+  _removeCrashReportAnnotator() {
+    if (initialized) {
+      this.manager.store.off("update", this._annotateCrashReport);
+    }
+  },
+
+  _onStudiesEnabledChanged() {
+    if (!this.studiesEnabled) {
+      this.manager._handleStudiesOptOut();
+    }
+
+    Services.obs.notifyObservers(null, this.STUDIES_ENABLED_CHANGED);
+  },
+
   /**
    * Returns the recipe for a given experiment slug
    *
    * This should noly be called from the main process.
    *
    * Note that the recipe is directly fetched from RemoteSettings, which has
-   * all the recipe metadata available without relying on the `this._manager.store`.
+   * all the recipe metadata available without relying on the `this.manager.store`.
    * Therefore, calling this function does not require to call `this.ready()` first.
    *
    * @param slug {String} An experiment identifier
@@ -287,7 +363,7 @@ export class _ExperimentFeature {
           fallbackPref,
           null,
           () => {
-            ExperimentAPI._manager.store._emitFeatureUpdate(
+            ExperimentAPI.manager.store._emitFeatureUpdate(
               this.featureId,
               "pref-updated"
             );
@@ -334,7 +410,7 @@ export class _ExperimentFeature {
 
     let enrollment = null;
     try {
-      enrollment = ExperimentAPI._manager.store.getExperimentForFeature(
+      enrollment = ExperimentAPI.manager.store.getExperimentForFeature(
         this.featureId
       );
     } catch (e) {
@@ -344,7 +420,7 @@ export class _ExperimentFeature {
 
     if (typeof featureValue === "undefined") {
       try {
-        enrollment = ExperimentAPI._manager.store.getRolloutForFeature(
+        enrollment = ExperimentAPI.manager.store.getRolloutForFeature(
           this.featureId
         );
       } catch (e) {
@@ -379,7 +455,7 @@ export class _ExperimentFeature {
     // Next, check if an experiment is defined
     let enrollment = null;
     try {
-      enrollment = ExperimentAPI._manager.store.getExperimentForFeature(
+      enrollment = ExperimentAPI.manager.store.getExperimentForFeature(
         this.featureId
       );
     } catch (e) {
@@ -392,7 +468,7 @@ export class _ExperimentFeature {
 
     // Next, check for a rollout.
     try {
-      enrollment = ExperimentAPI._manager.store.getRolloutForFeature(
+      enrollment = ExperimentAPI.manager.store.getRolloutForFeature(
         this.featureId
       );
     } catch (e) {
@@ -435,20 +511,18 @@ export class _ExperimentFeature {
     try {
       if (typeof enrollmentType === "undefined" || enrollmentType === null) {
         enrollment =
-          ExperimentAPI._manager.store.getExperimentForFeature(
-            this.featureId
-          ) ??
-          ExperimentAPI._manager.store.getRolloutForFeature(this.featureId);
+          ExperimentAPI.manager.store.getExperimentForFeature(this.featureId) ??
+          ExperimentAPI.manager.store.getRolloutForFeature(this.featureId);
       } else {
         switch (enrollmentType) {
           case EnrollmentType.EXPERIMENT:
-            enrollment = ExperimentAPI._manager.store.getExperimentForFeature(
+            enrollment = ExperimentAPI.manager.store.getExperimentForFeature(
               this.featureId
             );
             break;
 
           case EnrollmentType.ROLLOUT:
-            enrollment = ExperimentAPI._manager.store.getRolloutForFeature(
+            enrollment = ExperimentAPI.manager.store.getRolloutForFeature(
               this.featureId
             );
             break;
@@ -473,7 +547,7 @@ export class _ExperimentFeature {
    *        enrollment using this feature.
    */
   getAllEnrollments() {
-    return ExperimentAPI._manager.store
+    return ExperimentAPI.manager.store
       .getAll()
       .filter(e => e.active && e.featureIds.includes(this.featureId))
       .map(enrollment => {
@@ -501,7 +575,7 @@ export class _ExperimentFeature {
    *          - whether or not the enrollment is a rollout.
    */
   getAllEnrollmentMetadata() {
-    return ExperimentAPI._manager.store
+    return ExperimentAPI.manager.store
       .getAll()
       .filter(e => e.active && e.featureIds.includes(this.featureId))
       .map(_getEnrollmentMetadata);
@@ -518,7 +592,7 @@ export class _ExperimentFeature {
 
     let metadata = null;
     if (this.allowCoenrollment) {
-      const enrollment = ExperimentAPI._manager.store.get(slug);
+      const enrollment = ExperimentAPI.manager.store.get(slug);
       if (enrollment.active) {
         metadata = _getEnrollmentMetadata(enrollment);
       }
@@ -538,11 +612,11 @@ export class _ExperimentFeature {
   }
 
   onUpdate(callback) {
-    ExperimentAPI._manager.store._onFeatureUpdate(this.featureId, callback);
+    ExperimentAPI.manager.store._onFeatureUpdate(this.featureId, callback);
   }
 
   offUpdate(callback) {
-    ExperimentAPI._manager.store._offFeatureUpdate(this.featureId, callback);
+    ExperimentAPI.manager.store._offFeatureUpdate(this.featureId, callback);
   }
 
   /**
@@ -680,7 +754,7 @@ export class _ExperimentFeature {
         (typeof enrollment.localizations[locale] !== "object" ||
           enrollment.localizations[locale] === null)
       ) {
-        ExperimentAPI._manager._unenroll(
+        ExperimentAPI.manager._unenroll(
           enrollment,
           lazy.UnenrollmentCause.fromReason(
             lazy.NimbusTelemetry.UnenrollReason.L10N_MISSING_LOCALE
@@ -705,7 +779,7 @@ export class _ExperimentFeature {
         } catch (e) {
           // This should never happen.
           if (e instanceof ExperimentLocalizationError) {
-            ExperimentAPI._manager._unenroll(
+            ExperimentAPI.manager._unenroll(
               enrollment,
               lazy.UnenrollmentCause.fromReason(e.reason)
             );
@@ -722,17 +796,10 @@ export class _ExperimentFeature {
 
 ExperimentAPI._annotateCrashReport =
   ExperimentAPI._annotateCrashReport.bind(ExperimentAPI);
-
-if (CRASHREPORTER_ENABLED) {
-  lazy.CleanupManager.addCleanupHandler(() => {
-    if (initialized) {
-      ExperimentAPI._manager.store.off(
-        "update",
-        ExperimentAPI._annotateCrashReport
-      );
-    }
-  });
-}
+ExperimentAPI._onStudiesEnabledChanged =
+  ExperimentAPI._onStudiesEnabledChanged.bind(ExperimentAPI);
+ExperimentAPI._removeCrashReportAnnotator =
+  ExperimentAPI._removeCrashReportAnnotator.bind(ExperimentAPI);
 
 ChromeUtils.defineLazyGetter(ExperimentAPI, "_manager", function () {
   return lazy.ExperimentManager;

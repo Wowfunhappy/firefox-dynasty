@@ -287,6 +287,7 @@
 #include "mozilla/net/RequestContextService.h"
 #include "nsAboutProtocolUtils.h"
 #include "nsAttrValue.h"
+#include "nsMenuPopupFrame.h"
 #include "nsAttrValueInlines.h"
 #include "nsBaseHashtable.h"
 #include "nsBidiUtils.h"
@@ -10971,8 +10972,10 @@ nsViewportInfo Document::GetViewportInfo(const ScreenIntSize& aDisplaySize) {
                               : nsViewportInfo::ZoomBehaviour::Desktop);
   }
 
-  // Special behaviour for desktop mode, provided we are not on an about: page.
-  if (bc && bc->ForceDesktopViewport() && !IsAboutPage()) {
+  // Special behaviour for desktop mode, provided we are not on an about: page
+  // or a PDF.js page.
+  if (bc && bc->ForceDesktopViewport() && !IsAboutPage() &&
+      !nsContentUtils::IsPDFJS(NodePrincipal())) {
     CSSCoord viewportWidth =
         StaticPrefs::browser_viewport_desktopWidth() / fullZoom;
     // Do not use a desktop viewport size less wide than the display.
@@ -15014,22 +15017,33 @@ void Document::HandleEscKey() {
       }
     }
     if (RefPtr dialogElement = HTMLDialogElement::FromNodeOrNull(element)) {
-      if (dialogElement->GetClosedBy() != HTMLDialogElement::ClosedBy::None) {
-        const mozilla::dom::Optional<nsAString> returnValue;
-        dialogElement->RequestClose(returnValue);
-        return;
+      if (StaticPrefs::dom_dialog_light_dismiss_enabled()) {
+        if (dialogElement->GetClosedBy() != HTMLDialogElement::ClosedBy::None) {
+            const mozilla::dom::Optional<nsAString> returnValue;
+            dialogElement->RequestClose(returnValue);
+        }
+      } else {
+        dialogElement->QueueCancelDialog();
       }
+      // If the dialog element's `closedby` attribute is "none", then this
+      // means the dialog is effectively blocking the Esc key from
+      // functioning. Returning without closing is the correct behaviour - as
+      // this is the topmost element "handling" the esc key press.
+      return;
     }
   }
   // Not all dialogs exist in the top layer, so despite already iterating
-  // through all top layer elements we also need to iterate over non-modal
-  // dialogs, as they may have a specified `closedby` value which may allow them
-  // to be closed via Escape key.
-  for (RefPtr<HTMLDialogElement> dialog : Reversed(mOpenDialogs)) {
+  // through all top layer elements we also need to check open dialogs that are
+  // _not_ open via the top-layer (showModal).
+  // The top-most dialog in mOpenDialogs may need to be closed.
+  if (RefPtr<HTMLDialogElement> dialog =
+          mOpenDialogs.SafeLastElement(nullptr)) {
     if (dialog->GetClosedBy() != HTMLDialogElement::ClosedBy::None) {
+      MOZ_ASSERT(StaticPrefs::dom_dialog_light_dismiss_enabled(),
+                 "Light Dismiss must have been enabled for GetClosedBy() "
+                 "returns != ClosedBy::None");
       const mozilla::dom::Optional<nsAString> returnValue;
       dialog->RequestClose(returnValue);
-      return;
     }
   }
 }
@@ -17269,32 +17283,46 @@ static void UpdateEffectsOnBrowsingContext(BrowsingContext* aBc,
       //    this code very often anyways.
       return EffectsInfo::FullyHidden();
     }
-    const IntersectionOutput output = DOMIntersectionObserver::Intersect(
-        aInput, *el, DOMIntersectionObserver::BoxToUse::Content);
-    if (!output.Intersects()) {
-      // XXX do we want to pass the scale and such down even if out of the
-      // viewport?
-      return EffectsInfo::FullyHidden();
-    }
-    MOZ_ASSERT(el->GetPrimaryFrame(), "How do we intersect without a frame?");
     if (MOZ_UNLIKELY(NS_WARN_IF(!subDocFrame))) {
       // <frame> not inside a <frameset> might not create a subdoc frame,
       // for example.
       return EffectsInfo::FullyHidden();
     }
-    Maybe<nsRect> visibleRect = subDocFrame->GetVisibleRect();
-    // If we're paginated, we the display list rect might not be reasonable,
-    // because it is the one from the last display item painted. We assume the
-    // frame is fully visible, lacking something better.
-    if (subDocFrame->PresContext()->IsPaginated()) {
+    const bool inPopup = subDocFrame->HasAnyStateBits(NS_FRAME_IN_POPUP);
+    Maybe<nsRect> visibleRect;
+    if (inPopup) {
+      nsMenuPopupFrame* popup =
+          do_QueryFrame(nsLayoutUtils::GetDisplayRootFrame(subDocFrame));
+      MOZ_ASSERT(popup);
+      if (!popup || !popup->IsVisibleOrShowing()) {
+        return EffectsInfo::FullyHidden();
+      }
+      // Be a bit conservative on popups and assume remote frames in there are
+      // fully visible.
       visibleRect = Some(subDocFrame->GetDestRect());
-    }
-    if (!visibleRect) {
-      // If we have no visible rect (e.g., because we are zero-sized) we
-      // still want to provide the intersection rect in order to get the
-      // right throttling behavior.
-      visibleRect.emplace(*output.mIntersectionRect -
-                          output.mTargetRect.TopLeft());
+    } else {
+      const IntersectionOutput output = DOMIntersectionObserver::Intersect(
+          aInput, *el, DOMIntersectionObserver::BoxToUse::Content);
+      if (!output.Intersects()) {
+        // XXX do we want to pass the scale and such down even if out of the
+        // viewport?
+        return EffectsInfo::FullyHidden();
+      }
+      visibleRect = subDocFrame->GetVisibleRect();
+      if (!visibleRect) {
+        // If we have no visible rect (e.g., because we are zero-sized) we
+        // still want to provide the intersection rect in order to get the
+        // right throttling behavior.
+        visibleRect.emplace(*output.mIntersectionRect -
+                            output.mTargetRect.TopLeft());
+      }
+      // If we're paginated, the visible rect from the display list might not be
+      // reasonable, because there can be multiple display items for the frame
+      // and the rect would be the last one painted. We assume the frame is
+      // fully visible, lacking something better.
+      if (subDocFrame->PresContext()->IsPaginated()) {
+        visibleRect = Some(subDocFrame->GetDestRect());
+      }
     }
     gfx::MatrixScales rasterScale = subDocFrame->GetRasterScale();
     ParentLayerToScreenScale2D transformToAncestorScale =
@@ -20265,7 +20293,11 @@ static already_AddRefed<Document> CreateHTMLDocument(GlobalObject& aGlobal,
 /* static */
 already_AddRefed<Document> Document::ParseHTMLUnsafe(
     GlobalObject& aGlobal, const TrustedHTMLOrString& aHTML,
-    nsIPrincipal* aSubjectPrincipal, ErrorResult& aError) {
+    const SetHTMLUnsafeOptions& aOptions, nsIPrincipal* aSubjectPrincipal,
+    ErrorResult& aError) {
+  // Step 1. Let compliantHTML be the result of invoking the Get Trusted Type
+  // compliant string algorithm with TrustedHTML, this’s relevant global object,
+  // html, "Document parseHTMLUnsafe", and "script".
   nsCOMPtr<nsIGlobalObject> global = do_QueryInterface(aGlobal.GetAsSupports());
   constexpr nsLiteralString sink = u"Document parseHTMLUnsafe"_ns;
   Maybe<nsAutoString> compliantStringHolder;
@@ -20277,16 +20309,50 @@ already_AddRefed<Document> Document::ParseHTMLUnsafe(
     return nullptr;
   }
 
-  RefPtr<Document> doc = CreateHTMLDocument(aGlobal, false, aError);
+  // TODO: Always initialize the sanitizer.
+  bool sanitize = aOptions.mSanitizer.WasPassed();
+
+  // Step 2. Let document be a new Document, whose content type is "text/html".
+  // Step 3. Set document’s allow declarative shadow roots to true.
+  // TODO: Figure out if we can always loadAsData.
+  RefPtr<Document> doc =
+      CreateHTMLDocument(aGlobal, /* aLoadedAsData */ sanitize, aError);
   if (aError.Failed()) {
     return nullptr;
   }
 
-  aError = nsContentUtils::ParseDocumentHTML(*compliantString, doc, false);
+  // Step 4. Parse HTML from a string given document and compliantHTML.
+  // TODO(bug 1960845): Investigate the behavior around <noscript> with
+  // parseHTML
+  aError = nsContentUtils::ParseDocumentHTML(
+      *compliantString, doc,
+      /* aScriptingEnabledForNoscriptParsing */ sanitize);
   if (aError.Failed()) {
     return nullptr;
   }
 
+  if (sanitize) {
+    // Step 5. Let sanitizer be the result of calling get a sanitizer instance
+    // from options with options and false.
+    nsCOMPtr<nsIGlobalObject> global =
+        do_QueryInterface(aGlobal.GetAsSupports());
+    RefPtr<Sanitizer> sanitizer = Sanitizer::GetInstance(
+        global, aOptions.mSanitizer.Value(), true, aError);
+    if (aError.Failed()) {
+      return nullptr;
+    }
+
+    // Step 6. Call sanitize on document’s root node with sanitizer and false.
+    nsCOMPtr<nsINode> root = doc->GetRootElement();
+    MOZ_DIAGNOSTIC_ASSERT(root,
+                          "HTML parser should have create the <html> root");
+    sanitizer->Sanitize(root, /* aSafe */ true, aError);
+    if (aError.Failed()) {
+      return nullptr;
+    }
+  }
+
+  // Step 7. Return document.
   return doc.forget();
 }
 
@@ -20298,7 +20364,8 @@ already_AddRefed<Document> Document::ParseHTML(GlobalObject& aGlobal,
                                                ErrorResult& aError) {
   // Step 1. Let document be a new Document, whose content type is "text/html".
   // Step 2. Set document’s allow declarative shadow roots to true.
-  RefPtr<Document> doc = CreateHTMLDocument(aGlobal, true, aError);
+  RefPtr<Document> doc =
+      CreateHTMLDocument(aGlobal, /* aLoadedAsData */ true, aError);
   if (aError.Failed()) {
     return nullptr;
   }

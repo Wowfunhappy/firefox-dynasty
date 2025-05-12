@@ -37,9 +37,11 @@ import mozilla.components.feature.accounts.push.CloseTabsUseCases
 import mozilla.components.feature.downloads.ui.DownloadCancelDialogFragment
 import mozilla.components.feature.tabs.tabstray.TabsFeature
 import mozilla.components.support.base.feature.ViewBoundFeatureWrapper
+import mozilla.components.support.ktx.android.arch.lifecycle.addObservers
 import mozilla.telemetry.glean.private.NoExtras
 import org.mozilla.fenix.Config
 import org.mozilla.fenix.FeatureFlags
+import org.mozilla.fenix.GleanMetrics.PrivateBrowsingLocked
 import org.mozilla.fenix.GleanMetrics.TabsTray
 import org.mozilla.fenix.HomeActivity
 import org.mozilla.fenix.NavGraphDirections
@@ -49,6 +51,7 @@ import org.mozilla.fenix.biometricauthentication.BiometricAuthenticationManager
 import org.mozilla.fenix.biometricauthentication.BiometricAuthenticationNeededInfo
 import org.mozilla.fenix.browser.tabstrip.isTabStripEnabled
 import org.mozilla.fenix.components.StoreProvider
+import org.mozilla.fenix.components.components
 import org.mozilla.fenix.compose.core.Action
 import org.mozilla.fenix.compose.snackbar.Snackbar
 import org.mozilla.fenix.compose.snackbar.SnackbarState
@@ -57,6 +60,7 @@ import org.mozilla.fenix.databinding.ComponentTabstray3FabBinding
 import org.mozilla.fenix.databinding.FragmentTabTrayDialogBinding
 import org.mozilla.fenix.ext.actualInactiveTabs
 import org.mozilla.fenix.ext.components
+import org.mozilla.fenix.ext.registerForActivityResult
 import org.mozilla.fenix.ext.requireComponents
 import org.mozilla.fenix.ext.runIfFragmentIsAttached
 import org.mozilla.fenix.ext.settings
@@ -118,8 +122,10 @@ class TabsTrayFragment : AppCompatDialogFragment() {
             Breadcrumb("TabsTrayFragment dismissTabsTray"),
         )
         setStyle(STYLE_NO_TITLE, R.style.TabTrayDialogStyle)
+        lifecycle.addObservers(requireComponents.privateBrowsingLockFeature)
     }
 
+    @Suppress("LongMethod")
     override fun onCreateDialog(savedInstanceState: Bundle?): Dialog {
         val args by navArgs<TabsTrayFragmentArgs>()
         args.accessPoint.takeIf { it != TabsTrayAccessPoint.None }?.let {
@@ -135,6 +141,17 @@ class TabsTrayFragment : AppCompatDialogFragment() {
         val initialInactiveExpanded = requireComponents.appStore.state.inactiveTabsExpanded
         val inactiveTabs = requireComponents.core.store.state.actualInactiveTabs(requireContext().settings())
         val normalTabs = requireComponents.core.store.state.normalTabs - inactiveTabs.toSet()
+
+        startForResult = registerForActivityResult(
+            onSuccess = {
+                PrivateBrowsingLocked.authSuccess.record()
+                PrivateBrowsingLocked.featureEnabled.record()
+                requireContext().settings().privateBrowsingLockedEnabled = true
+            },
+            onFailure = {
+                PrivateBrowsingLocked.authFailure.record()
+            },
+        )
 
         tabsTrayStore = StoreProvider.get(this) {
             TabsTrayStore(
@@ -330,6 +347,12 @@ class TabsTrayFragment : AppCompatDialogFragment() {
                     onTabsTrayDismiss = ::onTabsTrayDismissed,
                     onTabsTrayPbmLockedClick = {
                         requireContext().settings().privateBrowsingLockedEnabled = true
+                        requireContext().settings().shouldShowLockPbmBanner = false
+                        PrivateBrowsingLocked.bannerPositiveClicked.record()
+                    },
+                    onTabsTrayPbmLockedDismiss = {
+                        requireContext().settings().shouldShowLockPbmBanner = false
+                        PrivateBrowsingLocked.bannerNegativeClicked.record()
                     },
                     onTabAutoCloseBannerViewOptionsClick = {
                         navigationInteractor.onTabSettingsClicked()
@@ -759,18 +782,14 @@ class TabsTrayFragment : AppCompatDialogFragment() {
                 view = requireView(),
                 onShowPinVerification = { intent -> startForResult.launch(intent) },
                 onAuthSuccess = {
-                    biometricAuthenticationNeededInfo.apply {
-                        authenticationStatus = AuthenticationStatus.AUTHENTICATED
-                    }
+                    PrivateBrowsingLocked.authSuccess.record()
 
                     tabsTrayInteractor.onTrayPositionSelected(page.ordinal, false)
 
-                    requireContext().settings().isPrivateScreenLocked = false
+                    requireComponents.privateBrowsingLockFeature.onSuccessfulAuthentication()
                 },
                 onAuthFailure = {
-                    biometricAuthenticationNeededInfo.apply {
-                        authenticationStatus = AuthenticationStatus.NOT_AUTHENTICATED
-                    }
+                    PrivateBrowsingLocked.authFailure.record()
                 },
                 titleRes = R.string.pbm_authentication_unlock_private_tabs,
             )

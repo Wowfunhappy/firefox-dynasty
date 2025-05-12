@@ -34,7 +34,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.selected
@@ -97,7 +96,7 @@ fun TabListItem(
     val density = LocalDensity.current
     val isRtl = LocalLayoutDirection.current == LayoutDirection.Rtl
 
-    if (FeatureFlags.swipeToDismiss2) {
+    if (FeatureFlags.SWIPE_TO_DISMISS_2) {
         val swipeState = remember(multiSelectionEnabled, swipingEnabled) {
             SwipeToDismissState2(
                 density = density,
@@ -221,7 +220,7 @@ private fun TabContent(
             .background(contentBackgroundColor)
             .then(clickableModifier)
             .padding(start = 16.dp, top = 8.dp, bottom = 8.dp)
-            .testTag(TabsTrayTestTag.tabItemRoot)
+            .testTag(TabsTrayTestTag.TAB_ITEM_ROOT)
             .semantics {
                 selected = isSelected
             },
@@ -263,7 +262,7 @@ private fun TabContent(
                 onClick = { onCloseClick(tab) },
                 modifier = Modifier
                     .size(size = 48.dp)
-                    .testTag(TabsTrayTestTag.tabItemClose),
+                    .testTag(TabsTrayTestTag.TAB_ITEM_CLOSE),
             ) {
                 Icon(
                     painter = painterResource(id = R.drawable.mozac_ic_cross_24),
@@ -301,7 +300,7 @@ private fun Thumbnail(
             size = size,
             modifier = Modifier
                 .size(width = 92.dp, height = 72.dp)
-                .testTag(TabsTrayTestTag.tabItemThumbnail),
+                .testTag(TabsTrayTestTag.TAB_ITEM_THUMBNAIL),
             contentDescription = stringResource(id = R.string.mozac_browser_tabstray_open_tab),
         )
 
@@ -326,7 +325,7 @@ private fun Thumbnail(
                         .matchParentSize()
                         .padding(all = 8.dp),
                     contentDescription = null,
-                    tint = colorResource(id = R.color.mozac_ui_icons_fill),
+                    tint = FirefoxTheme.colors.iconActionPrimary,
                 )
             }
         }

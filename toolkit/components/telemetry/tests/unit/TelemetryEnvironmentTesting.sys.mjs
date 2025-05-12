@@ -527,7 +527,13 @@ export var TelemetryEnvironmentTesting = {
     lazy.Assert.ok(Array.isArray(data.partner.partnerNames));
     if (isInitial) {
       lazy.Assert.equal(data.partner.partnerNames.length, 0);
-      lazy.Assert.equal(distExt.partnerNames, null);
+      // bug 1965481 - Artifact and full builds disagree on how to store [].
+      if (Services.prefs.getBoolPref("telemetry.fog.artifact_build", false)) {
+        lazy.Assert.ok(Array.isArray(distExt.partnerNames));
+        lazy.Assert.equal(distExt.partnerNames.length, 0);
+      } else {
+        lazy.Assert.equal(distExt.partnerNames, null);
+      }
     } else {
       lazy.Assert.ok(data.partner.partnerNames.includes(PARTNER_NAME));
       lazy.Assert.ok(
@@ -803,7 +809,58 @@ export var TelemetryEnvironmentTesting = {
       }
     }
 
-    let gfxData = data.system.gfx;
+    this.checkGfx(data.system.gfx);
+
+    if (gIsMac) {
+      lazy.Assert.ok(this.checkString(data.system.appleModelId));
+      lazy.Assert.equal(
+        data.system.appleModelId,
+        Glean.system.appleModelId.testGetValue()
+      );
+    } else {
+      lazy.Assert.ok(this.checkNullOrString(data.system.appleModelId));
+      lazy.Assert.equal(null, Glean.system.appleModelId.testGetValue());
+    }
+
+    // This feature is only available on Windows
+    if (AppConstants.platform == "win") {
+      lazy.Assert.ok(
+        "sec" in data.system,
+        "sec must be available under data.system"
+      );
+
+      let SEC_FIELDS = ["antivirus", "antispyware", "firewall"];
+      for (let f of SEC_FIELDS) {
+        let products = Glean.windowsSecurity[f].testGetValue();
+        lazy.Assert.ok(
+          f in data.system.sec,
+          f + " must be available under data.system.sec"
+        );
+
+        let value = data.system.sec[f];
+        // value is null on Windows Server
+        lazy.Assert.ok(
+          value === null || Array.isArray(value),
+          f + " must be either null or an array"
+        );
+        if (Array.isArray(value)) {
+          for (let product of value) {
+            // It is posssible that this will fail if either the Legacy or
+            // Glean string limits are hit. If the Glean string_list limits are
+            // hit, `testGetValue` above will throw, though.
+            lazy.Assert.ok(products.includes(product), `${f} data must match.`);
+            lazy.Assert.equal(
+              typeof product,
+              "string",
+              "Each element of " + f + " must be a string"
+            );
+          }
+        }
+      }
+    }
+  },
+
+  checkGfx(gfxData) {
     lazy.Assert.ok("D2DEnabled" in gfxData);
     lazy.Assert.equal(gfxData.D2DEnabled, Glean.gfx.d2dEnabled.testGetValue());
     lazy.Assert.ok("DWriteEnabled" in gfxData);
@@ -884,6 +941,14 @@ export var TelemetryEnvironmentTesting = {
     lazy.Assert.equal(typeof gfxData.features.gpuProcess.status, "string");
     lazy.Assert.ok(!!Glean.gfxFeatures.gpuProcess.testGetValue().status);
 
+    if (gIsWindows && !!gfxData.features?.d2d?.version) {
+      lazy.Assert.equal(typeof gfxData.features.d2d.version, "string");
+      lazy.Assert.equal(
+        gfxData.features.d2d.version,
+        Glean.gfxFeatures.d2d.testGetValue().version
+      );
+    }
+
     try {
       // If we've not got nsIGfxInfoDebug, then this will throw and stop us doing
       // this test.
@@ -911,54 +976,6 @@ export var TelemetryEnvironmentTesting = {
         Glean.gfxFeatures.gpuProcess.testGetValue().status
       );
     } catch (e) {}
-
-    if (gIsMac) {
-      lazy.Assert.ok(this.checkString(data.system.appleModelId));
-      lazy.Assert.equal(
-        data.system.appleModelId,
-        Glean.system.appleModelId.testGetValue()
-      );
-    } else {
-      lazy.Assert.ok(this.checkNullOrString(data.system.appleModelId));
-      lazy.Assert.equal(null, Glean.system.appleModelId.testGetValue());
-    }
-
-    // This feature is only available on Windows
-    if (AppConstants.platform == "win") {
-      lazy.Assert.ok(
-        "sec" in data.system,
-        "sec must be available under data.system"
-      );
-
-      let SEC_FIELDS = ["antivirus", "antispyware", "firewall"];
-      for (let f of SEC_FIELDS) {
-        let products = Glean.windowsSecurity[f].testGetValue();
-        lazy.Assert.ok(
-          f in data.system.sec,
-          f + " must be available under data.system.sec"
-        );
-
-        let value = data.system.sec[f];
-        // value is null on Windows Server
-        lazy.Assert.ok(
-          value === null || Array.isArray(value),
-          f + " must be either null or an array"
-        );
-        if (Array.isArray(value)) {
-          for (let product of value) {
-            // It is posssible that this will fail if either the Legacy or
-            // Glean string limits are hit. If the Glean string_list limits are
-            // hit, `testGetValue` above will throw, though.
-            lazy.Assert.ok(products.includes(product), `${f} data must match.`);
-            lazy.Assert.equal(
-              typeof product,
-              "string",
-              "Each element of " + f + " must be a string"
-            );
-          }
-        }
-      }
-    }
   },
 
   checkActiveAddon(id, data, partialRecord) {

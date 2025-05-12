@@ -912,16 +912,13 @@ struct nsGridContainerFrame::GridItemInfo {
   // of the item is content-based.
   // https://drafts.csswg.org/css-grid-2/#min-size-auto
   //
-  // @note the caller should also check that the item spans at least one track
-  // that has a min track sizing function that is 'auto' before applying it.
+  // @note the caller should also check that the item has a span length of 1,
+  // and that the item's track has a min track sizing function that is 'auto'.
   bool ShouldApplyAutoMinSize(WritingMode aContainerWM,
                               LogicalAxis aContainerAxis) const {
-    if ((mState[aContainerAxis] & StateBits::eIsFlexing) &&
-        mArea.LineRangeForAxis(aContainerAxis).Extent() > 1) {
-      // If the item spans multiple tracks in a given axis, none of those
-      // tracks may be flexible.
-      return false;
-    }
+    MOZ_ASSERT(
+        mArea.LineRangeForAxis(aContainerAxis).Extent() == 1,
+        "Should not be called with grid items that span multiple tracks.");
     const LogicalAxis itemAxis =
         aContainerWM.IsOrthogonalTo(mFrame->GetWritingMode())
             ? GetOrthogonalAxis(aContainerAxis)
@@ -5666,9 +5663,12 @@ static nscoord MeasuringReflow(nsIFrame* aChild,
       nsIFrame::ReflowChildFlags::NoSizeView |
       nsIFrame::ReflowChildFlags::NoDeleteNextInFlowChild;
 
-  GridItemCachedBAxisMeasurement* cachedMeasurement =
-      aChild->GetProperty(GridItemCachedBAxisMeasurement::Prop());
-  if (cachedMeasurement && cachedMeasurement->IsValidFor(aChild, aCBSize)) {
+  // Reflowing the child might invalidate the cache, so we declare the variable
+  // inside the if-statement to ensure it isn't accessed after it may have
+  // become invalid.
+  if (const GridItemCachedBAxisMeasurement* cachedMeasurement =
+          aChild->GetProperty(GridItemCachedBAxisMeasurement::Prop());
+      cachedMeasurement && cachedMeasurement->IsValidFor(aChild, aCBSize)) {
     childSize.BSize(wm) = cachedMeasurement->BSize();
     childSize.ISize(wm) = aChild->ISize(wm);
     nsContainerFrame::FinishReflowChild(aChild, pc, childSize, &childRI, wm,
@@ -5688,7 +5688,8 @@ static nscoord MeasuringReflow(nsIFrame* aChild,
   parent->RemoveProperty(nsContainerFrame::DebugReflowingWithInfiniteISize());
 #endif
 
-  if (cachedMeasurement) {
+  if (GridItemCachedBAxisMeasurement* cachedMeasurement =
+          aChild->GetProperty(GridItemCachedBAxisMeasurement::Prop())) {
     cachedMeasurement->Update(aChild, aCBSize, childSize.BSize(wm));
     GRID_LOG(
         "[perf] MeasuringReflow rejected but updated cached value=%d, "

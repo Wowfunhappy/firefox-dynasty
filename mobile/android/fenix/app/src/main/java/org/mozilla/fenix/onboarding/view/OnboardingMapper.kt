@@ -23,16 +23,16 @@ internal fun Collection<OnboardingCardData>.toPageUiData(
     showDefaultBrowserPage: Boolean,
     showNotificationPage: Boolean,
     showAddWidgetPage: Boolean,
+    showToolbarPage: Boolean,
     jexlConditions: Map<String, String>,
     func: (String) -> Boolean,
 ): List<OnboardingPageUiData> {
     // we are first filtering the cards based on Nimbus configuration
     return filter { it.shouldDisplayCard(func, jexlConditions) }
         // we are then filtering again based on device capabilities
-        .filter { it.isCardEnabled(showDefaultBrowserPage, showNotificationPage, showAddWidgetPage) }
+        .filter { it.isCardEnabled(showDefaultBrowserPage, showNotificationPage, showAddWidgetPage, showToolbarPage) }
         .sortedBy { it.ordering }
-        .mapIndexed {
-                index, onboardingCardData ->
+        .mapIndexed { index, onboardingCardData ->
             // only first onboarding card shows privacy caption
             onboardingCardData.toPageUiData(if (index == 0) privacyCaption else null)
         }
@@ -42,12 +42,14 @@ private fun OnboardingCardData.isCardEnabled(
     showDefaultBrowserPage: Boolean,
     showNotificationPage: Boolean,
     showAddWidgetPage: Boolean,
+    showToolbarPage: Boolean,
 ): Boolean = when (cardType) {
     OnboardingCardType.DEFAULT_BROWSER -> enabled && showDefaultBrowserPage
     OnboardingCardType.NOTIFICATION_PERMISSION -> enabled && showNotificationPage
     OnboardingCardType.ADD_SEARCH_WIDGET -> enabled && showAddWidgetPage
     OnboardingCardType.ADD_ONS -> extraData?.addOnsData?.isNotEmpty() == true
-    OnboardingCardType.TOOLBAR_PLACEMENT -> enabled && extraData?.customizationToolbarData?.isNotEmpty() == true
+    OnboardingCardType.TOOLBAR_PLACEMENT ->
+        showToolbarPage && enabled && extraData?.customizationToolbarData?.isNotEmpty() == true
     OnboardingCardType.THEME_SELECTION -> enabled && extraData?.customizationThemeData?.isNotEmpty() == true
     else -> enabled
 }

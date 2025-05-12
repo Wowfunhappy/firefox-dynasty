@@ -272,6 +272,19 @@ void QuotaManagerDependencyFixture::AssertTemporaryOriginNotInitialized(
 }
 
 // static
+void QuotaManagerDependencyFixture::SaveOriginAccessTime(
+    const OriginMetadata& aOriginMetadata, int64_t aTimestamp) {
+  PerformOnBackgroundThread([aOriginMetadata, aTimestamp]() {
+    QuotaManager* quotaManager = QuotaManager::Get();
+    MOZ_RELEASE_ASSERT(quotaManager);
+
+    auto value =
+        Await(quotaManager->SaveOriginAccessTime(aOriginMetadata, aTimestamp));
+    MOZ_RELEASE_ASSERT(value.IsResolve());
+  });
+}
+
+// static
 void QuotaManagerDependencyFixture::GetOriginUsage(
     const OriginMetadata& aOriginMetadata, UsageInfo* aResult) {
   ASSERT_TRUE(aResult);
@@ -398,12 +411,46 @@ void QuotaManagerDependencyFixture::ClearStoragesForOriginAttributesPattern(
 }
 
 // static
+void QuotaManagerDependencyFixture::ProcessPendingNormalOriginOperations() {
+  PerformOnBackgroundThread([]() {
+    QuotaManager* quotaManager = QuotaManager::Get();
+    MOZ_RELEASE_ASSERT(quotaManager);
+
+    quotaManager->ProcessPendingNormalOriginOperations();
+  });
+}
+
+// static
 uint64_t QuotaManagerDependencyFixture::TotalDirectoryIterations() {
   const auto result = PerformOnIOThread([]() -> uint64_t {
     QuotaManager* quotaManager = QuotaManager::Get();
     MOZ_RELEASE_ASSERT(quotaManager);
 
     return quotaManager->TotalDirectoryIterations();
+  });
+
+  return result;
+}
+
+// static
+uint64_t QuotaManagerDependencyFixture::SaveOriginAccessTimeCount() {
+  const auto result = PerformOnBackgroundThread([]() -> uint64_t {
+    QuotaManager* quotaManager = QuotaManager::Get();
+    MOZ_RELEASE_ASSERT(quotaManager);
+
+    return quotaManager->SaveOriginAccessTimeCount();
+  });
+
+  return result;
+}
+
+// static
+uint64_t QuotaManagerDependencyFixture::SaveOriginAccessTimeCountInternal() {
+  const auto result = PerformOnIOThread([]() -> uint64_t {
+    QuotaManager* quotaManager = QuotaManager::Get();
+    MOZ_RELEASE_ASSERT(quotaManager);
+
+    return quotaManager->SaveOriginAccessTimeCountInternal();
   });
 
   return result;

@@ -119,6 +119,7 @@ struct URLValue;
 namespace dom {
 struct CheckVisibilityOptions;
 struct CustomElementData;
+struct SetHTMLUnsafeOptions;
 struct SetHTMLOptions;
 struct GetHTMLOptions;
 struct GetAnimationsOptions;
@@ -308,7 +309,7 @@ class Element : public FragmentOrElement {
 
 #endif  // MOZILLA_INTERNAL_API
 
-  NS_DECLARE_STATIC_IID_ACCESSOR(NS_ELEMENT_IID)
+  NS_INLINE_DECL_STATIC_IID(NS_ELEMENT_IID)
 
   NS_DECL_ADDSIZEOFEXCLUDINGTHIS
 
@@ -1676,8 +1677,15 @@ class Element : public FragmentOrElement {
       const TrustedHTMLOrString& aTrustedHTMLOrString,
       nsIPrincipal* aSubjectPrincipal, ErrorResult& aError);
 
-  void SetHTML(const nsAString& aInnerHTML, const SetHTMLOptions& aOptions,
-               ErrorResult& aError);
+  virtual void SetHTML(const nsAString& aInnerHTML,
+                       const SetHTMLOptions& aOptions, ErrorResult& aError);
+
+  MOZ_CAN_RUN_SCRIPT
+  virtual void SetHTMLUnsafe(const TrustedHTMLOrString& aHTML,
+                             const SetHTMLUnsafeOptions& aOptions,
+                             nsIPrincipal* aSubjectPrincipal,
+                             ErrorResult& aError);
+
   void GetHTML(const GetHTMLOptions& aOptions, nsAString& aResult);
 
   //----------------------------------------
@@ -2269,11 +2277,6 @@ class Element : public FragmentOrElement {
   virtual bool Translate() const;
 
   MOZ_CAN_RUN_SCRIPT
-  virtual void SetHTMLUnsafe(const TrustedHTMLOrString& aHTML,
-                             nsIPrincipal* aSubjectPrincipal,
-                             ErrorResult& aError);
-
-  MOZ_CAN_RUN_SCRIPT
   void FireBeforematchEvent(ErrorResult& aRv);
 
  protected:
@@ -2346,8 +2349,6 @@ class Element : public FragmentOrElement {
   // Array containing all attributes for this element
   AttrArray mAttrs;
 };
-
-NS_DEFINE_STATIC_IID_ACCESSOR(Element, NS_ELEMENT_IID)
 
 inline bool Element::HasNonEmptyAttr(int32_t aNameSpaceID,
                                      const nsAtom* aName) const {

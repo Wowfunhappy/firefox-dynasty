@@ -306,6 +306,9 @@
      */
     addTabs(tabs, metricsContext) {
       for (let tab of tabs) {
+        if (tab.pinned) {
+          tab.ownerGlobal.gBrowser.unpinTab(tab);
+        }
         let tabToMove =
           this.ownerGlobal === tab.ownerGlobal
             ? tab

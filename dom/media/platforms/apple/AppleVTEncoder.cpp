@@ -875,7 +875,7 @@ void AppleVTEncoder::ProcessEncode(const RefPtr<const VideoData>& aSample) {
     MaybeResolveOrRejectEncodePromise();
   }
 
-  AutoCVBufferRelease<CVImageBufferRef> buffer(
+  AutoCVBufferRef<CVImageBufferRef> buffer(
       CreateCVPixelBuffer(aSample->mImage));
   if (!buffer) {
     LOGE("Failed to allocate buffer");

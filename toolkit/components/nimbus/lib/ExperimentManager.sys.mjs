@@ -33,10 +33,8 @@ ChromeUtils.defineLazyGetter(lazy, "log", () => {
 
 const TELEMETRY_DEFAULT_EXPERIMENT_TYPE = "nimbus";
 
-const UPLOAD_ENABLED_PREF = "datareporting.healthreport.uploadEnabled";
-const STUDIES_OPT_OUT_PREF = "app.shield.optoutstudies.enabled";
-
-const STUDIES_ENABLED_CHANGED = "nimbus:studies-enabled-changed";
+const IS_MAIN_PROCESS =
+  Services.appinfo.processType === Services.appinfo.PROCESS_TYPE_DEFAULT;
 
 export const UnenrollmentCause = {
   fromCheckRecipeResult(result) {
@@ -111,8 +109,6 @@ export class _ExperimentManager {
     this.optInRecipes = [];
     // By default, no extra context.
     this.extraContext = {};
-    Services.prefs.addObserver(UPLOAD_ENABLED_PREF, this);
-    Services.prefs.addObserver(STUDIES_OPT_OUT_PREF, this);
 
     // A Map from pref names to pref observers and metadata. See
     // `_updatePrefObservers` for the full structure.
@@ -131,14 +127,6 @@ export class _ExperimentManager {
     //
     // This can only be used in the parent process ExperimentManager.
     this._prefFlips = null;
-  }
-
-  get studiesEnabled() {
-    return (
-      Services.prefs.getBoolPref(UPLOAD_ENABLED_PREF, false) &&
-      Services.prefs.getBoolPref(STUDIES_OPT_OUT_PREF, false) &&
-      Services.policies.isAllowed("Shield")
-    );
   }
 
   /**
@@ -222,6 +210,12 @@ export class _ExperimentManager {
    * ambient environment.
    */
   async onStartup(extraContext = {}) {
+    if (!IS_MAIN_PROCESS) {
+      throw new Error(
+        "ExperimentManager.onStartup() can only be called from the main process"
+      );
+    }
+
     this._prefs = new Map();
     this._prefsBySlug = new Map();
     this._prefFlips = new PrefFlipsFeature({ manager: this });
@@ -247,7 +241,7 @@ export class _ExperimentManager {
 
     this._prefFlips.init();
 
-    if (!this.studiesEnabled) {
+    if (!lazy.ExperimentAPI.studiesEnabled) {
       this._handleStudiesOptOut();
     }
 
@@ -887,14 +881,6 @@ export class _ExperimentManager {
     this._unsetEnrollmentPrefs(enrollment, cause, { duringRestore });
 
     lazy.log.debug(`Recipe unenrolled: ${slug}`);
-  }
-
-  observe() {
-    if (!this.studiesEnabled) {
-      this._handleStudiesOptOut();
-    }
-
-    Services.obs.notifyObservers(null, STUDIES_ENABLED_CHANGED);
   }
 
   /**

@@ -40,7 +40,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -104,7 +103,7 @@ fun TabGridItem(
     onClick: (tab: TabSessionState) -> Unit,
     onLongClick: ((tab: TabSessionState) -> Unit)? = null,
 ) {
-    if (FeatureFlags.swipeToDismiss2) {
+    if (FeatureFlags.SWIPE_TO_DISMISS_2) {
         SwipeToDismissBox2(
             state = swipeState2,
             backgroundContent = {},
@@ -179,7 +178,7 @@ private fun TabContent(
     Box(
         modifier = Modifier
             .wrapContentSize()
-            .testTag(TabsTrayTestTag.tabItemRoot),
+            .testTag(TabsTrayTestTag.TAB_ITEM_ROOT),
     ) {
         val clickableModifier = if (onLongClick == null) {
             Modifier.clickable(
@@ -276,7 +275,7 @@ private fun TabContent(
                         IconButton(
                             modifier = Modifier
                                 .size(24.dp)
-                                .testTag(TabsTrayTestTag.tabItemClose),
+                                .testTag(TabsTrayTestTag.TAB_ITEM_CLOSE),
                             onClick = {
                                 onCloseClick(tab)
                             },
@@ -339,7 +338,7 @@ private fun Thumbnail(
             .fillMaxSize()
             .background(FirefoxTheme.colors.layer2)
             .semantics(mergeDescendants = true) {
-                testTag = TabsTrayTestTag.tabItemThumbnail
+                testTag = TabsTrayTestTag.TAB_ITEM_THUMBNAIL
             },
     ) {
         TabThumbnail(
@@ -368,7 +367,7 @@ private fun Thumbnail(
                         .matchParentSize()
                         .padding(all = 8.dp),
                     contentDescription = null,
-                    tint = colorResource(id = R.color.mozac_ui_icons_fill),
+                    tint = FirefoxTheme.colors.iconActionPrimary,
                 )
             }
         }

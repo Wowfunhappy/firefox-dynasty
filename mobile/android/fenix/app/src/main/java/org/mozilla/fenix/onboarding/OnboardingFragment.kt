@@ -30,6 +30,7 @@ import org.mozilla.fenix.FenixApplication
 import org.mozilla.fenix.GleanMetrics.Pings
 import org.mozilla.fenix.HomeActivity
 import org.mozilla.fenix.R
+import org.mozilla.fenix.browser.tabstrip.isTabStripEnabled
 import org.mozilla.fenix.components.accounts.FenixFxAEntryPoint
 import org.mozilla.fenix.components.initializeGlean
 import org.mozilla.fenix.components.lazyStore
@@ -119,7 +120,7 @@ class OnboardingFragment : Fragment() {
         super.onCreate(savedInstanceState)
         val context = requireContext()
         if (pagesToDisplay.isEmpty()) {
-            /* do not continue if there's no onboarding pages to display */
+            // do not continue if there's no onboarding pages to display
             onFinish(null)
         }
 
@@ -259,7 +260,6 @@ class OnboardingFragment : Fragment() {
             },
             onFinish = {
                 onFinish(it)
-                disableNavBarCFRForNewUser()
                 enableSearchBarCFRForNewUser()
             },
             onImpression = {
@@ -346,7 +346,7 @@ class OnboardingFragment : Fragment() {
     }
 
     private fun onFinish(onboardingPageUiData: OnboardingPageUiData?) {
-        /* onboarding page UI data can be null if there was no pages to display */
+        // onboarding page UI data can be null if there was no pages to display
         if (onboardingPageUiData != null) {
             val sequenceId = pagesToDisplay.telemetrySequenceId()
             val sequencePosition = pagesToDisplay.sequencePosition(onboardingPageUiData.type)
@@ -383,10 +383,6 @@ class OnboardingFragment : Fragment() {
             id = R.id.onboardingFragment,
             directions = OnboardingFragmentDirections.actionHome(),
         )
-    }
-
-    private fun disableNavBarCFRForNewUser() {
-        requireContext().settings().shouldShowNavigationBarCFR = false
     }
 
     private fun enableSearchBarCFRForNewUser() {
@@ -429,6 +425,7 @@ class OnboardingFragment : Fragment() {
                 showDefaultBrowserPage,
                 showNotificationPage,
                 showAddWidgetPage,
+                requireContext().isTabStripEnabled().not(),
                 jexlConditions,
             ) { condition -> jexlHelper.evalJexlSafe(condition) }
         }

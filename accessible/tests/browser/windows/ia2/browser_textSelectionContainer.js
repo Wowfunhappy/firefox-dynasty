@@ -81,6 +81,22 @@ addAccessibleTask(
       is(sel.focusOffset, 3, "DOM selection focus offset correct");
     });
 
+    info("Selecting fg");
+    selected = waitForEvent(EVENT_TEXT_SELECTION_CHANGED, p);
+    await runPython(`
+      docSel.setSelections(1, byref(IA2TextSelection(p, 4, p, 6, False)))
+    `);
+    await selected;
+    checkSelection(docAcc, [[p, 4, p, 6]]);
+
+    info("Selecting g");
+    selected = waitForEvent(EVENT_TEXT_SELECTION_CHANGED, p);
+    await runPython(`
+      docSel.setSelections(1, byref(IA2TextSelection(p, 5, p, 6, False)))
+    `);
+    await selected;
+    checkSelection(docAcc, [[p, 5, p, 6]]);
+
     info("Selecting a, c");
     selected = waitForEvent(EVENT_TEXT_SELECTION_CHANGED, link);
     await runPython(`
@@ -94,5 +110,13 @@ addAccessibleTask(
       [p, 0, p, 1],
       [link, 0, link, 1],
     ]);
+
+    info("Clearing selection");
+    selected = waitForEvent(EVENT_TEXT_SELECTION_CHANGED, docAcc);
+    await runPython(`
+      docSel.setSelections(0, byref(IA2TextSelection()))
+    `);
+    await selected;
+    checkSelection(docAcc, []);
   }
 );

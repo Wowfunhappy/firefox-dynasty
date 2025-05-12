@@ -2437,6 +2437,16 @@
   value: true
   mirror: always
 
+- name: docshell.shistory.sameDocumentNavigationOverridesLoadType
+  type: bool
+  value: @IS_NOT_NIGHTLY_BUILD@
+  mirror: always
+
+- name: docshell.shistory.sameDocumentNavigationOverridesLoadType.forceDisable
+  type: String
+  value: ""
+  mirror: never
+
 #---------------------------------------------------------------------------
 # Prefs starting with "dom."
 #---------------------------------------------------------------------------
@@ -2537,7 +2547,7 @@
 # https://github.com/whatwg/html/pull/10737
 - name: dom.dialog.light-dismiss.enabled
   type: bool
-  value: false
+  value: @IS_NIGHTLY_BUILD@
   mirror: always
 
 # Disable custom highlight API; implementation pending.
@@ -2933,7 +2943,7 @@
 # Whether to dispatch `beforescriptexecute` and `afterscriptexecute` event.
 - name: dom.events.script_execute.enabled
   type: bool
-  value: @IS_NOT_NIGHTLY_BUILD@
+  value: @IS_NOT_EARLY_BETA_OR_EARLIER@
   mirror: always
 
 # Whether to expose test interfaces of various sorts
@@ -4907,7 +4917,8 @@
     *.usps.com,
     *.nvidia.com,
     *.fedex.com,
-    *.msci.com
+    *.msci.com,
+    *.the-saleroom.com
   mirror: never
 
 # Maximum amount of time in milliseconds consecutive setTimeout()/setInterval()
@@ -5271,6 +5282,14 @@
 - name: dom.w3c_pointer_events.getcoalescedevents_only_in_securecontext
   type: bool
   value: @IS_NIGHTLY_BUILD@
+  mirror: always
+
+# `click` event target is defined as overridden by pointer capture target in
+# Pointer Events.  Set this to true if we should conform to it.  Otherwise,
+# consider the target from the pointer position, set this to false.
+- name: dom.w3c_pointer_events.dispatch_click_on_pointer_capturing_element
+  type: bool
+  value: true
   mirror: always
 
 # In case Touch API is enabled, this pref controls whether to support
@@ -8086,6 +8105,14 @@
   value: -1
   mirror: always
 
+# If true, then the HTMLImageElement naturalWidth and naturalHeight APIs will
+# fall back to the default concrete object size (300x150) for images that lack
+# a natural width and/or height.
+- name: image.natural-size-fallback.enabled
+  type: RelaxedAtomicBool
+  value: true
+  mirror: always
+
 # Whether we record SVG images as blobs or not.
 - name: image.svg.blob-image
   type: RelaxedAtomicBool
@@ -10163,7 +10190,7 @@
 # UA styles for h1 in article/aside/nav/section. See bug 1883896.
 - name: layout.css.h1-in-section-ua-styles.enabled
   type: RelaxedAtomicBool
-  value: @IS_NOT_NIGHTLY_BUILD@
+  value: false
   mirror: always
 
 # CSS for android picture-in-picture. See bug 1940052.
@@ -11684,13 +11711,15 @@
     mirror: always
 
 # Enable origin filter for MFCDM support
-# 0 : disabled, 1 : enabled allowed list, 2 : enabled blocked list
+# 0 : disabled, 1 : enabled allowed list, 2 : enabled blocked list,
+# 3 : enabled allowed by default via Remote Settings
+# 4 : enabled blocked by default via Remote Settings
 -   name: media.eme.mfcdm.origin-filter.enabled
     type: RelaxedAtomicUint32
-#if defined(MOZ_DEV_EDITION) || defined(EARLY_BETA_OR_EARLIER)
-    value: 2
+#ifdef NIGHTLY_BUILD
+    value: 3
 #else
-    value: 1
+    value: 4
 #endif
     mirror: always
 
@@ -13371,6 +13400,12 @@
   value: 5.0
   mirror: always
 
+# When true, we only allow one outstanding GetPacFromDHCP runnable
+- name: network.proxy.dhcp_wpad_only_one_outstanding
+  type: RelaxedAtomicBool
+  value: true
+  mirror: always
+
 # Allow CookieJarSettings to be unblocked for channels without a document.
 # This is for testing only.
 - name: network.cookieJarSettings.unblocked_for_testing
@@ -14879,6 +14914,12 @@
   type: String
   value: ""
   mirror: never
+
+# Whether to wait for idle-startup notification before performing connectivity checks
+- name: network.connectivity-service.wait_for_idle_startup
+  type: RelaxedAtomicBool
+  value: true
+  mirror: always
 
 # Whether to enable echconfig.
 - name: network.dns.echconfig.enabled
