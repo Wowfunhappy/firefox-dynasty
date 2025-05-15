@@ -224,7 +224,7 @@ export class TelemetryFeed {
   getFollowedSections() {
     const followedString = this._prefs.get(PREF_FOLLOWED_SECTIONS);
 
-    if (followedString.length) {
+    if (followedString?.length) {
       const items = followedString
         .split(",")
         .map(item => item.trim())
@@ -1414,14 +1414,18 @@ export class TelemetryFeed {
         }
         continue;
       }
-      const { position, advertiser_name, tile_id, isSponsoredTopSite } = datum;
-      Glean.topsites.dismiss.record({
-        advertiser_name,
-        tile_id,
-        newtab_visit_id: session.session_id,
-        is_sponsored: !!isSponsoredTopSite,
-        position,
-      });
+      // Only log a topsites.dismiss telemetry event if the action came from TopSites section
+      if (action.source === "TOP_SITES") {
+        const { position, advertiser_name, tile_id, isSponsoredTopSite } =
+          datum;
+        Glean.topsites.dismiss.record({
+          advertiser_name,
+          tile_id,
+          newtab_visit_id: session.session_id,
+          is_sponsored: !!isSponsoredTopSite,
+          position,
+        });
+      }
     }
   }
 

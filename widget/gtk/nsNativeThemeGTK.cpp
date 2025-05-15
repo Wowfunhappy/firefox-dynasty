@@ -184,13 +184,6 @@ bool nsNativeThemeGTK::GetGtkWidgetAndState(StyleAppearance aAppearance,
     aState->isDefault = IsDefaultButton(aFrame);
     aState->canDefault = FALSE;  // XXX fix me
 
-    if (aAppearance == StyleAppearance::MozWindowButtonMinimize ||
-        aAppearance == StyleAppearance::MozWindowButtonRestore ||
-        aAppearance == StyleAppearance::MozWindowButtonMaximize ||
-        aAppearance == StyleAppearance::MozWindowButtonClose) {
-      aState->active &= aState->inHover;
-    }
-
     if (IsFrameContentNodeInNamespace(aFrame, kNameSpaceID_XUL)) {
       // For these widget types, some element (either a child or parent)
       // actually has element focus, so we check the focused attribute
@@ -199,11 +192,7 @@ bool nsNativeThemeGTK::GetGtkWidgetAndState(StyleAppearance aAppearance,
     }
 
     if (aAppearance == StyleAppearance::MozWindowTitlebar ||
-        aAppearance == StyleAppearance::MozWindowTitlebarMaximized ||
-        aAppearance == StyleAppearance::MozWindowButtonClose ||
-        aAppearance == StyleAppearance::MozWindowButtonMinimize ||
-        aAppearance == StyleAppearance::MozWindowButtonMaximize ||
-        aAppearance == StyleAppearance::MozWindowButtonRestore) {
+        aAppearance == StyleAppearance::MozWindowTitlebarMaximized) {
       aState->backdrop = aFrame->PresContext()->Document()->State().HasState(
           dom::DocumentState::WINDOW_INACTIVE);
     }
@@ -240,26 +229,8 @@ bool nsNativeThemeGTK::GetGtkWidgetAndState(StyleAppearance aAppearance,
       else
         aGtkWidgetType = MOZ_GTK_SPLITTER_HORIZONTAL;
       break;
-    case StyleAppearance::MozWindowTitlebar:
-      aGtkWidgetType = MOZ_GTK_HEADER_BAR;
-      break;
     case StyleAppearance::MozWindowDecorations:
       aGtkWidgetType = MOZ_GTK_WINDOW_DECORATION;
-      break;
-    case StyleAppearance::MozWindowTitlebarMaximized:
-      aGtkWidgetType = MOZ_GTK_HEADER_BAR_MAXIMIZED;
-      break;
-    case StyleAppearance::MozWindowButtonClose:
-      aGtkWidgetType = MOZ_GTK_HEADER_BAR_BUTTON_CLOSE;
-      break;
-    case StyleAppearance::MozWindowButtonMinimize:
-      aGtkWidgetType = MOZ_GTK_HEADER_BAR_BUTTON_MINIMIZE;
-      break;
-    case StyleAppearance::MozWindowButtonMaximize:
-      aGtkWidgetType = MOZ_GTK_HEADER_BAR_BUTTON_MAXIMIZE;
-      break;
-    case StyleAppearance::MozWindowButtonRestore:
-      aGtkWidgetType = MOZ_GTK_HEADER_BAR_BUTTON_MAXIMIZE_RESTORE;
       break;
     default:
       return false;
@@ -636,6 +607,10 @@ bool nsNativeThemeGTK::CreateWebRenderCommandsForWidget(
     return Theme::CreateWebRenderCommandsForWidget(
         aBuilder, aResources, aSc, aManager, aFrame, aAppearance, aRect);
   }
+  if (aAppearance == StyleAppearance::MozWindowDecorations && GdkIsWaylandDisplay()) {
+    // On wayland we don't need to draw window decorations.
+    return true;
+  }
   return false;
 }
 
@@ -732,10 +707,6 @@ bool nsNativeThemeGTK::GetWidgetPadding(nsDeviceContext* aContext,
   }
   switch (aAppearance) {
     case StyleAppearance::Toolbarbutton:
-    case StyleAppearance::MozWindowButtonClose:
-    case StyleAppearance::MozWindowButtonMinimize:
-    case StyleAppearance::MozWindowButtonMaximize:
-    case StyleAppearance::MozWindowButtonRestore:
       aResult->SizeTo(0, 0, 0, 0);
       return true;
     default:
@@ -813,28 +784,6 @@ LayoutDeviceIntSize nsNativeThemeGTK::GetMinimumWidgetSize(
         moz_gtk_splitter_get_metrics(GTK_ORIENTATION_VERTICAL, &result.height);
       }
     } break;
-    case StyleAppearance::MozWindowButtonClose: {
-      const ToolbarButtonGTKMetrics* metrics =
-          GetToolbarButtonMetrics(MOZ_GTK_HEADER_BAR_BUTTON_CLOSE);
-      result.width = metrics->minSizeWithBorder.width;
-      result.height = metrics->minSizeWithBorder.height;
-      break;
-    }
-    case StyleAppearance::MozWindowButtonMinimize: {
-      const ToolbarButtonGTKMetrics* metrics =
-          GetToolbarButtonMetrics(MOZ_GTK_HEADER_BAR_BUTTON_MINIMIZE);
-      result.width = metrics->minSizeWithBorder.width;
-      result.height = metrics->minSizeWithBorder.height;
-      break;
-    }
-    case StyleAppearance::MozWindowButtonMaximize:
-    case StyleAppearance::MozWindowButtonRestore: {
-      const ToolbarButtonGTKMetrics* metrics =
-          GetToolbarButtonMetrics(MOZ_GTK_HEADER_BAR_BUTTON_MAXIMIZE);
-      result.width = metrics->minSizeWithBorder.width;
-      result.height = metrics->minSizeWithBorder.height;
-      break;
-    }
     default:
       break;
   }
@@ -880,10 +829,6 @@ nsNativeThemeGTK::ThemeSupportsWidget(nsPresContext* aPresContext,
     // case StyleAppearance::Tabpanel:
     case StyleAppearance::Tabpanels:
     case StyleAppearance::Splitter:
-    case StyleAppearance::MozWindowButtonClose:
-    case StyleAppearance::MozWindowButtonMinimize:
-    case StyleAppearance::MozWindowButtonMaximize:
-    case StyleAppearance::MozWindowButtonRestore:
     case StyleAppearance::MozWindowTitlebar:
     case StyleAppearance::MozWindowTitlebarMaximized:
     case StyleAppearance::MozWindowDecorations:

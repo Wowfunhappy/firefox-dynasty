@@ -509,6 +509,10 @@ MSG_DEF(JSMSG_WASM_ARRAYBUFFER_PAGE_MULTIPLE, 0, JSEXN_RANGEERR, "can only grow 
 MSG_DEF(JSMSG_WASM_ARRAYBUFFER_CANNOT_SHRINK, 0, JSEXN_RANGEERR, "cannot shrink WebAssembly memory")
 MSG_DEF(JSMSG_WASM_MEMORY_NOT_RESIZABLE,      0, JSEXN_TYPEERR,  "WebAssembly memory non-resizable, maximum length is not provided")
 
+// Wasm/asm.js deprecation warnings
+MSG_DEF(JSMSG_WASM_LEGACY_EXCEPTIONS_DEPRECATED, 0, JSEXN_WARN, "The WebAssembly exception handling 'try' instruction is deprecated and should no longer be used. Please recompile to use the 'try_table' instruction instead.")
+MSG_DEF(JSMSG_USE_ASM_DEPRECATED,                0, JSEXN_WARN, "asm.js is deprecated and should no longer be used. Please recompile using WebAssembly to get the best performance.")
+
 // JSPI
 MSG_DEF(JSMSG_JSPI_ARG_POSITION,       0, JSEXN_TYPEERR, "Invalid argument position value")
 MSG_DEF(JSMSG_JSPI_INVALID_SUSPENDER,  0, IF_WASM_JSPI(JSEXN_WASMSUSPENDERROR, JSEXN_WASMRUNTIMEERROR), "Invalid suspender")
@@ -870,7 +874,6 @@ MSG_DEF(JSMSG_TEMPORAL_INSTANT_INVALID,             0, JSEXN_RANGEERR, "epoch na
 MSG_DEF(JSMSG_TEMPORAL_INSTANT_NONINTEGER,          1, JSEXN_RANGEERR, "Instant must be an integer, but received {0}")
 MSG_DEF(JSMSG_TEMPORAL_INSTANT_BAD_DURATION,        1, JSEXN_RANGEERR, "duration \"{0}\" property must be zero")
 MSG_DEF(JSMSG_TEMPORAL_TIMEZONE_INVALID_IDENTIFIER, 1, JSEXN_RANGEERR, "invalid time zone: {0}")
-MSG_DEF(JSMSG_TEMPORAL_TIMEZONE_NANOS_RANGE,        1, JSEXN_RANGEERR, "nanoseconds out of range: {0}")
 MSG_DEF(JSMSG_TEMPORAL_TIMEZONE_INCOMPATIBLE,       2, JSEXN_RANGEERR, "time zones \"{0}\" and \"{1}\" aren't compatible")
 MSG_DEF(JSMSG_TEMPORAL_TIMEZONE_INSTANT_AMBIGUOUS,  0, JSEXN_RANGEERR, "instant is ambiguous")
 MSG_DEF(JSMSG_TEMPORAL_DURATION_INVALID_SIGN,       2, JSEXN_RANGEERR, "duration value \"{0}\" has a mismatched sign: {1}")

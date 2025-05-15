@@ -1607,6 +1607,18 @@ export class ExtensionData {
     return this._backgroundState;
   }
 
+  /**
+   * Returns true if the addon is configured to be installed
+   * by enterprise policy.
+   * Should be kept in sync with XPIDatabase.sys.mjs
+   */
+  get isInstalledByEnterprisePolicy() {
+    const policySettings = Services.policies?.getExtensionSettings(this.id);
+    return ["force_installed", "normal_installed"].includes(
+      policySettings?.installation_mode
+    );
+  }
+
   async getExtensionVersionWithoutValidation() {
     return (await this.readJSON("manifest.json")).version;
   }
@@ -3091,7 +3103,7 @@ export class ExtensionData {
   /**
    * @param {Array<string>} dataPermissions An array of data collection permissions.
    *
-   * @returns {{msg: string, collectsTechnicalAndInteractionData: boolean, hasNone: boolean}} An
+   * @returns {{msg?: string, collectsTechnicalAndInteractionData?: boolean, hasNone: boolean}} An
    * object with information about data collection permissions for the UI.
    */
   static _formatDataCollectionPermissions(dataPermissions, type) {
@@ -3158,10 +3170,11 @@ export class ExtensionData {
    * @param {Array<string>} permissions A list of optional data collection
    * permissions.
    *
-   * @returns {Record<string, string>} A map of permission names to localized
+   * Returns an object mapping permission names to localized
    * strings representing the optional data collection permissions.
    */
   static _formatOptionalDataCollectionPermissions(permissions) {
+    /** @type {Record<string, string>} */
     const optionalDataCollectionPermissions = {};
 
     const odcKeys = [];

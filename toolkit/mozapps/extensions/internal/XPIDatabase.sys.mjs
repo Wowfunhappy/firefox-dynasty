@@ -249,8 +249,6 @@ let addonFor = wrapper => wrapperMap.get(wrapper);
 
 const EMPTY_ARRAY = Object.freeze([]);
 
-let AddonWrapper;
-
 /**
  * The AddonInternal is an internal only representation of add-ons. It
  * may have come from the database or an extension manifest.
@@ -882,7 +880,7 @@ export class AddonInternal {
  * @param {AddonInternal} aAddon
  *        The add-on object to wrap.
  */
-AddonWrapper = class {
+export class AddonWrapper {
   constructor(aAddon) {
     wrapperMap.set(this, aAddon);
   }
@@ -1374,6 +1372,8 @@ AddonWrapper = class {
   /**
    * Returns true if the addon is configured to be installed
    * by enterprise policy.
+   *
+   * Should be kept in sync with Extension.sys.mjs
    */
   get isInstalledByEnterprisePolicy() {
     const policySettings = Services.policies?.getExtensionSettings(this.id);
@@ -1525,7 +1525,7 @@ AddonWrapper = class {
     }
     return url;
   }
-};
+}
 
 function chooseValue(aAddon, aObj, aProp) {
   let repositoryAddon = aAddon._repositoryAddon;
