@@ -14,6 +14,7 @@
 #include "AppleVDADecoder.h"
 #include "AppleVDALinker.h"
 #include "AppleCMLinker.h"
+#include "AppleCVLinker.h"
 #include "AppleVTLinker.h"
 
 #include "MP4Decoder.h"

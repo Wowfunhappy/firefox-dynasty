@@ -6,16 +6,14 @@
 
 #include <dlfcn.h>
 
+#include "PlatformDecoderModule.h" // need this or we can't log to an existing facility
 #include "AppleCVLinker.h"
 #include "MainThreadUtils.h"
 #include "nsDebug.h"
 
-#ifdef PR_LOGGING
-PRLogModuleInfo* GetAppleMediaLog();
-#define LOG(...) PR_LOG(GetAppleMediaLog(), PR_LOG_DEBUG, (__VA_ARGS__))
-#else
-#define LOG(...)
-#endif
+#define LOG(...) MOZ_LOG(sPDMLog, mozilla::LogLevel::Debug, (__VA_ARGS__))
+namespace mozilla {
+
 
 CFStringRef AppleCVLinker::ColorPrimaries_P22 = nullptr;
 CFStringRef AppleCVLinker::ColorPrimaries_P3_D65 = nullptr;
@@ -29,8 +27,6 @@ CFStringRef AppleCVLinker::TransferFunction_ITU_R_709_2 = nullptr;
 CFStringRef AppleCVLinker::TransferFunction_sRGB = nullptr;
 CFStringRef AppleCVLinker::TransferFunction_SMPTE_ST_2084_PQ = nullptr;
 CFStringRef AppleCVLinker::TransferFunction_ITU_R_2100_HLG = nullptr;
-
-namespace mozilla {
 
 AppleCVLinker::LinkStatus
 AppleCVLinker::sLinkStatus = LinkStatus_INIT;
@@ -107,4 +103,16 @@ AppleCVLinker::Unlink()
   }
 }
 
+  /* static */ CFStringRef
+AppleCVLinker::GetIOConst(const char* symbol)
+{
+  CFStringRef* address = (CFStringRef*)dlsym(sLink, symbol);
+  if (!address) {
+    return nullptr;
+  }
+
+  return *address;
+}
+
 } // namespace mozilla
+#undef LOG

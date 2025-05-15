@@ -22,18 +22,18 @@ class AppleCVLinker
 public:
   static bool Link();
   static void Unlink();
-  static CFStringRef AppleCVLinker::ColorPrimaries_P22;
-  static CFStringRef AppleCVLinker::ColorPrimaries_P3_D65;
-  static CFStringRef AppleCVLinker::ColorPrimaries_SMPTE_C;
-  static CFStringRef AppleCVLinker::ColorPrimaries_ITU_R_709_2;
-  static CFStringRef AppleCVLinker::ColorPrimaries_ITU_R_2020;
-  static CFStringRef AppleCVLinker::YCbCrMatrix_ITU_R_601_4;
-  static CFStringRef AppleCVLinker::YCbCrMatrix_ITU_R_709_2;
-  static CFStringRef AppleCVLinker::YCbCrMatrix_ITU_R_2020;
-  static CFStringRef AppleCVLinker::TransferFunction_ITU_R_709_2;
-  static CFStringRef AppleCVLinker::TransferFunction_sRGB;
-  static CFStringRef AppleCVLinker::TransferFunction_SMPTE_ST_2084_PQ;
-  static CFStringRef AppleCVLinker::TransferFunction_ITU_R_2100_HLG;
+  static CFStringRef ColorPrimaries_P22;
+  static CFStringRef ColorPrimaries_P3_D65;
+  static CFStringRef ColorPrimaries_SMPTE_C;
+  static CFStringRef ColorPrimaries_ITU_R_709_2;
+  static CFStringRef ColorPrimaries_ITU_R_2020;
+  static CFStringRef YCbCrMatrix_ITU_R_601_4;
+  static CFStringRef YCbCrMatrix_ITU_R_709_2;
+  static CFStringRef YCbCrMatrix_ITU_R_2020;
+  static CFStringRef TransferFunction_ITU_R_709_2;
+  static CFStringRef TransferFunction_sRGB;
+  static CFStringRef TransferFunction_SMPTE_ST_2084_PQ;
+  static CFStringRef TransferFunction_ITU_R_2100_HLG;
 
 private:
   static void* sLink;
@@ -44,10 +44,8 @@ private:
     LinkStatus_FAILED,
     LinkStatus_SUCCEEDED
   } sLinkStatus;
-};
-
+  
   static CFStringRef GetIOConst(const char* symbol);
-
+};
 } // namespace mozilla
-
 #endif // AppleCVLinker_h
