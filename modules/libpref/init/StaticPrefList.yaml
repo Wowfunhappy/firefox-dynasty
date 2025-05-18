@@ -2815,6 +2815,12 @@
   value: true
   mirror: always
 
+# Whether pointerrawupdate event is enabled or disabled.
+- name: dom.event.pointer.rawupdate.enabled
+  type: bool
+  value: true
+  mirror: always
+
 # Whether wheel event target's should be grouped. When enabled, all wheel
 # events that occur in a given wheel transaction have the same event target.
 - name: dom.event.wheel-event-groups.enabled
@@ -8560,7 +8566,7 @@
 # Use better error message when accessing property of null or undefined.
 - name: javascript.options.property_error_message_fix
   type: bool
-  value: @IS_NIGHTLY_OR_DEV_EDITION@
+  value: true
   mirror: always
   set_spidermonkey_pref: startup
 
@@ -8804,6 +8810,12 @@
   value: 2 * 1024 * 1024
 #endif
   mirror: always
+
+- name: javascript.options.wasm_trace_api
+  type: bool
+  value: false
+  mirror: always
+  set_spidermonkey_pref: always
 
 - name: javascript.options.wasm_disable_huge_memory
   type: bool
@@ -13957,6 +13969,13 @@
   value: 20000
   mirror: always
 
+# When resolving a native HTTPS query with native APIs
+# the MacOS implementation has a max timeout
+- name: network.dns.native_https_timeout_mac
+  type: RelaxedAtomicInt32
+  value: 5000
+  mirror: always
+
 # When this pref is true, we copy the host name to a fresh string before
 # calling into getaddrinfo.
 - name: network.dns.copy_string_before_call
@@ -14866,7 +14885,11 @@
 # Has no effect unless security.tls.enable_kyber is true.
 - name: network.http.http3.enable_kyber
   type: RelaxedAtomicBool
-  value: @IS_NOT_ANDROID@
+#ifdef ANDROID
+  value: @IS_NIGHTLY_BUILD@
+#else
+  value: true
+#endif
   mirror: always
   rust: true
 
@@ -15939,9 +15962,10 @@
   mirror: always
 
   # Full isolation (referrer, cookie jar, etc) of resources injected by content-scripts.
+  # This feature is currently disabled (see bug 1965552).
 - name: privacy.antitracking.isolateContentScriptResources
   type: bool
-  value: @IS_NIGHTLY_BUILD@
+  value: false
   mirror: always
 
 # Controls the anti-tracking webcompat features. This includes:
@@ -16242,6 +16266,12 @@
 - name: security.csp.reporting.limit.timespan
   type: uint32_t
   value: 2
+  mirror: always
+
+# Enable/disable CSP reporting (report-uri and report-to)
+- name: security.csp.reporting.enabled
+  type: bool
+  value: true
   mirror: always
 
 #ifdef DEBUG
@@ -16777,9 +16807,15 @@
   mirror: never
 
 # 0: Disable CRLite entirely.
-# 1: Consult CRLite but only collect telemetry.
-# 2: Consult CRLite and enforce both "Revoked" and "Not Revoked" results.
-# 3: Consult CRLite and enforce "Not Revoked" results, but defer to OCSP for "Revoked".
+# 1: Enable CRLite but only to collect telemetry.
+# 2: Enable CRLite and enforce its results. Firefox will not fetch OCSP for DV
+#    certificates that chain to the Mozilla root store unless
+#    security.OCSP.require is true. Firefox will, however, fetch OCSP for EV
+#    certificates that chain to the Mozilla root store (unless
+#    security.OCSP.enable is 0).
+# 3: Enable CRLite but only enforce "Not Revoked" results. Firefox will fetch
+#    OCSP for certificates that are not covered by CRLite. Firefox will also
+#    fetch OCSP to confirm CRLite "Revoked" responses.
 - name: security.pki.crlite_mode
   type: RelaxedAtomicUint32
 #if defined(EARLY_BETA_OR_EARLIER)
@@ -16913,7 +16949,11 @@
 
 - name: security.tls.enable_kyber
   type: RelaxedAtomicBool
-  value: @IS_NOT_ANDROID@
+#ifdef ANDROID
+  value: @IS_NIGHTLY_BUILD@
+#else
+  value: true
+#endif
   mirror: always
   rust: true
 
@@ -17786,6 +17826,11 @@
   value: 90000
   mirror: always
 
+# Whether to delay the CRC32 check of prefix files until the update.
+- name: urlclassifier.delay_prefixes_crc32_check
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
 #---------------------------------------------------------------------------
 # Prefs starting with "view_source."
 #---------------------------------------------------------------------------

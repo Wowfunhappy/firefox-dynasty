@@ -8,7 +8,6 @@ import { AppConstants } from "resource://gre/modules/AppConstants.sys.mjs";
 const lazy = {};
 
 ChromeUtils.defineESModuleGetters(lazy, {
-  _ExperimentManager: "resource://nimbus/lib/ExperimentManager.sys.mjs",
   CleanupManager: "resource://normandy/lib/CleanupManager.sys.mjs",
   ExperimentManager: "resource://nimbus/lib/ExperimentManager.sys.mjs",
   FeatureManifest: "resource://nimbus/FeatureManifest.sys.mjs",
@@ -73,7 +72,34 @@ const experimentBranchAccessor = {
   },
 };
 
-let initialized = false;
+const NIMBUS_PROFILE_ID_PREF = "nimbus.profileId";
+
+/**
+ * Ensure the Nimbus profile ID exists.
+ *
+ * @returns {string} The profile ID.
+ */
+function ensureNimbusProfileId() {
+  let profileId;
+
+  if (Services.prefs.prefIsLocked(NIMBUS_PROFILE_ID_PREF)) {
+    profileId = Services.prefs.getStringPref(NIMBUS_PROFILE_ID_PREF);
+  } else {
+    if (Services.prefs.prefHasUserValue(NIMBUS_PROFILE_ID_PREF)) {
+      profileId = Services.prefs.getStringPref(NIMBUS_PROFILE_ID_PREF);
+    } else {
+      profileId = Services.uuid.generateUUID().toString().slice(1, -1);
+      Services.prefs.setStringPref(NIMBUS_PROFILE_ID_PREF, profileId);
+    }
+
+    Services.prefs
+      .getDefaultBranch(null)
+      .setStringPref(NIMBUS_PROFILE_ID_PREF, profileId);
+    Services.prefs.lockPref(NIMBUS_PROFILE_ID_PREF);
+  }
+
+  return profileId;
+}
 
 /**
  * Metadata about an enrollment.
@@ -112,6 +138,9 @@ export const EnrollmentType = Object.freeze({
   ROLLOUT: "rollout",
 });
 
+let initialized = false;
+let experimentManager = null;
+
 export const ExperimentAPI = {
   /**
    * The topic that is notified when either the studies enabled pref or the
@@ -146,6 +175,8 @@ export const ExperimentAPI = {
     if (initialized) {
       return false;
     }
+
+    ensureNimbusProfileId();
 
     initialized = true;
 
@@ -190,7 +221,7 @@ export const ExperimentAPI = {
     // If Nimbus was disabled between the start of this function and registering
     // the pref observers we have not handled it yet.
     if (studiesEnabled !== this.studiesEnabled) {
-      this._onStudiesEnabledChanged();
+      await this._onStudiesEnabledChanged();
     }
 
     return true;
@@ -198,17 +229,34 @@ export const ExperimentAPI = {
 
   /**
    * Return the global ExperimentManager.
+   *
+   * The ExperimentManager will be lazily created upon first access to this
+   * property.
    */
   get manager() {
-    return this._manager;
+    if (experimentManager === null) {
+      experimentManager = new lazy.ExperimentManager();
+    }
+
+    return experimentManager;
+  },
+
+  /**
+   * Return the global ExperimentManager.
+   *
+   * @deprecated Use ExperimentAPI.Manager instead of this property.
+   */
+  get _manager() {
+    return this.manager;
   },
 
   _resetForTests() {
     this._rsLoader.disable();
-    this.manager.store.off("update", this._annotateCrashReport);
     lazy.CleanupManager.removeCleanupHandler(
       ExperimentAPI._removeCrashReportAnnotator
     );
+    experimentManager?.store.off("update", this._annotateCrashReport);
+    experimentManager = null;
     initialized = false;
   },
 
@@ -218,6 +266,22 @@ export const ExperimentAPI = {
       Services.prefs.getBoolPref(STUDIES_OPT_OUT_PREF, false) &&
       Services.policies.isAllowed("Shield")
     );
+  },
+
+  /**
+   * Return the profile ID.
+   *
+   * This is used to distinguish different profiles in a shared profile group
+   * apart. Each profile has a persistent and stable profile ID. It is stored as
+   * a user branch pref but is locked to prevent tampering.
+   *
+   * This is still susceptible to user.js editing, but there's nothing we can do
+   * about that.
+   *
+   * @returns {string} The profile ID.
+   */
+  get profileId() {
+    return ensureNimbusProfileId();
   },
 
   /**
@@ -257,14 +321,16 @@ export const ExperimentAPI = {
 
   _removeCrashReportAnnotator() {
     if (initialized) {
-      this.manager.store.off("update", this._annotateCrashReport);
+      experimentManager?.store.off("update", this._annotateCrashReport);
     }
   },
 
-  _onStudiesEnabledChanged() {
+  async _onStudiesEnabledChanged() {
     if (!this.studiesEnabled) {
       this.manager._handleStudiesOptOut();
     }
+
+    await this._rsLoader.onEnabledPrefChange();
 
     Services.obs.notifyObservers(null, this.STUDIES_ENABLED_CHANGED);
   },
@@ -763,7 +829,7 @@ export class _ExperimentFeature {
         return undefined;
       }
 
-      const allValues = lazy._ExperimentManager.getFeatureConfigFromBranch(
+      const allValues = lazy.ExperimentManager.getFeatureConfigFromBranch(
         enrollment.branch,
         this.featureId
       )?.value;
@@ -800,10 +866,6 @@ ExperimentAPI._onStudiesEnabledChanged =
   ExperimentAPI._onStudiesEnabledChanged.bind(ExperimentAPI);
 ExperimentAPI._removeCrashReportAnnotator =
   ExperimentAPI._removeCrashReportAnnotator.bind(ExperimentAPI);
-
-ChromeUtils.defineLazyGetter(ExperimentAPI, "_manager", function () {
-  return lazy.ExperimentManager;
-});
 
 ChromeUtils.defineLazyGetter(ExperimentAPI, "_rsLoader", function () {
   return lazy.RemoteSettingsExperimentLoader;

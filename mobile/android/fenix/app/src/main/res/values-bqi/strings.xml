@@ -76,6 +76,18 @@
   <string name="open_in_app_cfr_positive_button_text">راو و سامووا</string>
   <!-- Text for the negative action button -->
   <string name="open_in_app_cfr_negative_button_text">رڌ کردن</string>
+  <!-- Text for the message displayed for the popup promoting the long press of navigation in the navigation bar. -->
+  <string name="navbar_navigation_buttons_cfr_message" moz:removedIn="140" tools:ignore="UnusedResources">سی جا گورویی منجا بلگه یل من ویرگار ای بلگه، فلشا ن واڌارنین.</string>
+  <!--
+    Address bar swipe "contextual feature recommendation" (CFR)
+
+    Text for the title displayed in the contextual feature recommendation popup promoting swipe of address bar.
+  -->
+  <string name="address_bar_swipe_cfr_title" tools:ignore="UnusedResources" moz:removedIn="139">نوار ٱوزار ن و چپ یا راست بکشین تا بلگه یل آلشت داڌه بۊن</string>
+  <!-- Text for the message displayed in the contextual feature recommendation popup promoting swipe of address bar. -->
+  <string name="address_bar_swipe_cfr_message" tools:ignore="UnusedResources" moz:removedIn="139">و چپ یا راست بکشین تا بلگه آلشت داڌه بۊ. ری بلگه دیندایی خوتووݩ و چپ بکشین تا ی بلگه نۊ واز کۊنین.</string>
+  <!-- Text for the message displayed in the contextual feature recommendation popup promoting swipe of address bar. -->
+  <string name="address_bar_swipe_cfr_message_2">وا کشیڌن نوار ٱوزار و چپ ۉ راست، منجا بلگه یل جا گورو بۊین.</string>
   <!-- Text for the positive action button to go to Android Settings to grant permissions. -->
   <string name="camera_permissions_needed_positive_button_text">راو و سامووا</string>
   <!-- Text for the negative action button to dismiss the dialog. -->
@@ -709,7 +721,7 @@
     Text to show users they have multiple pages in the history group section of the History fragment.
     %d is a placeholder for the number of pages in the group.
   -->
-  <string name="history_search_group_sites_1">%d بلگه یل</string>
+  <string name="history_search_group_sites_1">%d بلگه</string>
   <!-- Option in library for Recently Closed Tabs -->
   <string name="library_recently_closed_tabs">بلگه یلی ک سکو بسته وابین</string>
   <!-- Option in library to open Recently Closed Tabs page -->
@@ -718,7 +730,7 @@
     Text to show users they have multiple tabs saved in the Recently Closed Tabs section of history.
     %d is a placeholder for the number of tabs selected.
   -->
-  <string name="recently_closed_tabs">بلگه یل %d</string>
+  <string name="recently_closed_tabs">بلگه %d</string>
   <!--
     Text to show users they have one tab saved in the Recently Closed Tabs section of history.
     %d is a placeholder for the number of tabs selected.
@@ -1287,7 +1299,7 @@
   <!-- Title for the tabs item in Delete browsing data -->
   <string name="preferences_delete_browsing_data_tabs_title_2">بلگه یل واز</string>
   <!-- Subtitle for the tabs item in Delete browsing data, %d is the number of open tabs -->
-  <string name="preferences_delete_browsing_data_tabs_subtitle">بلگه یل %d</string>
+  <string name="preferences_delete_browsing_data_tabs_subtitle">بلگه %d</string>
   <!--
     Title for the data and history items in Delete browsing data
 

@@ -5558,6 +5558,15 @@ QuotaManager::OpenClientDirectory(
         MakeBackInserter(promises));
   }
 
+  RefPtr<UniversalDirectoryLock> clientInitDirectoryLock =
+      CreateDirectoryLockInternal(
+          PersistenceScope::CreateFromValue(aClientMetadata.mPersistenceType),
+          OriginScope::FromOrigin(aClientMetadata),
+          ClientStorageScope::CreateFromClient(aClientMetadata.mClientType),
+          /* aExclusive */ false);
+
+  promises.AppendElement(clientInitDirectoryLock->Acquire());
+
   RefPtr<ClientDirectoryLock> clientDirectoryLock =
       CreateDirectoryLock(aClientMetadata, /* aExclusive */ false);
 
@@ -5608,6 +5617,23 @@ QuotaManager::OpenClientDirectory(
                            aClientMetadata, aCreateIfNonExistent,
                            std::move(originDirectoryLock));
                      }))
+          ->Then(
+              GetCurrentSerialEventTarget(), __func__,
+              MaybeInitialize(
+                  std::move(clientInitDirectoryLock),
+                  [self = RefPtr(this), aClientMetadata,
+                   aCreateIfNonExistent](RefPtr<UniversalDirectoryLock>
+                                             clientInitDirectoryLock) mutable {
+                    if (aClientMetadata.mPersistenceType ==
+                        PERSISTENCE_TYPE_PERSISTENT) {
+                      return self->InitializePersistentClient(
+                          aClientMetadata, std::move(clientInitDirectoryLock));
+                    }
+
+                    return self->InitializeTemporaryClient(
+                        aClientMetadata, aCreateIfNonExistent,
+                        std::move(clientInitDirectoryLock));
+                  }))
           ->Then(
               GetCurrentSerialEventTarget(), __func__,
               [clientDirectoryLock = std::move(clientDirectoryLock)](
@@ -6314,11 +6340,40 @@ QuotaManager::EnsureTemporaryOriginIsInitializedInternal(
 }
 
 RefPtr<BoolPromise> QuotaManager::InitializePersistentClient(
-    const PrincipalInfo& aPrincipalInfo, Client::Type aClientType) {
+    const ClientMetadata& aClientMetadata) {
   AssertIsOnOwningThread();
+  MOZ_ASSERT(aClientMetadata.mPersistenceType == PERSISTENCE_TYPE_PERSISTENT);
+
+  RefPtr<UniversalDirectoryLock> directoryLock = CreateDirectoryLockInternal(
+      PersistenceScope::CreateFromValue(PERSISTENCE_TYPE_PERSISTENT),
+      OriginScope::FromOrigin(aClientMetadata),
+      ClientStorageScope::CreateFromClient(aClientMetadata.mClientType),
+      /* aExclusive */ false);
+
+  return directoryLock->Acquire()->Then(
+      GetCurrentSerialEventTarget(), __func__,
+      [self = RefPtr(this), aClientMetadata,
+       directoryLock](const BoolPromise::ResolveOrRejectValue& aValue) mutable {
+        if (aValue.IsReject()) {
+          return BoolPromise::CreateAndReject(aValue.RejectValue(), __func__);
+        }
+
+        return self->InitializePersistentClient(aClientMetadata,
+                                                std::move(directoryLock));
+      });
+}
+
+RefPtr<BoolPromise> QuotaManager::InitializePersistentClient(
+    const ClientMetadata& aClientMetadata,
+    RefPtr<UniversalDirectoryLock> aDirectoryLock) {
+  AssertIsOnOwningThread();
+  MOZ_ASSERT(aClientMetadata.mPersistenceType == PERSISTENCE_TYPE_PERSISTENT);
+  MOZ_ASSERT(aDirectoryLock);
+  MOZ_ASSERT(aDirectoryLock->Acquired());
 
   auto initializePersistentClientOp = CreateInitializePersistentClientOp(
-      WrapMovingNotNullUnchecked(this), aPrincipalInfo, aClientType);
+      WrapMovingNotNullUnchecked(this), aClientMetadata,
+      std::move(aDirectoryLock));
 
   RegisterNormalOriginOp(*initializePersistentClientOp);
 
@@ -6348,13 +6403,40 @@ QuotaManager::EnsurePersistentClientIsInitialized(
 }
 
 RefPtr<BoolPromise> QuotaManager::InitializeTemporaryClient(
-    PersistenceType aPersistenceType, const PrincipalInfo& aPrincipalInfo,
-    Client::Type aClientType) {
+    const ClientMetadata& aClientMetadata, bool aCreateIfNonExistent) {
   AssertIsOnOwningThread();
+  MOZ_ASSERT(aClientMetadata.mPersistenceType != PERSISTENCE_TYPE_PERSISTENT);
+
+  RefPtr<UniversalDirectoryLock> directoryLock = CreateDirectoryLockInternal(
+      PersistenceScope::CreateFromValue(aClientMetadata.mPersistenceType),
+      OriginScope::FromOrigin(aClientMetadata),
+      ClientStorageScope::CreateFromClient(aClientMetadata.mClientType),
+      /* aExclusive */ false);
+
+  return directoryLock->Acquire()->Then(
+      GetCurrentSerialEventTarget(), __func__,
+      [self = RefPtr(this), aClientMetadata, aCreateIfNonExistent,
+       directoryLock](const BoolPromise::ResolveOrRejectValue& aValue) mutable {
+        if (aValue.IsReject()) {
+          return BoolPromise::CreateAndReject(aValue.RejectValue(), __func__);
+        }
+
+        return self->InitializeTemporaryClient(
+            aClientMetadata, aCreateIfNonExistent, std::move(directoryLock));
+      });
+}
+
+RefPtr<BoolPromise> QuotaManager::InitializeTemporaryClient(
+    const ClientMetadata& aClientMetadata, bool aCreateIfNonExistent,
+    RefPtr<UniversalDirectoryLock> aDirectoryLock) {
+  AssertIsOnOwningThread();
+  MOZ_ASSERT(aClientMetadata.mPersistenceType != PERSISTENCE_TYPE_PERSISTENT);
+  MOZ_ASSERT(aDirectoryLock);
+  MOZ_ASSERT(aDirectoryLock->Acquired());
 
   auto initializeTemporaryClientOp = CreateInitializeTemporaryClientOp(
-      WrapMovingNotNullUnchecked(this), aPersistenceType, aPrincipalInfo,
-      aClientType);
+      WrapMovingNotNullUnchecked(this), aClientMetadata, aCreateIfNonExistent,
+      std::move(aDirectoryLock));
 
   RegisterNormalOriginOp(*initializeTemporaryClientOp);
 
@@ -6365,13 +6447,19 @@ RefPtr<BoolPromise> QuotaManager::InitializeTemporaryClient(
 
 Result<std::pair<nsCOMPtr<nsIFile>, bool>, nsresult>
 QuotaManager::EnsureTemporaryClientIsInitialized(
-    const ClientMetadata& aClientMetadata) {
+    const ClientMetadata& aClientMetadata, bool aCreateIfNonExistent) {
   AssertIsOnIOThread();
   MOZ_ASSERT(aClientMetadata.mPersistenceType != PERSISTENCE_TYPE_PERSISTENT);
   MOZ_ASSERT(Client::IsValidType(aClientMetadata.mClientType));
   MOZ_DIAGNOSTIC_ASSERT(IsStorageInitializedInternal());
   MOZ_DIAGNOSTIC_ASSERT(IsTemporaryStorageInitializedInternal());
   MOZ_DIAGNOSTIC_ASSERT(IsTemporaryOriginInitializedInternal(aClientMetadata));
+
+  if (!aCreateIfNonExistent) {
+    QM_TRY_UNWRAP(auto directory, GetOriginDirectory(aClientMetadata));
+
+    return std::pair(std::move(directory), false);
+  }
 
   QM_TRY_UNWRAP(auto directory,
                 GetOrCreateTemporaryOriginDirectory(aClientMetadata));

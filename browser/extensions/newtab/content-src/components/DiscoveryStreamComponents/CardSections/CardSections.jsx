@@ -156,7 +156,7 @@ function CardSection({
     };
     dispatch(
       ac.AlsoToMain({
-        type: at.SECTION_PERSONALIZATION_UPDATE,
+        type: at.SECTION_PERSONALIZATION_SET,
         data: updatedSectionData,
       })
     );
@@ -178,7 +178,7 @@ function CardSection({
     delete updatedSectionData[sectionKey];
     dispatch(
       ac.AlsoToMain({
-        type: at.SECTION_PERSONALIZATION_UPDATE,
+        type: at.SECTION_PERSONALIZATION_SET,
         data: updatedSectionData,
       })
     );
@@ -290,6 +290,7 @@ function CardSection({
               time_to_read={rec.time_to_read}
               title={rec.title}
               topic={rec.topic}
+              features={rec.features}
               excerpt={rec.excerpt}
               url={rec.url}
               id={rec.id}

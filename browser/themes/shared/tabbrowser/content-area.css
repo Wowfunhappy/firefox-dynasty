@@ -365,6 +365,12 @@
     margin-top: -5px;
   }
 
+  /* Spotlight dialogs are full-size on the content or window area */
+  &.spotlightBox {
+    max-width: none;
+    max-height: none;
+  }
+
   /* For window-modal dialogs, we allow overlapping the urlbar if the window is
    * small enough. */
   #window-modal-dialog > .dialogOverlay > &:not(.spotlightBox) {
@@ -397,9 +403,16 @@
 
   &.spotlight {
     /* Spotlight window modal dialogs should be equal in size to the window. */
-    bottom: revert;
-    max-height: 100%;
-    max-width: 100%;
+    inset: 0;
+    height: auto;
+    width: auto;
+    max-height: none;
+    max-width: none;
+
+    > .dialogOverlay {
+      width: 100%;
+      height: 100%;
+    }
   }
 }
 

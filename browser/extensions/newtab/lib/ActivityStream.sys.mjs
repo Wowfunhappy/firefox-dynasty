@@ -18,6 +18,8 @@ const lazy = {};
 ChromeUtils.defineESModuleGetters(lazy, {
   AboutPreferences: "resource://newtab/lib/AboutPreferences.sys.mjs",
   AdsFeed: "resource://newtab/lib/AdsFeed.sys.mjs",
+  InferredPersonalizationFeed:
+    "resource://newtab/lib/InferredPersonalizationFeed.sys.mjs",
   DEFAULT_SITES: "resource://newtab/lib/DefaultSites.sys.mjs",
   DefaultPrefs: "resource://newtab/lib/ActivityStreamPrefs.sys.mjs",
   DiscoveryStreamFeed: "resource://newtab/lib/DiscoveryStreamFeed.sys.mjs",
@@ -81,6 +83,11 @@ const REGION_CONTEXTUAL_CONTENT_CONFIG =
 const LOCALE_CONTEXTUAL_CONTENT_CONFIG =
   "browser.newtabpage.activity-stream.discoverystream.contextualContent.locale-content-config";
 
+const REGION_CONTEXTUAL_AD_CONFIG =
+  "browser.newtabpage.activity-stream.discoverystream.sections.contextualAds.region-config";
+const LOCALE_CONTEXTUAL_AD_CONFIG =
+  "browser.newtabpage.activity-stream.discoverystream.sections.contextualAds.locale-config";
+
 const REGION_SECTIONS_CONFIG =
   "browser.newtabpage.activity-stream.discoverystream.sections.region-content-config";
 const LOCALE_SECTIONS_CONFIG =
@@ -104,6 +111,13 @@ function useInferredPersonalization({ geo, locale }) {
   return (
     csvPrefHasValue(REGION_INFERRED_PERSONALIZATION_CONFIG, geo) &&
     csvPrefHasValue(LOCALE_INFERRED_PERSONALIZATION_CONFIG, locale)
+  );
+}
+
+function useContextualAds({ geo, locale }) {
+  return (
+    csvPrefHasValue(REGION_CONTEXTUAL_AD_CONFIG, geo) &&
+    csvPrefHasValue(LOCALE_CONTEXTUAL_AD_CONFIG, locale)
   );
 }
 
@@ -639,6 +653,13 @@ export const PREFS_CONFIG = new Map([
     },
   ],
   [
+    "browser.newtabpage.activity-stream.discoverystream.sections.contextualAds.enabled",
+    {
+      title: "Boolean flag to enable contextual ads",
+      getValue: useContextualAds,
+    },
+  ],
+  [
     "discoverystream.sections.personalization.inferred.enabled",
     {
       title: "Boolean flag to enable inferred personalizaton",
@@ -651,6 +672,13 @@ export const PREFS_CONFIG = new Map([
     {
       title: "User pref to toggle inferred personalizaton",
       value: false,
+    },
+  ],
+  [
+    "discoverystream.sections.personalization.inferred.model.override",
+    {
+      title:
+        "Override inferred personalization model JSON string that typically comes from rec API. Or 'TEST' for a test model",
     },
   ],
   [
@@ -1296,6 +1324,13 @@ const FEEDS_DATA = [
     name: "adsfeed",
     factory: () => new lazy.AdsFeed(),
     title: "Handles fetching and caching ads data",
+    value: true,
+  },
+  {
+    name: "inferredpersonalizationfeed",
+    factory: () => new lazy.InferredPersonalizationFeed(),
+    title:
+      "Handles generating and caching an interest vector for inferred personalization",
     value: true,
   },
   {

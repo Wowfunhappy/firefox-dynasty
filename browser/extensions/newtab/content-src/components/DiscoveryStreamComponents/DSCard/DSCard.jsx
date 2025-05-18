@@ -132,14 +132,11 @@ export const DefaultMeta = ({
             {excerpt && <p className="excerpt clamp">{excerpt}</p>}
           </>
         )}
-        {/* Rectangle format is returned for English clients only.*/}
         {format === "rectangle" && (
-          <>
-            <h3 className="title clamp">Sponsored</h3>
-            <p className="excerpt clamp">
-              Sponsored content supports our mission to build a better web.
-            </p>
-          </>
+          <h3
+            className="title clamp"
+            data-l10n-id="newtab-label-sponsored-fixed"
+          />
         )}
       </div>
       {!isListCard &&
@@ -364,6 +361,7 @@ export class _DSCard extends React.PureComponent {
               recommended_at: this.props.recommended_at,
               received_rank: this.props.received_rank,
               topic: this.props.topic,
+              features: this.props.features,
               matches_selected_topic: matchesSelectedTopic,
               selected_topics: this.props.selectedTopics,
               is_list_card: this.props.isListCard,
@@ -822,6 +820,7 @@ export class _DSCard extends React.PureComponent {
                 recommended_at: this.props.recommended_at,
                 received_rank: this.props.received_rank,
                 topic: this.props.topic,
+                features: this.props.features,
                 is_list_card: isListCard,
                 ...(format ? { format } : {}),
                 isFakespot,

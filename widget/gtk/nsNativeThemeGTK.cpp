@@ -199,9 +199,6 @@ bool nsNativeThemeGTK::GetGtkWidgetAndState(StyleAppearance aAppearance,
   }
 
   switch (aAppearance) {
-    case StyleAppearance::Listbox:
-      aGtkWidgetType = MOZ_GTK_TREEVIEW;
-      break;
     case StyleAppearance::Tabpanels:
       aGtkWidgetType = MOZ_GTK_TABPANELS;
       break;
@@ -223,12 +220,6 @@ bool nsNativeThemeGTK::GetGtkWidgetAndState(StyleAppearance aAppearance,
         if (IsFirstTab(aFrame)) *aWidgetFlags |= MOZ_GTK_TAB_FIRST;
       }
     } break;
-    case StyleAppearance::Splitter:
-      if (IsHorizontal(aFrame))
-        aGtkWidgetType = MOZ_GTK_SPLITTER_VERTICAL;
-      else
-        aGtkWidgetType = MOZ_GTK_SPLITTER_HORIZONTAL;
-      break;
     case StyleAppearance::MozWindowDecorations:
       aGtkWidgetType = MOZ_GTK_WINDOW_DECORATION;
       break;
@@ -761,6 +752,7 @@ bool nsNativeThemeGTK::IsWidgetAlwaysNonNative(nsIFrame* aFrame,
          aAppearance == StyleAppearance::Radio ||
          aAppearance == StyleAppearance::Button ||
          aAppearance == StyleAppearance::Toolbarbutton ||
+         aAppearance == StyleAppearance::Listbox ||
          aAppearance == StyleAppearance::Menulist ||
          aAppearance == StyleAppearance::ProgressBar ||
          aAppearance == StyleAppearance::Progresschunk ||
@@ -774,22 +766,7 @@ LayoutDeviceIntSize nsNativeThemeGTK::GetMinimumWidgetSize(
   if (IsWidgetAlwaysNonNative(aFrame, aAppearance)) {
     return Theme::GetMinimumWidgetSize(aPresContext, aFrame, aAppearance);
   }
-
-  CSSIntSize result;
-  switch (aAppearance) {
-    case StyleAppearance::Splitter: {
-      if (IsHorizontal(aFrame)) {
-        moz_gtk_splitter_get_metrics(GTK_ORIENTATION_HORIZONTAL, &result.width);
-      } else {
-        moz_gtk_splitter_get_metrics(GTK_ORIENTATION_VERTICAL, &result.height);
-      }
-    } break;
-    default:
-      break;
-  }
-
-  return LayoutDeviceIntSize::Round(CSSSize(result) *
-                                    GetWidgetScaleFactor(aFrame));
+  return {};
 }
 
 bool nsNativeThemeGTK::WidgetAttributeChangeRequiresRepaint(
@@ -824,11 +801,9 @@ nsNativeThemeGTK::ThemeSupportsWidget(nsPresContext* aPresContext,
   }
 
   switch (aAppearance) {
-    case StyleAppearance::Listbox:
     case StyleAppearance::Tab:
     // case StyleAppearance::Tabpanel:
     case StyleAppearance::Tabpanels:
-    case StyleAppearance::Splitter:
     case StyleAppearance::MozWindowTitlebar:
     case StyleAppearance::MozWindowTitlebarMaximized:
     case StyleAppearance::MozWindowDecorations:

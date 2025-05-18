@@ -72,11 +72,7 @@ pref("extensions.langpacks.signatures.required", true);
 pref("xpinstall.signatures.required", true);
 
 // Enable data collection permissions.
-#ifdef NIGHTLY_BUILD
-  pref("extensions.dataCollectionPermissions.enabled", true);
-#else
-  pref("extensions.dataCollectionPermissions.enabled", false);
-#endif
+pref("extensions.dataCollectionPermissions.enabled", true);
 
 // Dictionary download preference
 pref("browser.dictionaries.download.url", "https://addons.mozilla.org/%LOCALE%/firefox/language-tools/");
@@ -682,11 +678,6 @@ pref("browser.urlbar.addons.featureGate", true);
 
 // Feature gate pref for semanticHistory
 pref("places.semanticHistory.featureGate", false);
-
-// If `places.semanticHistory.featureGate` is enabled
-// then this will control whether semantic search will be enabled
-// for history.
-pref("browser.urlbar.suggest.semanticHistory", false);
 
 // Minimum length threshold for semantic history search
 pref("browser.urlbar.suggest.semanticHistory.minLength", 5);
@@ -1983,11 +1974,16 @@ pref("browser.newtabpage.activity-stream.discoverystream.sections.personalizatio
 pref("browser.newtabpage.activity-stream.discoverystream.sections.personalization.inferred.locale-config", "en-US,en-GB,en-CA");
 
 pref("browser.newtabpage.activity-stream.discoverystream.sections.personalization.inferred.user.enabled", true);
+// Override inferred personalization model JSON string that typically comes from rec API. Or "TEST" for a test model.
+pref("browser.newtabpage.activity-stream.discoverystream.sections.personalization.inferred.model.override", "");
 
 pref("browser.newtabpage.activity-stream.discoverystream.sections.interestPicker.enabled", false);
 pref("browser.newtabpage.activity-stream.discoverystream.sections.interestPicker.visibleSections", "");
 
-
+// List of regions for contextual ads.
+pref("browser.newtabpage.activity-stream.discoverystream.sections.contextualAds.region-config", "");
+// List of locales for contextual ads.
+pref("browser.newtabpage.activity-stream.discoverystream.sections.contextualAds.locale-config", "en-US,en-GB,en-CA");
 
 pref("browser.newtabpage.activity-stream.discoverystream.merino-provider.endpoint", "merino.services.mozilla.com");
 pref("browser.newtabpage.activity-stream.discoverystream.merino-provider.ohttp.enabled", false);
@@ -2147,9 +2143,11 @@ pref("browser.ml.chat.sidebar", true);
 
 pref("browser.ml.linkPreview.allowedLanguages", "en");
 pref("browser.ml.linkPreview.enabled", false);
-pref("browser.ml.linkPreview.outputSentences", 3);
 pref("browser.ml.linkPreview.blockListEnabled", true);
 pref("browser.ml.linkPreview.noKeyPointsRegions", "AD,AT,BE,BG,CH,CY,CZ,DE,DK,EE,ES,FI,FR,GR,HR,HU,IE,IS,IT,LI,LT,LU,LV,MT,NL,NO,PL,PT,RO,SE,SI,SK");
+pref("browser.ml.linkPreview.outputSentences", 3);
+pref("browser.ml.linkPreview.shift", true);
+pref("browser.ml.linkPreview.shiftAlt", false);
 
 // Block insecure active content on https pages
 pref("security.mixed_content.block_active_content", true);
@@ -3394,3 +3392,8 @@ pref("toolkit.contentRelevancy.enabled", false);
 pref("toolkit.contentRelevancy.ingestEnabled", false);
 // Pref to enable extra logging for the content relevancy feature
 pref("toolkit.contentRelevancy.log", false);
+
+// The number of days after which to rotate the context ID. 0 means to disable
+// rotation altogether.
+pref("browser.contextual-services.contextId.rotation-in-days", 0);
+pref("browser.contextual-services.contextId.rust-component.enabled", false);

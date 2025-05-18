@@ -170,6 +170,10 @@ for (const type of [
   "HIDE_PERSONALIZE",
   "HIDE_PRIVACY_INFO",
   "HIDE_TOAST_MESSAGE",
+  "INFERRED_PERSONALIZATION_MODEL_UPDATE",
+  "INFERRED_PERSONALIZATION_REFRESH",
+  "INFERRED_PERSONALIZATION_RESET",
+  "INFERRED_PERSONALIZATION_UPDATE",
   "INIT",
   "INLINE_SELECTION_CLICK",
   "INLINE_SELECTION_IMPRESSION",
@@ -226,6 +230,7 @@ for (const type of [
   "SECTION_DISABLE",
   "SECTION_ENABLE",
   "SECTION_OPTIONS_CHANGED",
+  "SECTION_PERSONALIZATION_SET",
   "SECTION_PERSONALIZATION_UPDATE",
   "SECTION_REGISTER",
   "SECTION_UPDATE",
@@ -731,6 +736,7 @@ class DiscoveryStreamAdminUI extends (external_React_default()).PureComponent {
     this.handleWeatherSubmit = this.handleWeatherSubmit.bind(this);
     this.handleWeatherUpdate = this.handleWeatherUpdate.bind(this);
     this.resetBlocks = this.resetBlocks.bind(this);
+    this.refreshInferredPersonalization = this.refreshInferredPersonalization.bind(this);
     this.refreshTopicSelectionCache = this.refreshTopicSelectionCache.bind(this);
     this.toggleTBRFeed = this.toggleTBRFeed.bind(this);
     this.handleSectionsToggle = this.handleSectionsToggle.bind(this);
@@ -761,6 +767,11 @@ class DiscoveryStreamAdminUI extends (external_React_default()).PureComponent {
     this.props.dispatch(actionCreators.OnlyToMain({
       type: actionTypes.DISCOVERY_STREAM_CONFIG_CHANGE,
       data: config
+    }));
+  }
+  refreshInferredPersonalization() {
+    this.props.dispatch(actionCreators.OnlyToMain({
+      type: actionTypes.INFERRED_PERSONALIZATION_REFRESH
     }));
   }
   refreshTopicSelectionCache() {
@@ -922,6 +933,12 @@ class DiscoveryStreamAdminUI extends (external_React_default()).PureComponent {
     }
     return weatherTable;
   }
+  renderPersonalizationData() {
+    const {
+      interestVector
+    } = this.props.state.InferredPersonalization;
+    return /*#__PURE__*/external_React_default().createElement("div", null, " ", "Interest Vector:", /*#__PURE__*/external_React_default().createElement("pre", null, JSON.stringify(interestVector, null, 2)));
+  }
   renderFeedData(url) {
     const {
       feeds
@@ -1055,6 +1072,9 @@ class DiscoveryStreamAdminUI extends (external_React_default()).PureComponent {
       onClick: this.idleDaily
     }, "Trigger Idle Daily"), /*#__PURE__*/external_React_default().createElement("br", null), /*#__PURE__*/external_React_default().createElement("button", {
       className: "button",
+      onClick: this.refreshInferredPersonalization
+    }, "Refresh Inferred Personalization"), /*#__PURE__*/external_React_default().createElement("br", null), /*#__PURE__*/external_React_default().createElement("button", {
+      className: "button",
       onClick: this.syncRemoteSettings
     }, "Sync Remote Settings"), " ", /*#__PURE__*/external_React_default().createElement("button", {
       className: "button",
@@ -1122,7 +1142,7 @@ class DiscoveryStreamAdminUI extends (external_React_default()).PureComponent {
       className: "large-data-container"
     }, this.renderImpressionsData()), /*#__PURE__*/external_React_default().createElement("h3", null, "Blocked Data"), /*#__PURE__*/external_React_default().createElement("div", {
       className: "large-data-container"
-    }, this.renderBlocksData()), /*#__PURE__*/external_React_default().createElement("h3", null, "Weather Data"), this.renderWeatherData());
+    }, this.renderBlocksData()), /*#__PURE__*/external_React_default().createElement("h3", null, "Weather Data"), this.renderWeatherData(), /*#__PURE__*/external_React_default().createElement("h3", null, "Personalization Data"), this.renderPersonalizationData());
   }
 }
 class DiscoveryStreamAdminInner extends (external_React_default()).PureComponent {
@@ -1146,7 +1166,8 @@ class DiscoveryStreamAdminInner extends (external_React_default()).PureComponent
       state: {
         DiscoveryStream: this.props.DiscoveryStream,
         Personalization: this.props.Personalization,
-        Weather: this.props.Weather
+        Weather: this.props.Weather,
+        InferredPersonalization: this.props.InferredPersonalization
       },
       otherPrefs: this.props.Prefs.values,
       dispatch: this.props.dispatch
@@ -1216,6 +1237,7 @@ const DiscoveryStreamAdmin = (0,external_ReactRedux_namespaceObject.connect)(sta
   Sections: state.Sections,
   DiscoveryStream: state.DiscoveryStream,
   Personalization: state.Personalization,
+  InferredPersonalization: state.InferredPersonalization,
   Prefs: state.Prefs,
   Weather: state.Weather
 }))(_DiscoveryStreamAdmin);
@@ -2174,7 +2196,7 @@ const LinkMenuOptions = {
           // Once the user confirmed their intention to block this section,
           // update their preferences.
           actionCreators.AlsoToMain({
-            type: actionTypes.SECTION_PERSONALIZATION_UPDATE,
+            type: actionTypes.SECTION_PERSONALIZATION_SET,
             data: {
               ...sectionPersonalization,
               [sectionKey]: {
@@ -2218,7 +2240,7 @@ const LinkMenuOptions = {
   }) => ({
     id: "newtab-menu-section-unfollow",
     action: actionCreators.AlsoToMain({
-      type: actionTypes.SECTION_PERSONALIZATION_UPDATE,
+      type: actionTypes.SECTION_PERSONALIZATION_SET,
       data: (({ sectionKey: _sectionKey, ...remaining }) => remaining)(
         sectionPersonalization
       ),
@@ -2853,6 +2875,7 @@ class ImpressionStats_ImpressionStats extends (external_React_default()).PureCom
             recommended_at: link.recommended_at,
             received_rank: link.received_rank,
             topic: link.topic,
+            features: link.features,
             is_list_card: link.is_list_card,
             ...(link.format ? {
               format: link.format
@@ -3548,11 +3571,10 @@ const DefaultMeta = ({
     className: "title clamp"
   }, title), excerpt && /*#__PURE__*/external_React_default().createElement("p", {
     className: "excerpt clamp"
-  }, excerpt)), format === "rectangle" && /*#__PURE__*/external_React_default().createElement((external_React_default()).Fragment, null, /*#__PURE__*/external_React_default().createElement("h3", {
-    className: "title clamp"
-  }, "Sponsored"), /*#__PURE__*/external_React_default().createElement("p", {
-    className: "excerpt clamp"
-  }, "Sponsored content supports our mission to build a better web."))), !isListCard && format !== "rectangle" && !mayHaveSectionsCards && mayHaveThumbsUpDown && /*#__PURE__*/external_React_default().createElement(DSThumbsUpDownButtons, {
+  }, excerpt)), format === "rectangle" && /*#__PURE__*/external_React_default().createElement("h3", {
+    className: "title clamp",
+    "data-l10n-id": "newtab-label-sponsored-fixed"
+  })), !isListCard && format !== "rectangle" && !mayHaveSectionsCards && mayHaveThumbsUpDown && /*#__PURE__*/external_React_default().createElement(DSThumbsUpDownButtons, {
     onThumbsDownClick: onThumbsDownClick,
     onThumbsUpClick: onThumbsUpClick,
     sponsor: sponsor,
@@ -3722,6 +3744,7 @@ class _DSCard extends (external_React_default()).PureComponent {
             recommended_at: this.props.recommended_at,
             received_rank: this.props.received_rank,
             topic: this.props.topic,
+            features: this.props.features,
             matches_selected_topic: matchesSelectedTopic,
             selected_topics: this.props.selectedTopics,
             is_list_card: this.props.isListCard,
@@ -4081,6 +4104,7 @@ class _DSCard extends (external_React_default()).PureComponent {
         recommended_at: this.props.recommended_at,
         received_rank: this.props.received_rank,
         topic: this.props.topic,
+        features: this.props.features,
         is_list_card: isListCard,
         ...(format ? {
           format
@@ -4843,7 +4867,7 @@ const AdBanner = ({
     className: "ad-banner-sponsored"
   }, /*#__PURE__*/external_React_default().createElement("span", {
     className: "ad-banner-sponsored-label",
-    "data-l10n-id": "newtab-topsite-sponsored"
+    "data-l10n-id": "newtab-label-sponsored-fixed"
   }))));
 };
 ;// CONCATENATED MODULE: ./content-src/components/DiscoveryStreamComponents/CardGrid/CardGrid.jsx
@@ -5179,6 +5203,7 @@ class _CardGrid extends (external_React_default()).PureComponent {
         time_to_read: rec.time_to_read,
         title: rec.title,
         topic: rec.topic,
+        features: rec.features,
         showTopics: showTopics,
         selectedTopics: selectedTopics,
         availableTopics: availableTopics,
@@ -7464,6 +7489,11 @@ const INITIAL_STATE = {
     lastUpdated: null,
     initialized: false,
   },
+  InferredPersonalization: {
+    initialized: false,
+    lastUpdated: null,
+    interestVector: {},
+  },
   Search: {
     // When search hand-off is enabled, we render a big button that is styled to
     // look like a search textbox. If the button is clicked, we style
@@ -7950,6 +7980,25 @@ function Reducers_sys_Personalization(prevState = INITIAL_STATE.Personalization,
   }
 }
 
+function InferredPersonalization(
+  prevState = INITIAL_STATE.InferredPersonalization,
+  action
+) {
+  switch (action.type) {
+    case actionTypes.INFERRED_PERSONALIZATION_UPDATE:
+      return {
+        ...prevState,
+        initialized: true,
+        interestVector: action.data.interestVector,
+        lastUpdated: action.data.lastUpdated,
+      };
+    case actionTypes.INFERRED_PERSONALIZATION_RESET:
+      return { ...INITIAL_STATE.InferredPersonalization };
+    default:
+      return prevState;
+  }
+}
+
 // eslint-disable-next-line complexity
 function DiscoveryStream(prevState = INITIAL_STATE.DiscoveryStream, action) {
   // Return if action data is empty, or spocs or feeds data is not loaded
@@ -8403,6 +8452,7 @@ const reducers = {
   Notifications,
   Pocket,
   Personalization: Reducers_sys_Personalization,
+  InferredPersonalization,
   DiscoveryStream,
   Search,
   Wallpapers,
@@ -10933,7 +10983,7 @@ function InterestPicker({
       }
     }));
     dispatch(actionCreators.AlsoToMain({
-      type: actionTypes.SECTION_PERSONALIZATION_UPDATE,
+      type: actionTypes.SECTION_PERSONALIZATION_SET,
       data: updatedSections
     }));
   }
@@ -11293,7 +11343,7 @@ function CardSection({
       }
     };
     dispatch(actionCreators.AlsoToMain({
-      type: actionTypes.SECTION_PERSONALIZATION_UPDATE,
+      type: actionTypes.SECTION_PERSONALIZATION_SET,
       data: updatedSectionData
     }));
     // Telemetry Event Dispatch
@@ -11312,7 +11362,7 @@ function CardSection({
     };
     delete updatedSectionData[sectionKey];
     dispatch(actionCreators.AlsoToMain({
-      type: actionTypes.SECTION_PERSONALIZATION_UPDATE,
+      type: actionTypes.SECTION_PERSONALIZATION_SET,
       data: updatedSectionData
     }));
 
@@ -11406,6 +11456,7 @@ function CardSection({
       time_to_read: rec.time_to_read,
       title: rec.title,
       topic: rec.topic,
+      features: rec.features,
       excerpt: rec.excerpt,
       url: rec.url,
       id: rec.id,
@@ -11979,7 +12030,7 @@ function SectionsMgmtPanel({
   }
   const onFollowClick = (0,external_React_namespaceObject.useCallback)((sectionKey, receivedRank) => {
     dispatch(actionCreators.AlsoToMain({
-      type: actionTypes.SECTION_PERSONALIZATION_UPDATE,
+      type: actionTypes.SECTION_PERSONALIZATION_SET,
       data: {
         ...sectionPersonalization,
         [sectionKey]: {
@@ -12001,7 +12052,7 @@ function SectionsMgmtPanel({
   }, [dispatch, sectionPersonalization]);
   const onBlockClick = (0,external_React_namespaceObject.useCallback)((sectionKey, receivedRank) => {
     dispatch(actionCreators.AlsoToMain({
-      type: actionTypes.SECTION_PERSONALIZATION_UPDATE,
+      type: actionTypes.SECTION_PERSONALIZATION_SET,
       data: {
         ...sectionPersonalization,
         [sectionKey]: {
@@ -12027,7 +12078,7 @@ function SectionsMgmtPanel({
     };
     delete updatedSectionData[sectionKey];
     dispatch(actionCreators.AlsoToMain({
-      type: actionTypes.SECTION_PERSONALIZATION_UPDATE,
+      type: actionTypes.SECTION_PERSONALIZATION_SET,
       data: updatedSectionData
     }));
     // Telemetry Event Dispatch
@@ -12046,7 +12097,7 @@ function SectionsMgmtPanel({
     };
     delete updatedSectionData[sectionKey];
     dispatch(actionCreators.AlsoToMain({
-      type: actionTypes.SECTION_PERSONALIZATION_UPDATE,
+      type: actionTypes.SECTION_PERSONALIZATION_SET,
       data: updatedSectionData
     }));
     // Telemetry Event Dispatch
@@ -13209,7 +13260,7 @@ class _Search extends (external_React_default()).PureComponent {
     return /*#__PURE__*/external_React_default().createElement("div", {
       className: wrapperClassName
     }, this.props.showLogo && /*#__PURE__*/external_React_default().createElement(Logo, null), !this.props.handoffEnabled && /*#__PURE__*/external_React_default().createElement("div", {
-      className: "search-inner-wrapper"
+      className: "search-inner-wrapper no-handoff"
     }, /*#__PURE__*/external_React_default().createElement("input", {
       id: "newtab-search-text",
       "data-l10n-id": "newtab-search-box-input",

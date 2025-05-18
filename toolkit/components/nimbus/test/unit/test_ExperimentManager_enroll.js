@@ -10,9 +10,6 @@ const { ClientID } = ChromeUtils.importESModule(
 const { ClientEnvironment } = ChromeUtils.importESModule(
   "resource://normandy/lib/ClientEnvironment.sys.mjs"
 );
-const { ExperimentManager } = ChromeUtils.importESModule(
-  "resource://nimbus/lib/ExperimentManager.sys.mjs"
-);
 const { ExperimentStore } = ChromeUtils.importESModule(
   "resource://nimbus/lib/ExperimentStore.sys.mjs"
 );
@@ -27,6 +24,14 @@ const { SYNC_DATA_PREF_BRANCH, SYNC_DEFAULTS_PREF_BRANCH } = ExperimentStore;
 
 add_setup(function test_setup() {
   Services.fog.initializeFOG();
+
+  registerCleanupFunction(
+    NimbusTestUtils.addTestFeatures(
+      new ExperimentFeature("optin", {}),
+      new ExperimentFeature("pink", {}),
+      new ExperimentFeature("force-enrollment", {})
+    )
+  );
 });
 
 function setupTest({ ...args } = {}) {
@@ -200,11 +205,6 @@ add_task(async function test_setExperimentActive_recordEnrollment_called() {
     enrollmentEvents[0].extra.branch,
     "Glean.nimbusEvents.enrollment recorded with correct branch slug"
   );
-  Assert.equal(
-    experiment.experimentType,
-    enrollmentEvents[0].extra.experiment_type,
-    "Glean.nimbusEvents.enrollment recorded with correct experiment type"
-  );
 
   manager.unenroll("foo");
 
@@ -259,11 +259,6 @@ add_task(async function test_setRolloutActive_recordEnrollment_called() {
     "Should call setExperimentActive with the rollout"
   );
   Assert.equal(
-    NimbusTelemetry.setExperimentActive.firstCall.args[0].experimentType,
-    "rollout",
-    "Should have the correct experimentType"
-  );
-  Assert.equal(
     NimbusTelemetry.recordEnrollment.calledWith(enrollment),
     true,
     "should call sendEnrollmentTelemetry after an enrollment"
@@ -278,7 +273,7 @@ add_task(async function test_setRolloutActive_recordEnrollment_called() {
       {
         value: enrollment.slug,
         branch: enrollment.branch.slug,
-        experimentType: enrollment.experimentType,
+        experimentType: "rollout",
       },
     ]
   );
@@ -297,7 +292,7 @@ add_task(async function test_setRolloutActive_recordEnrollment_called() {
       {
         experiment: enrollment.slug,
         branch: enrollment.branch.slug,
-        experiment_type: enrollment.experimentType,
+        experiment_type: "rollout",
       },
     ]
   );
@@ -1020,11 +1015,11 @@ add_task(async function test_randomizationUnit() {
   await ClientID.setProfileGroupID(NOT_ENROLL);
 
   Assert.ok(
-    await ExperimentManager.isInBucketAllocation(normandyIdBucketing),
+    await ExperimentAPI.manager.isInBucketAllocation(normandyIdBucketing),
     "in bucketing using normandy_id"
   );
   Assert.ok(
-    !(await ExperimentManager.isInBucketAllocation(groupIdBucketing)),
+    !(await ExperimentAPI.manager.isInBucketAllocation(groupIdBucketing)),
     "not in bucketing using group_id"
   );
 
@@ -1032,11 +1027,11 @@ add_task(async function test_randomizationUnit() {
   await ClientID.setProfileGroupID(ENROLL);
 
   Assert.ok(
-    !(await ExperimentManager.isInBucketAllocation(normandyIdBucketing)),
+    !(await ExperimentAPI.manager.isInBucketAllocation(normandyIdBucketing)),
     "not in bucketing using normandy_id"
   );
   Assert.ok(
-    await ExperimentManager.isInBucketAllocation(groupIdBucketing),
+    await ExperimentAPI.manager.isInBucketAllocation(groupIdBucketing),
     "in bucketing using group_id"
   );
 });

@@ -5,8 +5,8 @@
 const lazy = {};
 
 ChromeUtils.defineESModuleGetters(lazy, {
+  ExperimentManager: "resource://nimbus/lib/ExperimentManager.sys.mjs",
   NimbusFeatures: "resource://nimbus/ExperimentAPI.sys.mjs",
-  _ExperimentManager: "resource://nimbus/lib/ExperimentManager.sys.mjs",
   PrefUtils: "resource://normandy/lib/PrefUtils.sys.mjs",
   UnenrollmentCause: "resource://nimbus/lib/ExperimentManager.sys.mjs",
 });
@@ -115,7 +115,7 @@ export class PrefFlipsFeature {
    * Construct a new prefFlips feature.
    *
    * @param {object} options
-   * @param {_ExperimentManager} options.manager
+   * @param {ExperimentManager} options.manager
    *        The ExperimentManager that owns this feature.
    */
   constructor({ manager }) {
@@ -275,20 +275,14 @@ export class PrefFlipsFeature {
     }
   }
 
-  /**
-   * Start tracking an enrollment.
-   *
-   * This will register prefs for the enrollment. If we have already registered
-   * any of the prefs for this enrollment, the values and branches must match or
-   * this enrollment will be unenrolled.
-   *
-   * @param {object} enrollment
-   *        The enrollment we are tracking.
-   */
-  #addEnrollment(enrollment) {
-    const { slug } = enrollment;
+  _annotateEnrollment(enrollment) {
+    const { featureIds } = enrollment;
+    if (!featureIds.includes(FEATURE_ID)) {
+      return;
+    }
+
     const prefs =
-      lazy._ExperimentManager.getFeatureConfigFromBranch(
+      lazy.ExperimentManager.getFeatureConfigFromBranch(
         enrollment.branch,
         FEATURE_ID
       ).value.prefs ?? {};
@@ -298,28 +292,13 @@ export class PrefFlipsFeature {
       Object.entries(prefs).map(([pref, { branch }]) => [pref, branch])
     );
 
-    const prefsBySlug = new Set();
-    this.#prefsBySlug.set(slug, prefsBySlug);
-
-    for (const [pref, { branch, value }] of Object.entries(prefs)) {
-      try {
-        if (this.#prefs.has(pref)) {
-          this.#registerExistingPref(slug, pref, branch, value);
-
-          originalValues[pref] = this.#prefs.get(pref).originalValue;
-        } else {
-          const originalValue = Object.hasOwn(originalValues, pref)
-            ? originalValues[pref]
-            : lazy.PrefUtils.getPref(pref, { branch });
-          this.#registerNewPref(slug, pref, branch, value, originalValue);
-
-          originalValues[pref] = originalValue;
-        }
-
-        prefsBySlug.add(pref);
-      } catch (e) {
-        this.#unenrollForFailure(enrollment, pref);
-        return;
+    for (const [pref, { branch }] of Object.entries(prefs)) {
+      if (this.#prefs.has(pref)) {
+        originalValues[pref] = this.#prefs.get(pref).originalValue;
+      } else {
+        originalValues[pref] = Object.hasOwn(originalValues, pref)
+          ? originalValues[pref]
+          : lazy.PrefUtils.getPref(pref, { branch });
       }
     }
 
@@ -330,6 +309,54 @@ export class PrefFlipsFeature {
     }
 
     enrollment.prefFlips.originalValues = originalValues;
+  }
+
+  /**
+   * Start tracking an enrollment.
+   *
+   * This will register prefs for the enrollment. If we have already registered
+   * any of the prefs for this enrollment, the values and branches must match or
+   * this enrollment will be unenrolled.
+   *
+   * NB: The enrollment must have already been annotated by a call to
+   * {@link _annotateEnrollment}, which occurrs in `ExperimentManager.enroll()`.
+   *
+   * @param {object} enrollment
+   *        The enrollment we are tracking.
+   */
+  #addEnrollment(enrollment) {
+    const { slug } = enrollment;
+    const prefs =
+      lazy.ExperimentManager.getFeatureConfigFromBranch(
+        enrollment.branch,
+        FEATURE_ID
+      ).value.prefs ?? {};
+
+    const originalValues = enrollment.prefFlips.originalValues;
+
+    const prefsBySlug = new Set();
+    this.#prefsBySlug.set(slug, prefsBySlug);
+
+    for (const [pref, { branch, value }] of Object.entries(prefs)) {
+      try {
+        if (this.#prefs.has(pref)) {
+          this.#registerExistingPref(slug, pref, branch, value);
+        } else {
+          this.#registerNewPref(
+            slug,
+            pref,
+            branch,
+            value,
+            originalValues[pref]
+          );
+        }
+
+        prefsBySlug.add(pref);
+      } catch (e) {
+        this.#unenrollForFailure(enrollment, pref);
+        return;
+      }
+    }
   }
 
   /**
