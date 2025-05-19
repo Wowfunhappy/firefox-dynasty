@@ -18,15 +18,39 @@ XPCOMUtils.defineLazyPreferenceGetter(
 );
 XPCOMUtils.defineLazyPreferenceGetter(
   lazy,
+  "collapsed",
+  "browser.ml.linkPreview.collapsed",
+  null,
+  (_pref, _old, val) => LinkPreview.onCollapsedPref(val)
+);
+XPCOMUtils.defineLazyPreferenceGetter(
+  lazy,
   "enabled",
   "browser.ml.linkPreview.enabled",
-  false,
+  null,
   (_pref, _old, val) => LinkPreview.onEnabledPref(val)
+);
+XPCOMUtils.defineLazyPreferenceGetter(
+  lazy,
+  "longPress",
+  "browser.ml.linkPreview.longPress"
+);
+XPCOMUtils.defineLazyPreferenceGetter(
+  lazy,
+  "longPressMs",
+  "browser.ml.linkPreview.longPressMs"
 );
 XPCOMUtils.defineLazyPreferenceGetter(
   lazy,
   "noKeyPointsRegions",
   "browser.ml.linkPreview.noKeyPointsRegions"
+);
+XPCOMUtils.defineLazyPreferenceGetter(
+  lazy,
+  "optin",
+  "browser.ml.linkPreview.optin",
+  null,
+  (_pref, _old, val) => LinkPreview.onOptinPref(val)
 );
 XPCOMUtils.defineLazyPreferenceGetter(
   lazy,
@@ -49,9 +73,22 @@ export const LinkPreview = {
   // Shared downloading state to use across multiple previews
   progress: -1, // -1 = off, 0-100 = download progress
 
+  cancelLongPress: null,
   keyboardComboActive: false,
   _windowStates: new Map(),
   linkPreviewPanelId: "link-preview-panel",
+
+  get canShowKeyPoints() {
+    return this._isRegionSupported();
+  },
+
+  get canShowLegacy() {
+    return true;
+  },
+
+  get canShowPreferences() {
+    return lazy.enabled;
+  },
 
   shouldShowContextMenu(nsContextMenu) {
     // In a future patch, we can further analyze the link, etc.
@@ -68,6 +105,7 @@ export const LinkPreview = {
       !nsContextMenu.onMozExtLink
     );
   },
+
   /**
    * Handles the preference change for enabling/disabling Link Preview.
    * It adds or removes event listeners for all tracked windows based on the new preference value.
@@ -90,11 +128,59 @@ export const LinkPreview = {
   },
 
   /**
+   * Updates a property on the link-preview-card element for all window states.
+   *
+   * @param {string} prop - The property to update.
+   * @param {*} value - The value to set for the property.
+   */
+  updateCardProperty(prop, value) {
+    for (const [win] of this._windowStates) {
+      const panel = win.document.getElementById(this.linkPreviewPanelId);
+      if (!panel) {
+        continue;
+      }
+
+      const card = panel.querySelector("link-preview-card");
+      if (card) {
+        card[prop] = value;
+      }
+    }
+  },
+
+  /**
+   * Handles the preference change for opt-in state.
+   * Updates all link preview cards with the new opt-in state.
+   *
+   * @param {boolean} optin - The new state of the opt-in preference.
+   */
+  onOptinPref(optin) {
+    this.updateCardProperty("optin", optin);
+    Glean.genaiLinkpreview.cardAiConsent.record({
+      option: optin ? "continue" : "cancel",
+    });
+  },
+
+  /**
+   * Handles the preference change for collapsed state.
+   * Updates all link preview cards with the new collapsed state.
+   *
+   * @param {boolean} collapsed - The new state of the collapsed preference.
+   */
+  onCollapsedPref(collapsed) {
+    this.updateCardProperty("collapsed", collapsed);
+  },
+
+  /**
    * Handles startup tasks such as telemetry and adding listeners.
    *
    * @param {Window} win - The window context used to add event listeners.
    */
   init(win) {
+    // Access getters for side effects of observing pref changes
+    lazy.collapsed;
+    lazy.enabled;
+    lazy.optin;
+
     this._windowStates.set(win, {});
     if (!win.customElements.get("link-preview-card")) {
       win.ChromeUtils.importESModule(
@@ -139,6 +225,7 @@ export const LinkPreview = {
     win.addEventListener("OverLink", this, true);
     win.addEventListener("keydown", this, true);
     win.addEventListener("keyup", this, true);
+    win.addEventListener("mousedown", this, true);
   },
 
   /**
@@ -150,6 +237,10 @@ export const LinkPreview = {
     win.removeEventListener("OverLink", this, true);
     win.removeEventListener("keydown", this, true);
     win.removeEventListener("keyup", this, true);
+    win.removeEventListener("mousedown", this, true);
+
+    // Long press might have added listeners to this window.
+    this.cancelLongPress?.();
   },
 
   /**
@@ -166,6 +257,11 @@ export const LinkPreview = {
         break;
       case "OverLink":
         this._onLinkPreview(event);
+        break;
+      case "dragstart":
+      case "mousedown":
+      case "mouseup":
+        this._onPressEvent(event);
         break;
       default:
         break;
@@ -218,6 +314,42 @@ export const LinkPreview = {
   },
 
   /**
+   * Handles long press events.
+   *
+   * @param {MouseEvent} event - The mouse related events to be processed.
+   */
+  _onPressEvent(event) {
+    if (!lazy.longPress) {
+      return;
+    }
+
+    // Check for the start of a long press on a link.
+    const win = event.currentTarget;
+    const stateObject = this._windowStates.get(win);
+    if (event.type == "mousedown" && stateObject.overLink) {
+      // Detect events to cancel the long press.
+      win.addEventListener("dragstart", this, true);
+      win.addEventListener("mouseup", this, true);
+
+      // Show preview after a delay if not cancelled.
+      const timer = win.setTimeout(() => {
+        this.cancelLongPress();
+        this.renderLinkPreviewPanel(win, stateObject.overLink, "longpress");
+      }, lazy.longPressMs);
+
+      // Provide a way to clean up.
+      this.cancelLongPress = () => {
+        win.clearTimeout(timer);
+        win.removeEventListener("dragstart", this, true);
+        win.removeEventListener("mouseup", this, true);
+        this.cancelLongPress = null;
+      };
+    } else {
+      this.cancelLongPress?.();
+    }
+  },
+
+  /**
    * Checks if the user's region is supported for key points generation.
    *
    * @returns {boolean} True if the region is supported, false otherwise.
@@ -246,6 +378,9 @@ export const LinkPreview = {
     const ogCard = doc.createElement("link-preview-card");
     ogCard.style.width = "100%";
     ogCard.pageData = pageData;
+
+    ogCard.optin = lazy.optin;
+    ogCard.collapsed = lazy.collapsed;
 
     // Reflect the shared download progress to this preview.
     const updateProgress = () => {
@@ -290,6 +425,12 @@ export const LinkPreview = {
    * @param {boolean} _retry Indicates whether to retry the operation.
    */
   async generateKeyPoints(ogCard, _retry = false) {
+    // Prevent keypoints if user not opt-in to link preview or user is set
+    // keypoints to be collapsed.
+    if (!lazy.optin || lazy.collapsed) {
+      return;
+    }
+
     // Support prefetching without a card by mocking expected properties.
     let outcome = ogCard ? "success" : "prefetch";
     if (!ogCard) {
@@ -355,6 +496,22 @@ export const LinkPreview = {
         time: Date.now() - startTime,
       });
     }
+  },
+
+  /**
+   * Handles key points generation requests from different user actions.
+   * This is a shared handler for both retry and initial generation events.
+   * Resets error states and triggers key points generation.
+   *
+   * @param {LinkPreviewCard} ogCard - The card element to generate key points for
+   * @private
+   */
+  _handleKeyPointsGenerationEvent(ogCard) {
+    // Reset error states
+    ogCard.isMissingDataErrorState = false;
+    ogCard.isGenerationErrorState = false;
+
+    this.generateKeyPoints(ogCard, true);
   },
 
   /**
@@ -440,16 +597,15 @@ export const LinkPreview = {
       Glean.genaiLinkpreview.cardLink.record({ source: event.detail });
     });
 
-    // Add event listener for the retry event
     ogCard.addEventListener("LinkPreviewCard:retry", _event => {
-      // Reset error states
-      ogCard.isMissingDataErrorState = false;
-      ogCard.isGenerationErrorState = false;
-
-      this.generateKeyPoints(ogCard, true);
-      //TODO: review if glean record is correct
-      // Glean.genaiLinkpreview.cardLink.record({ source: url, op: "retry" });
+      this._handleKeyPointsGenerationEvent(ogCard, "retry");
+      Glean.genaiLinkpreview.cardLink.record({ source: "retry" });
     });
+
+    ogCard.addEventListener("LinkPreviewCard:generate", _event => {
+      this._handleKeyPointsGenerationEvent(ogCard, "generate");
+    });
+
     openPopup();
   },
 

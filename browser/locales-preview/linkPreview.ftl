@@ -20,3 +20,30 @@ link-preview-generation-retry = Try again
 # Button that opens the Link Preview settings
 link-preview-settings-button =
 .title = Link Preview Settings
+
+link-preview-settings-enable =
+    .label = Enable link previews
+    .description = See page title, description, and more. Use one of the shortcuts or right-click to preview links.
+link-preview-settings-key-points =
+    .label = Allow AI to read the beginning of the page and generate key points
+link-preview-settings-shift =
+    .label = Shortcut: Press the Shift key while you hover over a link
+link-preview-settings-shift-alt =
+    .label = { PLATFORM() ->
+        [macos] Shortcut: Press Shift (⇧) plus Alt or Option (⌥) while you hover over a link
+       *[other] Shortcut: Press Shift + Alt while you hover over a link
+    }
+link-preview-settings-long-press =
+    .label = Shortcut: Click and hold the link for 1 second (long press)
+
+# Title that appears when user is shown the opt-in flow for link previews
+link-preview-optin-title = See more with AI?
+
+# Message that appears when user is shown the opt-in flow for link previews
+link-preview-optin-message = { -brand-short-name } uses AI to read the beginning of the page and generate a few key points. To prioritize your privacy, this happens on your device.
+
+# Title displayed during first-time download of AI model
+link-preview-optin-title-download = Setting up link previews…
+
+# Message displayed during first-time download of AI model
+link-preview-optin-message-download = This may take a moment.
