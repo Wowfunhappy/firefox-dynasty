@@ -277,6 +277,14 @@ export const PREFS_CONFIG = new Map([
     },
   ],
   [
+    "discoverystream.refinedCardsLayout.enabled",
+    {
+      title:
+        "Boolean flag enable layout and styling refinements for content and ad cards across different card sizes",
+      value: false,
+    },
+  ],
+  [
     "unifiedAds.adsFeed.enabled",
     {
       title:
@@ -547,20 +555,6 @@ export const PREFS_CONFIG = new Map([
     {
       title: "Number pref of maximum file size (in MB) a user can upload",
       value: 0,
-    },
-  ],
-  [
-    "newtabAdSize.variant-a",
-    {
-      title: "Boolean flag to turn ad size variant A on and off",
-      value: false,
-    },
-  ],
-  [
-    "newtabAdSize.variant-b",
-    {
-      title: "Boolean flag to turn ad size variant B on and off",
-      value: false,
     },
   ],
   [

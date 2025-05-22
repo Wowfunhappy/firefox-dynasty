@@ -101,21 +101,11 @@
   border-top: 1px solid ThreeDShadow;
 }
 
-/* Content area */
-
-.sidebar-splitter {
-  appearance: none;
-  width: 6px;
-  background-color: -moz-dialog;
-  border: 1px ThreeDShadow;
-  border-style: none solid;
-}
-
 /* Tabstrip */
 
 #tabbrowser-tabs {
-  /* override the global style to allow the selected tab to be above the nav-bar */
-  z-index: auto;
+  /* override the native styling */
+  border-bottom: 0;
 }
 
 #TabsToolbar {

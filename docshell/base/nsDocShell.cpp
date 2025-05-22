@@ -7,6 +7,7 @@
 #include "nsDocShell.h"
 
 #include <algorithm>
+#include "mozilla/dom/HTMLFormElement.h"
 
 #ifdef XP_WIN
 #  include <process.h>
@@ -3930,7 +3931,7 @@ nsresult nsDocShell::ReloadNavigable(
     if (!navigation->FirePushReplaceReloadNavigateEvent(
             aCx, NavigationType::Reload, destinationURL,
             /* aIsSameDocument */ false, Some(aUserInvolvement),
-            /* aSourceElement*/ nullptr, /* aFormDataEntryList */ Nothing{},
+            /* aSourceElement*/ nullptr, /* aFormDataEntryList */ nullptr,
             destinationNavigationAPIState,
             /* aClassiCHistoryAPIState */ nullptr)) {
       return NS_OK;
@@ -8691,6 +8692,29 @@ bool nsDocShell::IsSameDocumentNavigation(nsDocShellLoadState* aLoadState,
          aState.mNewURIHasRef;
 }
 
+static bool IsSamePrincipalForDocumentURI(nsIPrincipal* aCurrentPrincipal,
+                                          nsIURI* aCurrentURI,
+                                          nsIURI* aNewURI) {
+  if (!StaticPrefs::dom_security_setdocumenturi()) {
+    return true;
+  }
+  nsCOMPtr<nsIURI> principalURI = aCurrentPrincipal->GetURI();
+  if (aCurrentPrincipal->GetIsNullPrincipal()) {
+    nsCOMPtr<nsIPrincipal> precursor =
+        aCurrentPrincipal->GetPrecursorPrincipal();
+    if (precursor) {
+      principalURI = precursor->GetURI();
+    }
+  }
+
+  return !nsScriptSecurityManager::IsHttpOrHttpsAndCrossOrigin(principalURI,
+                                                               aNewURI) &&
+         !nsScriptSecurityManager::IsHttpOrHttpsAndCrossOrigin(principalURI,
+                                                               aCurrentURI) &&
+         !nsScriptSecurityManager::IsHttpOrHttpsAndCrossOrigin(aCurrentURI,
+                                                               aNewURI);
+}
+
 nsresult nsDocShell::HandleSameDocumentNavigation(
     nsDocShellLoadState* aLoadState, SameDocumentNavigationState& aState,
     bool& aSameDocument) {
@@ -8707,13 +8731,6 @@ nsresult nsDocShell::HandleSameDocumentNavigation(
 
   RefPtr<Document> doc = GetDocument();
   NS_ENSURE_TRUE(doc, NS_ERROR_FAILURE);
-  doc->DoNotifyPossibleTitleChange();
-
-  // Store the pending uninvoked directives if it is a same document navigation.
-  // We need to set it here, in case the navigation happens before the document
-  // has actually finished loading.
-  doc->FragmentDirective()->SetTextDirectives(
-      std::move(aState.mTextDirectives));
 
   nsCOMPtr<nsIURI> currentURI = mCurrentURI;
 
@@ -8725,32 +8742,56 @@ nsresult nsDocShell::HandleSameDocumentNavigation(
             ("Upgraded URI to %s", newURI->GetSpecOrDefault().get()));
   }
 
-  if (StaticPrefs::dom_security_setdocumenturi()) {
-    // check if aLoadState->URI(), principalURI, mCurrentURI are same origin
-    // skip handling otherwise
-    nsCOMPtr<nsIPrincipal> origPrincipal = doc->NodePrincipal();
-    nsCOMPtr<nsIURI> principalURI = origPrincipal->GetURI();
-    if (origPrincipal->GetIsNullPrincipal()) {
-      nsCOMPtr<nsIPrincipal> precursor = origPrincipal->GetPrecursorPrincipal();
-      if (precursor) {
-        principalURI = precursor->GetURI();
+  // check if documentPrincipal, mCurrentURI, and aLoadState->URI() are same
+  // origin skip handling otherwise
+  if (!IsSamePrincipalForDocumentURI(doc->NodePrincipal(), mCurrentURI,
+                                     newURI)) {
+    MOZ_LOG(gSHLog, LogLevel::Debug,
+            ("nsDocShell[%p]: possible violation of the same origin policy "
+             "during same document navigation",
+             this));
+    return NS_OK;
+  }
+
+  if (nsCOMPtr<nsPIDOMWindowInner> window = doc->GetInnerWindow()) {
+    // https://html.spec.whatwg.org/#navigate-fragid
+    // Step 1
+    if (RefPtr<Navigation> navigation = window->Navigation()) {
+      // Step 2
+      RefPtr<nsIStructuredCloneContainer> destinationNavigationAPIState =
+          mActiveEntry ? mActiveEntry->GetNavigationState() : nullptr;
+      // Step 3
+      if (aLoadState->GetNavigationAPIState()) {
+        destinationNavigationAPIState = aLoadState->GetNavigationAPIState();
+      }
+
+      AutoJSAPI jsapi;
+      if (jsapi.Init(window)) {
+        RefPtr<Element> sourceElement = aLoadState->GetSourceElement();
+        // Step 4
+        bool shouldContinue = navigation->FirePushReplaceReloadNavigateEvent(
+            jsapi.cx(), aLoadState->GetNavigationType(), newURI,
+            /* aIsSameDocument */ true,
+            Some(aLoadState->UserNavigationInvolvement()), sourceElement,
+            /* aFormDataEntryList */ nullptr,
+            /* aNavigationAPIState */ destinationNavigationAPIState,
+            /* aClassicHistoryAPIState */ nullptr);
+
+        // Step 5
+        if (!shouldContinue) {
+          return NS_OK;
+        }
       }
     }
-
-    if (nsScriptSecurityManager::IsHttpOrHttpsAndCrossOrigin(principalURI,
-                                                             newURI) ||
-        nsScriptSecurityManager::IsHttpOrHttpsAndCrossOrigin(principalURI,
-                                                             mCurrentURI) ||
-        nsScriptSecurityManager::IsHttpOrHttpsAndCrossOrigin(mCurrentURI,
-                                                             newURI)) {
-      aSameDocument = false;
-      MOZ_LOG(gSHLog, LogLevel::Debug,
-              ("nsDocShell[%p]: possible violation of the same origin policy "
-               "during same document navigation",
-               this));
-      return NS_OK;
-    }
   }
+
+  doc->DoNotifyPossibleTitleChange();
+
+  // Store the pending uninvoked directives if it is a same document
+  // navigation. We need to set it here, in case the navigation happens before
+  // the document has actually finished loading.
+  doc->FragmentDirective()->SetTextDirectives(
+      std::move(aState.mTextDirectives));
 
 #ifdef DEBUG
   if (aState.mSameExceptHashes) {
@@ -9236,6 +9277,8 @@ uint32_t nsDocShell::GetLoadTypeForFormSubmission(
              : LOAD_LINK;
 }
 
+// InternalLoad performs several of the steps from
+// https://html.spec.whatwg.org/#navigate.
 nsresult nsDocShell::InternalLoad(nsDocShellLoadState* aLoadState,
                                   Maybe<uint32_t> aCacheKey) {
   MOZ_ASSERT(aLoadState, "need a load state!");
@@ -9445,6 +9488,52 @@ nsresult nsDocShell::InternalLoad(nsDocShellLoadState* aLoadState,
   if (mTiming && !isDownload) {
     mTiming->NotifyBeforeUnload();
   }
+
+  // The following steps are from https://html.spec.whatwg.org/#navigate
+  // Step 20
+  if (RefPtr<Document> document = GetDocument();
+      document &&
+      aLoadState->UserNavigationInvolvement() !=
+          UserNavigationInvolvement::BrowserUI &&
+      !document->IsInitialDocument() &&
+      !NS_IsAboutBlankAllowQueryAndFragment(document->GetDocumentURI()) &&
+      NS_IsFetchScheme(aLoadState->URI()) &&
+      document->NodePrincipal()->Subsumes(aLoadState->TriggeringPrincipal())) {
+    if (nsCOMPtr<nsPIDOMWindowInner> window = document->GetInnerWindow()) {
+      // Step 20.1
+      if (RefPtr<Navigation> navigation = window->Navigation()) {
+        AutoJSAPI jsapi;
+        if (jsapi.Init(window)) {
+          RefPtr<Element> sourceElement = aLoadState->GetSourceElement();
+
+          // Step 20.2
+          RefPtr<FormData> formData = aLoadState->GetFormDataEntryList();
+
+          // Step 20.3
+          RefPtr<nsIStructuredCloneContainer> navigationAPIStateForFiring =
+              aLoadState->GetNavigationAPIState();
+          if (!navigationAPIStateForFiring) {
+            navigationAPIStateForFiring = nullptr;
+          }
+
+          nsCOMPtr<nsIURI> destinationURL = aLoadState->URI();
+          // Step 20.4
+          bool shouldContinue = navigation->FirePushReplaceReloadNavigateEvent(
+              jsapi.cx(), aLoadState->GetNavigationType(), destinationURL,
+              /* aIsSameDocument */ false,
+              Some(aLoadState->UserNavigationInvolvement()), sourceElement,
+              formData.forget(), navigationAPIStateForFiring,
+              /* aClassicHistoryAPIState */ nullptr);
+
+          // Step 20.5
+          if (!shouldContinue) {
+            return NS_OK;
+          }
+        }
+      }
+    }
+  }
+
   // Check if the page doesn't want to be unloaded. The javascript:
   // protocol handler deals with this for javascript: URLs.
   // NOTE(emilio): As of this writing, other browsers fire beforeunload for
@@ -11410,7 +11499,7 @@ nsDocShell::AddState(JS::Handle<JS::Value> aData, const nsAString& aTitle,
           aCx, aReplace ? NavigationType::Replace : NavigationType::Push,
           newURI,
           /* aIsSameDocument */ true, /* aUserInvolvement */ Nothing(),
-          /* aSourceElement */ nullptr, /* aFormDataEntryList */ Nothing(),
+          /* aSourceElement */ nullptr, /* aFormDataEntryList */ nullptr,
           /* aNavigationAPIState */ nullptr, scContainer);
 
       // Step 9
@@ -13225,6 +13314,7 @@ nsresult nsDocShell::OnLinkClickSync(nsIContent* aContent,
   aLoadState->SetTypeHint(NS_ConvertUTF16toUTF8(typeHint));
   aLoadState->SetLoadType(loadType);
   aLoadState->SetSourceBrowsingContext(mBrowsingContext);
+  aLoadState->SetSourceElement(aContent->AsElement());
 
   nsresult rv = InternalLoad(aLoadState);
 

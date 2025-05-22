@@ -466,7 +466,7 @@ pref("browser.urlbar.richSuggestions.featureGate", true);
 pref("browser.search.param.search_rich_suggestions", "fen");
 
 // Feature gate pref for weather suggestions in the urlbar.
-pref("browser.urlbar.weather.featureGate", true);
+pref("browser.urlbar.weather.featureGate", false);
 
 // Enable clipboard suggestions feature, the pref should be removed once stable.
 pref("browser.urlbar.clipboard.featureGate", false);
@@ -674,7 +674,7 @@ pref("browser.urlbar.merino.clientVariants", "");
 pref("browser.urlbar.contextualSearch.enabled", true);
 
 // Feature gate pref for addon suggestions in the urlbar.
-pref("browser.urlbar.addons.featureGate", true);
+pref("browser.urlbar.addons.featureGate", false);
 
 // Feature gate pref for semanticHistory
 pref("places.semanticHistory.featureGate", false);
@@ -686,12 +686,15 @@ pref("browser.urlbar.suggest.semanticHistory.minLength", 5);
 // addons suggestions are turned on.
 pref("browser.urlbar.suggest.addons", true);
 
+// Feature gate pref for MDN suggestions in the urlbar.
+pref("browser.urlbar.mdn.featureGate", false);
+
 // If `browser.urlbar.mdn.featureGate` is true, this controls whether
 // mdn suggestions are turned on.
 pref("browser.urlbar.suggest.mdn", true);
 
 // Feature gate pref for Yelp suggestions in the urlbar.
-pref("browser.urlbar.yelp.featureGate", true);
+pref("browser.urlbar.yelp.featureGate", false);
 
 // The minimum prefix length of a Yelp keyword the user must type to trigger the
 // suggestion. 0 means the min length should be taken from Nimbus.
@@ -1795,6 +1798,9 @@ pref("browser.newtabpage.activity-stream.mobileDownloadModal.variant-a", false);
 pref("browser.newtabpage.activity-stream.mobileDownloadModal.variant-b", false);
 pref("browser.newtabpage.activity-stream.mobileDownloadModal.variant-c", false);
 
+// Show refined card layout on newtab
+pref("browser.newtabpage.activity-stream.discoverystream.refinedCardsLayout.enabled", false);
+
 // Mozilla Ad Routing Service (MARS) unified ads service
 pref("browser.newtabpage.activity-stream.unifiedAds.tiles.enabled", true);
 pref("browser.newtabpage.activity-stream.unifiedAds.spocs.enabled", true);
@@ -1821,8 +1827,8 @@ pref("browser.newtabpage.activity-stream.discoverystream.locale-weather-config",
 
 // Preference to enable wallpaper selection in the Customize Menu of new tab page
 pref("browser.newtabpage.activity-stream.newtabWallpapers.enabled", true);
-pref("browser.newtabpage.activity-stream.newtabWallpapers.customColor.enabled", false);
-pref("browser.newtabpage.activity-stream.newtabWallpapers.customWallpaper.enabled", false);
+pref("browser.newtabpage.activity-stream.newtabWallpapers.customColor.enabled", true);
+pref("browser.newtabpage.activity-stream.newtabWallpapers.customWallpaper.enabled", true);
 
 // Utility preferences for custom wallpaper upload
 pref("browser.newtabpage.activity-stream.newtabWallpapers.customWallpaper.uuid", "");
@@ -1847,10 +1853,6 @@ pref("browser.newtabpage.activity-stream.newtabLayouts.variant-a", false);
 pref("browser.newtabpage.activity-stream.newtabLayouts.variant-b", true);
 
 pref("browser.newtabpage.activity-stream.newtabShortcuts.refresh", true);
-
-// Discovery stream ad size experiment
-pref("browser.newtabpage.activity-stream.newtabAdSize.variant-a", false);
-pref("browser.newtabpage.activity-stream.newtabAdSize.variant-b", false);
 
 // Activity Stream prefs that control to which page to redirect
 #ifndef RELEASE_OR_BETA
@@ -2150,6 +2152,7 @@ pref("browser.ml.linkPreview.longPressMs", 1000);
 pref("browser.ml.linkPreview.noKeyPointsRegions", "AD,AT,BE,BG,CH,CY,CZ,DE,DK,EE,ES,FI,FR,GR,HR,HU,IE,IS,IT,LI,LT,LU,LV,MT,NL,NO,PL,PT,RO,SE,SI,SK");
 pref("browser.ml.linkPreview.optin", false);
 pref("browser.ml.linkPreview.outputSentences", 3);
+pref("browser.ml.linkPreview.recentTypingMs", 1000);
 pref("browser.ml.linkPreview.shift", true);
 pref("browser.ml.linkPreview.shiftAlt", false);
 
