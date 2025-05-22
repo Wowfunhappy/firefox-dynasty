@@ -63,11 +63,7 @@
     %1$s is the name of the app (for example "Firefox").
   -->
   <string name="private_browsing_placeholder_description_2">%1$s wisket jo syk- en browserskiednis sa gau as jo de tapassing ôfslute of alle priveeljepblêden slute. Hoewol dit jo net anonym makket foar websites of jo ynternetprovider, makket dit it makliker om wat jo online dogge privee te hâlden tsjinoer oaren dy’t dit apparaat brûke.</string>
-  <string name="private_browsing_common_myths">
-
-       Faaks hearde myten oer priveenavigaasje
-
-    </string>
+  <string name="private_browsing_common_myths">\u0032Faaks hearde myten oer priveenavigaasje\u0032</string>
   <!--
     True Private Browsing Mode
 
@@ -1026,6 +1022,56 @@
   <!-- Wallpaper onboarding dialog learn more button text. The button navigates to the wallpaper settings screen. -->
   <string name="wallpapers_onboarding_dialog_explore_more_button_text">Mear eftergrûnen ferkenne</string>
   <!--
+    Icon picker
+
+    Title for the "Default" alternative app icon variant in the icon picker screen.
+  -->
+  <string name="alternative_app_icon_option_default">Standert</string>
+  <!-- Title for the "Light" alternative app icon variant in the icon picker screen. -->
+  <string name="alternative_app_icon_option_light">Ljocht</string>
+  <!-- Title for the "Dark" alternative app icon variant in the icon picker screen. -->
+  <string name="alternative_app_icon_option_dark">Tsjuster</string>
+  <!-- Title for the "Red" alternative app icon variant in the icon picker screen. -->
+  <string name="alternative_app_icon_option_red">Read</string>
+  <!-- Title for the "Green" alternative app icon variant in the icon picker screen. -->
+  <string name="alternative_app_icon_option_green">Grien</string>
+  <!-- Title for the "Blue" alternative app icon variant in the icon picker screen. -->
+  <string name="alternative_app_icon_option_blue">Blau</string>
+  <!-- Title for the "Purple" alternative app icon variant in the icon picker screen. -->
+  <string name="alternative_app_icon_option_purple">Pears</string>
+  <!-- Title for the "Purple Dark" alternative app icon variant in the icon picker screen. -->
+  <string name="alternative_app_icon_option_purple_dark">Donkerpears</string>
+  <!-- Title for the "Sunrise" gradient alternative app icon variant in the icon picker screen. The app icon features a soft yellow-to-blue gradient background, resembling the colors of early morning light. -->
+  <string name="alternative_app_icon_option_gradient_sunrise">Sinneopgong</string>
+  <!-- Title for the "Golden Hour" gradient alternative app icon variant in the icon picker screen. The app icon features a warm golden-to-pink gradient background, resembling the colors of the sunlight shortly before sunset. -->
+  <string name="alternative_app_icon_option_gradient_golden_hour">Gouden oere</string>
+  <!-- Title for the "Sunset" gradient alternative app icon variant in the icon picker screen. The app icon has a rich red-to-purple gradient background, resembling the tones of a sunset sky. -->
+  <string name="alternative_app_icon_option_gradient_sunset">Sinneûndergong</string>
+  <!-- Title for the "Blue Hour" gradient alternative app icon variant in the icon picker screen. The app icon has a cool blue gradient background, resembling the sky color around the time just after sunset or before sunrise. -->
+  <string name="alternative_app_icon_option_gradient_blue_hour">Blauwe oere</string>
+  <!-- Title for the "Twilight" gradient alternative app icon variant in the icon picker screen. The app icon has a purple-toned gradient background, resembling the sky color during twilight. -->
+  <string name="alternative_app_icon_option_gradient_twilight">Twiljocht</string>
+  <!-- Title for the "Midnight" gradient alternative app icon variant in the icon picker screen. The app icon features a dark gradient background, resembling the deep tones of the night sky. -->
+  <string name="alternative_app_icon_option_gradient_midnight">Middernacht</string>
+  <!-- Title for the "Northern Lights" gradient alternative app icon variant in the icon picker screen. The app icon has a dynamic green, blue, and purple gradient background, resembling the aurora borealis. -->
+  <string name="alternative_app_icon_option_gradient_northern_lights">Noarderljocht</string>
+  <!-- Title for the "Retro 2004" themed alternative app icon variant in the icon picker screen. This app icon uses the classic Firefox logo from 2004. -->
+  <string name="alternative_app_icon_option_retro_2004">Retro 2004</string>
+  <!-- Title for the "Retro 2017" themed alternative app icon variant in the icon picker screen. This app icon uses the Firefox logo from 2017, with a more modernized design. -->
+  <string name="alternative_app_icon_option_retro_2017">Retro 2017</string>
+  <!-- Title for the "Pixelated" themed alternative app icon variant in the icon picker screen. This app icon features a pixel-art style, resembling retro 8-bit graphics. -->
+  <string name="alternative_app_icon_option_pixelated">Piksels</string>
+  <!-- Title for the "Minimal" themed alternative app icon variant in the icon picker screen. The app icon presents a simplified, flat and monochrome version of the Firefox logo. -->
+  <string name="alternative_app_icon_option_minimal">Minimaal</string>
+  <!-- Title for the "Pride" themed alternative app icon variant in the icon picker screen. The app icon incorporates a rainbow color scheme in support of the LGBTQ+ community. -->
+  <string name="alternative_app_icon_option_pride">Pride</string>
+  <!-- Title for the "Cute" themed alternative app icon variant in the icon picker screen. The app icon features a playful design with an adorable aesthetic. -->
+  <string name="alternative_app_icon_option_cute">Alderleafst</string>
+  <!-- Title for the "Momo" themed alternative app icon variant in the icon picker screen. The app icon was created by artist @heyheymomodraws and features a unique hand-drawn style with a friendly fox. -->
+  <string name="alternative_app_icon_option_momo">Momo</string>
+  <!-- Subtitle for the "Momo" themed alternative app icon variant in the icon picker screen. The app icon was created by artist @heyheymomodraws and features a unique hand-drawn style with a friendly fox. -->
+  <string name="alternative_app_icon_option_momo_subtitle">Makke troch @heyheymomodraws</string>
+  <!--
     Add-ons general availability nimbus message
 
     Title of the Nimbus message for extension general availability
@@ -1092,7 +1138,7 @@
     %1$s is the name of the app (for example "Firefox"). %2$s is the device manufacturer name
     and %3$s is the device model.
   -->
-  <string name="default_device_name_2">%1$s op %2$s  %3$s</string>
+  <string name="default_device_name_2">%1$s op %2$s %3$s</string>
   <!-- Preference for syncing payment methods -->
   <string name="preferences_sync_credit_cards_2">Betellingsmetoaden</string>
   <!-- Preference for syncing addresses -->
@@ -2193,7 +2239,7 @@
   <!-- Preference summary for enhanced tracking protection settings on/off switch -->
   <string name="preference_enhanced_tracking_protection_summary">No mei Totale cookiebeskerming, ús krêftichste barriêre oant no ta tsjin cross-sitetrackers.</string>
   <!-- Description of enhanced tracking protection. %s is the name of the app (for example "Firefox"). -->
-  <string name="preference_enhanced_tracking_protection_explanation_2">%s beskermet jo tsjin in protte fan de meast foarkommende trackers dy\’t folgje wat jo online dogge.  </string>
+  <string name="preference_enhanced_tracking_protection_explanation_2">%s beskermet jo tsjin in protte fan de meast foarkommende trackers dy\\’t folgje wat jo online dogge.\u0032</string>
   <!-- Text displayed that links to website about enhanced tracking protection -->
   <string name="preference_enhanced_tracking_protection_explanation_learn_more">Mear ynfo</string>
   <!-- Preference for enhanced tracking protection for the standard protection settings -->
@@ -2465,8 +2511,7 @@
   <!-- Preference to access list of saved passwords -->
   <string name="preferences_passwords_saved_logins_2">Bewarre wachtwurden</string>
   <!-- Description of empty list of saved passwords. %s is the name of the app (for example "Firefox"). -->
-  <string name="preferences_passwords_saved_logins_description_empty_text_2">De wachtwurden dy’t jo bewarje of syngronisearje mei %s sille hjir fermeld wurde. Alle wachtwurden dy’t jo bewarje binne fersifere.
-</string>
+  <string name="preferences_passwords_saved_logins_description_empty_text_2">De wachtwurden dy’t jo bewarje of syngronisearje mei %s sille hjir fermeld wurde. Alle wachtwurden dy’t jo bewarje binne fersifere.\u0032</string>
   <!-- Clickable text for opening an external link for more information about Sync. -->
   <string name="preferences_passwords_saved_logins_description_empty_learn_more_link_2">Mear ynfo oer syngronisaasje</string>
   <!-- Preference to access list of login exceptions that we never save logins for -->
@@ -2488,7 +2533,7 @@
   <!-- Shown in snackbar to tell user that the password has been copied -->
   <string name="logins_password_copied">Wachtwurd nei klamboerd kopiearre</string>
   <!-- Shown in snackbar to tell user that the username has been copied -->
-  <string name="logins_username_copied">Brûkersnamme nei klamboerd kopiearre </string>
+  <string name="logins_username_copied">Brûkersnamme nei klamboerd kopiearre\u0032</string>
   <!-- Content Description (for screenreaders etc) read for the button to copy a password in logins -->
   <string name="saved_logins_copy_password">Wachtwurd kopiearje</string>
   <!-- Content Description (for screenreaders etc) read for the button to clear a password while editing a login -->
@@ -2725,7 +2770,7 @@
     text shown before the issuer name to indicate who its verified by, %1$s is the name of
     the certificate authority that verified the ticket
   -->
-  <string name="certificate_info_verified_by">Ferifiearre troch: %1$s </string>
+  <string name="certificate_info_verified_by">Ferifiearre troch: %1$s\u0032</string>
   <!-- Login overflow menu delete button -->
   <string name="login_menu_delete_button">Fuortsmite</string>
   <!-- Login overflow menu edit button -->
@@ -3288,7 +3333,7 @@
   <!-- The error message of the text field in the tab creation tool when the text field is empty -->
   <string name="debug_drawer_tab_tools_tab_quantity_empty_error">Tekstfjild is leech</string>
   <!-- The error message of the text field in the tab creation tool when the text field has characters other than digits -->
-  <string name="debug_drawer_tab_tools_tab_quantity_non_digits_error">Fier  allinnich positive hiele getallen yn</string>
+  <string name="debug_drawer_tab_tools_tab_quantity_non_digits_error">Fier allinnich positive hiele getallen yn</string>
   <!-- The error message of the text field in the tab creation tool when the text field is a zero -->
   <string name="debug_drawer_tab_tools_tab_quantity_non_zero_error">Fier in getal grutter dan nul yn</string>
   <!--

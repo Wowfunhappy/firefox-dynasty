@@ -2000,10 +2000,10 @@ export class DiscoveryStreamFeed {
       let inferredInterests = null;
       if (inferredPersonalization && merinoOhttpEnabled) {
         inferredInterests =
-          this.store.getState().InferredPersonalization.interestVector || {};
+          this.store.getState().InferredPersonalization.inferredInterests || {};
       }
       const requestMetadata = {
-        utc_offset: lazy.NewTabUtils.getUtcOffset(),
+        utc_offset: lazy.NewTabUtils.getUtcOffset(prefs[PREF_SURFACE_ID]),
         coarse_os: lazy.NewTabUtils.normalizeOs(),
         surface_id: prefs[PREF_SURFACE_ID] || "",
         inferredInterests,

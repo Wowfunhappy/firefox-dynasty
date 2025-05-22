@@ -582,7 +582,8 @@ add_task(async function test_link_preview_error_rendered() {
     !card.isMissingDataErrorState,
     "Should not be missing data error initially"
   );
-  ok(!card.isGenerationErrorState, "Should not be generation error initially");
+
+  ok(!card.generationError, "Should not have generation error initially");
 
   // Force a "missing data" error and confirm the card updates.
   card.isMissingDataErrorState = true;
@@ -604,12 +605,12 @@ add_task(async function test_link_preview_error_rendered() {
 
   // Switch to a "generation error"
   card.isMissingDataErrorState = false;
-  card.isGenerationErrorState = true;
+  card.generationError = { name: "UnexpectedError" };
   await TestUtils.waitForCondition(() =>
     card.shadowRoot.querySelector(".og-error-message")
   );
   let ogErrorEl2 = card.shadowRoot.querySelector(".og-error-message");
-  ok(ogErrorEl2, "og-error-message shown with isGenerationErrorState = true");
+  ok(ogErrorEl2, "og-error-message shown with generationError set");
 
   is(
     ogErrorEl2.getAttribute("data-l10n-id"),
@@ -622,7 +623,88 @@ add_task(async function test_link_preview_error_rendered() {
     "Correct localized message for generation error"
   );
 
+  card.generationError = { name: "NotEnoughMemoryError" };
+  await TestUtils.waitForCondition(() =>
+    card.shadowRoot.querySelector(".og-error-message")
+  );
+  ok(
+    !card.shadowRoot.querySelector(".retry-link"),
+    "Retry link should not show with NotEnoughMemoryError"
+  );
   // Cleanup
+  panel.remove();
+  generateStub.restore();
+  LinkPreview.keyboardComboActive = false;
+});
+
+/**
+ * Test that clicking on the keypoints header properly toggles the expanded/collapsed state
+ * and updates the preference.
+ */
+add_task(async function test_toggle_expand_collapse() {
+  await SpecialPowers.pushPrefEnv({
+    set: [
+      ["browser.ml.linkPreview.enabled", true],
+      ["browser.ml.linkPreview.optin", true],
+      ["browser.ml.linkPreview.collapsed", false],
+    ],
+  });
+
+  const generateStub = sinon.stub(LinkPreviewModel, "generateTextAI");
+
+  const READABLE_PAGE_URL =
+    "https://example.com/browser/browser/components/genai/tests/browser/data/readableEn.html";
+
+  LinkPreview.keyboardComboActive = true;
+  XULBrowserWindow.setOverLink(READABLE_PAGE_URL, {});
+
+  const panel = await TestUtils.waitForCondition(() =>
+    document.getElementById("link-preview-panel")
+  );
+  await BrowserTestUtils.waitForEvent(panel, "popupshown");
+
+  const card = panel.querySelector("link-preview-card");
+  ok(card, "Card created for link preview");
+
+  is(card.collapsed, false, "Card should start expanded");
+  is(
+    generateStub.callCount,
+    1,
+    "generateTextAI should be called initially when collapsed is false"
+  );
+
+  const keypointsHeader = card.shadowRoot.querySelector(".keypoints-header");
+  ok(keypointsHeader, "Found keypoints header");
+
+  keypointsHeader.click();
+
+  is(
+    card.collapsed,
+    true,
+    "Card should now be collapsed after clicking header"
+  );
+
+  is(
+    Services.prefs.getBoolPref("browser.ml.linkPreview.collapsed"),
+    true,
+    "Preference should be updated to collapsed=true"
+  );
+
+  keypointsHeader.click();
+
+  is(
+    card.collapsed,
+    false,
+    "Card should now be expanded after clicking header again"
+  );
+
+  is(
+    Services.prefs.getBoolPref("browser.ml.linkPreview.collapsed"),
+    false,
+    "Preference should be updated to collapsed=false"
+  );
+
+  // Clean up
   panel.remove();
   generateStub.restore();
   LinkPreview.keyboardComboActive = false;

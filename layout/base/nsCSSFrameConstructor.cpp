@@ -1229,8 +1229,8 @@ MOZ_NEVER_INLINE void nsFrameConstructorState::ProcessFrameInsertions(
     nsIFrame* firstNewFrame = aFrameList.FirstChild();
 
     // Cache the ancestor chain so that we can reuse it if needed.
-    AutoTArray<nsIFrame*, 20> firstNewFrameAncestors;
-    nsIFrame* notCommonAncestor = nullptr;
+    AutoTArray<const nsIFrame*, 20> firstNewFrameAncestors;
+    const nsIFrame* notCommonAncestor = nullptr;
     if (lastChild) {
       notCommonAncestor = nsLayoutUtils::FillAncestors(
           firstNewFrame, containingBlock, &firstNewFrameAncestors);
@@ -8437,6 +8437,12 @@ static bool ShouldRecreateContainerForNativeAnonymousContentRoot(
     return false;
   }
   if (auto* el = Element::FromNode(aContent)) {
+    if (el->GetPseudoElementType() ==
+        PseudoStyleType::mozSnapshotContainingBlock) {
+      // Much like above, all abspos and on its own top layer so insertion order
+      // wouldn't really matter anyways.
+      return false;
+    }
     if (auto* classes = el->GetClasses()) {
       if (classes->Contains(nsGkAtoms::mozCustomContentContainer,
                             eCaseMatters)) {

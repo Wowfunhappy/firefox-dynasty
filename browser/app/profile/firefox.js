@@ -707,6 +707,10 @@ pref("browser.urlbar.yelp.priority", false);
 // of Rust.
 pref("browser.urlbar.yelp.mlEnabled", false);
 
+// Whether to distinguish service type subjects. If true, we show special titile
+// for the suggestion.
+pref("browser.urlbar.yelp.serviceResultDistinction", false);
+
 // If `browser.urlbar.yelp.featureGate` is true, this controls whether
 // Yelp suggestions are turned on.
 pref("browser.urlbar.suggest.yelp", true);
@@ -736,6 +740,9 @@ pref("browser.urlbar.pocket.featureGate", false);
 // If `browser.urlbar.pocket.featureGate` is true, this controls whether Pocket
 // suggestions are turned on.
 pref("browser.urlbar.suggest.pocket", true);
+
+// Enable creating and editing user defined search engines.
+pref("browser.urlbar.update2.engineAliasRefresh", true);
 
 pref("browser.altClickSave", false);
 
@@ -2023,6 +2030,11 @@ pref("browser.newtabpage.activity-stream.discoverystream.thumbsUpDown.locale-thu
 #else
   pref("browser.newtabpage.activity-stream.telemetry.privatePing.enabled", false);
 #endif
+// Redacts content interaction ids from original New Tab ping once data processing migrated to the Newtab_content private ping
+  pref("browser.newtabpage.activity-stream.telemetry.privatePing.redactNewtabPing.enabled", false);
+
+  // Include differentialy private inferred New Tab interests with New Tab content Ping. Only used when user has enabled personalization.
+pref("browser.newtabpage.activity-stream.telemetry.privatePing.inferredInterests.enabled", false);
 
 // surface ID sent from merino to the client from the curated-recommendations request
 pref("browser.newtabpage.activity-stream.telemetry.surfaceId", "");
@@ -2720,9 +2732,6 @@ pref("services.sync.engine.creditcards.available", true);
 pref("browser.sessionstore.restore_tabs_lazily", true);
 
 pref("browser.suppress_first_window_animation", true);
-
-// Preference that allows individual users to disable Screenshots.
-pref("extensions.screenshots.disabled", false);
 
 // Preference that determines whether Screenshots uses the dedicated browser component
 pref("screenshots.browser.component.enabled", true);

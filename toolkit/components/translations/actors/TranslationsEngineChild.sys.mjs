@@ -29,8 +29,14 @@ export class TranslationsEngineChild extends JSProcessActorChild {
    */
   #resolveForceShutdown = null;
 
+  #isDestroyed = false;
+
   // eslint-disable-next-line consistent-return
   async receiveMessage({ name, data }) {
+    if (this.#isDestroyed) {
+      return undefined;
+    }
+
     switch (name) {
       case "TranslationsEngine:StartTranslation": {
         const { languagePair, innerWindowId, port } = data;
@@ -59,20 +65,22 @@ export class TranslationsEngineChild extends JSProcessActorChild {
           this.#resolveForceShutdown = resolve;
         });
       }
-      default:
+      default: {
         console.error("Unknown message received", name);
+      }
     }
   }
 
   /**
    * @param {object} options
    * @param {number?} options.startTime
+   * @param {string?} options.type
    * @param {string} options.message
    * @param {number} options.innerWindowId
    */
-  TE_addProfilerMarker({ startTime, message, innerWindowId }) {
+  TE_addProfilerMarker({ startTime, type, message, innerWindowId }) {
     ChromeUtils.addProfilerMarker(
-      "TranslationsEngine",
+      type ? `TranslationsEngine ${type}` : "TranslationsEngine",
       { startTime, innerWindowId },
       message
     );
@@ -162,5 +170,9 @@ export class TranslationsEngineChild extends JSProcessActorChild {
    */
   TE_destroyEngineProcess() {
     this.sendAsyncMessage("TranslationsEngine:DestroyEngineProcess");
+  }
+
+  didDestroy() {
+    this.#isDestroyed = true;
   }
 }

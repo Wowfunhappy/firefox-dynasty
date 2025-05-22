@@ -781,15 +781,6 @@ nsresult nsNativeThemeWin::GetThemePartAndState(nsIFrame* aFrame,
   }
 }
 
-static bool AssumeThemePartAndStateAreTransparent(int32_t aPart,
-                                                  int32_t aState) {
-  if (!LookAndFeel::GetInt(LookAndFeel::IntID::UseAccessibilityTheme) &&
-      aPart == MENU_POPUPITEM && aState == MBI_NORMAL) {
-    return true;
-  }
-  return false;
-}
-
 // When running with per-monitor DPI (on Win8.1+), and rendering on a display
 // with a different DPI setting from the system's default scaling, we need to
 // apply scaling to native-themed elements as the Windows theme APIs assume
@@ -810,29 +801,26 @@ static inline double GetThemeDpiScaleFactor(nsIFrame* aFrame) {
   return GetThemeDpiScaleFactor(aFrame->PresContext());
 }
 
-NS_IMETHODIMP
-nsNativeThemeWin::DrawWidgetBackground(gfxContext* aContext, nsIFrame* aFrame,
-                                       StyleAppearance aAppearance,
-                                       const nsRect& aRect,
-                                       const nsRect& aDirtyRect,
-                                       DrawOverflow aDrawOverflow) {
+void nsNativeThemeWin::DrawWidgetBackground(
+    gfxContext* aContext, nsIFrame* aFrame, StyleAppearance aAppearance,
+    const nsRect& aRect, const nsRect& aDirtyRect, DrawOverflow aDrawOverflow) {
   if (IsWidgetNonNative(aFrame, aAppearance) != NonNative::No) {
     return Theme::DrawWidgetBackground(aContext, aFrame, aAppearance, aRect,
                                        aDirtyRect, aDrawOverflow);
   }
 
   HANDLE theme = GetTheme(aAppearance);
-  if (!theme)
-    return ClassicDrawWidgetBackground(aContext, aFrame, aAppearance, aRect,
-                                       aDirtyRect);
+  if (!theme) {
+    ClassicDrawWidgetBackground(aContext, aFrame, aAppearance, aRect,
+                                aDirtyRect);
+    return;
+  }
 
   // ^^ without the right sdk, assume xp theming and fall through.
   int32_t part, state;
   nsresult rv = GetThemePartAndState(aFrame, aAppearance, part, state);
-  if (NS_FAILED(rv)) return rv;
-
-  if (AssumeThemePartAndStateAreTransparent(part, state)) {
-    return NS_OK;
+  if (NS_FAILED(rv)) {
+    return;
   }
 
   gfxContextMatrixAutoSaveRestore save(aContext);
@@ -859,7 +847,9 @@ nsNativeThemeWin::DrawWidgetBackground(gfxContext* aContext, nsIFrame* aFrame,
 RENDER_AGAIN:
 
   HDC hdc = nativeDrawing.BeginNativeDrawing();
-  if (!hdc) return NS_ERROR_FAILURE;
+  if (!hdc) {
+    return;
+  }
 
   nativeDrawing.TransformToNativeRect(tr, widgetRect);
   nativeDrawing.TransformToNativeRect(dr, clipRect);
@@ -991,8 +981,6 @@ RENDER_AGAIN:
   if (nativeDrawing.ShouldRenderAgain()) goto RENDER_AGAIN;
 
   nativeDrawing.PaintToContext();
-
-  return NS_OK;
 }
 
 bool nsNativeThemeWin::CreateWebRenderCommandsForWidget(
@@ -1263,12 +1251,10 @@ bool nsNativeThemeWin::WidgetAttributeChangeRequiresRepaint(
   return Theme::WidgetAttributeChangeRequiresRepaint(aAppearance, aAttribute);
 }
 
-NS_IMETHODIMP
-nsNativeThemeWin::ThemeChanged() {
+void nsNativeThemeWin::ThemeChanged() {
   memset(mBorderCacheValid, 0, sizeof(mBorderCacheValid));
   memset(mMinimumWidgetSizeCacheValid, 0, sizeof(mMinimumWidgetSizeCacheValid));
   mGutterSizeCacheValid = false;
-  return NS_OK;
 }
 
 bool nsNativeThemeWin::ThemeSupportsWidget(nsPresContext* aPresContext,
@@ -1626,12 +1612,8 @@ nsresult nsNativeThemeWin::ClassicDrawWidgetBackground(
   int32_t part, state;
   bool focused;
   nsresult rv;
-  rv = ClassicGetThemePartAndState(aFrame, aAppearance, part, state, focused);
-  if (NS_FAILED(rv)) return rv;
-
-  if (AssumeThemePartAndStateAreTransparent(part, state)) {
-    return NS_OK;
-  }
+  MOZ_TRY(
+      ClassicGetThemePartAndState(aFrame, aAppearance, part, state, focused));
 
   gfxFloat p2a = gfxFloat(aFrame->PresContext()->AppUnitsPerDevPixel());
   RECT widgetRect;

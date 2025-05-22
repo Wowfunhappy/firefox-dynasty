@@ -1677,11 +1677,17 @@ var BrowserAddonUI = {
       );
     }
 
+    // If the prompt is being used for ML model removal, use a body message
+    let body = null;
+    if (addon.type === "mlmodel") {
+      body = await lazy.l10n.formatValue("addon-mlmodel-removal-body");
+    }
+
     let checkboxState = { value: false };
     let result = confirmEx(
       window,
       title,
-      null,
+      body,
       btnFlags,
       btnTitle,
       /* button1 */ null,
@@ -1849,7 +1855,10 @@ var gUnifiedExtensions = {
     this.permListener = () => this.updateAttention();
     lazy.ExtensionPermissions.addListener(this.permListener);
 
+    this.onAppMenuShowing = this.onAppMenuShowing.bind(this);
+    PanelUI.mainView.addEventListener("ViewShowing", this.onAppMenuShowing);
     gNavToolbox.addEventListener("customizationstarting", this);
+    gNavToolbox.addEventListener("aftercustomization", this);
     CustomizableUI.addListener(this);
     AddonManager.addManagerListener(this);
 
@@ -1868,13 +1877,22 @@ var gUnifiedExtensions = {
     lazy.ExtensionPermissions.removeListener(this.permListener);
     this.permListener = null;
 
+    PanelUI.mainView.removeEventListener("ViewShowing", this.onAppMenuShowing);
     gNavToolbox.removeEventListener("customizationstarting", this);
+    gNavToolbox.removeEventListener("aftercustomization", this);
     CustomizableUI.removeListener(this);
     AddonManager.removeManagerListener(this);
   },
 
   onBlocklistAttentionUpdated() {
     this.updateAttention();
+  },
+
+  onAppMenuShowing() {
+    document.getElementById("appMenu-extensions-themes-button").hidden =
+      !this.buttonAlwaysVisible;
+    document.getElementById("appMenu-unified-extensions-button").hidden =
+      this.buttonAlwaysVisible;
   },
 
   onLocationChange(browser, webProgress, _request, _uri, flags) {
@@ -1897,7 +1915,11 @@ var gUnifiedExtensions = {
       // If anything is anchored to the button, keep it visible.
       this._button.open ||
       // Button will be open soon - see ensureButtonShownBeforeAttachingPanel.
-      this._buttonShownBeforeButtonOpen;
+      this._buttonShownBeforeButtonOpen ||
+      // Always show when customizing, because even if the button should mostly
+      // be hidden, the user should be able to specify the desired location for
+      // cases where the button is forcibly shown.
+      CustomizationHandler.isCustomizing();
 
     if (shouldShowButton) {
       this._button.hidden = false;
@@ -2064,6 +2086,11 @@ var gUnifiedExtensions = {
 
       case "customizationstarting":
         this.panel.hidePopup();
+        this.updateButtonVisibility();
+        break;
+
+      case "aftercustomization":
+        this.updateButtonVisibility();
         break;
 
       case "toolbarvisibilitychange":
@@ -2348,6 +2375,17 @@ var gUnifiedExtensions = {
 
     // We always dispatch an event (useful for testing purposes).
     window.dispatchEvent(new CustomEvent("UnifiedExtensionsTogglePanel"));
+  },
+
+  async openPanel(aEvent) {
+    if (this._button.open) {
+      throw new Error("Tried to open panel whilst a panel was already open!");
+    }
+    if (CustomizationHandler.isCustomizing()) {
+      throw new Error("Cannot open panel while in Customize mode!");
+    }
+
+    await this.togglePanel(aEvent);
   },
 
   updateContextMenu(menu, event) {
@@ -2775,6 +2813,18 @@ var gUnifiedExtensions = {
     Services.prefs.setBoolPref(
       "extensions.unifiedExtensions.button.always_visible",
       false
+    );
+    ConfirmationHint.show(
+      document.getElementById("PanelUI-menu-button"),
+      "confirmation-hint-extensions-button-hidden"
+    );
+  },
+
+  showExtensionsButtonInToolbar() {
+    // All browser windows will observe this and call updateButtonVisibility().
+    Services.prefs.setBoolPref(
+      "extensions.unifiedExtensions.button.always_visible",
+      true
     );
   },
 };

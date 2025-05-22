@@ -8,6 +8,11 @@ import { UniFFITypeError } from "resource://gre/modules/UniFFI.sys.mjs";
 // Objects intended to be used in the unit tests
 export var UnitTestObjs = {};
 
+let lazy = {};
+
+ChromeUtils.defineLazyGetter(lazy, "decoder", () => new TextDecoder());
+ChromeUtils.defineLazyGetter(lazy, "encoder", () => new TextEncoder());
+
 // Write/Read data to/from an ArrayBuffer
 class ArrayBufferDataStream {
     constructor(arrayBuffer) {
@@ -128,11 +133,10 @@ class ArrayBufferDataStream {
 
 
     writeString(value) {
-      const encoder = new TextEncoder();
       // Note: in order to efficiently write this data, we first write the
       // string data, reserving 4 bytes for the size.
       const dest = new Uint8Array(this.dataView.buffer, this.pos + 4);
-      const encodeResult = encoder.encodeInto(value, dest);
+      const encodeResult = lazy.encoder.encodeInto(value, dest);
       if (encodeResult.read != value.length) {
         throw new UniFFIError(
             "writeString: out of space when writing to ArrayBuffer.  Did the computeSize() method returned the wrong result?"
@@ -146,10 +150,9 @@ class ArrayBufferDataStream {
     }
 
     readString() {
-      const decoder = new TextDecoder();
       const size = this.readUint32();
       const source = new Uint8Array(this.dataView.buffer, this.pos, size)
-      const value = decoder.decode(source);
+      const value = lazy.decoder.decode(source);
       this.pos += size;
       return value;
     }
@@ -386,13 +389,11 @@ export class FfiConverterString extends FfiConverter {
     }
 
     static lift(buf) {
-        const decoder = new TextDecoder();
         const utf8Arr = new Uint8Array(buf);
-        return decoder.decode(utf8Arr);
+        return lazy.decoder.decode(utf8Arr);
     }
     static lower(value) {
-        const encoder = new TextEncoder();
-        return encoder.encode(value).buffer;
+        return lazy.encoder.encode(value).buffer;
     }
 
     static write(dataStream, value) {
@@ -404,8 +405,7 @@ export class FfiConverterString extends FfiConverter {
     }
 
     static computeSize(value) {
-        const encoder = new TextEncoder();
-        return 4 + encoder.encode(value).length
+        return 4 + lazy.encoder.encode(value).length
     }
 }
 
@@ -2496,36 +2496,36 @@ export class FfiConverterSequenceTypeRemoteSettingsRecord extends FfiConverterAr
 export class FfiConverterMapStringString extends FfiConverterArrayBuffer {
     static read(dataStream) {
         const len = dataStream.readInt32();
-        const map = {};
+        const map = new Map();
         for (let i = 0; i < len; i++) {
             const key = FfiConverterString.read(dataStream);
             const value = FfiConverterString.read(dataStream);
-            map[key] = value;
+            map.set(key, value);
         }
 
         return map;
     }
 
-    static write(dataStream, value) {
-        dataStream.writeInt32(Object.keys(value).length);
-        for (const key in value) {
+    static write(dataStream, map) {
+        dataStream.writeInt32(map.size);
+        for (const [key, value] of map) {
             FfiConverterString.write(dataStream, key);
-            FfiConverterString.write(dataStream, value[key]);
+            FfiConverterString.write(dataStream, value);
         }
     }
 
-    static computeSize(value) {
+    static computeSize(map) {
         // The size of the length
         let size = 4;
-        for (const key in value) {
+        for (const [key, value] of map) {
             size += FfiConverterString.computeSize(key);
-            size += FfiConverterString.computeSize(value[key]);
+            size += FfiConverterString.computeSize(value);
         }
         return size;
     }
 
-    static checkType(value) {
-        for (const key in value) {
+    static checkType(map) {
+        for (const [key, value] of map) {
             try {
                 FfiConverterString.checkType(key);
             } catch (e) {
@@ -2536,7 +2536,7 @@ export class FfiConverterMapStringString extends FfiConverterArrayBuffer {
             }
 
             try {
-                FfiConverterString.checkType(value[key]);
+                FfiConverterString.checkType(value);
             } catch (e) {
                 if (e instanceof UniFFITypeError) {
                     e.addItemDescriptionPart(`[${key}]`);
@@ -2551,36 +2551,36 @@ export class FfiConverterMapStringString extends FfiConverterArrayBuffer {
 export class FfiConverterMapStringTypeRemoteSettingsRecord extends FfiConverterArrayBuffer {
     static read(dataStream) {
         const len = dataStream.readInt32();
-        const map = {};
+        const map = new Map();
         for (let i = 0; i < len; i++) {
             const key = FfiConverterString.read(dataStream);
             const value = FfiConverterTypeRemoteSettingsRecord.read(dataStream);
-            map[key] = value;
+            map.set(key, value);
         }
 
         return map;
     }
 
-    static write(dataStream, value) {
-        dataStream.writeInt32(Object.keys(value).length);
-        for (const key in value) {
+    static write(dataStream, map) {
+        dataStream.writeInt32(map.size);
+        for (const [key, value] of map) {
             FfiConverterString.write(dataStream, key);
-            FfiConverterTypeRemoteSettingsRecord.write(dataStream, value[key]);
+            FfiConverterTypeRemoteSettingsRecord.write(dataStream, value);
         }
     }
 
-    static computeSize(value) {
+    static computeSize(map) {
         // The size of the length
         let size = 4;
-        for (const key in value) {
+        for (const [key, value] of map) {
             size += FfiConverterString.computeSize(key);
-            size += FfiConverterTypeRemoteSettingsRecord.computeSize(value[key]);
+            size += FfiConverterTypeRemoteSettingsRecord.computeSize(value);
         }
         return size;
     }
 
-    static checkType(value) {
-        for (const key in value) {
+    static checkType(map) {
+        for (const [key, value] of map) {
             try {
                 FfiConverterString.checkType(key);
             } catch (e) {
@@ -2591,7 +2591,7 @@ export class FfiConverterMapStringTypeRemoteSettingsRecord extends FfiConverterA
             }
 
             try {
-                FfiConverterTypeRemoteSettingsRecord.checkType(value[key]);
+                FfiConverterTypeRemoteSettingsRecord.checkType(value);
             } catch (e) {
                 if (e instanceof UniFFITypeError) {
                     e.addItemDescriptionPart(`[${key}]`);

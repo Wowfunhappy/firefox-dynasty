@@ -89,7 +89,7 @@ class CanvasContext final : public nsICanvasRenderingContextInternal,
  public:
   void GetCanvas(dom::OwningHTMLCanvasElementOrOffscreenCanvas&) const;
 
-  void Configure(const dom::GPUCanvasConfiguration& aConfig);
+  void Configure(const dom::GPUCanvasConfiguration& aConfig, ErrorResult& aRv);
   void Unconfigure();
 
   RefPtr<Texture> GetCurrentTexture(ErrorResult& aRv);
@@ -100,12 +100,12 @@ class CanvasContext final : public nsICanvasRenderingContextInternal,
 
  private:
   gfx::IntSize mCanvasSize;
-  std::unique_ptr<dom::GPUCanvasConfiguration> mConfig;
+  std::unique_ptr<dom::GPUCanvasConfiguration> mConfiguration;
   bool mPendingSwapChainPresent = false;
   bool mWaitingCanvasRendererInitialized = false;
 
   RefPtr<WebGPUChild> mBridge;
-  RefPtr<Texture> mTexture;
+  RefPtr<Texture> mCurrentTexture;
   gfx::SurfaceFormat mGfxFormat = gfx::SurfaceFormat::R8G8B8A8;
 
   Maybe<layers::RemoteTextureId> mLastRemoteTextureId;

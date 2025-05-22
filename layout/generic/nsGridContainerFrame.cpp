@@ -11,6 +11,7 @@
 #include <functional>
 #include <stdlib.h>  // for div()
 #include <type_traits>
+#include "fmt/format.h"
 #include "gfxContext.h"
 #include "mozilla/AutoRestore.h"
 #include "mozilla/Baseline.h"
@@ -2420,6 +2421,28 @@ struct nsGridContainerFrame::Tracks {
     MaxContentMaximums,
   };
 
+  static TrackSize::StateBits SelectorForPhase(TrackSizingPhase aPhase,
+                                               SizingConstraint aConstraint) {
+    switch (aPhase) {
+      case TrackSizingPhase::IntrinsicMinimums:
+        return TrackSize::eIntrinsicMinSizing;
+      case TrackSizingPhase::ContentBasedMinimums:
+        return aConstraint == SizingConstraint::MinContent
+                   ? TrackSize::eIntrinsicMinSizing
+                   : TrackSize::eMinOrMaxContentMinSizing;
+      case TrackSizingPhase::MaxContentMinimums:
+        return aConstraint == SizingConstraint::MaxContent
+                   ? (TrackSize::eMaxContentMinSizing |
+                      TrackSize::eAutoMinSizing)
+                   : TrackSize::eMaxContentMinSizing;
+      case TrackSizingPhase::IntrinsicMaximums:
+        return TrackSize::eIntrinsicMaxSizing;
+      case TrackSizingPhase::MaxContentMaximums:
+        return TrackSize::eAutoOrMaxContentMaxSizing;
+    }
+    MOZ_MAKE_COMPILER_ASSUME_IS_UNREACHABLE("Unexpected phase");
+  }
+
   // Some data we collect on each item that spans more than one track for step 3
   // and 4 of the Track Sizing Algorithm in ResolveIntrinsicSize below.
   // https://drafts.csswg.org/css-grid-2/#algo-spanning-items
@@ -2472,7 +2495,7 @@ struct nsGridContainerFrame::Tracks {
       nsTArray<SpanningItemData>::iterator aIter,
       nsTArray<SpanningItemData>::iterator aIterEnd,
       nsTArray<uint32_t>& aTracks, nsTArray<TrackSize>& aPlan,
-      nsTArray<TrackSize>& aItemPlan, TrackSize::StateBits aSelector,
+      nsTArray<TrackSize>& aItemPlan, SizingConstraint aConstraint,
       bool aIsGridIntrinsicSizing, const TrackSizingFunctions& aFunctions,
       const FitContentClamper& aFitContentClamper = nullptr,
       bool aNeedInfinitelyGrowableFlag = false);
@@ -2517,17 +2540,19 @@ struct nsGridContainerFrame::Tracks {
   }
 
   /**
-   * Collect the tracks which are growable (matching aSelector) into
-   * aGrowableTracks, and return the amount of space that can be used
-   * to grow those tracks.  This method implements CSS Grid 2 §12.5.1.2.
+   * Collect the tracks which are growable (matching the sizing step/phase
+   * and sizing constraint) into aGrowableTracks, and return the amount of
+   * space that can be used to grow those tracks. This method implements
+   * CSS Grid 2 §12.5.1.2.
    * https://drafts.csswg.org/css-grid-2/#extra-space
    */
   nscoord CollectGrowable(TrackSizingStep aStep, TrackSizingPhase aPhase,
                           nscoord aAvailableSpace, const LineRange& aRange,
-                          TrackSize::StateBits aSelector,
+                          SizingConstraint aConstraint,
                           nsTArray<uint32_t>& aGrowableTracks) const {
     MOZ_ASSERT(aAvailableSpace > 0, "why call me?");
     nscoord space = aAvailableSpace - mGridGap * (aRange.Extent() - 1);
+    const TrackSize::StateBits selector = SelectorForPhase(aPhase, aConstraint);
     for (auto i : aRange.Range()) {
       const TrackSize& sz = mSizes[i];
       space -= StartSizeInDistribution(aPhase, sz);
@@ -2539,7 +2564,7 @@ struct nsGridContainerFrame::Tracks {
           !(sz.mState & TrackSize::eFlexMaxSizing)) {
         continue;
       }
-      if (sz.mState & aSelector) {
+      if (sz.mState & selector) {
         aGrowableTracks.AppendElement(i);
       }
     }
@@ -2702,26 +2727,23 @@ struct nsGridContainerFrame::Tracks {
   static uint32_t MarkExcludedTracks(TrackSizingPhase aPhase,
                                      nsTArray<TrackSize>& aPlan,
                                      const nsTArray<uint32_t>& aGrowableTracks,
-                                     TrackSize::StateBits aSelector) {
+                                     SizingConstraint aConstraint) {
     uint32_t numGrowable = aGrowableTracks.Length();
     if (aPhase == TrackSizingPhase::IntrinsicMaximums ||
         aPhase == TrackSizingPhase::MaxContentMaximums) {
       // "when handling any intrinsic growth limit: all affected tracks"
       return numGrowable;
     }
-    MOZ_ASSERT(aSelector == (aSelector & TrackSize::eIntrinsicMinSizing) &&
-                   (aSelector & TrackSize::eMaxContentMinSizing),
-               "Should only get here for track sizing steps 2.1 to 2.3");
-    // Note that eMaxContentMinSizing is always included. We do those first:
+
+    TrackSize::StateBits selector = SelectorForPhase(aPhase, aConstraint);
     numGrowable = MarkExcludedTracks(
         aPlan, numGrowable, aGrowableTracks, TrackSize::eMaxContentMinSizing,
         TrackSize::eMaxContentMaxSizing, TrackSize::eSkipGrowUnlimited1);
-    // Now mark min-content/auto min-sizing tracks if requested.
-    auto minOrAutoSelector = aSelector & ~TrackSize::eMaxContentMinSizing;
-    if (minOrAutoSelector) {
-      numGrowable = MarkExcludedTracks(
-          aPlan, numGrowable, aGrowableTracks, minOrAutoSelector,
-          TrackSize::eIntrinsicMaxSizing, TrackSize::eSkipGrowUnlimited2);
+    // Note that eMaxContentMinSizing is always included. We do those first:
+    if ((selector &= ~TrackSize::eMaxContentMinSizing)) {
+      numGrowable = MarkExcludedTracks(aPlan, numGrowable, aGrowableTracks,
+                                       selector, TrackSize::eIntrinsicMaxSizing,
+                                       TrackSize::eSkipGrowUnlimited2);
     }
     return numGrowable;
   }
@@ -2827,7 +2849,7 @@ struct nsGridContainerFrame::Tracks {
                               nsTArray<TrackSize>& aPlan,
                               nsTArray<TrackSize>& aItemPlan,
                               nsTArray<uint32_t>& aGrowableTracks,
-                              TrackSize::StateBits aSelector,
+                              SizingConstraint aConstraint,
                               const TrackSizingFunctions& aFunctions,
                               const FitContentClamper& aFitContentClamper) {
     InitializeItemPlan(aPhase, aItemPlan, aGrowableTracks);
@@ -2842,7 +2864,7 @@ struct nsGridContainerFrame::Tracks {
 
     if (space > 0) {
       uint32_t numGrowable =
-          MarkExcludedTracks(aPhase, aItemPlan, aGrowableTracks, aSelector);
+          MarkExcludedTracks(aPhase, aItemPlan, aGrowableTracks, aConstraint);
       GrowSelectedTracksUnlimited(space, aItemPlan, aGrowableTracks,
                                   numGrowable, aFitContentClamper);
     }
@@ -3063,21 +3085,37 @@ struct nsGridContainerFrame::Tracks {
 
 #ifdef DEBUG
 void nsGridContainerFrame::Tracks::Dump() const {
-  printf("%zu %s %s ", mSizes.Length(), mIsMasonry ? "masonry" : "grid",
-         mAxis == LogicalAxis::Block ? "rows" : "columns");
+  const size_t numTracks = mSizes.Length();
+  const char* trackName = mAxis == LogicalAxis::Inline ? "column" : "row";
+
+  auto BaselineToStr = [](nscoord aBaseline) {
+    return aBaseline == NS_INTRINSIC_ISIZE_UNKNOWN ? std::string("unknown")
+                                                   : std::to_string(aBaseline);
+  };
+  auto CoordToStr = [](nscoord aCoord) {
+    return aCoord == NS_UNCONSTRAINEDSIZE ? std::string("unconstrained")
+                                          : std::to_string(aCoord);
+  };
+
+  fmt::print(FMT_STRING("{} {} {}{}, track union bits: "), numTracks,
+             mIsMasonry ? "masonry" : "grid", trackName,
+             numTracks > 1 ? "s" : "");
   TrackSize::DumpStateBits(mStateUnion);
   printf("\n");
-  for (uint32_t i = 0, len = mSizes.Length(); i < len; ++i) {
-    printf("  %d: ", i);
+
+  for (uint32_t i = 0; i < numTracks; ++i) {
+    fmt::print(FMT_STRING("  {} {}: "), trackName, i);
     mSizes[i].Dump();
     printf("\n");
   }
-  double px = AppUnitsPerCSSPixel();
-  printf("Baselines: %.2fpx %2fpx\n",
-         mBaseline[BaselineSharingGroup::First] / px,
-         mBaseline[BaselineSharingGroup::Last] / px);
-  printf("Gap: %.2fpx\n", mGridGap / px);
-  printf("ContentBoxSize: %.2fpx\n", mContentBoxSize / px);
+
+  fmt::println(FMT_STRING("  first baseline: {}, last baseline: {}"),
+               BaselineToStr(mBaseline[BaselineSharingGroup::First]),
+               BaselineToStr(mBaseline[BaselineSharingGroup::Last]));
+  fmt::println(FMT_STRING("  {} gap: {}, content-box {}-size: {}"), trackName,
+               CoordToStr(mGridGap),
+               mAxis == LogicalAxis::Inline ? "inline" : "block",
+               CoordToStr(mContentBoxSize));
 }
 #endif
 
@@ -6266,12 +6304,6 @@ void nsGridContainerFrame::Tracks::InitializeItemBaselines(
   const WritingMode containerWM = aGridRI.mWM;
   ComputedStyle* containerStyle = aGridRI.mFrame->Style();
 
-  // The physical side of the container's block start side.  We use it to match
-  // against the physical block start side of the child to determine its
-  // baseline sharing group.
-  auto containerBlockStartSide =
-      containerWM.PhysicalSide(MakeLogicalSide(mAxis, LogicalEdge::Start));
-
   for (GridItemInfo& gridItem : aGridItems) {
     if (gridItem.IsSubgrid(mAxis)) {
       // A subgrid itself is never baseline-aligned.
@@ -6285,35 +6317,30 @@ void nsGridContainerFrame::Tracks::InitializeItemBaselines(
 
     const bool isOrthogonal = containerWM.IsOrthogonalTo(childWM);
     const bool isInlineAxis = mAxis == LogicalAxis::Inline;  // i.e. columns
-
-    // XXX update the line below to include orthogonal grid/table boxes
-    // XXX since they have baselines in both dimensions. And flexbox with
-    // XXX reversed main/cross axis?
     const bool itemHasBaselineParallelToTrack = isInlineAxis == isOrthogonal;
-    if (itemHasBaselineParallelToTrack) {
-      // [align|justify]-self:[last ]baseline.
-      auto selfAlignment =
-          isOrthogonal
-              ? child->StylePosition()->UsedJustifySelf(containerStyle)._0
-              : child->StylePosition()->UsedAlignSelf(containerStyle)._0;
-      selfAlignment &= ~StyleAlignFlags::FLAG_BITS;
-      if (selfAlignment == StyleAlignFlags::BASELINE) {
-        state |= ItemState::eFirstBaseline | ItemState::eSelfBaseline;
-        const GridArea& area = gridItem.mArea;
-        baselineTrack = isInlineAxis ? area.mCols.mStart : area.mRows.mStart;
-      } else if (selfAlignment == StyleAlignFlags::LAST_BASELINE) {
-        state |= ItemState::eLastBaseline | ItemState::eSelfBaseline;
-        const GridArea& area = gridItem.mArea;
-        baselineTrack = (isInlineAxis ? area.mCols.mEnd : area.mRows.mEnd) - 1;
-      }
 
-      // [align|justify]-content:[last ]baseline.
-      // https://drafts.csswg.org/css-align-3/#baseline-align-content
-      // "[...] and its computed 'align-self' or 'justify-self' (whichever
-      // affects its block axis) is 'stretch' or 'self-start' ('self-end').
-      // For this purpose, the 'start', 'end', 'flex-start', and 'flex-end'
-      // values of 'align-self' are treated as either 'self-start' or
-      // 'self-end', whichever they end up equivalent to.
+    // [align|justify]-self:[last ]baseline.
+    auto selfAlignment =
+        isInlineAxis
+            ? child->StylePosition()->UsedJustifySelf(containerStyle)._0
+            : child->StylePosition()->UsedAlignSelf(containerStyle)._0;
+    selfAlignment &= ~StyleAlignFlags::FLAG_BITS;
+    if (selfAlignment == StyleAlignFlags::BASELINE) {
+      state |= ItemState::eFirstBaseline | ItemState::eSelfBaseline;
+      const GridArea& area = gridItem.mArea;
+      baselineTrack = isInlineAxis ? area.mCols.mStart : area.mRows.mStart;
+    } else if (selfAlignment == StyleAlignFlags::LAST_BASELINE) {
+      state |= ItemState::eLastBaseline | ItemState::eSelfBaseline;
+      const GridArea& area = gridItem.mArea;
+      baselineTrack = (isInlineAxis ? area.mCols.mEnd : area.mRows.mEnd) - 1;
+    }
+
+    // https://drafts.csswg.org/css-align-3/#baseline-align-content
+    // Baseline content-alignment can only apply if the align-content axis is
+    // parallel with the box’s block axis; otherwise the fallback alignment is
+    // used.
+    if (!isInlineAxis) {
+      // Handle align-content:[last ]baseline (if present)
       auto alignContent = child->StylePosition()->mAlignContent.primary;
       alignContent &= ~StyleAlignFlags::FLAG_BITS;
       if (alignContent == StyleAlignFlags::BASELINE ||
@@ -6332,13 +6359,10 @@ void nsGridContainerFrame::Tracks::InitializeItemBaselines(
           bool sameSide =
               containerWM.ParallelAxisStartsOnSameSide(alignAxis, childWM);
           if (selfAlignment == StyleAlignFlags::LEFT) {
-            selfAlignment = !isInlineAxis || containerWM.IsBidiLTR()
-                                ? StyleAlignFlags::START
-                                : StyleAlignFlags::END;
+            selfAlignment = containerWM.IsBidiLTR() ? StyleAlignFlags::START
+                                                    : StyleAlignFlags::END;
           } else if (selfAlignment == StyleAlignFlags::RIGHT) {
-            selfAlignment = isInlineAxis && containerWM.IsBidiLTR()
-                                ? StyleAlignFlags::END
-                                : StyleAlignFlags::START;
+            selfAlignment = StyleAlignFlags::START;
           }
 
           if (selfAlignment == StyleAlignFlags::START ||
@@ -6355,12 +6379,10 @@ void nsGridContainerFrame::Tracks::InitializeItemBaselines(
           const GridArea& area = gridItem.mArea;
           if (alignContent == StyleAlignFlags::BASELINE) {
             state |= ItemState::eFirstBaseline | ItemState::eContentBaseline;
-            baselineTrack =
-                isInlineAxis ? area.mCols.mStart : area.mRows.mStart;
+            baselineTrack = area.mRows.mStart;
           } else if (alignContent == StyleAlignFlags::LAST_BASELINE) {
             state |= ItemState::eLastBaseline | ItemState::eContentBaseline;
-            baselineTrack =
-                (isInlineAxis ? area.mCols.mEnd : area.mRows.mEnd) - 1;
+            baselineTrack = area.mRows.mEnd - 1;
           }
         }
       }
@@ -6369,25 +6391,14 @@ void nsGridContainerFrame::Tracks::InitializeItemBaselines(
     if (state & ItemState::eIsBaselineAligned) {
       // The item is baseline aligned, so calculate the baseline sharing group.
       // <https://drafts.csswg.org/css-align-3/#baseline-terms>
-      BaselineSharingGroup baselineAlignment =
-          (state & ItemState::eFirstBaseline) ? BaselineSharingGroup::First
-                                              : BaselineSharingGroup::Last;
-
-      BaselineSharingGroup baselineSharingGroup = [&]() {
-        {
-          auto childAxis = isOrthogonal ? GetOrthogonalAxis(mAxis) : mAxis;
-          auto childBlockStartSide = childWM.PhysicalSide(
-              MakeLogicalSide(childAxis, LogicalEdge::Start));
-          bool isFirstBaseline = (state & ItemState::eFirstBaseline) != 0;
-          const bool containerAndChildHasEqualBaselineSide =
-              containerBlockStartSide == childBlockStartSide;
-
-          return isFirstBaseline == containerAndChildHasEqualBaselineSide
-                     ? BaselineSharingGroup::First
-                     : BaselineSharingGroup::Last;
-        }
-      }();
-
+      bool isFirstBaseline = (state & ItemState::eFirstBaseline) != 0;
+      BaselineSharingGroup baselineAlignment = isFirstBaseline
+                                                   ? BaselineSharingGroup::First
+                                                   : BaselineSharingGroup::Last;
+      auto sameSide = containerWM.ParallelAxisStartsOnSameSide(mAxis, childWM);
+      BaselineSharingGroup baselineSharingGroup =
+          isFirstBaseline == sameSide ? BaselineSharingGroup::First
+                                      : BaselineSharingGroup::Last;
       // XXXmats if |child| is a descendant of a subgrid then the metrics
       // below needs to account for the accumulated MPB somehow...
 
@@ -6420,8 +6431,10 @@ void nsGridContainerFrame::Tracks::InitializeItemBaselines(
                              ? grid->GetBBaseline(baselineAlignment)
                              : grid->GetIBaseline(baselineAlignment));
       } else {
-        baseline = child->GetNaturalBaselineBOffset(
-            childWM, baselineAlignment, BaselineExportContext::Other);
+        if (itemHasBaselineParallelToTrack) {
+          baseline = child->GetNaturalBaselineBOffset(
+              childWM, baselineAlignment, BaselineExportContext::Other);
+        }
 
         if (!baseline) {
           // If baseline alignment is specified on a grid item whose size in
@@ -6446,8 +6459,42 @@ void nsGridContainerFrame::Tracks::InitializeItemBaselines(
           // participates in baseline alignment.
           if (!isTrackAutoSize ||
               !gridItem.IsBSizeDependentOnContainerSize(containerWM)) {
-            baseline.emplace(Baseline::SynthesizeBOffsetFromBorderBox(
-                child, containerWM, baselineAlignment));
+            // We're synthesizing the baseline from the child's border-box
+            // (frameSize is the size of the border-box). See:
+            // https://drafts.csswg.org/css-align-3/#baseline-export.
+
+            if (containerWM.IsCentralBaseline()) {
+              // TODO(tlouw): This is a simplified calculation when determining
+              // the center baseline and we should use
+              // `Baseline::SynthesizeBaselineFromBorderBox`, which does the
+              // proper calculation. See:
+              // https://bugzilla.mozilla.org/show_bug.cgi?id=1964417
+              baseline.emplace(frameSize / 2);
+            } else {
+              // Account for writing modes like vertical-lr that invert the
+              // line-over/line-under direction.
+              bool isInverted =
+                  (mAxis == LogicalAxis::Block)
+                      ? containerWM.IsLineInverted()
+                      : (!containerWM.IsVertical() && containerWM.IsBidiLTR());
+
+              // Determine whether the child's line-under side matches the
+              // container's start side along the axis.
+              bool isLineUnderSameSide = sameSide && !isInverted;
+
+              // Emulate the 'baseline' measurement that
+              // `GetNaturalBOffsetBaseline()` would provide, if it supported
+              // synthesizing baselines on inline container axes.
+              // To do this, we express the baseline as an offset from the
+              // item's block-start or block-end edge, depending on whether
+              // we're aligning to the first or last baseline.
+              const bool baselineOffsetIsFrameSize =
+                  itemHasBaselineParallelToTrack
+                      ? (!childWM.IsLineInverted() == isFirstBaseline)
+                      : (isLineUnderSameSide == isFirstBaseline);
+
+              baseline.emplace(baselineOffsetIsFrameSize ? frameSize : 0);
+            }
           }
         }
       }
@@ -6753,7 +6800,7 @@ bool nsGridContainerFrame::Tracks::GrowSizeForSpanningItems(
     nsTArray<SpanningItemData>::iterator aIter,
     nsTArray<SpanningItemData>::iterator aIterEnd, nsTArray<uint32_t>& aTracks,
     nsTArray<TrackSize>& aPlan, nsTArray<TrackSize>& aItemPlan,
-    TrackSize::StateBits aSelector, bool aIsGridIntrinsicSizing,
+    SizingConstraint aConstraint, bool aIsGridIntrinsicSizing,
     const TrackSizingFunctions& aFunctions,
     const FitContentClamper& aFitContentClamper,
     bool aNeedInfinitelyGrowableFlag) {
@@ -6763,7 +6810,7 @@ bool nsGridContainerFrame::Tracks::GrowSizeForSpanningItems(
   InitializePlan(aPhase, aPlan);
   for (; aIter != aIterEnd; ++aIter) {
     const SpanningItemData& item = *aIter;
-    if (!(item.mState & aSelector)) {
+    if (!(item.mState & SelectorForPhase(aPhase, aConstraint))) {
       continue;
     }
     if (isMaxSizingPhase) {
@@ -6781,11 +6828,11 @@ bool nsGridContainerFrame::Tracks::GrowSizeForSpanningItems(
       continue;
     }
     aTracks.ClearAndRetainStorage();
-    space = CollectGrowable(aStep, aPhase, space, item.mLineRange, aSelector,
+    space = CollectGrowable(aStep, aPhase, space, item.mLineRange, aConstraint,
                             aTracks);
     if (space > 0) {
       DistributeToTrackSizes(aStep, aPhase, space, aPlan, aItemPlan, aTracks,
-                             aSelector, aFunctions, aFitContentClamper);
+                             aConstraint, aFunctions, aFitContentClamper);
       needToUpdateSizes = true;
     }
   }
@@ -6816,18 +6863,6 @@ void nsGridContainerFrame::Tracks::ResolveIntrinsicSize(
   nsTArray<SpanningItemData> nonFlexSpanningItems, flexSpanningItems;
   // max span of items in `nonFlexSpanningItems` and `flexSpanningItems`.
   uint32_t maxSpan = 0;
-
-  // Setup track selector for step 3.2:
-  const auto contentBasedMinSelector =
-      aConstraint == SizingConstraint::MinContent
-          ? TrackSize::eIntrinsicMinSizing
-          : TrackSize::eMinOrMaxContentMinSizing;
-
-  // Setup track selector for step 3.3:
-  const auto maxContentMinSelector =
-      aConstraint == SizingConstraint::MaxContent
-          ? (TrackSize::eMaxContentMinSizing | TrackSize::eAutoMinSizing)
-          : TrackSize::eMaxContentMinSizing;
 
   const auto orthogonalAxis = GetOrthogonalAxis(mAxis);
   const bool isMasonryInOtherAxis = aGridRI.mFrame->IsMasonry(orthogonalAxis);
@@ -6942,19 +6977,34 @@ void nsGridContainerFrame::Tracks::ResolveIntrinsicSize(
         }
 
         // Collect the various grid item size contributions we need.
+
+        // For 3.1
+        TrackSize::StateBits selector =
+            SelectorForPhase(TrackSizingPhase::IntrinsicMinimums, aConstraint);
+
         nscoord minSize = 0;
-        if (state & TrackSize::eIntrinsicMinSizing) {  // for 3.1
+        if (state & selector) {
           minSize = MinContribution(gridItem, aGridRI, rc, wm, mAxis, &cache);
         }
+
+        // For 3.2 and 3.5
+        selector =
+            SelectorForPhase(TrackSizingPhase::IntrinsicMaximums, aConstraint) |
+            SelectorForPhase(TrackSizingPhase::ContentBasedMinimums,
+                             aConstraint);
         nscoord minContent = 0;
-        if (state & (contentBasedMinSelector |           // for 3.2
-                     TrackSize::eIntrinsicMaxSizing)) {  // for 3.5
+        if (state & selector) {
           minContent =
               MinContentContribution(gridItem, aGridRI, rc, wm, mAxis, &cache);
         }
+
+        // For 3.3 and 3.6
+        selector =
+            SelectorForPhase(TrackSizingPhase::MaxContentMinimums,
+                             aConstraint) |
+            SelectorForPhase(TrackSizingPhase::MaxContentMaximums, aConstraint);
         nscoord maxContent = 0;
-        if (state & (maxContentMinSelector |                    // for 3.3
-                     TrackSize::eAutoOrMaxContentMaxSizing)) {  // for 3.6
+        if (state & selector) {
           maxContent =
               MaxContentContribution(gridItem, aGridRI, rc, wm, mAxis, &cache);
         }
@@ -7023,33 +7073,33 @@ void nsGridContainerFrame::Tracks::ResolveIntrinsicSize(
       MOZ_ASSERT(!(stateBitsForSpan & TrackSize::eFlexMaxSizing),
                  "Non-flex spanning items should not include any flex tracks");
       bool updatedBase = false;  // Did we update any mBase in step 3.1..3.3?
-      TrackSize::StateBits selector(TrackSize::eIntrinsicMinSizing);
-      if (stateBitsForSpan & selector) {
+      TrackSizingPhase phase = TrackSizingPhase::IntrinsicMinimums;
+      if (stateBitsForSpan & SelectorForPhase(phase, aConstraint)) {
         // Step 3.1 MinSize to intrinsic min-sizing.
         updatedBase = GrowSizeForSpanningItems(
-            TrackSizingStep::NotFlex, TrackSizingPhase::IntrinsicMinimums,
-            spanGroupStart, spanGroupEnd, tracks, plan, itemPlan, selector,
-            aGridRI.mIsGridIntrinsicSizing, aFunctions);
+            TrackSizingStep::NotFlex, phase, spanGroupStart, spanGroupEnd,
+            tracks, plan, itemPlan, aConstraint, aGridRI.mIsGridIntrinsicSizing,
+            aFunctions);
       }
 
-      selector = contentBasedMinSelector;
-      if (stateBitsForSpan & selector) {
+      phase = TrackSizingPhase::ContentBasedMinimums;
+      if (stateBitsForSpan & SelectorForPhase(phase, aConstraint)) {
         // Step 3.2 MinContentContribution to min-/max-content (and 'auto' when
         // sizing under a min-content constraint) min-sizing.
         updatedBase |= GrowSizeForSpanningItems(
-            TrackSizingStep::NotFlex, TrackSizingPhase::ContentBasedMinimums,
-            spanGroupStart, spanGroupEnd, tracks, plan, itemPlan, selector,
-            aGridRI.mIsGridIntrinsicSizing, aFunctions);
+            TrackSizingStep::NotFlex, phase, spanGroupStart, spanGroupEnd,
+            tracks, plan, itemPlan, aConstraint, aGridRI.mIsGridIntrinsicSizing,
+            aFunctions);
       }
 
-      selector = maxContentMinSelector;
-      if (stateBitsForSpan & selector) {
+      phase = TrackSizingPhase::MaxContentMinimums;
+      if (stateBitsForSpan & SelectorForPhase(phase, aConstraint)) {
         // Step 3.3 MaxContentContribution to max-content (and 'auto' when
         // sizing under a max-content constraint) min-sizing.
         updatedBase |= GrowSizeForSpanningItems(
-            TrackSizingStep::NotFlex, TrackSizingPhase::MaxContentMinimums,
-            spanGroupStart, spanGroupEnd, tracks, plan, itemPlan, selector,
-            aGridRI.mIsGridIntrinsicSizing, aFunctions);
+            TrackSizingStep::NotFlex, phase, spanGroupStart, spanGroupEnd,
+            tracks, plan, itemPlan, aConstraint, aGridRI.mIsGridIntrinsicSizing,
+            aFunctions);
       }
 
       if (updatedBase) {
@@ -7061,25 +7111,24 @@ void nsGridContainerFrame::Tracks::ResolveIntrinsicSize(
         }
       }
 
-      selector = TrackSize::eIntrinsicMaxSizing;
-      if (stateBitsForSpan & selector) {
-        const bool willRunStep3_6 =
+      phase = TrackSizingPhase::IntrinsicMaximums;
+      bool willRunStep3_6 = false;
+      if (stateBitsForSpan & SelectorForPhase(phase, aConstraint)) {
+        willRunStep3_6 =
             stateBitsForSpan & TrackSize::eAutoOrMaxContentMaxSizing;
         // Step 3.5 MinContentContribution to intrinsic max-sizing.
         GrowSizeForSpanningItems(
-            TrackSizingStep::NotFlex, TrackSizingPhase::IntrinsicMaximums,
-            spanGroupStart, spanGroupEnd, tracks, plan, itemPlan, selector,
-            aGridRI.mIsGridIntrinsicSizing, aFunctions, fitContentClamper,
-            willRunStep3_6);
-
-        if (willRunStep3_6) {
-          // Step 2.6 MaxContentContribution to max-content max-sizing.
-          selector = TrackSize::eAutoOrMaxContentMaxSizing;
-          GrowSizeForSpanningItems(
-              TrackSizingStep::NotFlex, TrackSizingPhase::MaxContentMaximums,
-              spanGroupStart, spanGroupEnd, tracks, plan, itemPlan, selector,
-              aGridRI.mIsGridIntrinsicSizing, aFunctions, fitContentClamper);
-        }
+            TrackSizingStep::NotFlex, phase, spanGroupStart, spanGroupEnd,
+            tracks, plan, itemPlan, aConstraint, aGridRI.mIsGridIntrinsicSizing,
+            aFunctions, fitContentClamper, willRunStep3_6);
+      }
+      if (willRunStep3_6) {
+        // Step 2.6 MaxContentContribution to max-content max-sizing.
+        phase = TrackSizingPhase::MaxContentMaximums;
+        GrowSizeForSpanningItems(
+            TrackSizingStep::NotFlex, phase, spanGroupStart, spanGroupEnd,
+            tracks, plan, itemPlan, aConstraint, aGridRI.mIsGridIntrinsicSizing,
+            aFunctions, fitContentClamper);
       }
     }
 
@@ -7093,33 +7142,33 @@ void nsGridContainerFrame::Tracks::ResolveIntrinsicSize(
       stateBitsForSpan |= bits;
     }
     bool updatedBase = false;  // Did we update any mBase in step 4.1..4.3?
-    TrackSize::StateBits selector(TrackSize::eIntrinsicMinSizing);
-    if (stateBitsForSpan & selector) {
+    TrackSizingPhase phase = TrackSizingPhase::IntrinsicMinimums;
+    if (stateBitsForSpan & SelectorForPhase(phase, aConstraint)) {
       // Step 4.1 MinSize to intrinsic min-sizing.
       updatedBase = GrowSizeForSpanningItems(
-          TrackSizingStep::Flex, TrackSizingPhase::IntrinsicMinimums,
-          flexSpanningItems.begin(), flexSpanningItems.end(), tracks, plan,
-          itemPlan, selector, aGridRI.mIsGridIntrinsicSizing, aFunctions);
+          TrackSizingStep::Flex, phase, flexSpanningItems.begin(),
+          flexSpanningItems.end(), tracks, plan, itemPlan, aConstraint,
+          aGridRI.mIsGridIntrinsicSizing, aFunctions);
     }
 
-    selector = contentBasedMinSelector;
-    if (stateBitsForSpan & selector) {
+    phase = TrackSizingPhase::ContentBasedMinimums;
+    if (stateBitsForSpan & SelectorForPhase(phase, aConstraint)) {
       // Step 4.2 MinContentContribution to min-/max-content (and 'auto' when
       // sizing under a min-content constraint) min-sizing.
       updatedBase |= GrowSizeForSpanningItems(
-          TrackSizingStep::Flex, TrackSizingPhase::ContentBasedMinimums,
-          flexSpanningItems.begin(), flexSpanningItems.end(), tracks, plan,
-          itemPlan, selector, aGridRI.mIsGridIntrinsicSizing, aFunctions);
+          TrackSizingStep::Flex, phase, flexSpanningItems.begin(),
+          flexSpanningItems.end(), tracks, plan, itemPlan, aConstraint,
+          aGridRI.mIsGridIntrinsicSizing, aFunctions);
     }
 
-    selector = maxContentMinSelector;
-    if (stateBitsForSpan & selector) {
+    phase = TrackSizingPhase::MaxContentMinimums;
+    if (stateBitsForSpan & SelectorForPhase(phase, aConstraint)) {
       // Step 4.3 MaxContentContribution to max-content (and 'auto' when
       // sizing under a max-content constraint) min-sizing.
       updatedBase |= GrowSizeForSpanningItems(
-          TrackSizingStep::Flex, TrackSizingPhase::MaxContentMinimums,
-          flexSpanningItems.begin(), flexSpanningItems.end(), tracks, plan,
-          itemPlan, selector, aGridRI.mIsGridIntrinsicSizing, aFunctions);
+          TrackSizingStep::Flex, phase, flexSpanningItems.begin(),
+          flexSpanningItems.end(), tracks, plan, itemPlan, aConstraint,
+          aGridRI.mIsGridIntrinsicSizing, aFunctions);
     }
 
     if (updatedBase) {

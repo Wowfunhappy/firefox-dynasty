@@ -62,8 +62,7 @@
     Explanation for private browsing displayed to users on home view when they first enable private mode.
     %1$s is the name of the app (for example "Firefox").
   -->
-  <string name="private_browsing_placeholder_description_2">%1$s fjernar søk- og nettlesarhistorikken frå private nettlesingsfaner når du lèt dei att eller avsluttar appen. Sjølv om dette ikkje gjer deg anonym for nettstadar eller internett-leverandøren din, vil det gjere det lettare
-        å behalde det du gjer på nettet privat frå alle andre som brukar denne eininga.</string>
+  <string name="private_browsing_placeholder_description_2">%1$s fjernar søk- og nettlesarhistorikken frå private nettlesingsfaner når du lèt dei att eller avsluttar appen. Sjølv om dette ikkje gjer deg anonym for nettstadar eller internett-leverandøren din, vil det gjere det lettare å behalde det du gjer på nettet privat frå alle andre som brukar denne eininga.</string>
   <string name="private_browsing_common_myths">Vanlege mytar om privat nettlesing</string>
   <!--
     True Private Browsing Mode
@@ -1023,6 +1022,56 @@
   <!-- Wallpaper onboarding dialog learn more button text. The button navigates to the wallpaper settings screen. -->
   <string name="wallpapers_onboarding_dialog_explore_more_button_text">Utforsk fleire bakgrunnsbilde</string>
   <!--
+    Icon picker
+
+    Title for the "Default" alternative app icon variant in the icon picker screen.
+  -->
+  <string name="alternative_app_icon_option_default">Standard</string>
+  <!-- Title for the "Light" alternative app icon variant in the icon picker screen. -->
+  <string name="alternative_app_icon_option_light">Lyst</string>
+  <!-- Title for the "Dark" alternative app icon variant in the icon picker screen. -->
+  <string name="alternative_app_icon_option_dark">Mørkt</string>
+  <!-- Title for the "Red" alternative app icon variant in the icon picker screen. -->
+  <string name="alternative_app_icon_option_red">Raud</string>
+  <!-- Title for the "Green" alternative app icon variant in the icon picker screen. -->
+  <string name="alternative_app_icon_option_green">Grøn</string>
+  <!-- Title for the "Blue" alternative app icon variant in the icon picker screen. -->
+  <string name="alternative_app_icon_option_blue">Blå</string>
+  <!-- Title for the "Purple" alternative app icon variant in the icon picker screen. -->
+  <string name="alternative_app_icon_option_purple">Lilla</string>
+  <!-- Title for the "Purple Dark" alternative app icon variant in the icon picker screen. -->
+  <string name="alternative_app_icon_option_purple_dark">Mørkelilla</string>
+  <!-- Title for the "Sunrise" gradient alternative app icon variant in the icon picker screen. The app icon features a soft yellow-to-blue gradient background, resembling the colors of early morning light. -->
+  <string name="alternative_app_icon_option_gradient_sunrise">Soloppgang</string>
+  <!-- Title for the "Golden Hour" gradient alternative app icon variant in the icon picker screen. The app icon features a warm golden-to-pink gradient background, resembling the colors of the sunlight shortly before sunset. -->
+  <string name="alternative_app_icon_option_gradient_golden_hour">Morgonrøde</string>
+  <!-- Title for the "Sunset" gradient alternative app icon variant in the icon picker screen. The app icon has a rich red-to-purple gradient background, resembling the tones of a sunset sky. -->
+  <string name="alternative_app_icon_option_gradient_sunset">Solnedgang</string>
+  <!-- Title for the "Blue Hour" gradient alternative app icon variant in the icon picker screen. The app icon has a cool blue gradient background, resembling the sky color around the time just after sunset or before sunrise. -->
+  <string name="alternative_app_icon_option_gradient_blue_hour">Blå time</string>
+  <!-- Title for the "Twilight" gradient alternative app icon variant in the icon picker screen. The app icon has a purple-toned gradient background, resembling the sky color during twilight. -->
+  <string name="alternative_app_icon_option_gradient_twilight">Skumring</string>
+  <!-- Title for the "Midnight" gradient alternative app icon variant in the icon picker screen. The app icon features a dark gradient background, resembling the deep tones of the night sky. -->
+  <string name="alternative_app_icon_option_gradient_midnight">Midnatt</string>
+  <!-- Title for the "Northern Lights" gradient alternative app icon variant in the icon picker screen. The app icon has a dynamic green, blue, and purple gradient background, resembling the aurora borealis. -->
+  <string name="alternative_app_icon_option_gradient_northern_lights">Nordlys</string>
+  <!-- Title for the "Retro 2004" themed alternative app icon variant in the icon picker screen. This app icon uses the classic Firefox logo from 2004. -->
+  <string name="alternative_app_icon_option_retro_2004">Retro 2004</string>
+  <!-- Title for the "Retro 2017" themed alternative app icon variant in the icon picker screen. This app icon uses the Firefox logo from 2017, with a more modernized design. -->
+  <string name="alternative_app_icon_option_retro_2017">Retro 2017</string>
+  <!-- Title for the "Pixelated" themed alternative app icon variant in the icon picker screen. This app icon features a pixel-art style, resembling retro 8-bit graphics. -->
+  <string name="alternative_app_icon_option_pixelated">Pikselert</string>
+  <!-- Title for the "Minimal" themed alternative app icon variant in the icon picker screen. The app icon presents a simplified, flat and monochrome version of the Firefox logo. -->
+  <string name="alternative_app_icon_option_minimal">Minimalt</string>
+  <!-- Title for the "Pride" themed alternative app icon variant in the icon picker screen. The app icon incorporates a rainbow color scheme in support of the LGBTQ+ community. -->
+  <string name="alternative_app_icon_option_pride">Pride</string>
+  <!-- Title for the "Cute" themed alternative app icon variant in the icon picker screen. The app icon features a playful design with an adorable aesthetic. -->
+  <string name="alternative_app_icon_option_cute">Søt</string>
+  <!-- Title for the "Momo" themed alternative app icon variant in the icon picker screen. The app icon was created by artist @heyheymomodraws and features a unique hand-drawn style with a friendly fox. -->
+  <string name="alternative_app_icon_option_momo">Momo</string>
+  <!-- Subtitle for the "Momo" themed alternative app icon variant in the icon picker screen. The app icon was created by artist @heyheymomodraws and features a unique hand-drawn style with a friendly fox. -->
+  <string name="alternative_app_icon_option_momo_subtitle">Laga av @heyheymomodraws</string>
+  <!--
     Add-ons general availability nimbus message
 
     Title of the Nimbus message for extension general availability
@@ -1668,6 +1717,8 @@
   <string name="bookmark_menu_copy_button">Kopier</string>
   <!-- Bookmark overflow menu share button -->
   <string name="bookmark_menu_share_button">Del</string>
+  <!-- Bookmark overflow menu select all bookmarks -->
+  <string name="bookmark_menu_select_all_bookmarks">Merk alle</string>
   <!-- Bookmark overflow menu open in new tab button -->
   <string name="bookmark_menu_open_in_new_tab_button">Opne i ny fane</string>
   <!-- Bookmark overflow menu open in private tab button -->
@@ -2759,7 +2810,7 @@
   <!-- This is the hint text that is shown inline on the hostname field of the create new login page. 'https://www.example.com' intentionally hardcoded here -->
   <string name="add_login_hostname_hint_text">https://www.example.com</string>
   <!-- This is an error message shown below the hostname field of the add login page when a hostname does not contain http or https. -->
-  <string name="add_login_hostname_invalid_text_3">Nettadressa må innehalde "https://" eller "http://"</string>
+  <string name="add_login_hostname_invalid_text_3">Nettadressa må innehalde \"https://\" eller \"http://\"</string>
   <!-- This is an error message shown below the hostname field of the add login page when a hostname is invalid. -->
   <string name="add_login_hostname_invalid_text_2">Gyldig servernamn påkravd</string>
   <!--

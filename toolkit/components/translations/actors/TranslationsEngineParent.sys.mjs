@@ -38,6 +38,10 @@ export class TranslationsEngineParent extends JSProcessActorParent {
   processKeepAlive = null;
 
   async receiveMessage({ name, data }) {
+    if (this.#isDestroyed) {
+      return undefined;
+    }
+
     switch (name) {
       case "TranslationsEngine:RequestEnginePayload": {
         const { languagePair } = data;
@@ -85,7 +89,7 @@ export class TranslationsEngineParent extends JSProcessActorParent {
         }
         return undefined;
       }
-      case "TranslationsEngine:DestroyEngineProcess":
+      case "TranslationsEngine:DestroyEngineProcess": {
         if (this.processKeepAlive) {
           ChromeUtils.addProfilerMarker(
             "EngineProcess",
@@ -96,8 +100,10 @@ export class TranslationsEngineParent extends JSProcessActorParent {
           this.processKeepAlive = null;
         }
         return undefined;
-      default:
+      }
+      default: {
         return undefined;
+      }
     }
   }
 
@@ -134,6 +140,10 @@ export class TranslationsEngineParent extends JSProcessActorParent {
    */
   discardTranslations(innerWindowId) {
     this.#translationsParents.delete(innerWindowId);
+    if (this.#isDestroyed) {
+      return;
+    }
+
     this.sendAsyncMessage("TranslationsEngine:DiscardTranslations", {
       innerWindowId,
     });

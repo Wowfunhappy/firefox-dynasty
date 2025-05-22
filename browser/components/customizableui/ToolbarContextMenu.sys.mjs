@@ -422,12 +422,47 @@ export var ToolbarContextMenu = {
    */
   updateExtensionsButtonContextMenu(popup) {
     const isExtsButton = popup.triggerNode?.id === "unified-extensions-button";
+    const isCustomizingExtsButton =
+      popup.triggerNode?.id === "wrapper-unified-extensions-button";
+    const { gUnifiedExtensions } = popup.ownerGlobal;
+
+    const checkbox = popup.querySelector(
+      "#toolbar-context-always-show-extensions-button"
+    );
+    if (isCustomizingExtsButton && lazy.gEnableCustomizableExtensionsButton) {
+      checkbox.hidden = false;
+      if (gUnifiedExtensions.buttonAlwaysVisible) {
+        checkbox.setAttribute("checked", "true");
+      } else {
+        checkbox.removeAttribute("checked");
+      }
+    } else if (
+      isExtsButton &&
+      !gUnifiedExtensions.buttonAlwaysVisible &&
+      lazy.gEnableCustomizableExtensionsButton
+    ) {
+      // The button may be visible despite the user's preference, which could
+      // remind the user of the button's existence. Offer an option to unhide
+      // the button, in case the user is looking for a way to do so.
+      checkbox.hidden = false;
+      checkbox.removeAttribute("checked");
+    } else {
+      checkbox.hidden = true;
+    }
+
     // removeFromToolbar is shown but disabled by default, via an earlier call
-    // to ToolbarContextMenu.onViewToolbarsPopupShowing. Enable if needed.
+    // to ToolbarContextMenu.onViewToolbarsPopupShowing. Enable/hide if needed.
     if (isExtsButton && lazy.gEnableCustomizableExtensionsButton) {
-      popup
-        .querySelector(".customize-context-removeFromToolbar")
-        .removeAttribute("disabled");
+      const removeFromToolbar = popup.querySelector(
+        ".customize-context-removeFromToolbar"
+      );
+      if (gUnifiedExtensions.buttonAlwaysVisible) {
+        removeFromToolbar.removeAttribute("disabled");
+      } else {
+        // No need to show "Remove from Toolbar" even if disabled, because the
+        // "Always Show in Toolbar" checkbox is already shown above.
+        removeFromToolbar.hidden = true;
+      }
     }
   },
 

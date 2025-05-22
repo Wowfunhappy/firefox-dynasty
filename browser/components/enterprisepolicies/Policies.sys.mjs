@@ -922,9 +922,9 @@ export var Policies = {
   },
 
   DisableFirefoxScreenshots: {
-    onBeforeAddons(manager, param) {
+    onBeforeUIStartup(manager, param) {
       if (param) {
-        setAndLockPref("extensions.screenshots.disabled", true);
+        setAndLockPref("screenshots.browser.component.enabled", false);
       }
     },
   },
@@ -1341,7 +1341,7 @@ export var Policies = {
           setAndLockPref("extensions.getAddons.showPane", false);
           // Turn off recommendations
           setAndLockPref(
-            "extensions.htmlaboutaddons.recommendations.enable",
+            "extensions.htmlaboutaddons.recommendations.enabled",
             false
           );
           manager.disallowFeature("installTemporaryAddon");
@@ -2417,7 +2417,10 @@ export var Policies = {
                 let engine = Services.search.getEngineByName(engineName);
                 if (engine) {
                   try {
-                    await Services.search.removeEngine(engine);
+                    await Services.search.removeEngine(
+                      engine,
+                      Ci.nsISearchService.CHANGE_REASON_ENTERPRISE
+                    );
                   } catch (ex) {
                     lazy.log.error("Unable to remove the search engine", ex);
                   }

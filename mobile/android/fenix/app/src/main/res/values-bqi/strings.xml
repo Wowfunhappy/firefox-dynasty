@@ -136,6 +136,13 @@
   -->
   <string name="recent_tab_menu_item_remove">پاک کردن</string>
   <!--
+    History Metadata
+
+    Header text for a section on the home screen that displays grouped highlights from the
+    user's browsing history, such as topics they have researched or explored on the web
+  -->
+  <string name="history_metadata_header_2">نیشتنا دیندایی</string>
+  <!--
     Text for the menu button to remove a grouped highlight from the user's browsing history
     in the Recently visited section
   -->
@@ -637,7 +644,7 @@
   <!-- Preference for settings related to visual options -->
   <string name="preferences_customize">سفارشی کردن</string>
   <!-- Preference description for banner about signing in -->
-  <string name="preferences_sign_in_description_2">سی هوم گوم کردن بلگه یل، نشووکا، رزما وو ... و من بیاین.</string>
+  <string name="preferences_sign_in_description_2">سی هوم گوم کردن بلگه یل، نشووکا، رزما وو بیشتر و من بیاین.</string>
   <!-- Preference shown instead of account display name while account profile information isn't available yet. -->
   <string name="preferences_account_default_name_2">هساو منتوری Mozilla</string>
   <!-- Preference text for account title when there was an error syncing FxA -->
@@ -739,6 +746,11 @@
   <string name="customize_toggle_jump_back_in">وورگرتین و من</string>
   <!-- Title for the customize home screen section with bookmarks. -->
   <string name="customize_toggle_bookmarks">نشووکا</string>
+  <!--
+    Title for the customize home screen section with recently visited. Recently visited is
+    a section where users see a list of tabs that they have visited in the past few days
+  -->
+  <string name="customize_toggle_recently_visited">نیشتنا دیندایی</string>
   <!-- Title for the customize home screen section with sponsored Pocket stories. -->
   <string name="customize_toggle_pocket_sponsored">وزعیتا هؽزگرووݩ</string>
   <!-- Title for the opening wallpaper settings screen -->
@@ -1006,12 +1018,14 @@
     Text to show users they have multiple tabs saved in the Recently Closed Tabs section of history.
     %d is a placeholder for the number of tabs selected.
   -->
-  <string name="recently_closed_tabs">بلگه %d</string>
+  <string name="recently_closed_tabs">%d بلگه</string>
   <!--
     Text to show users they have one tab saved in the Recently Closed Tabs section of history.
     %d is a placeholder for the number of tabs selected.
   -->
-  <string name="recently_closed_tab">بلگه %d</string>
+  <string name="recently_closed_tab">%d بلگه</string>
+  <!-- Recently closed tabs screen message when there are no recently closed tabs -->
+  <string name="recently_closed_empty_message">هیچ بلگه ای ک هیم دمۊوی بسته وابیڌه ایچو نؽ</string>
   <!--
     Tab Management
 
@@ -1067,6 +1081,8 @@
   <string name="tab_tray_menu_item_share">یک رسۊوی پوی بلگه یل</string>
   <!-- Text shown in the menu to view recently closed tabs -->
   <string name="tab_tray_menu_recently_closed">بلگه یلی ک سکو بسته وابین</string>
+  <!-- Text shown in the tabs tray inactive tabs section -->
+  <string name="tab_tray_inactive_recently_closed" tools:ignore="UnusedResources">هیم دمۊوی بسته وابیڌه</string>
   <!-- Text shown in the menu to view account settings -->
   <string name="tab_tray_menu_account_settings">سامووا هساو</string>
   <!-- Text shown in the menu to view tab settings -->
@@ -1150,6 +1166,8 @@
   <string name="download_delete_single_item_snackbar" moz:removedIn="138" tools:ignore="UnusedResources">%1$s پاک وابی</string>
   <!-- Text for the snackbar action button to view in progress download details. -->
   <string name="download_in_progress_snackbar_action_details" tools:ignore="UnusedResources">جۊزیات</string>
+  <!-- Text for the snackbar to confirm that a download has completed. -->
+  <string name="download_completed_snackbar" tools:ignore="UnusedResources">دانلود کامل وابی</string>
   <!-- Text for the snackbar action button to open a completed download. -->
   <string name="download_completed_snackbar_action_open" tools:ignore="UnusedResources">گۊشیڌن</string>
   <!-- Text for the snackbar action button to undo deleting a download. -->
@@ -1172,6 +1190,8 @@
   <string name="download_file_has_not_enough_storage_dialog_message">ای دسگا جاگه کافی سی دانلود &lt;b&gt;%s&lt;/b&gt; ن نڌاره.</string>
   <!-- Text for the button to delete a single downloaded file item -->
   <string name="download_delete_item">پاک کردن</string>
+  <!-- Content description for the toolbar back button while searching the downloads -->
+  <string name="download_close_search_description">وورگشتن وو بستن پیتینیڌن</string>
   <!-- Content description for the search bar clear text button on the downloads screen -->
   <string name="download_clear_search_description">پاک کردن</string>
   <!-- Text for the button to share the download URL -->
@@ -1192,8 +1212,17 @@
   <string name="download_time_period_yesterday">دۊش</string>
   <!-- Text for the header that groups the downloads the past 7 days -->
   <string name="download_time_period_last_7_days">7 رۊز گوڌشته</string>
+  <!-- Text for the header that groups the downloads the past 30 days -->
+  <string name="download_time_period_last_30_days">30 رۊز گوڌشته</string>
   <!-- Text for the header that groups the downloads older than other groups -->
   <string name="download_time_period_older">قڌیمی تر</string>
+  <!--
+    Description of an in progress download item, displayed in the downloads list.
+    %1$s is the current file size that has been downloaded.
+    %2$s is the total size of the downloaded file.
+    %3$s is the amount of time remaining to complete the download.
+  -->
+  <string name="download_item_in_progress_description" tools:ignore="UnusedResources">%1$s ز %2$s • %3$s باقی منده</string>
   <!-- Text to indicate that an in progress download is paused. -->
   <string name="download_item_status_paused" tools:ignore="UnusedResources">واڌاشتن</string>
   <!-- Text to indicate that the download speed of an in progress download is being calculated. -->
@@ -1302,6 +1331,8 @@
   <string name="bookmark_menu_delete_button">پاک کردن</string>
   <!-- Bookmark overflow menu save button -->
   <string name="bookmark_menu_save_button">زفت</string>
+  <!-- Label for button to sort bookmarks by user-defined sort order in the bookmark sorting overflow menu. -->
+  <string name="bookmark_sort_menu_custom">و ری کتن سفارشی</string>
   <!-- Label for button to sort bookmarks by newest in the bookmark sorting overflow menu. -->
   <string name="bookmark_sort_menu_newest">کتن و ری نۊ ترین</string>
   <!-- Label for button to sort bookmarks by oldest in the bookmark sorting overflow menu. -->
@@ -1358,6 +1389,8 @@
   <string name="bookmark_delete_multiple_items">مووردا پاک وابیڌه: %s</string>
   <!-- Text for the button to search all bookmarks -->
   <string name="bookmark_search">هؽل پیتینیڌن ن بزنین</string>
+  <!-- Content description for the bookmark navigation bar back button -->
+  <string name="bookmark_navigate_back_button_content_description">وورگشتن و عقب</string>
   <!-- Content description for the bookmark list new folder navigation bar button -->
   <string name="bookmark_add_new_folder_button_content_description">ٱووردن دوبلگه نۊ</string>
   <!-- Content description for the bookmark screen delete bookmark navigation bar button -->
@@ -1366,10 +1399,14 @@
   <string name="bookmark_delete_folder_content_description">پاک کردن دوبلگه</string>
   <!-- Content description for bookmark search floating action button -->
   <string name="bookmark_search_button_content_description">پیتینیڌن نشووکا</string>
+  <!-- Content description for the overflow menu for a bookmark item. %s is a folder name or bookmark title. -->
+  <string name="bookmark_item_menu_button_content_description">نومگه موورد سی %s</string>
   <!-- Title for the bookmark list empty state -->
   <string name="bookmark_empty_list_title">هنی نشووکی نؽ</string>
   <!-- Text for the button to navigate to sync authentication -->
   <string name="bookmark_empty_list_guest_cta">سی هوم گوم کردن و من بیاین</string>
+  <!-- Description for the add new folder button when selecting a folder. -->
+  <string name="bookmark_select_folder_new_folder_button_title">دوبلگه نۊ</string>
   <!--
     Site Permissions
 
@@ -1410,6 +1447,10 @@
   <string name="preference_phone_feature_notification">وارسۊوی</string>
   <!-- Preference for altering the persistent storage access for all websites -->
   <string name="preference_phone_feature_persistent_storage">ویرگه دایومی</string>
+  <!-- Preference for altering the storage access setting for all websites -->
+  <string name="preference_phone_feature_cross_origin_storage_access">کۊکیا منجا وبگهی</string>
+  <!-- Preference for altering the EME access for all websites -->
+  <string name="preference_phone_feature_media_key_system_access">موئتوا کونتورول وابیڌه وا DRM</string>
   <!-- Label that indicates that a permission must be asked always -->
   <string name="preference_option_phone_feature_ask_to_allow">درخاست سی هشتن</string>
   <!-- Label that indicates that a permission must be blocked -->
@@ -1429,7 +1470,7 @@
   <!-- Label that indicates that video and audio autoplay is only allowed over Wi-Fi -->
   <string name="preference_option_autoplay_allowed_wifi_only2">مسدۊد کردن آرنگ وو فیلم تینا و ری هالت داده</string>
   <!-- Subtext that explains 'autoplay on Wi-Fi only' option -->
-  <string name="preference_option_autoplay_allowed_wifi_subtext">آرنگ وو فیلم و ری هالت  Wi-Fi پشک ابۊن</string>
+  <string name="preference_option_autoplay_allowed_wifi_subtext">آرنگ وو فیلم و ری هالت Wi-Fi پشک ابۊن</string>
   <!-- Label for global setting that indicates that video autoplay is allowed, but audio autoplay is blocked -->
   <string name="preference_option_autoplay_block_audio2">تینا مسدۊد کردن آرنگ</string>
   <!-- Label for site specific setting that indicates that video autoplay is allowed, but audio autoplay is blocked -->
@@ -1527,6 +1568,8 @@
   <string name="share_device_subheader">فشناڌن و دسگا</string>
   <!-- Sub-header in the dialog to share a link to an app from the full list -->
   <string name="share_link_all_apps_subheader">پوی فعالیتا</string>
+  <!-- Sub-header in the dialog to share a link to an app from the most-recent sorted list -->
+  <string name="share_link_recent_apps_subheader">هیم دمۊوی و کار گرؽڌه بیڌه</string>
   <!-- Text for the copy link action in the share screen. -->
   <string name="share_copy_link_to_clipboard">لف گیری من کلیپ بورد</string>
   <!-- Toast shown after copying link to clipboard -->
@@ -1636,7 +1679,7 @@
   <!-- Title for the tabs item in Delete browsing data -->
   <string name="preferences_delete_browsing_data_tabs_title_2">بلگه یل واز</string>
   <!-- Subtitle for the tabs item in Delete browsing data, %d is the number of open tabs -->
-  <string name="preferences_delete_browsing_data_tabs_subtitle">بلگه %d</string>
+  <string name="preferences_delete_browsing_data_tabs_subtitle">%d بلگه</string>
   <!--
     Title for the data and history items in Delete browsing data
 
@@ -1647,7 +1690,7 @@
     Subtitle for the data and history items in delete browsing data, %d is the
     number of history items the user has
   -->
-  <string name="preferences_delete_browsing_data_browsing_data_subtitle">%d نشۊویا</string>
+  <string name="preferences_delete_browsing_data_browsing_data_subtitle">%d نشۊوی</string>
   <!-- Title for the downloads item in Delete browsing data -->
   <string name="preferences_delete_browsing_data_downloads">دانلودا</string>
   <!-- Text for the button to delete browsing data -->
@@ -1700,6 +1743,8 @@
   <string name="sign_in_with_camera">و من ٱووڌن وا شؽواتگر</string>
   <!-- Text shown for settings option for sign with email -->
   <string name="sign_in_with_email">و جا هو ایمیل ن و کار بگر</string>
+  <!-- Error message snackbar shown after the user tried to select a default folder which cannot be altered -->
+  <string name="bookmark_cannot_edit_root">نترین دوبلگه یل پؽش فرز ن آلشت کۊنین</string>
   <!-- Option for enhanced tracking protection for the custom protection settings for tracking content -->
   <string name="preference_enhanced_tracking_protection_custom_tracking_content_1">من پوی بلگه یل</string>
   <!-- Option for enhanced tracking protection for the custom protection settings for tracking content -->
@@ -1760,6 +1805,8 @@
   <string name="preferences_passwords_saved_logins_2">رزما زفت وابیڌه</string>
   <!-- Clickable text for opening an external link for more information about Sync. -->
   <string name="preferences_passwords_saved_logins_description_empty_learn_more_link_2">زبار هوم گوم کردن قلوه دووسته بۊین</string>
+  <!-- Content description for the logins navigation bar back button -->
+  <string name="logins_navigate_back_button_content_description">وورگشتن</string>
   <!-- The header for the site that a login is for -->
   <string name="preferences_passwords_saved_logins_site">وبگه</string>
   <!-- The header for the username for a login -->
@@ -1880,6 +1927,10 @@
   <string name="addresses_phone">تیلیفووݩ</string>
   <!-- The header for the email of an address -->
   <string name="addresses_email">ایمیل</string>
+  <!-- Title of the Edit search engine screen -->
+  <string name="search_engine_edit_custom_search_engine_title">آلشت موتور پیتینیڌن</string>
+  <!-- Text for the menu button to edit a search engine -->
+  <string name="search_engine_edit">آلشت</string>
   <!-- Confirmation message for a dialog confirming if the user wants to delete all the permissions for all sites -->
   <string name="confirm_clear_permissions_on_all_sites">اخۊی ک پوی دسرسیا ن من پوی وبگه یل پاک کۊنی؟</string>
   <!-- Confirmation message for a dialog confirming if the user wants to delete all the permissions for a site -->
@@ -1965,6 +2016,10 @@
   <string name="top_sites_menu_sponsor_privacy">هؽزگرووݩ ایما وو هریم سیخومی ایسا</string>
   <!-- Label text displayed for a sponsored top site. -->
   <string name="top_sites_sponsored_label">هؽزگری وابیڌه</string>
+  <!-- Text for the menu item to edit a top site. -->
+  <string name="top_sites_edit_top_site">آلشت</string>
+  <!-- Text for the dialog title to edit a top site. -->
+  <string name="top_sites_edit_dialog_title">آلشت ر نهنگ</string>
   <!-- Title of an app feature. Smaller than a heading. %s is "Pocket". -->
   <string name="pocket_stories_feature_title_2">جووݩ گرؽڌه ز %s.</string>
   <!-- Text indicating that the Pocket story that also displays this text is a sponsored story by other 3rd party entity. -->

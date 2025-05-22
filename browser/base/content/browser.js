@@ -68,7 +68,7 @@ ChromeUtils.defineESModuleGetters(this, {
   PrivateBrowsingUtils: "resource://gre/modules/PrivateBrowsingUtils.sys.mjs",
   ProcessHangMonitor: "resource:///modules/ProcessHangMonitor.sys.mjs",
   ProfilesDatastoreService:
-    "resource:///modules/profiles/ProfilesDatastoreService.sys.mjs",
+    "moz-src:///toolkit/profile/ProfilesDatastoreService.sys.mjs",
   PromptUtils: "resource://gre/modules/PromptUtils.sys.mjs",
   ReaderMode: "moz-src:///toolkit/components/reader/ReaderMode.sys.mjs",
   ResetPBMPanel: "resource:///modules/ResetPBMPanel.sys.mjs",
@@ -584,39 +584,11 @@ XPCOMUtils.defineLazyPreferenceGetter(
 
 XPCOMUtils.defineLazyPreferenceGetter(
   this,
-  "gScreenshotsDisabled",
-  "extensions.screenshots.disabled",
-  false,
-  () => {
-    Services.obs.notifyObservers(
-      window,
-      "toggle-screenshot-disable",
-      gScreenshots.shouldScreenshotsButtonBeDisabled()
-    );
-  }
-);
-
-XPCOMUtils.defineLazyPreferenceGetter(
-  this,
   "gPrintEnabled",
   "print.enabled",
   false,
   (aPref, aOldVal, aNewVal) => {
     updatePrintCommands(aNewVal);
-  }
-);
-
-XPCOMUtils.defineLazyPreferenceGetter(
-  this,
-  "gScreenshotsComponentEnabled",
-  "screenshots.browser.component.enabled",
-  false,
-  () => {
-    Services.obs.notifyObservers(
-      window,
-      "toggle-screenshot-disable",
-      gScreenshots.shouldScreenshotsButtonBeDisabled()
-    );
   }
 );
 
@@ -775,21 +747,6 @@ var gNavigatorBundle = {
   },
   getFormattedString(key, array) {
     return gBrowserBundle.formatStringFromName(key, array);
-  },
-};
-
-var gScreenshots = {
-  shouldScreenshotsButtonBeDisabled() {
-    // About pages other than about:reader are not currently supported by
-    // the screenshots extension (see Bug 1620992).
-    let uri = gBrowser.selectedBrowser.currentURI;
-    let shouldBeDisabled =
-      gScreenshotsDisabled ||
-      (!gScreenshotsComponentEnabled &&
-        uri.scheme === "about" &&
-        !uri.spec.startsWith("about:reader"));
-
-    return shouldBeDisabled;
   },
 };
 
@@ -2271,14 +2228,6 @@ var XULBrowserWindow = {
     if (!isSameDocument) {
       closeOpenPanels("panel[locationspecific='true']");
     }
-
-    let screenshotsButtonsDisabled =
-      gScreenshots.shouldScreenshotsButtonBeDisabled();
-    Services.obs.notifyObservers(
-      window,
-      "toggle-screenshot-disable",
-      screenshotsButtonsDisabled
-    );
 
     gPermissionPanel.onLocationChange();
 

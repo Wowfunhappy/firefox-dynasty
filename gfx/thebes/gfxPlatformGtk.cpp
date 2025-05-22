@@ -68,7 +68,7 @@
 #  include "mozilla/widget/nsWaylandDisplay.h"
 #endif
 #ifdef MOZ_WIDGET_GTK
-#  include "mozilla/widget/DMABufLibWrapper.h"
+#  include "mozilla/widget/DMABufDevice.h"
 #  include "mozilla/StaticPrefs_widget.h"
 #endif
 
@@ -227,6 +227,8 @@ void gfxPlatformGtk::InitDmabufConfig() {
       feature.ForceDisable(FeatureStatus::Failed, "Failed to configure",
                            failureId);
     }
+    // Make sure we have DMABuf formats available.
+    Unused << GetGlobalDMABufFormats();
   }
 }
 
