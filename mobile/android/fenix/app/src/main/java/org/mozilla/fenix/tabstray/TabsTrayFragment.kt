@@ -5,13 +5,11 @@
 package org.mozilla.fenix.tabstray
 
 import android.app.Dialog
-import android.content.Context
 import android.content.Intent
 import android.content.res.Configuration
 import android.os.Build.VERSION.SDK_INT
 import android.os.Build.VERSION_CODES
 import android.os.Bundle
-import android.provider.Settings
 import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.View
@@ -412,10 +410,6 @@ class TabsTrayFragment : AppCompatDialogFragment() {
         return tabsTrayDialogBinding.root
     }
 
-    private fun shouldShowLockPbmBanner(context: Context) = FeatureFlags.privateBrowsingLock &&
-            !context.settings().privateBrowsingLockedEnabled &&
-            BiometricManager.from(context).isHardwareAvailable()
-
     override fun onStart() {
         super.onStart()
         context?.components?.analytics?.crashReporter?.recordCrashBreadcrumb(
@@ -774,7 +768,7 @@ class TabsTrayFragment : AppCompatDialogFragment() {
     private fun onTabsTrayPbmLockedClick() {
         val userHasEnabledCapability = BiometricManager.from(requireContext()).isEnrolled()
         if (!userHasEnabledCapability) {
-            requireContext().startActivity(Intent(Settings.ACTION_SECURITY_SETTINGS))
+            findNavController().navigate(TabsTrayFragmentDirections.actionGlobalPrivateBrowsingFragment())
         } else {
             DefaultBiometricUtils.bindBiometricsCredentialsPromptOrShowWarning(
                 titleRes = R.string.pbm_authentication_enable_lock,
@@ -841,22 +835,6 @@ class TabsTrayFragment : AppCompatDialogFragment() {
             }
             tabsTrayInteractor.onTrayPositionSelected(page.ordinal, false)
         }
-    }
-
-    @VisibleForTesting
-    internal fun shouldShowPrompt(
-        biometricAuthenticationNeededInfo: BiometricAuthenticationNeededInfo,
-        isPrivateTabPage: Boolean,
-        isInPrivateMode: Boolean,
-    ): Boolean {
-        val hasPrivateTabs = requireComponents.core.store.state.privateTabs.isNotEmpty()
-        val biometricLockEnabled = requireContext().settings().privateBrowsingLockedEnabled
-        val shouldShowAuthenticationPrompt =
-            biometricAuthenticationNeededInfo.shouldShowAuthenticationPrompt
-        val isNotOnPrivateTabsPage = tabsTrayStore.state.selectedPage != Page.PrivateTabs
-
-        return isPrivateTabPage && hasPrivateTabs && biometricLockEnabled &&
-            shouldShowAuthenticationPrompt && isNotOnPrivateTabsPage && !isInPrivateMode
     }
 
     /**

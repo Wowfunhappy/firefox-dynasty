@@ -1307,20 +1307,18 @@ class Document : public nsINode,
    */
   nsresult GetSrcdocData(nsAString& aSrcdocData);
 
-  already_AddRefed<AnonymousContent> InsertAnonymousContent(bool aForce,
-                                                            ErrorResult&);
+  already_AddRefed<AnonymousContent> InsertAnonymousContent(ErrorResult&);
   void RemoveAnonymousContent(AnonymousContent&);
-  /**
-   * If aNode is a descendant of anonymous content inserted by
-   * InsertAnonymousContent, this method returns the root element of the
-   * inserted anonymous content (in other words, the clone of the aElement
-   * that was passed to InsertAnonymousContent).
-   */
-  Element* GetAnonRootIfInAnonymousContentContainer(nsINode* aNode) const;
   nsTArray<RefPtr<AnonymousContent>>& GetAnonymousContents() {
     return mAnonymousContents;
   }
+  Element* GetCustomContentContainer() const { return mCustomContentContainer; }
 
+ private:
+  void CreateCustomContentContainerIfNeeded();
+  void RemoveCustomContentContainer();
+
+ public:
   TimeStamp GetPageUnloadingEventTimeStamp() const {
     if (!mParentDocument) {
       return mPageUnloadingEventTimeStamp;
@@ -5267,6 +5265,10 @@ class Document : public nsINode,
   UniquePtr<dom::XPathEvaluator> mXPathEvaluator;
 
   nsTArray<RefPtr<AnonymousContent>> mAnonymousContents;
+
+  // The <div class="moz-custom-content-container"> that we use to wrap all the
+  // mAnonymousContents roots. It's a NAC root, child of the root element.
+  RefPtr<Element> mCustomContentContainer;
 
   uint32_t mBlockDOMContentLoaded;
 

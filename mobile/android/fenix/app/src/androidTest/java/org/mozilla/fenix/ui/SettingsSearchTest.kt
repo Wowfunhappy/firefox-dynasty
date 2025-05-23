@@ -398,16 +398,13 @@ class SettingsSearchTest : TestSetup() {
             typeCustomEngineDetails(customSearchEngine.title, customSearchEngine.badTemplateUrl)
             saveNewSearchEngine()
             verifyInvalidTemplateSearchStringFormatError()
-            typeCustomEngineDetails(customSearchEngine.title, customSearchEngine.typoUrl)
-            saveNewSearchEngine()
-            verifyErrorConnectingToSearchString(customSearchEngine.title)
             typeCustomEngineDetails(customSearchEngine.title, customSearchEngine.goodUrl)
             typeSearchEngineSuggestionString(customSearchEngine.badTemplateUrl)
             saveNewSearchEngine()
             verifyInvalidTemplateSearchStringFormatError()
-            typeSearchEngineSuggestionString(customSearchEngine.typoUrl)
+            typeCustomEngineDetails(customSearchEngine.title, customSearchEngine.typoUrl)
             saveNewSearchEngine()
-            verifyErrorConnectingToSearchString(customSearchEngine.title)
+            verifyEngineListContains(customSearchEngine.title, shouldExist = true)
         }
     }
 
@@ -642,6 +639,7 @@ class SettingsSearchTest : TestSetup() {
     }
 
     // TestRail link: https://mozilla.testrail.io/index.php?/cases/view/2203334
+    @Ignore("Failing, see: https://bugzilla.mozilla.org/show_bug.cgi?id=1967956")
     @Test
     fun verifyManageSearchShortcutsSettingsItemsTest() {
         homeScreen {

@@ -82,8 +82,6 @@ ChromeUtils.defineESModuleGetters(this, {
   SessionStartup: "resource:///modules/sessionstore/SessionStartup.sys.mjs",
   SessionStore: "resource:///modules/sessionstore/SessionStore.sys.mjs",
   SharingUtils: "resource:///modules/SharingUtils.sys.mjs",
-  ShoppingSidebarParent: "resource:///actors/ShoppingSidebarParent.sys.mjs",
-  ShoppingSidebarManager: "resource:///actors/ShoppingSidebarParent.sys.mjs",
   ShortcutUtils: "resource://gre/modules/ShortcutUtils.sys.mjs",
   SiteDataManager: "resource:///modules/SiteDataManager.sys.mjs",
   SitePermissions: "resource:///modules/SitePermissions.sys.mjs",
@@ -461,6 +459,9 @@ ChromeUtils.defineLazyGetter(this, "PopupNotifications", () => {
       // If the anchor element is present in the Urlbar,
       // ensure that both the anchor and page URL are visible.
       gURLBar.maybeHandleRevertFromPopup(anchorElement);
+      anchorElement?.dispatchEvent(
+        new CustomEvent("PopupNotificationsBeforeAnchor", { bubbles: true })
+      );
       if (anchorElement?.checkVisibility()) {
         return anchorElement;
       }
@@ -2913,10 +2914,6 @@ var TabsProgressListener = {
     if (!aWebProgress.isTopLevel) {
       return;
     }
-
-    // Some shops use pushState to move between individual products, so
-    // the shopping code needs to be told about all of these.
-    ShoppingSidebarManager.onLocationChange(aBrowser, aLocationURI, aFlags);
 
     // Filter out location changes caused by anchor navigation
     // or history.push/pop/replaceState.

@@ -540,10 +540,6 @@ pref("toolkit.scrollbox.clickToScroll.scrollDelay", 150);
 
 pref("toolkit.shopping.ohttpConfigURL", "https://prod.ohttp-gateway.prod.webservices.mozgcp.net/ohttp-configs");
 pref("toolkit.shopping.ohttpRelayURL", "https://mozilla-ohttp.fastly-edge.com/");
-pref("toolkit.shopping.environment", "prod");
-
-// Determines whether Review Checker is enabled for de and fr domains
-pref("toolkit.shopping.experience2023.defr", false);
 
 // Controls logging for Sqlite.sys.mjs.
 pref("toolkit.sqlitejsm.loglevel", "Error");
@@ -1020,6 +1016,9 @@ pref("javascript.options.mem.nursery_eager_collection_threshold_kb", 256);
 pref("javascript.options.mem.nursery_eager_collection_threshold_percent", 25);
 // JSGC_NURSERY_EAGER_COLLECTION_TIMEOUT_MS
 pref("javascript.options.mem.nursery_eager_collection_timeout_ms", 5000);
+
+// JSGC_NURSERY_MAX_TIME_GOAL_MS
+pref("javascript.options.mem.nursery_max_time_goal_ms", 4);
 
 #ifdef JS_GC_ZEAL
 pref("javascript.options.mem.gc_zeal.mode", 0);

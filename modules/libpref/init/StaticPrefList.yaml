@@ -2811,6 +2811,13 @@
   value: false
   mirror: always
 
+# Whether pointer boundary events should be dispatched after the element is
+# changed by a layout change or something without pointer move.
+- name: dom.event.pointer.boundary.dispatch_when_layout_change
+  type: bool
+  value: true
+  mirror: always
+
 # Whether the result of screenX, screenY, clientX, clientY, offsetX, offsetY,
 # x and y of PointerEvent may be fractional values (except `click`, `auxclick`
 # and `contextmenu`)
@@ -7391,6 +7398,11 @@
   value: false
   mirror: always
 
+- name: gfx.webrender.debug.highlight-backdrop-filters
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
+
 # When true, we output warning messages when rejecting surface promotion
 # when it has been requested. This is important for color correctness of
 # wide color videos, as well as for GPU performance for all videos.
@@ -8127,7 +8139,7 @@
 # a natural width and/or height.
 - name: image.natural-size-fallback.enabled
   type: RelaxedAtomicBool
-  value: true
+  value: @IS_NIGHTLY_BUILD@
   mirror: always
 
 # Whether we record SVG images as blobs or not.
@@ -14123,6 +14135,13 @@
   value: 60
   mirror: always
 
+# When true, the DNS code will always set the AI_CANONNAME
+# when calling getaddrinfo
+- name: network.dns.always_ai_canonname
+  type: RelaxedAtomicBool
+  value: true
+  mirror: always
+
 # The proxy type. See nsIProtocolProxyService.idl
 #     PROXYCONFIG_DIRECT   = 0
 #     PROXYCONFIG_MANUAL   = 1
@@ -14561,6 +14580,17 @@
 #else
   value: 30
 #endif
+  mirror: always
+
+# When this pref is true, GeckoViewStartup.sys.mjs will initialize the DoHController
+# and Fenix will automatically select the TRR provider when the browser is in
+# "Default protection" mode (ie network.trr.mode is 0).
+# The selected provider depends on remote settings and the user's region.
+# If a rollout hasn't started in the user's region, then Fenix will continue using
+# the system DNS settings.
+- name: network.android_doh.autoselect_enabled
+  type: RelaxedAtomicBool
+  value: false
   mirror: always
 
 # Allow the network changed event to get sent when a network topology or setup
@@ -16375,12 +16405,6 @@
   value: @IS_ANDROID@
   mirror: always
 
-# Pref to block sub requests that happen within an object.
-- name: security.mixed_content.block_object_subrequest
-  type: bool
-  value: false
-  mirror: always
-
 # Pref for mixed display content blocking (images, audio, video).
 - name: security.mixed_content.block_display_content
   type: bool
@@ -16554,18 +16578,6 @@
     type: RelaxedAtomicUint32
     value: 0
     mirror: always
-#endif
-
-#if defined(XP_LINUX) && defined(MOZ_SANDBOX)
-  # Run content processes in headless mode and disallow
-  # connections to the X server.  Requires:
-  # * `webgl.out-of-process` (or else WebGL breaks)
-  # Changing it requires a restart because sandbox policy information
-  # dependent on it is cached.  See bug 1640345 for details.
-- name: security.sandbox.content.headless
-  type: bool
-  value: true
-  mirror: once
 #endif
 
 #if defined(XP_LINUX) && defined(MOZ_SANDBOX)

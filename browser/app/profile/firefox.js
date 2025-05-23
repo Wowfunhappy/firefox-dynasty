@@ -442,11 +442,7 @@ pref("browser.urlbar.suggest.quickactions",         true);
 pref("browser.urlbar.deduplication.enabled", false);
 pref("browser.urlbar.deduplication.thresholdDays", 0);
 
-#ifdef EARLY_BETA_OR_EARLIER
 pref("browser.urlbar.scotchBonnet.enableOverride", true);
-#else
-pref("browser.urlbar.scotchBonnet.enableOverride", false);
-#endif
 
 // Once Perplexity has entered search mode at least once,
 // we no longer show the Perplexity onboarding callout.
@@ -832,56 +828,6 @@ pref("browser.search.widget.removeAfterDaysUnused", 120);
 // The number of times the search function in the URL bar has been used,
 // capped at 100.
 pref("browser.search.totalSearches", 0);
-
-// Enables the Review Checker feature in the Shopping sidebar.
-// There are separate controls for user opt-in/opt-out.
-pref("browser.shopping.experience2023.enabled", false);
-
-// Ternary int-valued pref indicating if the user has opted into the new
-// experimental shopping feature.
-// 0 means the user has not opted in or out.
-// 1 means the user has opted in.
-// 2 means the user has opted out.
-pref("browser.shopping.experience2023.optedIn", 0);
-
-// Activates the new experimental shopping sidebar.
-// True by default. This is handled by ShoppingUtils.handleAutoActivateOnProduct
-// to auto-activate the sidebar for non-opted-in users up to 2 times.
-pref("browser.shopping.experience2023.active", true);
-
-// Enables the ad / recommended product feature for the shopping sidebar.
-// If enabled, users can disable the ad card using the separate pref
-// `browser.shopping.experience2023.ads.userEnabled` and visible toggle
-// (this is just the feature flag).
-pref("browser.shopping.experience2023.ads.enabled", false);
-
-// Activates the ad card in the shopping sidebar.
-// Unlike `browser.shopping.experience2023.ads.enabled`, this pref is controlled by users
-// using the visible toggle.
-pref("browser.shopping.experience2023.ads.userEnabled", true);
-
-// Saves if shopping survey is enabled.
-pref("browser.shopping.experience2023.survey.enabled", true);
-
-// Saves if shopping survey is seen.
-pref("browser.shopping.experience2023.survey.hasSeen", false);
-
-// Number of PDP visits used to display shopping survey
-pref("browser.shopping.experience2023.survey.pdpVisits", 0);
-
-// Enables the auto-open feature for the shopping sidebar,
-// including new callouts and settings UI changes
-// (this is just the feature flag).
-pref("browser.shopping.experience2023.autoOpen.enabled", false);
-
-// Opens the shopping sidebar automatically when viewing a PDP.
-pref("browser.shopping.experience2023.autoOpen.userEnabled", true);
-
-// Number of times the sidebar has been closed in a session
-pref("browser.shopping.experience2023.sidebarClosedCount", 0);
-
-// When conditions are met, shows a prompt on the shopping sidebar asking users if they want to disable auto-open behavior
-pref("browser.shopping.experience2023.showKeepSidebarClosedMessage", true);
 
 // Spin the cursor while the page is loading
 pref("browser.spin_cursor_while_busy", false);
@@ -1580,21 +1526,26 @@ pref("browser.bookmarks.editDialog.maxRecentFolders", 7);
   // 2 -> "seccomp-bpf + write file broker"
   // 3 -> "seccomp-bpf + read/write file brokering"
   // 4 -> all of the above + network/socket restrictions + chroot
+  // 5 -> blocks access to GL / DRI / display servers
+  //      (formerly the separate pref `security.sandbox.content.headless`)
+  //      (side effect: sets MOZ_HEADLESS for content processes)
+  // 6 -> default-deny for ioctl
   //
   // The purpose of this setting is to allow Linux users or distros to disable
   // the sandbox while we fix their problems, or to allow running Firefox with
   // exotic configurations we can't reasonably support out of the box.
   //
-  pref("security.sandbox.content.level", 4);
-  // Introduced as part of bug 1608558.  Linux is currently the only platform
-  // that uses a sandbox level for the socket process.  There are currently
-  // only 2 levels:
-  // 0 -> "no sandbox"
-  // 1 -> "sandboxed, allows socket operations and reading necessary certs"
-  pref("security.sandbox.socket.process.level", 1);
+  pref("security.sandbox.content.level", 6);
   pref("security.sandbox.content.write_path_whitelist", "");
   pref("security.sandbox.content.read_path_whitelist", "");
   pref("security.sandbox.content.syscall_whitelist", "");
+  // Introduced as part of bug 1608558.  Linux is currently the only platform
+  // that uses a sandbox level for the socket process.  The following levels
+  // are currently defined:
+  // 0 -> "no sandbox"
+  // 1 -> "sandboxed, allows socket operations and reading necessary certs"
+  // 2 -> default-deny for ioctl
+  pref("security.sandbox.socket.process.level", 2);
 #endif
 
 #if defined(XP_OPENBSD) && defined(MOZ_SANDBOX)
@@ -1913,6 +1864,8 @@ pref("browser.newtabpage.activity-stream.discoverystream.spoc-positions", "1,5,7
 // For both spoc and tiles, count corresponds to the matching placement. So the first placement in an array corresponds to the first count.
 pref("browser.newtabpage.activity-stream.discoverystream.placements.spocs", "newtab_spocs");
 pref("browser.newtabpage.activity-stream.discoverystream.placements.spocs.counts", "6");
+pref("browser.newtabpage.activity-stream.discoverystream.placements.contextualSpocs", "newtab_stories_1, newtab_stories_2, newtab_stories_3, newtab_stories_4, newtab_stories_5, newtab_stories_6");
+pref("browser.newtabpage.activity-stream.discoverystream.placements.contextualSpocs.counts", "1, 1, 1, 1, 1, 1");
 pref("browser.newtabpage.activity-stream.discoverystream.placements.tiles", "newtab_tile_1, newtab_tile_2, newtab_tile_3");
 pref("browser.newtabpage.activity-stream.discoverystream.placements.tiles.counts", "1, 1, 1");
 

@@ -208,6 +208,8 @@ export class _DSCard extends React.PureComponent {
     this.onMenuShow = this.onMenuShow.bind(this);
     this.onThumbsUpClick = this.onThumbsUpClick.bind(this);
     this.onThumbsDownClick = this.onThumbsDownClick.bind(this);
+    const refinedCardsLayout =
+      this.props.Prefs.values["discoverystream.refinedCardsLayout.enabled"];
 
     this.setContextMenuButtonHostRef = element => {
       this.contextMenuButtonHostElement = element;
@@ -284,7 +286,7 @@ export class _DSCard extends React.PureComponent {
       },
       medium: {
         width: 300,
-        height: 150,
+        height: refinedCardsLayout ? 172 : 150,
       },
       large: {
         width: 265,
@@ -788,7 +790,8 @@ export class _DSCard extends React.PureComponent {
           {this.props.showTopics &&
             !this.props.mayHaveSectionsCards &&
             this.props.topic &&
-            !isListCard && (
+            !isListCard &&
+            !refinedCardsLayout && (
               <span
                 className="ds-card-topic"
                 data-l10n-id={`newtab-topic-label-${this.props.topic}`}
@@ -877,7 +880,7 @@ export class _DSCard extends React.PureComponent {
               onThumbsDownClick={this.onThumbsDownClick}
               state={this.state}
               isListCard={isListCard}
-              showTopics={this.props.showTopics}
+              showTopics={!refinedCardsLayout && this.props.showTopics}
               isSectionsCard={
                 this.props.mayHaveSectionsCards &&
                 this.props.topic &&
