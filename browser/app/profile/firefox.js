@@ -1812,6 +1812,10 @@ pref("browser.newtabpage.activity-stream.newtabLayouts.variant-b", true);
 
 pref("browser.newtabpage.activity-stream.newtabShortcuts.refresh", true);
 
+// Sponsored checkboxes placement experiment
+pref("browser.newtabpage.activity-stream.showSponsoredCheckboxes", false);
+pref("browser.newtabpage.activity-stream.sponsoredCheckboxes.group", false);
+
 // Activity Stream prefs that control to which page to redirect
 #ifndef RELEASE_OR_BETA
   pref("browser.newtabpage.activity-stream.debug", false);
@@ -2112,6 +2116,7 @@ pref("browser.ml.linkPreview.allowedLanguages", "en");
 pref("browser.ml.linkPreview.blockListEnabled", true);
 pref("browser.ml.linkPreview.collapsed", false);
 pref("browser.ml.linkPreview.enabled", false);
+pref("browser.ml.linkPreview.ignoreMs", 2000);
 pref("browser.ml.linkPreview.longPress", true);
 pref("browser.ml.linkPreview.longPressMs", 1000);
 pref("browser.ml.linkPreview.noKeyPointsRegions", "AD,AT,BE,BG,CH,CY,CZ,DE,DK,EE,ES,FI,FR,GR,HR,HU,IE,IS,IT,LI,LT,LU,LV,MT,NL,NO,PL,PT,RO,SE,SI,SK");
@@ -2621,7 +2626,7 @@ pref("browser.migrate.preferences-entrypoint.enabled", true);
 pref("extensions.pocket.api", "api.getpocket.com");
 pref("extensions.pocket.bffApi", "firefox-api-proxy.cdn.mozilla.net");
 pref("extensions.pocket.bffRecentSaves", true);
-pref("extensions.pocket.enabled", true);
+pref("extensions.pocket.enabled", false);
 pref("extensions.pocket.oAuthConsumerKey", "40249-e88c401e1b1f2242d9e441c4");
 pref("extensions.pocket.oAuthConsumerKeyBff", "94110-6d5ff7a89d72c869766af0e0");
 pref("extensions.pocket.site", "getpocket.com");
@@ -3161,11 +3166,6 @@ pref("devtools.debugger.features.async-live-stacks", false);
 pref("devtools.debugger.show-content-scripts", false);
 
 pref("devtools.debugger.hide-ignored-sources", false);
-
-// When `true` the debugger editor uses Codemirror v6
-// and when `false` the debugger editor uses Codemirror v5
-// This should be removed once the CM5 code is cleaned up. See Bug 1943909
-pref("devtools.debugger.features.codemirror-next", true);
 
 // Disable autohide for DevTools popups and tooltips.
 // This is currently not exposed by any UI to avoid making

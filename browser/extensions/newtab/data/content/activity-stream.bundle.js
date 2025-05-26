@@ -623,7 +623,7 @@ class SimpleHashRouter extends (external_React_default()).PureComponent {
   }
 }
 ;// CONCATENATED MODULE: ./content-src/components/DiscoveryStreamAdmin/DiscoveryStreamAdmin.jsx
-function _extends() { _extends = Object.assign ? Object.assign.bind() : function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; }; return _extends.apply(this, arguments); }
+function _extends() { return _extends = Object.assign ? Object.assign.bind() : function (n) { for (var e = 1; e < arguments.length; e++) { var t = arguments[e]; for (var r in t) ({}).hasOwnProperty.call(t, r) && (n[r] = t[r]); } return n; }, _extends.apply(null, arguments); }
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -3553,7 +3553,8 @@ const DefaultMeta = ({
   topic,
   isSectionsCard,
   showTopics,
-  icon_src
+  icon_src,
+  refinedCardsLayout
 }) => {
   const shouldHaveThumbs = !isListCard && format !== "rectangle" && mayHaveSectionsCards && mayHaveThumbsUpDown;
   const shouldHaveFooterSection = isSectionsCard && (shouldHaveThumbs || showTopics);
@@ -3561,7 +3562,7 @@ const DefaultMeta = ({
     className: "meta"
   }, /*#__PURE__*/external_React_default().createElement("div", {
     className: "info-wrap"
-  }, ctaButtonVariant !== "variant-b" && format !== "rectangle" && /*#__PURE__*/external_React_default().createElement(DSSource, {
+  }, ctaButtonVariant !== "variant-b" && format !== "rectangle" && !refinedCardsLayout && /*#__PURE__*/external_React_default().createElement(DSSource, {
     source: source,
     timeToRead: timeToRead,
     newSponsoredLabel: newSponsoredLabel,
@@ -3569,22 +3570,29 @@ const DefaultMeta = ({
     sponsor: sponsor,
     sponsored_by_override: sponsored_by_override,
     icon_src: icon_src
-  }), format !== "rectangle" && /*#__PURE__*/external_React_default().createElement((external_React_default()).Fragment, null, /*#__PURE__*/external_React_default().createElement("h3", {
+  }), /*#__PURE__*/external_React_default().createElement("h3", {
     className: "title clamp"
-  }, title), excerpt && /*#__PURE__*/external_React_default().createElement("p", {
+  }, format === "rectangle" ? "Sponsored" : title), format === "rectangle" ? /*#__PURE__*/external_React_default().createElement("p", {
     className: "excerpt clamp"
-  }, excerpt)), format === "rectangle" && /*#__PURE__*/external_React_default().createElement("h3", {
-    className: "title clamp",
-    "data-l10n-id": "newtab-label-sponsored-fixed"
-  })), !isListCard && format !== "rectangle" && !mayHaveSectionsCards && mayHaveThumbsUpDown && /*#__PURE__*/external_React_default().createElement(DSThumbsUpDownButtons, {
+  }, "Sponsored content supports our mission to build a better web.") : excerpt && /*#__PURE__*/external_React_default().createElement("p", {
+    className: "excerpt clamp"
+  }, excerpt)), !isListCard && format !== "rectangle" && !mayHaveSectionsCards && mayHaveThumbsUpDown && !refinedCardsLayout && /*#__PURE__*/external_React_default().createElement(DSThumbsUpDownButtons, {
     onThumbsDownClick: onThumbsDownClick,
     onThumbsUpClick: onThumbsUpClick,
     sponsor: sponsor,
     isThumbsDownActive: state.isThumbsDownActive,
     isThumbsUpActive: state.isThumbsUpActive
-  }), shouldHaveFooterSection && /*#__PURE__*/external_React_default().createElement("div", {
+  }), (shouldHaveFooterSection || refinedCardsLayout) && /*#__PURE__*/external_React_default().createElement("div", {
     className: "sections-card-footer"
-  }, shouldHaveThumbs && /*#__PURE__*/external_React_default().createElement(DSThumbsUpDownButtons, {
+  }, refinedCardsLayout && format !== "rectangle" && format !== "spoc" && /*#__PURE__*/external_React_default().createElement(DSSource, {
+    source: source,
+    timeToRead: timeToRead,
+    newSponsoredLabel: newSponsoredLabel,
+    context: context,
+    sponsor: sponsor,
+    sponsored_by_override: sponsored_by_override,
+    icon_src: icon_src
+  }), (shouldHaveThumbs || refinedCardsLayout) && /*#__PURE__*/external_React_default().createElement(DSThumbsUpDownButtons, {
     onThumbsDownClick: onThumbsDownClick,
     onThumbsUpClick: onThumbsUpClick,
     sponsor: sponsor,
@@ -4163,7 +4171,8 @@ class _DSCard extends (external_React_default()).PureComponent {
       isSectionsCard: this.props.mayHaveSectionsCards && this.props.topic && !isListCard,
       format: format,
       topic: this.props.topic,
-      icon_src: faviconEnabled && this.props.icon_src
+      icon_src: faviconEnabled && this.props.icon_src,
+      refinedCardsLayout: refinedCardsLayout
     })), /*#__PURE__*/external_React_default().createElement("div", {
       className: "card-stp-button-hover-background"
     }, /*#__PURE__*/external_React_default().createElement("div", {
@@ -4905,7 +4914,6 @@ const PREF_BILLBOARD_ENABLED = "newtabAdSize.billboard";
 const PREF_LEADERBOARD_ENABLED = "newtabAdSize.leaderboard";
 const PREF_LEADERBOARD_POSITION = "newtabAdSize.leaderboard.position";
 const PREF_BILLBOARD_POSITION = "newtabAdSize.billboard.position";
-const PREF_REFINED_CARDS_ENABLED = "discoverystream.refinedCardsLayout.enabled";
 const CardGrid_INTERSECTION_RATIO = 0.5;
 const CardGrid_VISIBLE = "visible";
 const CardGrid_VISIBILITY_CHANGE_EVENT = "visibilitychange";
@@ -5123,7 +5131,7 @@ function RecentSavesContainer({
   for (let index = 0; index < items; index++) {
     const recentSave = recentSavesData[index];
     if (!recentSave) {
-      recentSavesCards.push( /*#__PURE__*/external_React_default().createElement(PlaceholderDSCard, {
+      recentSavesCards.push(/*#__PURE__*/external_React_default().createElement(PlaceholderDSCard, {
         key: `dscard-${index}`
       }));
     } else {
@@ -5189,7 +5197,6 @@ class _CardGrid extends (external_React_default()).PureComponent {
     const listFeedSelectedFeed = prefs[PREF_LIST_FEED_SELECTED_FEED];
     const billboardEnabled = prefs[PREF_BILLBOARD_ENABLED];
     const leaderboardEnabled = prefs[PREF_LEADERBOARD_ENABLED];
-    const refinedCardsLayout = prefs[PREF_REFINED_CARDS_ENABLED];
 
     // filter out recs that should be in ListFeed
     const recs = this.props.data.recommendations.filter(item => !item.feedName).slice(0, items);
@@ -5214,7 +5221,7 @@ class _CardGrid extends (external_React_default()).PureComponent {
         features: rec.features,
         showTopics: showTopics,
         selectedTopics: selectedTopics,
-        excerpt: refinedCardsLayout && rec.excerpt,
+        excerpt: rec.excerpt,
         availableTopics: availableTopics,
         url: rec.url,
         id: rec.id,
@@ -5585,7 +5592,7 @@ class CollectionCardGrid extends (external_React_default()).PureComponent {
   }
 }
 ;// CONCATENATED MODULE: ./content-src/components/A11yLinkButton/A11yLinkButton.jsx
-function A11yLinkButton_extends() { A11yLinkButton_extends = Object.assign ? Object.assign.bind() : function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; }; return A11yLinkButton_extends.apply(this, arguments); }
+function A11yLinkButton_extends() { return A11yLinkButton_extends = Object.assign ? Object.assign.bind() : function (n) { for (var e = 1; e < arguments.length; e++) { var t = arguments[e]; for (var r in t) ({}).hasOwnProperty.call(t, r) && (n[r] = t[r]); } return n; }, A11yLinkButton_extends.apply(null, arguments); }
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -8685,7 +8692,7 @@ TopSiteImpressionWrapper.defaultProps = {
   tile: null
 };
 ;// CONCATENATED MODULE: ./content-src/components/TopSites/TopSite.jsx
-function TopSite_extends() { TopSite_extends = Object.assign ? Object.assign.bind() : function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; }; return TopSite_extends.apply(this, arguments); }
+function TopSite_extends() { return TopSite_extends = Object.assign ? Object.assign.bind() : function (n) { for (var e = 1; e < arguments.length; e++) { var t = arguments[e]; for (var r in t) ({}).hasOwnProperty.call(t, r) && (n[r] = t[r]); } return n; }, TopSite_extends.apply(null, arguments); }
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -9825,7 +9832,7 @@ TopSiteForm.defaultProps = {
   index: -1
 };
 ;// CONCATENATED MODULE: ./content-src/components/TopSites/TopSites.jsx
-function TopSites_extends() { TopSites_extends = Object.assign ? Object.assign.bind() : function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; }; return TopSites_extends.apply(this, arguments); }
+function TopSites_extends() { return TopSites_extends = Object.assign ? Object.assign.bind() : function (n) { for (var e = 1; e < arguments.length; e++) { var t = arguments[e]; for (var r in t) ({}).hasOwnProperty.call(t, r) && (n[r] = t[r]); } return n; }, TopSites_extends.apply(null, arguments); }
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -10006,7 +10013,7 @@ const TopSites_TopSites = (0,external_ReactRedux_namespaceObject.connect)(state 
   TopSitesRows: state.Prefs.values.topSitesRows
 }))(_TopSites);
 ;// CONCATENATED MODULE: ./content-src/components/Sections/Sections.jsx
-function Sections_extends() { Sections_extends = Object.assign ? Object.assign.bind() : function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; }; return Sections_extends.apply(this, arguments); }
+function Sections_extends() { return Sections_extends = Object.assign ? Object.assign.bind() : function (n) { for (var e = 1; e < arguments.length; e++) { var t = arguments[e]; for (var r in t) ({}).hasOwnProperty.call(t, r) && (n[r] = t[r]); } return n; }, Sections_extends.apply(null, arguments); }
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -10286,11 +10293,11 @@ class _Sections extends (external_React_default()).PureComponent {
         isLast: sections.length === expectedCount - 1
       };
       if (sectionId === "topsites" && showTopSites) {
-        sections.push( /*#__PURE__*/external_React_default().createElement(TopSites_TopSites, commonProps));
+        sections.push(/*#__PURE__*/external_React_default().createElement(TopSites_TopSites, commonProps));
       } else {
         const section = enabledSections.find(s => s.id === sectionId);
         if (section) {
-          sections.push( /*#__PURE__*/external_React_default().createElement(SectionIntl, Sections_extends({}, section, commonProps)));
+          sections.push(/*#__PURE__*/external_React_default().createElement(SectionIntl, Sections_extends({}, section, commonProps)));
         }
       }
     }
@@ -10307,7 +10314,7 @@ const Sections_Sections = (0,external_ReactRedux_namespaceObject.connect)(state 
   Prefs: state.Prefs
 }))(_Sections);
 ;// CONCATENATED MODULE: ./content-src/components/DiscoveryStreamComponents/Highlights/Highlights.jsx
-function Highlights_extends() { Highlights_extends = Object.assign ? Object.assign.bind() : function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; }; return Highlights_extends.apply(this, arguments); }
+function Highlights_extends() { return Highlights_extends = Object.assign ? Object.assign.bind() : function (n) { for (var e = 1; e < arguments.length; e++) { var t = arguments[e]; for (var r in t) ({}).hasOwnProperty.call(t, r) && (n[r] = t[r]); } return n; }, Highlights_extends.apply(null, arguments); }
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -11237,7 +11244,7 @@ const CardSections_PREF_BILLBOARD_ENABLED = "newtabAdSize.billboard";
 const CardSections_PREF_LEADERBOARD_ENABLED = "newtabAdSize.leaderboard";
 const CardSections_PREF_LEADERBOARD_POSITION = "newtabAdSize.leaderboard.position";
 const CardSections_PREF_BILLBOARD_POSITION = "newtabAdSize.billboard.position";
-const CardSections_PREF_REFINED_CARDS_ENABLED = "discoverystream.refinedCardsLayout.enabled";
+const PREF_REFINED_CARDS_ENABLED = "discoverystream.refinedCardsLayout.enabled";
 function getLayoutData(responsiveLayouts, index, refinedCardsLayout) {
   let layoutData = {
     classNames: [],
@@ -11312,7 +11319,7 @@ function CardSection({
   const mayHaveThumbsUpDown = prefs[CardSections_PREF_THUMBS_UP_DOWN_ENABLED];
   const selectedTopics = prefs[CardSections_PREF_TOPICS_SELECTED];
   const availableTopics = prefs[CardSections_PREF_TOPICS_AVAILABLE];
-  const refinedCardsLayout = prefs[CardSections_PREF_REFINED_CARDS_ENABLED];
+  const refinedCardsLayout = prefs[PREF_REFINED_CARDS_ENABLED];
   const {
     saveToPocketCard
   } = (0,external_ReactRedux_namespaceObject.useSelector)(state => state.DiscoveryStream);
@@ -12218,7 +12225,7 @@ function SectionsMgmtPanel({
 }
 
 ;// CONCATENATED MODULE: ./content-src/components/WallpaperCategories/WallpaperCategories.jsx
-function WallpaperCategories_extends() { WallpaperCategories_extends = Object.assign ? Object.assign.bind() : function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; }; return WallpaperCategories_extends.apply(this, arguments); }
+function WallpaperCategories_extends() { return WallpaperCategories_extends = Object.assign ? Object.assign.bind() : function (n) { for (var e = 1; e < arguments.length; e++) { var t = arguments[e]; for (var r in t) ({}).hasOwnProperty.call(t, r) && (n[r] = t[r]); } return n; }, WallpaperCategories_extends.apply(null, arguments); }
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -14240,7 +14247,7 @@ function WallpaperFeatureHighlight({
   }));
 }
 ;// CONCATENATED MODULE: ./content-src/components/Base/Base.jsx
-function Base_extends() { Base_extends = Object.assign ? Object.assign.bind() : function (target) { for (var i = 1; i < arguments.length; i++) { var source = arguments[i]; for (var key in source) { if (Object.prototype.hasOwnProperty.call(source, key)) { target[key] = source[key]; } } } return target; }; return Base_extends.apply(this, arguments); }
+function Base_extends() { return Base_extends = Object.assign ? Object.assign.bind() : function (n) { for (var e = 1; e < arguments.length; e++) { var t = arguments[e]; for (var r in t) ({}).hasOwnProperty.call(t, r) && (n[r] = t[r]); } return n; }, Base_extends.apply(null, arguments); }
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -15202,7 +15209,7 @@ function renderWithoutState() {
       type: actionTypes.NEW_TAB_STATE_REQUEST_WITHOUT_STARTUPCACHE
     }));
   });
-  external_ReactDOM_default().hydrate( /*#__PURE__*/external_React_default().createElement(NewTab, {
+  external_ReactDOM_default().hydrate(/*#__PURE__*/external_React_default().createElement(NewTab, {
     store: store
   }), document.getElementById("root"));
 }
@@ -15217,7 +15224,7 @@ function renderCache(initialState) {
       type: actionTypes.NEW_TAB_STATE_REQUEST_STARTUPCACHE
     }));
   });
-  external_ReactDOM_default().hydrate( /*#__PURE__*/external_React_default().createElement(NewTab, {
+  external_ReactDOM_default().hydrate(/*#__PURE__*/external_React_default().createElement(NewTab, {
     store: store
   }), document.getElementById("root"));
 }

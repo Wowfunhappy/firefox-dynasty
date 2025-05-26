@@ -10,6 +10,15 @@ const { Region } = ChromeUtils.importESModule(
 const { LinkPreviewModel } = ChromeUtils.importESModule(
   "moz-src:///browser/components/genai/LinkPreviewModel.sys.mjs"
 );
+
+const { LinkPreviewChild } = ChromeUtils.importESModule(
+  "resource:///actors/LinkPreviewChild.sys.mjs"
+);
+
+const { Readerable } = ChromeUtils.importESModule(
+  "resource://gre/modules/Readerable.sys.mjs"
+);
+
 const { sinon } = ChromeUtils.importESModule(
   "resource://testing-common/Sinon.sys.mjs"
 );
@@ -44,8 +53,9 @@ add_task(async function test_skip_generate_if_non_eng() {
   );
   XULBrowserWindow.setOverLink(TEST_LINK_URL_FR);
 
-  let panel = await TestUtils.waitForCondition(() =>
-    document.getElementById("link-preview-panel")
+  let panel = await TestUtils.waitForCondition(
+    () => document.getElementById("link-preview-panel"),
+    "On first attempt, timed out waiting for link-preview-panel to be created for French link"
   );
   ok(panel, "Panel created for link preview");
 
@@ -68,8 +78,9 @@ add_task(async function test_skip_generate_if_non_eng() {
     set: [["browser.ml.linkPreview.allowedLanguages", ""]],
   });
   XULBrowserWindow.setOverLink(TEST_LINK_URL_FR);
-  panel = await TestUtils.waitForCondition(() =>
-    document.getElementById("link-preview-panel")
+  panel = await TestUtils.waitForCondition(
+    () => document.getElementById("link-preview-panel"),
+    "On second attempt, timed out waiting for link-preview-panel to be created with French allowed"
   );
   await BrowserTestUtils.waitForEvent(panel, "popupshown");
 
@@ -170,6 +181,10 @@ add_task(async function test_link_preview_with_long_press() {
 
   is(LinkPreview.cancelLongPress, null, "long press not started");
 
+  window.dispatchEvent(new MouseEvent("mousedown", { button: 1 }));
+
+  is(LinkPreview.cancelLongPress, null, "long press ignore non-primary button");
+
   window.dispatchEvent(new MouseEvent("mousedown"));
 
   ok(LinkPreview.cancelLongPress, "long press timer started");
@@ -244,6 +259,49 @@ add_task(async function test_link_preview_with_typing() {
 
   stub.restore();
   LinkPreview.recentTyping = 0;
+});
+
+/**
+ * Tests that certain behaviors do not trigger unexpectedly.
+ */
+add_task(async function test_link_preview_no_trigger() {
+  const stub = sinon.stub(LinkPreview, "renderLinkPreviewPanel");
+
+  LinkPreview.keyboardComboActive = true;
+  XULBrowserWindow.setOverLink(TEST_LINK_URL, {});
+
+  ok(LinkPreview.overLinkTime, "have some time");
+  is(stub.callCount, 1, "preview shown");
+
+  LinkPreview.overLinkTime -= 10000;
+
+  window.dispatchEvent(
+    new KeyboardEvent("keydown", {
+      bubbles: true,
+      cancelable: true,
+      shiftKey: true,
+    })
+  );
+
+  is(stub.callCount, 1, "ignored for stale link");
+
+  XULBrowserWindow.setOverLink(TEST_LINK_URL, {});
+
+  is(stub.callCount, 2, "shown again");
+
+  XULBrowserWindow.setOverLink(TEST_LINK_URL, {});
+
+  is(stub.callCount, 3, "and again");
+
+  XULBrowserWindow.setOverLink(TEST_LINK_URL + "#", {});
+
+  is(stub.callCount, 3, "ignored single page #");
+
+  XULBrowserWindow.setOverLink("javascript:void(0)", {});
+
+  is(stub.callCount, 3, "ignored single page javascript:");
+
+  stub.restore();
 });
 
 /**
@@ -454,6 +512,64 @@ add_task(async function test_link_preview_panel_shown() {
   panel.remove();
   stub.restore();
   LinkPreview.keyboardComboActive = false;
+});
+
+/**
+ * Test that LinkPreview blocks pages on domains that don't support Reader Mode
+ */
+add_task(async function test_reader_mode_blocked_domains() {
+  await SpecialPowers.pushPrefEnv({
+    set: [["browser.ml.linkPreview.enabled", true]],
+  });
+
+  const fetchHTML = async url => {
+    const response = await fetch(url, { method: "GET" });
+    if (!response.ok) {
+      throw new Error(`HTTP error! Status: ${response.status}`);
+    }
+    return await response.text(); // returns raw HTML as string
+  };
+
+  const stub = sinon
+    .stub(LinkPreviewChild.prototype, "fetchHTML")
+    .callsFake(async _ => {
+      return fetchHTML(
+        "https://example.com/browser/browser/components/genai/tests/browser/data/readableEn.html"
+      );
+    });
+
+  const actor =
+    window.browsingContext.currentWindowContext.getActor("LinkPreview");
+
+  let result;
+
+  Assert.greaterOrEqual(
+    Readerable._blockedHosts.length,
+    2,
+    "we have enough in blockedHosts"
+  );
+
+  for (const url of Readerable._blockedHosts) {
+    if (url === "github.com") {
+      continue;
+    }
+    result = await actor.fetchPageData(url);
+    Assert.deepEqual(
+      result.article,
+      {},
+      `article should be empty for url ${url}`
+    );
+    ok(result.meta, "meta should be populated");
+
+    is(
+      result.rawMetaInfo["html:title"],
+      "Article title",
+      "title from raw metainfo should be correct"
+    );
+  }
+
+  stub.restore();
+  Services.prefs.clearUserPref("browser.ml.linkPreview.enabled");
 });
 
 /**

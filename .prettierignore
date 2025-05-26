@@ -23,7 +23,8 @@ toolkit/components/extensions/types/ext-tabs-base.d.ts
 !browser/components/preferences/tests/chrome/*.html
 
 # This should be re-enabled in bug 1827456.
-js/src/builtin
+js/src/builtin/**/*.*
+!js/src/builtin/.eslintrc.mjs
 
 # Don't format README files.
 README
@@ -986,8 +987,8 @@ tools/jprof/README.html
 uriloader/exthandler/tests/mochitest/save_filenames.html
 
 ##############################################################################
-# The list below is copied from .eslintrc-ignores.js. Prettier doesn't currently
-# support multiple ignore files or dynamic ignore configurations.
+# The list below is copied from eslint-ignores.config.mjs. Prettier doesn't
+# currently support multiple ignore files or dynamic ignore configurations.
 # When this is implemented, we'll update the configuration below (bug 1825508)
 ##############################################################################
 
@@ -1463,6 +1464,7 @@ toolkit/content/vendor/react/
 toolkit/content/widgets/vendor/lit.all.mjs
 toolkit/crashreporter/breakpad-client/
 toolkit/crashreporter/google-breakpad/
+toolkit/modules/third_party/
 tools/fuzzing/libfuzzer/
 tools/profiler/core/vtune/
 xpcom/build/mach_override.c

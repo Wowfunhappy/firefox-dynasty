@@ -783,6 +783,9 @@ skip script test262/language/expressions/class/decorator/syntax/class-valid/deco
 # https://github.com/tc39/test262/issues/4359
 skip script test262/staging/sm/WeakMap/symbols.js
 
+# https://github.com/rbuckton/ecma262/pull/14
+skip script test262/staging/explicit-resource-management/call-dispose-methods.js
+skip script test262/staging/explicit-resource-management/await-using-in-switch-case-block.js
 
 ##############################################
 # Enable Iterator Helpers tests in the shell #
@@ -977,6 +980,7 @@ skip-if(release_or_beta) script test262/staging/Intl402/Temporal/old/non-iso-cal
 skip-if(release_or_beta) script test262/staging/Intl402/Temporal/old/islamic-calendars-islamic.js
 skip-if(release_or_beta) script test262/staging/Intl402/Temporal/old/islamic-calendars-islamic-rgsa.js
 skip-if(release_or_beta) script test262/staging/Intl402/Temporal/old/islamic-calendars-islamic-umalqura.js
+skip-if(release_or_beta) script test262/intl402/Temporal/PlainMonthDay/from/constrain-to-leap-day.js
 
 # Try re-enabling when Bug 1954138 or Bug 1955545 are fixed.
 skip script test262/staging/Intl402/Temporal/old/non-iso-calendars-islamic.js

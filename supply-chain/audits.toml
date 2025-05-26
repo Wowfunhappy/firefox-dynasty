@@ -3397,6 +3397,12 @@ who = "Brian Tsoi <brian.s.tsoi@gmail.com>"
 criteria = "safe-to-deploy"
 delta = "0.1.3 -> 0.3.1"
 
+[[audits.memtest]]
+who = "Alex Franchuk <afranchuk@mozilla.com>"
+criteria = "safe-to-deploy"
+delta = "0.3.1 -> 0.4.0"
+notes = "This crate is written and maintained by Mozilla employees."
+
 [[audits.metal]]
 who = "Jim Blandy <jimb@red-bean.com>"
 criteria = "safe-to-deploy"
@@ -5365,6 +5371,11 @@ delta = "0.7.1 -> 0.7.4"
 who = "Makoto Kato <m_kato@ga2.so-net.ne.jp>"
 criteria = "safe-to-deploy"
 delta = "0.7.4 -> 0.7.6"
+
+[[audits.tinyvec_macros]]
+who = "Drew Willcoxon <adw@mozilla.com>"
+criteria = "safe-to-deploy"
+delta = "0.1.0 -> 0.1.1"
 
 [[audits.to_shmem]]
 who = "Emilio Cobos Álvarez <emilio@crisal.io>"

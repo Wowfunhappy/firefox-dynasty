@@ -53,7 +53,7 @@ class nsNativeThemeCocoa : public mozilla::widget::ThemeCocoa {
 
   enum class SpinButton : uint8_t { eUp, eDown };
 
-  enum class SegmentType : uint8_t { eToolbarButton, eTab };
+  enum class SegmentType : uint8_t { eToolbarButton };
 
   enum class OptimumState : uint8_t { eOptimum, eSubOptimum, eSubSubOptimum };
 
@@ -203,7 +203,6 @@ class nsNativeThemeCocoa : public mozilla::widget::ThemeCocoa {
     eSourceList,                   // bool
     eActiveSourceListSelection,    // bool
     eInactiveSourceListSelection,  // bool
-    eTabPanel,
   };
 
   struct WidgetInfo {
@@ -286,9 +285,6 @@ class nsNativeThemeCocoa : public mozilla::widget::ThemeCocoa {
     }
     static WidgetInfo InactiveSourceListSelection(bool aParams) {
       return WidgetInfo(Widget::eInactiveSourceListSelection, aParams);
-    }
-    static WidgetInfo TabPanel(bool aParams) {
-      return WidgetInfo(Widget::eTabPanel, aParams);
     }
 
     template <typename T>
