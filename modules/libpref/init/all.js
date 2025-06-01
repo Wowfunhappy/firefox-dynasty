@@ -73,10 +73,6 @@ pref("general.useragent.compatMode.firefox", false);
 
 pref("general.config.obscure_value", 13); // for MCD .cfg files
 
-#ifndef MOZ_BUILD_APP_IS_BROWSER
-pref("general.warnOnAboutConfig", true);
-#endif
-
 // Whether middle button click with a modifier key starts to autoscroll or
 // does nothing.
 pref("general.autoscroll.prevent_to_start.shiftKey", true); // Shift
@@ -1796,11 +1792,10 @@ pref("extensions.browser_style_mv3.supported", false);
 pref("extensions.browser_style_mv3.same_as_mv2", false);
 
 // Experimental Inference API
-#ifdef NIGHTLY_BUILD
-  pref("extensions.ml.enabled", true);
-#else
-  pref("extensions.ml.enabled", false);
-#endif
+pref("extensions.ml.enabled", true);
+
+// Local model management page enabled
+pref("extensions.htmlaboutaddons.local_model_management", true);
 
 // Middle-mouse handling
 pref("middlemouse.paste", false);
@@ -3872,12 +3867,6 @@ pref("services.common.log.logger.tokenserverclient", "Debug");
 
   // Port to start Marionette server on.
   pref("marionette.port", 2828);
-
-  // Defines the protocols that will be active for the Remote Agent.
-  // 1: WebDriver BiDi
-  // 2: CDP (Chrome DevTools Protocol)
-  // 3: WebDriver BiDi + CDP
-  pref("remote.active-protocols", 1);
 
   // Enable WebDriver BiDi experimental commands and events.
   #if defined(NIGHTLY_BUILD)

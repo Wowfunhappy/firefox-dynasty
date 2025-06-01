@@ -62,8 +62,7 @@ object FeatureFlags {
     val onboardingFeatureEnabled = !Config.channel.isDebug
 
     /**
-     * Enables locking of the private mode behind an authentication screen feature.
-     * Currently only enabled on debug and nightly.
+     * Determines whether to show live downloads in progress in the UI.
      */
-    val privateBrowsingLock = Config.channel.isNightlyOrDebug
+    val showLiveDownloads = Config.channel.isDebug
 }

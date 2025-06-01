@@ -1764,6 +1764,12 @@
   value: false
   mirror: always
 
+# Disable state restoration, allowing the kiosk desktop environment to manage state and position.
+- name: browser.restoreWindowState.disabled
+  type: bool
+  value: false
+  mirror: always
+
 # Communicates the toolbar color to platform (for e.g., prefers-color-scheme).
 #
 # Returns whether the toolbar is dark (0), light (1), or system (2). The
@@ -2728,6 +2734,11 @@
   value: true
   mirror: always
 
+- name: dom.performance.largest_contentful_paint.coarsened_rendertime_enabled
+  type: RelaxedAtomicBool
+  value: true
+  mirror: always
+
 # Whether performance.GetEntries* will contain an entry for the active document
 - name: dom.enable_performance_navigation_timing
   type: bool
@@ -3031,6 +3042,13 @@
   value: false
   mirror: always
 
+# This pref controls whether <input type=search> clears its value on Esc
+# keydown.
+- name: dom.forms.search.esc
+  type: bool
+  value: true
+  mirror: always
+
 # The interval in milliseconds between two Escape key events where the second
 # key event will exit fullscreen, even if it is consumed.
 - name: dom.fullscreen.force_exit_on_multiple_escape_interval
@@ -3249,7 +3267,7 @@
 #if defined(MOZ_CODE_COVERAGE) || defined(MOZ_ASAN) || defined(MOZ_TSAN) || defined(MOZ_MSAN) || defined(MOZ_UBSAN)
   value: false
 #else
-  value: @IS_NIGHTLY_BUILD@
+  value: true
 #endif
   mirror: once
 #endif
@@ -4857,6 +4875,11 @@
 - name: dom.text_fragments.create_text_fragment.timeout_seconds
   type: uint32_t
   value: 5
+  mirror: always
+
+- name: dom.text_fragments.create_text_fragment.exact_match_max_length
+  type: uint32_t
+  value: 200
   mirror: always
 
 - name: dom.textMetrics.actualBoundingBox.enabled
@@ -8704,6 +8727,13 @@
 
   # Experimental support for upsert in JavaScript.
 -   name: javascript.options.experimental.upsert
+    type: bool
+    value: false
+    mirror: always
+    set_spidermonkey_pref: startup
+
+  # Experimental support for immutable ArrayBuffers in JavaScript.
+-   name: javascript.options.experimental.arraybuffer_immutable
     type: bool
     value: false
     mirror: always
@@ -13136,7 +13166,11 @@
 # If we should attempt to race the cache and network.
 - name: network.http.rcwn.enabled
   type: bool
+#if defined(ANDROID)
+  value: false
+#else
   value: true
+#endif
   mirror: always
 
 - name: network.http.rcwn.cache_queue_normal_threshold
@@ -16355,13 +16389,6 @@
   value: true
   mirror: always
 
-# Whether to treat the CSP in browser.xhtml as "Report-Only".
-# This allows us to collect telemetry information about potential issues.
-- name: security.browser_xhtml_csp.report-only
-  type: bool
-  value: false
-  mirror: always
-
 # Allow unsafe eval usage with high privileges to. This should
 # not be activated without a very good reason.
 # This pref has to be set before starting Firefox!
@@ -17021,6 +17048,11 @@
   value: true
   mirror: always
   rust: true
+
+- name: security.tls.enable_certificate_compression_abridged
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
 
 - name: security.ssl.treat_unsafe_negotiation_as_broken
   type: RelaxedAtomicBool

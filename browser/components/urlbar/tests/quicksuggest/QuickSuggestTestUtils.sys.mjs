@@ -14,6 +14,8 @@ ChromeUtils.defineESModuleGetters(lazy, {
   RemoteSettingsServer:
     "resource://testing-common/RemoteSettingsServer.sys.mjs",
   SearchUtils: "moz-src:///toolkit/components/search/SearchUtils.sys.mjs",
+  SharedRemoteSettingsService:
+    "resource://gre/modules/RustSharedRemoteSettingsService.sys.mjs",
   Suggestion:
     "moz-src:///toolkit/components/uniffi-bindgen-gecko-js/components/generated/RustSuggest.sys.mjs",
   TestUtils: "resource://testing-common/TestUtils.sys.mjs",
@@ -243,10 +245,13 @@ class _QuickSuggestTestUtils {
     }
 
     // Tell the Rust backend to use the local remote setting server.
-    await lazy.QuickSuggest.rustBackend._test_setRemoteSettingsConfig({
+    lazy.SharedRemoteSettingsService.updateServer({
+      url: this.#remoteSettingsServer.url.toString(),
       bucketName: "main",
-      serverUrl: this.#remoteSettingsServer.url.toString(),
     });
+    await lazy.QuickSuggest.rustBackend._test_setRemoteSettingsService(
+      lazy.SharedRemoteSettingsService.rustService()
+    );
 
     // Wait for the Rust backend to finish syncing.
     await this.forceSync();
@@ -296,7 +301,7 @@ class _QuickSuggestTestUtils {
       lazy.UrlbarPrefs.clear("quicksuggest.dataCollection.enabled");
     }
 
-    await lazy.QuickSuggest.rustBackend._test_setRemoteSettingsConfig(null);
+    await lazy.QuickSuggest.rustBackend._test_setRemoteSettingsService(null);
 
     this.#log("#uninitQuickSuggest", "Done");
   }
@@ -477,22 +482,22 @@ class _QuickSuggestTestUtils {
 
     if (result.payload.source == "rust") {
       result.payload.iconBlob = iconBlob;
-      result.payload.suggestionObject = new lazy.Suggestion.Amp(
+      result.payload.suggestionObject = new lazy.Suggestion.Amp({
         title,
         url,
-        originalUrl, // rawUrl
-        null, // icon,
-        null, // iconMimetype
+        rawUrl: originalUrl,
+        icon: null,
+        iconMimetype: null,
         fullKeyword,
         blockId,
         advertiser,
         iabCategory,
         impressionUrl,
         clickUrl,
-        clickUrl, // rawClickUrl
-        0.3, // score
-        null // ftsMatchInfo
-      );
+        rawClickUrl: clickUrl,
+        score: 0.3,
+        ftsMatchInfo: null,
+      });
     } else {
       result.payload.icon = icon;
     }
@@ -569,13 +574,13 @@ class _QuickSuggestTestUtils {
     };
 
     if (source == "rust") {
-      result.payload.suggestionObject = new lazy.Suggestion.Wikipedia(
+      result.payload.suggestionObject = new lazy.Suggestion.Wikipedia({
         title,
         url,
-        null, // icon
-        null, // iconMimetype
-        fullKeyword
-      );
+        icon: null,
+        iconMimeType: null,
+        fullKeyword,
+      });
     }
 
     return result;
@@ -865,16 +870,16 @@ class _QuickSuggestTestUtils {
     };
 
     if (source == "rust") {
-      result.payload.suggestionObject = new lazy.Suggestion.Amo(
+      result.payload.suggestionObject = new lazy.Suggestion.Amo({
         title,
-        originalUrl, // url
-        icon,
+        url: originalUrl,
+        iconUrl: icon,
         description,
-        "4.7", // rating
-        1, // numberOfRatings
-        "amo-suggestion@example.com", // guid
-        0.2 // score
-      );
+        rating: "4.7",
+        numberOfRatings: 1,
+        guid: "amo-suggestion@example.com",
+        score: 0.2,
+      });
     }
 
     return result;
@@ -916,12 +921,12 @@ class _QuickSuggestTestUtils {
         bottomTextL10n: { id: "firefox-suggest-mdn-bottom-text" },
         source: "rust",
         provider: "Mdn",
-        suggestionObject: new lazy.Suggestion.Mdn(
+        suggestionObject: new lazy.Suggestion.Mdn({
           title,
           url,
           description,
-          0.2 // score
-        ),
+          score: 0.2,
+        }),
       },
     };
   }
@@ -983,17 +988,23 @@ class _QuickSuggestTestUtils {
     };
 
     if (source == "rust") {
-      result.payload.suggestionObject = new lazy.Suggestion.Yelp(
-        originalUrl, // url
-        title,
-        null, // icon
-        null, // iconMimetype
-        0.2, // score
-        false, // hasLocationSign
-        false, // subjectExactMatch
-        suggestedType, // subjectType
-        "find_loc" // locationParam
-      );
+      result.payload.suggestionObject = new lazy.Suggestion.Yelp({
+        url: originalUrl,
+        // `title` will be undefined if the caller passed in `titleL10n`
+        // instead, but the Rust suggestion must be created with a string title.
+        // The Rust suggestion title doesn't actually matter since no test
+        // relies on it directly or indirectly. Pick an arbitrary string, and
+        // make it distinctive so it's easier to track down bugs in case it does
+        // start to matter at some point.
+        title: title ?? "<QuickSuggestTestUtils Yelp suggestion>",
+        icon: null,
+        iconMimeType: null,
+        score: 0.2,
+        hasLocationSign: false,
+        subjectExactMatch: false,
+        subjectType: suggestedType,
+        locationParam: "find_loc",
+      });
     }
 
     return result;
@@ -1398,7 +1409,7 @@ class _QuickSuggestTestUtils {
 
     let originalHome = lazy.Region.home;
     if (homeRegion) {
-      lazy.Region._setHomeRegion(homeRegion, false);
+      lazy.Region._setHomeRegion(homeRegion, true);
     }
 
     let available = Services.locale.availableLocales;
@@ -1419,7 +1430,7 @@ class _QuickSuggestTestUtils {
     await callback();
 
     if (homeRegion) {
-      lazy.Region._setHomeRegion(originalHome, false);
+      lazy.Region._setHomeRegion(originalHome, true);
     }
 
     promise = promiseChanges(requested);

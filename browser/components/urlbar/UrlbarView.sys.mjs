@@ -96,7 +96,7 @@ export class UrlbarView {
     this.panel.setAttribute("noresults", "true");
 
     this.controller.setView(this);
-    this.controller.addQueryListener(this);
+    this.controller.addListener(this);
     // This is used by autoOpen to avoid flickering results when reopening
     // previously abandoned searches.
     this.queryContextCache = new QueryContextCache(5);
@@ -1852,6 +1852,10 @@ export class UrlbarView {
       return;
     } else if (result.providerName == "TabToSearch") {
       item.setAttribute("type", "tabtosearch");
+    } else if (result.providerName == "SemanticHistorySearch") {
+      item.setAttribute("type", "semantic-history");
+    } else if (result.providerName == "InputHistory") {
+      item.setAttribute("type", "adaptive-history");
     } else {
       item.setAttribute(
         "type",
@@ -2395,8 +2399,6 @@ export class UrlbarView {
           return { id: "urlbar-group-addon" };
         case "mdn":
           return { id: "urlbar-group-mdn" };
-        case "pocket":
-          return { id: "urlbar-group-pocket" };
         case "yelp":
           return { id: "urlbar-group-local" };
       }
@@ -3063,9 +3065,6 @@ export class UrlbarView {
         }
         if (lazy.UrlbarPrefs.get("mdn.featureGate")) {
           idArgs.push({ id: "urlbar-group-mdn" });
-        }
-        if (lazy.UrlbarPrefs.get("pocketFeatureGate")) {
-          idArgs.push({ id: "urlbar-group-pocket" });
         }
         if (lazy.UrlbarPrefs.get("yelpFeatureGate")) {
           idArgs.push({ id: "urlbar-group-local" });

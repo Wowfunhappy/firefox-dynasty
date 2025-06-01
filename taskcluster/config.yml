@@ -74,6 +74,8 @@ treeherder:
         'MSIs': 'Signing of Repacked installers of MSIs'
         'MSIX': 'Repack into MSIX package'
         'MSIXs': 'Signing of Repack into MSIX package'
+        'nt-trainhop': 'Desktop newtab trainhop tests'
+        'nt-trainhop-cf': 'Desktop newtab trainhop tests for confirm failure'
         'Pup': "Puppeteer tests"
         'R': 'Reftests'
         'R-ioi': 'Reftests with incremental origin initialization enabled'
@@ -310,6 +312,7 @@ treeherder:
         'service-sync-autofill': 'service-sync-autofill'
         'service-sync-logins': 'service-sync-logins'
         'support-android-test': 'support-android-test'
+        'support-appservices': 'support-appservices'
         'support-base': 'support-base'
         'support-images': 'support-images'
         'support-ktx': 'support-ktx'
@@ -748,17 +751,17 @@ workers:
                     staging: '{trust-domain}-t-signing'
         mac-depsigning:
             provisioner: scriptworker-prov-v1
-            implementation: scriptworker-signing
+            implementation: iscript
             os: macosx
-            worker-type: depsigning-mac-v1
+            worker-type: dep-gecko-signing-mac14m2
         mac-signing:
             provisioner: scriptworker-prov-v1
-            implementation: scriptworker-signing
+            implementation: iscript
             os: macosx
             worker-type:
                 by-release-level:
-                    production: signing-mac-v1
-                    staging: depsigning-mac-v1
+                    production: gecko-signing-mac14m2
+                    staging: dep-gecko-signing-mac14m2
         push-apk:
             provisioner: scriptworker-k8s
             implementation: scriptworker-pushapk

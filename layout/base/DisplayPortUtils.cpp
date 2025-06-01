@@ -269,7 +269,7 @@ static nsRect GetDisplayPortFromMarginsData(
     // always using a 128 alignment, so the displayport multipliers are also
     // correspondingly smaller when WR is enabled to prevent the displayport
     // from becoming too big.
-    IntSize multiplier =
+    gfx::Size multiplier =
         layers::apz::GetDisplayportAlignmentMultiplier(screenRect.Size());
     alignment = ScreenSize(128 * multiplier.width, 128 * multiplier.height);
   }
@@ -816,11 +816,21 @@ bool DisplayPortUtils::MaybeCreateDisplayPort(
   }
   return false;
 }
+
+nsIFrame* DisplayPortUtils::OneStepInAsyncScrollableAncestorChain(
+    nsIFrame* aFrame) {
+  if (aFrame->StyleDisplay()->mPosition == StylePositionProperty::Fixed &&
+      nsLayoutUtils::IsReallyFixedPos(aFrame)) {
+    return aFrame->PresShell()->GetRootScrollContainerFrame();
+  }
+  return nsLayoutUtils::GetCrossDocParentFrameInProcess(aFrame);
+}
+
 void DisplayPortUtils::SetZeroMarginDisplayPortOnAsyncScrollableAncestors(
     nsIFrame* aFrame) {
   nsIFrame* frame = aFrame;
   while (frame) {
-    frame = nsLayoutUtils::GetParentOrPlaceholderForCrossDoc(frame);
+    frame = OneStepInAsyncScrollableAncestorChain(frame);
     if (!frame) {
       break;
     }
@@ -901,7 +911,7 @@ void DisplayPortUtils::ExpireDisplayPortOnAsyncScrollableAncestor(
     nsIFrame* aFrame) {
   nsIFrame* frame = aFrame;
   while (frame) {
-    frame = nsLayoutUtils::GetCrossDocParentFrameInProcess(frame);
+    frame = OneStepInAsyncScrollableAncestorChain(frame);
     if (!frame) {
       break;
     }

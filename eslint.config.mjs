@@ -14,17 +14,12 @@ import reactHooks from "eslint-plugin-react-hooks";
 import fs from "fs";
 import globals from "globals";
 import path from "path";
-import { fileURLToPath } from "url";
 
 import globalIgnores from "./eslint-ignores.config.mjs";
 import testPathsConfig from "./eslint-test-paths.config.mjs";
 import repositoryGlobals from "./eslint-file-globals.config.mjs";
 import rollouts from "./eslint-rollouts.config.mjs";
 import subdirConfigs from "./eslint-subdirs.config.mjs";
-
-// Compatibility handling for Node v18. When we update to v20+, we can replace
-// this with `import.meta.dirname`.
-const dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const testPaths = testPathsConfig.testPaths;
 
@@ -75,7 +70,7 @@ let config = [
     settings: {
       "import/extensions": [".mjs"],
       "import/resolver": {
-        [path.resolve(dirname, "srcdir-resolver.js")]: {},
+        [path.resolve(import.meta.dirname, "srcdir-resolver.js")]: {},
         node: {},
       },
     },
@@ -85,12 +80,19 @@ let config = [
     ignores: [
       ...globalIgnores,
       ...readFile(
-        path.join(dirname, "tools", "rewriting", "ThirdPartyPaths.txt")
+        path.join(
+          import.meta.dirname,
+          "tools",
+          "rewriting",
+          "ThirdPartyPaths.txt"
+        )
       ),
-      ...readFile(path.join(dirname, "tools", "rewriting", "Generated.txt")),
+      ...readFile(
+        path.join(import.meta.dirname, "tools", "rewriting", "Generated.txt")
+      ),
       ...readFile(
         path.join(
-          dirname,
+          import.meta.dirname,
           "devtools",
           "client",
           "debugger",
@@ -103,6 +105,14 @@ let config = [
   {
     name: "all-files",
     files: wrapPathsWithAllExts(["**"]),
+    linterOptions: {
+      // With this option on, if an inline comment disables a rule, and the
+      // rule is able to be automatically fixed, then ESLint will remove the
+      // inline comment and apply the fix. We don't want this because we have
+      // some rules that intentionally need to be turned off in specific cases,
+      // e.g. @microsoft/sdl/no-insecure-url.
+      reportUnusedDisableDirectives: "off",
+    },
     plugins: { lit },
     rules: {
       "lit/quoted-expressions": ["error", "never"],
@@ -130,13 +140,14 @@ let config = [
 
   {
     name: "define-globals-for-browser-env",
+    // Not available for sjs files.
     files: wrapPathsWithAllExts(["**"], ["sjs"]),
     ignores: [
-      // The browser environment is not available for system modules, sjs, workers
-      // or any of the xpcshell-test files.
+      // Also not available for various other scopes and tools.
       "**/*.sys.mjs",
       "**/?(*.)worker.?(m)js",
       ...wrapPathsWithAllExts(testPaths.xpcshell, ["mjs", "sjs"]),
+      "tools/lint/eslint/**",
     ],
     languageOptions: {
       globals: globals.browser,
@@ -146,7 +157,7 @@ let config = [
     // Generally we assume that all files, except mjs ones are in our
     // privileged and specific environment. mjs are handled separately by
     // the recommended configuration in eslint-plugin-mozilla.
-    name: "define-privileged-and-specific-globas-for-most-files",
+    name: "define-privileged-and-specific-globals-for-most-files",
     files: wrapPathsWithAllExts(["**"], ["json"]),
     ignores: ["browser/components/storybook/**", "tools"],
     languageOptions: {
@@ -255,6 +266,7 @@ let config = [
         "error",
         {
           argsIgnorePattern: "^_",
+          caughtErrors: "none",
           vars: "local",
         },
       ],
@@ -274,6 +286,7 @@ let config = [
         "error",
         {
           argsIgnorePattern: "^_",
+          caughtErrors: "none",
           vars: "all",
         },
       ],

@@ -98,8 +98,8 @@
       this.tabGroupMenu = document.getElementById("tab-group-editor");
       this.tabbox = document.getElementById("tabbrowser-tabbox");
       this.tabpanels = document.getElementById("tabbrowser-tabpanels");
-      this.verticalPinnedTabsContainer = document.getElementById(
-        "vertical-pinned-tabs-container"
+      this.pinnedTabsContainer = document.getElementById(
+        "pinned-tabs-container"
       );
 
       ChromeUtils.defineESModuleGetters(this, {
@@ -813,7 +813,7 @@
 
     _updateTabBarForPinnedTabs() {
       this.tabContainer._unlockTabSizing();
-      this.tabContainer._positionPinnedTabs();
+      this.tabContainer._handleTabSelect(true);
       this.tabContainer._updateCloseButtons();
     }
 
@@ -834,16 +834,10 @@
       }
 
       this.showTab(aTab);
-      if (this.tabContainer.verticalMode) {
-        this.#handleTabMove(aTab, () =>
-          this.verticalPinnedTabsContainer.appendChild(aTab)
-        );
-      } else {
-        this.moveTabTo(aTab, {
-          tabIndex: this.pinnedTabCount,
-          forceUngrouped: true,
-        });
-      }
+      this.#handleTabMove(aTab, () =>
+        this.pinnedTabsContainer.appendChild(aTab)
+      );
+
       aTab.setAttribute("pinned", "true");
       this._updateTabBarForPinnedTabs();
       this._notifyPinnedStatus(aTab);
@@ -854,21 +848,14 @@
         return;
       }
 
-      if (this.tabContainer.verticalMode) {
-        this.#handleTabMove(aTab, () => {
-          // we remove this attribute first, so that allTabs represents
-          // the moving of a tab from the vertical pinned tabs container
-          // and back into arrowscrollbox.
-          aTab.removeAttribute("pinned");
-          this.tabContainer.arrowScrollbox.prepend(aTab);
-        });
-      } else {
-        this.moveTabTo(aTab, {
-          tabIndex: this.pinnedTabCount - 1,
-          forceUngrouped: true,
-        });
+      this.#handleTabMove(aTab, () => {
+        // we remove this attribute first, so that allTabs represents
+        // the moving of a tab from the pinned tabs container
+        // and back into arrowscrollbox.
         aTab.removeAttribute("pinned");
-      }
+        this.tabContainer.arrowScrollbox.prepend(aTab);
+      });
+
       aTab.style.marginInlineStart = "";
       aTab._pinnedUnscrollable = false;
       this._updateTabBarForPinnedTabs();
@@ -3141,18 +3128,24 @@
      * @param {object} [options]
      * @param {number} [options.elementIndex]
      * @param {number} [options.tabIndex]
+     * @param {boolean} [options.selectTab]
      * @returns {MozTabbrowserTabGroup}
      */
-    adoptTabGroup(group, { elementIndex, tabIndex } = {}) {
+    adoptTabGroup(group, { elementIndex, tabIndex, selectTab } = {}) {
       if (group.ownerDocument == document) {
         return group;
       }
       group.removedByAdoption = true;
       group.saveOnWindowClose = false;
 
+      let oldSelectedTab = selectTab && group.ownerGlobal.gBrowser.selectedTab;
       let newTabs = [];
       for (let tab of group.tabs) {
-        let adoptedTab = this.adoptTab(tab, { elementIndex, tabIndex });
+        let adoptedTab = this.adoptTab(tab, {
+          elementIndex,
+          tabIndex,
+          selectTab: tab === oldSelectedTab,
+        });
         newTabs.push(adoptedTab);
         // Put next tab after current one.
         elementIndex = undefined;
@@ -3515,7 +3508,6 @@
       let tabsFragment = document.createDocumentFragment();
       let tabToSelect = null;
       let hiddenTabs = new Map();
-      let shouldUpdateForPinnedTabs = false;
       /** @type {Map<TabGroupStateData['id'], TabGroupWorkingData>} */
       let tabGroupWorkingData = new Map();
 
@@ -3608,21 +3600,9 @@
         tabs.push(tab);
 
         if (tabData.pinned) {
-          // Calling `pinTab` calls `moveTabTo`, which assumes the tab is
-          // inserted in the DOM. If the tab is not yet in the DOM,
-          // just insert it in the right place from the start.
-          if (!tab.parentNode) {
-            tab._tPos = this.pinnedTabCount;
-            this.tabContainer.insertBefore(tab, this.tabs[this.pinnedTabCount]);
-            tab.toggleAttribute("pinned", true);
-            this.tabContainer._invalidateCachedTabs();
-            // Then ensure all the tab open/pinning information is sent.
-            this._fireTabOpen(tab, {});
-            this._notifyPinnedStatus(tab);
-            // Once we're done adding all tabs, _updateTabBarForPinnedTabs
-            // needs calling:
-            shouldUpdateForPinnedTabs = true;
-          }
+          this.pinTab(tab);
+          // Then ensure all the tab open/pinning information is sent.
+          this._fireTabOpen(tab, {});
         } else if (tabData.groupId) {
           let { groupId } = tabData;
           const tabGroup = tabGroupWorkingData.get(groupId);
@@ -3677,9 +3657,6 @@
       }
 
       this.tabContainer._invalidateCachedTabs();
-      if (shouldUpdateForPinnedTabs) {
-        this._updateTabBarForPinnedTabs();
-      }
 
       // We need to wait until after all tabs have been appended to the DOM
       // to remove the old selected tab.
@@ -5024,8 +5001,6 @@
         browser.destroy();
       }
 
-      var wasPinned = aTab.pinned;
-
       // Remove the tab ...
       aTab.remove();
       this.tabContainer._invalidateCachedTabs();
@@ -5036,10 +5011,6 @@
       }
 
       if (!this._windowIsClosing) {
-        if (wasPinned) {
-          this.tabContainer._positionPinnedTabs();
-        }
-
         // update tab close buttons state
         this.tabContainer._updateCloseButtons();
 
@@ -5759,11 +5730,15 @@
     /**
      * Moves a tab to a new browser window, unless it's already the only tab
      * in the current window, in which case this will do nothing.
+     *
+     * @param {MozTabbrowserTab|MozTabbrowserTabGroup|MozTabbrowserTabGroup.labelElement} aTab
      */
     replaceTabWithWindow(aTab, aOptions) {
       if (this.tabs.length == 1) {
         return null;
       }
+      // TODO bug 1967925: Consider handling the case where aTab is a tab group
+      // and also the only tab group in its window.
 
       var options = "chrome,dialog=no,all";
       for (var name in aOptions) {
@@ -5776,7 +5751,7 @@
 
       // Play the tab closing animation to give immediate feedback while
       // waiting for the new window to appear.
-      if (!gReduceMotion) {
+      if (!gReduceMotion && this.isTab(aTab)) {
         aTab.style.maxWidth = ""; // ensure that fade-out transition happens
         aTab.removeAttribute("fadein");
       }
@@ -5797,6 +5772,7 @@
      */
     replaceTabsWithWindow(contextTab, aOptions = {}) {
       if (this.isTabGroupLabel(contextTab)) {
+        // TODO bug 1967937: Pass contextTab.group instead.
         return this.replaceTabWithWindow(contextTab, aOptions);
       }
 
@@ -5871,42 +5847,7 @@
      *   The tab group to move.
      */
     replaceGroupWithWindow(group) {
-      // The first tab added to the new window will be selected.
-      // If a tab in the group is selected, adopt it first.
-      let selectedIndex = group.tabs.indexOf(gBrowser.selectedTab);
-      if (selectedIndex < 0) {
-        // Otherwise, we'll first adopt the first tab in the group
-        selectedIndex = 0;
-      }
-      let firstTab = group.tabs[selectedIndex];
-      group.removedByAdoption = true;
-      let newWindow = this.replaceTabWithWindow(firstTab);
-
-      newWindow.addEventListener(
-        "before-initial-tab-adopted",
-        () => {
-          let tabsToGroup = group.tabs.map((tab, i) => {
-            // addtabGroup will handle adopting the other tabs, but we already
-            // started adopting the tab at selectedIndex so we need to swap
-            // the old tab out for the new one.
-            if (i == selectedIndex) {
-              return newWindow.gBrowser.visibleTabs[0];
-            }
-            return tab;
-          });
-          // The initial tab isn't fully adopted yet, but the tab object has been
-          // instantiated, so we can make a group now.
-          newWindow.gBrowser.addTabGroup(tabsToGroup, {
-            id: group.id,
-            label: group.label,
-            color: group.color,
-            isAdoptingGroup: true,
-          });
-          Glean.tabgroup.groupInteractions.move_window.add(1);
-        },
-        { once: true }
-      );
-      return newWindow;
+      return this.replaceTabWithWindow(group);
     }
 
     /**
@@ -6109,12 +6050,10 @@
         moveBefore = true;
       }
 
-      let getContainer = () => {
-        if (element.pinned && this.tabContainer.verticalMode) {
-          return this.tabContainer.verticalPinnedTabsContainer;
-        }
-        return this.tabContainer;
-      };
+      let getContainer = () =>
+        element.pinned
+          ? this.tabContainer.pinnedTabsContainer
+          : this.tabContainer;
 
       this.#handleTabMove(
         element,
@@ -6286,9 +6225,6 @@
         let tab = tabs[ii];
         if (tab.selected) {
           this.tabContainer._handleTabSelect(true);
-        }
-        if (tab.pinned) {
-          this.tabContainer._positionPinnedTabs();
         }
 
         let currentTabState = this.#getTabMoveState(tab);

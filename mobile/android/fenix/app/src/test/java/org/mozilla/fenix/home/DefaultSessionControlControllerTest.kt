@@ -66,7 +66,6 @@ import org.mozilla.fenix.components.appstate.setup.checklist.ChecklistItem
 import org.mozilla.fenix.ext.components
 import org.mozilla.fenix.ext.settings
 import org.mozilla.fenix.helpers.FenixGleanTestRule
-import org.mozilla.fenix.helpers.FenixRobolectricTestRunner
 import org.mozilla.fenix.home.bookmarks.Bookmark
 import org.mozilla.fenix.home.mars.MARSUseCases
 import org.mozilla.fenix.home.recenttabs.RecentTab
@@ -75,13 +74,14 @@ import org.mozilla.fenix.messaging.MessageController
 import org.mozilla.fenix.onboarding.WallpaperOnboardingDialogFragment.Companion.THUMBNAILS_SELECTION_COUNT
 import org.mozilla.fenix.settings.SupportUtils
 import org.mozilla.fenix.utils.Settings
-import org.mozilla.fenix.utils.showAddSearchWidgetPrompt
+import org.mozilla.fenix.utils.maybeShowAddSearchWidgetPrompt
 import org.mozilla.fenix.wallpapers.Wallpaper
 import org.mozilla.fenix.wallpapers.WallpaperState
+import org.robolectric.RobolectricTestRunner
 import java.io.File
 import mozilla.components.feature.tab.collections.Tab as ComponentTab
 
-@RunWith(FenixRobolectricTestRunner::class) // For gleanTestRule
+@RunWith(RobolectricTestRunner::class) // For gleanTestRule
 class DefaultSessionControlControllerTest {
 
     @get:Rule
@@ -1624,13 +1624,13 @@ class DefaultSessionControlControllerTest {
         val controller = createController()
         val task = mockk<ChecklistItem.Task>()
         mockkStatic("org.mozilla.fenix.utils.AddSearchWidgetPromptKt")
-        every { showAddSearchWidgetPrompt(activity) } just Runs
+        every { maybeShowAddSearchWidgetPrompt(activity) } just Runs
         every { task.type } returns ChecklistItem.Task.Type.INSTALL_SEARCH_WIDGET
 
         controller.navigationActionFor(task)
 
         verify {
-            showAddSearchWidgetPrompt(activity)
+            maybeShowAddSearchWidgetPrompt(activity)
         }
     }
 

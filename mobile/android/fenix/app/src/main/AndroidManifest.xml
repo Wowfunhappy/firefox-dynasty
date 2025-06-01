@@ -54,11 +54,6 @@
     This is NOT required for the adjust plugin. -->
     <uses-permission android:name="com.adjust.preinstall.READ_PERMISSION"/>
 
-    <!-- Makes the app available in cars -->
-    <uses-feature
-        android:name="android.hardware.type.automotive"
-        android:required="false"/>
-
     <application
         android:name=".FenixApplication"
         android:allowBackup="false"
@@ -542,7 +537,6 @@
             android:autoRemoveFromRecents="false"
             android:configChanges="keyboard|keyboardHidden|mcc|mnc|orientation|screenSize|layoutDirection|smallestScreenSize|screenLayout"
             android:exported="false"
-            android:label="@string/app_name"
             android:persistableMode="persistNever"
             android:taskAffinity=""
             android:resizeableActivity="true"
@@ -647,10 +641,6 @@
                 android:resource="@mipmap/ic_launcher" />
 
         </activity>
-
-        <activity
-            android:name=".crashes.CrashListActivity"
-            android:exported="false" />
 
         <activity android:name=".widget.VoiceSearchActivity"
             android:theme="@style/Theme.AppCompat.Translucent"

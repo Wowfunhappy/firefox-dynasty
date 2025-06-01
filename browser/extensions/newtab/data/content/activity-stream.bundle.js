@@ -271,6 +271,7 @@ for (const type of [
   "TOP_SITES_UPDATED",
   "TOTAL_BOOKMARKS_REQUEST",
   "TOTAL_BOOKMARKS_RESPONSE",
+  "TRENDING_SEARCH_UPDATE",
   "UNBLOCK_SECTION",
   "UNFOLLOW_SECTION",
   "UNINIT",
@@ -3433,13 +3434,10 @@ function DSThumbsUpDownButtons({
   onThumbsUpClick,
   onThumbsDownClick,
   isThumbsUpActive,
-  isThumbsDownActive
+  isThumbsDownActive,
+  refinedCardsLayout
 }) {
-  return /*#__PURE__*/external_React_default().createElement("div", {
-    className: "card-stp-thumbs-buttons-wrapper"
-  }, !sponsor && /*#__PURE__*/external_React_default().createElement("div", {
-    className: "card-stp-thumbs-buttons"
-  }, /*#__PURE__*/external_React_default().createElement("button", {
+  let thumbsButtons = /*#__PURE__*/external_React_default().createElement((external_React_default()).Fragment, null, /*#__PURE__*/external_React_default().createElement("button", {
     onClick: onThumbsUpClick,
     className: `card-stp-thumbs-button icon icon-thumbs-up ${isThumbsUpActive ? "is-active" : null}`,
     "data-l10n-id": "newtab-pocket-thumbs-up-tooltip"
@@ -3447,7 +3445,27 @@ function DSThumbsUpDownButtons({
     onClick: onThumbsDownClick,
     className: `card-stp-thumbs-button icon icon-thumbs-down ${isThumbsDownActive ? "is-active" : null}`,
     "data-l10n-id": "newtab-pocket-thumbs-down-tooltip"
-  })));
+  }));
+  if (refinedCardsLayout) {
+    thumbsButtons = /*#__PURE__*/external_React_default().createElement((external_React_default()).Fragment, null, /*#__PURE__*/external_React_default().createElement("moz-button", {
+      iconsrc: "chrome://global/skin/icons/thumbs-up-20.svg",
+      onClick: onThumbsUpClick,
+      className: `card-stp-thumbs-button icon icon-thumbs-up refined-layout ${isThumbsUpActive ? "is-active" : null}`,
+      "data-l10n-id": "newtab-pocket-thumbs-up-tooltip",
+      type: "icon ghost"
+    }), /*#__PURE__*/external_React_default().createElement("moz-button", {
+      iconsrc: "chrome://global/skin/icons/thumbs-down-20.svg",
+      onClick: onThumbsDownClick,
+      className: `card-stp-thumbs-button icon icon-thumbs-down ${isThumbsDownActive ? "is-active" : null}`,
+      "data-l10n-id": "newtab-pocket-thumbs-down-tooltip",
+      type: "icon ghost"
+    }));
+  }
+  return /*#__PURE__*/external_React_default().createElement("div", {
+    className: "card-stp-thumbs-buttons-wrapper"
+  }, !sponsor && /*#__PURE__*/external_React_default().createElement("div", {
+    className: "card-stp-thumbs-buttons"
+  }, thumbsButtons));
 }
 
 ;// CONCATENATED MODULE: ./content-src/components/DiscoveryStreamComponents/DSCard/DSCard.jsx
@@ -3487,8 +3505,12 @@ const DSSource = ({
   context,
   sponsor,
   sponsored_by_override,
-  icon_src
+  icon_src,
+  refinedCardsLayout
 }) => {
+  // refinedCard styles will have a larger favicon size
+  const faviconSize = refinedCardsLayout ? 24 : 16;
+
   // First try to display sponsored label or time to read here.
   if (newSponsoredLabel) {
     // If we can display something for spocs, do so.
@@ -3522,8 +3544,8 @@ const DSSource = ({
     className: "source-wrapper"
   }, icon_src && /*#__PURE__*/external_React_default().createElement("img", {
     src: icon_src,
-    height: "16",
-    width: "16",
+    height: faviconSize,
+    width: faviconSize,
     alt: ""
   }), /*#__PURE__*/external_React_default().createElement("p", {
     className: "source clamp"
@@ -3591,13 +3613,15 @@ const DefaultMeta = ({
     context: context,
     sponsor: sponsor,
     sponsored_by_override: sponsored_by_override,
-    icon_src: icon_src
+    icon_src: icon_src,
+    refinedCardsLayout: refinedCardsLayout
   }), (shouldHaveThumbs || refinedCardsLayout) && /*#__PURE__*/external_React_default().createElement(DSThumbsUpDownButtons, {
     onThumbsDownClick: onThumbsDownClick,
     onThumbsUpClick: onThumbsUpClick,
     sponsor: sponsor,
     isThumbsDownActive: state.isThumbsDownActive,
-    isThumbsUpActive: state.isThumbsUpActive
+    isThumbsUpActive: state.isThumbsUpActive,
+    refinedCardsLayout: refinedCardsLayout
   }), showTopics && /*#__PURE__*/external_React_default().createElement("span", {
     className: "ds-card-topic",
     "data-l10n-id": `newtab-topic-label-${topic}`
@@ -4000,13 +4024,12 @@ class _DSCard extends (external_React_default()).PureComponent {
       format,
       alt_text
     } = this.props;
+    const refinedCardsLayout = Prefs.values["discoverystream.refinedCardsLayout.enabled"];
+    const refinedCardsClassName = refinedCardsLayout ? `refined-cards` : ``;
     if (this.props.placeholder || !this.state.isSeen) {
       // placeholder-seen is used to ensure the loading animation is only used if the card is visible.
       const placeholderClassName = this.state.isSeen ? `placeholder-seen` : ``;
-      return /*#__PURE__*/external_React_default().createElement("div", {
-        className: `ds-card placeholder ${placeholderClassName} ${isListCard ? "list-card-placeholder" : ""}`,
-        ref: this.setPlaceholderRef
-      }, /*#__PURE__*/external_React_default().createElement("div", {
+      let placeholderElements = /*#__PURE__*/external_React_default().createElement((external_React_default()).Fragment, null, /*#__PURE__*/external_React_default().createElement("div", {
         className: "placeholder-image placeholder-fill"
       }), /*#__PURE__*/external_React_default().createElement("div", {
         className: "placeholder-label placeholder-fill"
@@ -4015,6 +4038,19 @@ class _DSCard extends (external_React_default()).PureComponent {
       }), /*#__PURE__*/external_React_default().createElement("div", {
         className: "placeholder-description placeholder-fill"
       }));
+      if (refinedCardsLayout) {
+        placeholderElements = /*#__PURE__*/external_React_default().createElement((external_React_default()).Fragment, null, /*#__PURE__*/external_React_default().createElement("div", {
+          className: "placeholder-image placeholder-fill"
+        }), /*#__PURE__*/external_React_default().createElement("div", {
+          className: "placeholder-description placeholder-fill"
+        }), /*#__PURE__*/external_React_default().createElement("div", {
+          className: "placeholder-header placeholder-fill"
+        }));
+      }
+      return /*#__PURE__*/external_React_default().createElement("div", {
+        className: `ds-card placeholder ${placeholderClassName} ${isListCard ? "list-card-placeholder" : ""} ${refinedCardsClassName}`,
+        ref: this.setPlaceholderRef
+      }, placeholderElements);
     }
     let source = this.props.source || this.props.publisher;
     if (!source) {
@@ -4035,7 +4071,6 @@ class _DSCard extends (external_React_default()).PureComponent {
     const layoutsVariantAEnabled = Prefs.values["newtabLayouts.variant-a"];
     const layoutsVariantBEnabled = Prefs.values["newtabLayouts.variant-b"];
     const sectionsEnabled = Prefs.values["discoverystream.sections.enabled"];
-    const refinedCardsLayout = Prefs.values["discoverystream.refinedCardsLayout.enabled"];
     const layoutsVariantAorB = layoutsVariantAEnabled || layoutsVariantBEnabled;
     const smartCrop = Prefs.values["images.smart"];
     const faviconEnabled = Prefs.values["discoverystream.publisherFavicon.enabled"];
@@ -4061,7 +4096,6 @@ class _DSCard extends (external_React_default()).PureComponent {
     const descLinesClassName = `ds-card-desc-lines-${descLines}`;
     const isMediumRectangle = format === "rectangle";
     const spocFormatClassName = isMediumRectangle ? `ds-spoc-rectangle` : ``;
-    const refinedCardsClassName = refinedCardsLayout ? `refined-cards` : ``;
     let sizes = [];
     if (!isMediumRectangle) {
       sizes = this.dsImageSizes;
@@ -5205,7 +5239,7 @@ class _CardGrid extends (external_React_default()).PureComponent {
     let editorsPicksCards = [];
     for (let index = 0; index < items; index++) {
       const rec = recs[index];
-      cards.push(topicsLoading || !rec || rec.placeholder || rec.flight_id && !spocsStartupCacheEnabled && this.props.App.isForStartupCache.App ? /*#__PURE__*/external_React_default().createElement(PlaceholderDSCard, {
+      cards.push(topicsLoading || !rec || rec.placeholder || rec.flight_id && !spocsStartupCacheEnabled && this.props.App.isForStartupCache.DiscoveryStream ? /*#__PURE__*/external_React_default().createElement(PlaceholderDSCard, {
         key: `dscard-${index}`
       }) : /*#__PURE__*/external_React_default().createElement(DSCard, {
         key: `dscard-${rec.id}`,
@@ -7384,6 +7418,9 @@ const INITIAL_STATE = {
     locale: "",
     isForStartupCache: {
       App: false,
+      TopSites: false,
+      DiscoveryStream: false,
+      Weather: false,
       Wallpaper: false,
     },
     customizeMenuVisible: false,
@@ -7532,6 +7569,9 @@ const INITIAL_STATE = {
     locationSearchString: "",
     suggestedLocations: [],
   },
+  TrendingSearch: {
+    suggestions: [],
+  },
 };
 
 function App(prevState = INITIAL_STATE.App, action) {
@@ -7541,18 +7581,28 @@ function App(prevState = INITIAL_STATE.App, action) {
         initialized: true,
       });
     case actionTypes.TOP_SITES_UPDATED:
-      // Toggle `isForStartupCache` when receiving the `TOP_SITES_UPDATE` action
+      // Toggle `isForStartupCache.TopSites` when receiving the `TOP_SITES_UPDATE` action
       // so that sponsored tiles can be rendered as usual. See Bug 1826360.
       return {
         ...prevState,
-        isForStartupCache: { ...prevState.isForStartupCache, App: false },
+        isForStartupCache: { ...prevState.isForStartupCache, TopSites: false },
       };
     case actionTypes.DISCOVERY_STREAM_SPOCS_UPDATE:
-      // Toggle `isForStartupCache` when receiving the `DISCOVERY_STREAM_SPOCS_UPDATE_STARTUPCACHE` action
+      // Toggle `isForStartupCache.DiscoveryStream` when receiving the `DISCOVERY_STREAM_SPOCS_UPDATE` action
       // so that spoc cards can be rendered as usual.
       return {
         ...prevState,
-        isForStartupCache: { ...prevState.isForStartupCache, App: false },
+        isForStartupCache: {
+          ...prevState.isForStartupCache,
+          DiscoveryStream: false,
+        },
+      };
+    case actionTypes.WEATHER_UPDATE:
+      // Toggle `isForStartupCache.Weather` when receiving the `WEATHER_UPDATE` action
+      // so that weather can be rendered as usual.
+      return {
+        ...prevState,
+        isForStartupCache: { ...prevState.isForStartupCache, Weather: false },
       };
     case actionTypes.WALLPAPERS_CUSTOM_SET:
       // Toggle `isForStartupCache.Wallpaper` when receiving the `WALLPAPERS_CUSTOM_SET` action
@@ -8452,6 +8502,15 @@ function Ads(prevState = INITIAL_STATE.Ads, action) {
   }
 }
 
+function TrendingSearch(prevState = INITIAL_STATE.TrendingSearch, action) {
+  switch (action.type) {
+    case actionTypes.TRENDING_SEARCH_UPDATE:
+      return { suggestions: action.data };
+    default:
+      return prevState;
+  }
+}
+
 const reducers = {
   TopSites,
   App,
@@ -8466,6 +8525,7 @@ const reducers = {
   InferredPersonalization,
   DiscoveryStream,
   Search,
+  TrendingSearch,
   Wallpapers,
   Weather,
 };
@@ -9517,7 +9577,7 @@ class _TopSiteList extends (external_React_default()).PureComponent {
       let topSiteLink;
       // Use a placeholder if the link is empty or it's rendering a sponsored
       // tile for the about:home startup cache.
-      if (!link || props.App.isForStartupCache.App && isSponsored(link) || topSites[i]?.isAddButton) {
+      if (!link || props.App.isForStartupCache.TopSites && isSponsored(link) || topSites[i]?.isAddButton) {
         if (link) {
           topSiteLink = /*#__PURE__*/external_React_default().createElement(TopSitePlaceholder, TopSite_extends({}, slotProps, commonProps, {
             isAddButton: topSites[i] && topSites[i].isAddButton,
@@ -13599,7 +13659,7 @@ class _Weather extends (external_React_default()).PureComponent {
     if (!isWeatherEnabled) {
       return false;
     }
-    if (!this.props.Weather.initialized) {
+    if (this.props.App.isForStartupCache.Weather || !this.props.Weather.initialized) {
       return /*#__PURE__*/external_React_default().createElement(WeatherPlaceholder, null);
     }
     const {
@@ -13696,6 +13756,7 @@ class _Weather extends (external_React_default()).PureComponent {
   }
 }
 const Weather_Weather = (0,external_ReactRedux_namespaceObject.connect)(state => ({
+  App: state.App,
   Weather: state.Weather,
   Prefs: state.Prefs,
   IntersectionObserver: globalThis.IntersectionObserver,
@@ -15214,6 +15275,9 @@ function renderWithoutState() {
   }), document.getElementById("root"));
 }
 function renderCache(initialState) {
+  if (initialState) {
+    initialState.App.isForStartupCache.App = false;
+  }
   const store = initStore(reducers, initialState);
   new DetectUserSessionStart(store).sendEventOrAddListener();
   doRequestWhenReady().then(() => {

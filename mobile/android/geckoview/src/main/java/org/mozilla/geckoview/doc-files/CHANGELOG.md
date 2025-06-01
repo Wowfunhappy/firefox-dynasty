@@ -13,6 +13,21 @@ exclude: true
 
 ⚠️  breaking change and deprecation notices
 
+## v141
+- Changed the methods in [`ProfilerController`][141.1] to static.
+  ([bug 1955403]({{bugzilla}}1955403))
+- ⚠️ Deprecated [`GeckoRuntime.getProfilerController`][141.2], will now be removed in v142.
+  ([bug 1955403]({{bugzilla}}1955403))
+- Added options on [`GeckoPreferenceController`][140.1] to [`register multiple prefs`][141.3] and [`deregister multiple prefs`][141.4]
+- Added [`GeckoRuntime.notifyTelemetryPrefChanged`][141.5] to notify Gecko about telemetry preference changes.
+
+[141.1]: {{javadoc_uri}}/ProfilerController.html
+[141.2]: {{javadoc_uri}}/GeckoRuntime.html#getProfilerController()
+
+[141.3]: {{javadoc_URI}}/GeckoPreferenceController.Observer.html#registerPreferences(java.util.List)
+[141.4]: {{javadoc_URI}}/GeckoPreferenceController.Observer.html#unregisterPreferences(java.util.List)
+[141.5]: {{javadoc_URI}}/GeckoRuntime.html#notifyTelemetryPrefChanged(boolean)
+
 ## v140
 - Added a [`GeckoPreferenceController`][140.1] class to manage Gecko preferences.
 - Introduced a new [`preference observer delegate`][140.2] and a way to [`register`][140.3] preferences on the delegate.
@@ -1744,4 +1759,4 @@ to allow adding gecko profiler markers.
 [65.24]: {{javadoc_uri}}/CrashReporter.html#sendCrashReport(android.content.Context,android.os.Bundle,java.lang.String)
 [65.25]: {{javadoc_uri}}/GeckoResult.html
 
-[api-version]: 6d93b98aed14f546f7db741f766e52adef92dc07
+[api-version]: 40efecf34c044bfe4a5bfc91cf73f25a4fd396ac

@@ -214,7 +214,7 @@ export const storybookTables = {
   "border-color": [
     {
       value: {
-        comment: "TODO Bug 1946826 - Border colors need to be consolidated",
+        comment: "TODO Bug 1821203 - Gray tones need to be consolidated",
         light: "#CFCFD8",
         dark: "#3A3944",
         prefersContrast: "CanvasText",
@@ -385,6 +385,7 @@ export const storybookTables = {
     { value: "9999px", name: "--border-radius-circle" },
     { value: "4px", name: "--border-radius-small" },
     { value: "8px", name: "--border-radius-medium" },
+    { value: "12px", name: "--border-radius-large" },
     { value: "var(--border-radius-small)", name: "--button-border-radius" },
   ],
   "border-width": [{ value: "1px", name: "--border-width" }],
@@ -1025,7 +1026,7 @@ export const variableLookupTable = {
     default: "light-dark(var(--color-yellow-0), var(--color-yellow-90))",
   },
   "border-color": {
-    comment: "TODO Bug 1946826 - Border colors need to be consolidated",
+    comment: "TODO Bug 1821203 - Gray tones need to be consolidated",
     light: "#CFCFD8",
     dark: "#3A3944",
     prefersContrast: "CanvasText",
@@ -1077,6 +1078,7 @@ export const variableLookupTable = {
   "border-radius-circle": "9999px",
   "border-radius-small": "4px",
   "border-radius-medium": "8px",
+  "border-radius-large": "12px",
   "border-width": "1px",
   "button-background-color": {
     forcedColors: "ButtonFace",

@@ -58,7 +58,13 @@ add_setup(function () {
   const client = RemoteSettings("nimbus-desktop-experiments");
   sinon.stub(client, "get").resolves([]);
 
-  registerCleanupFunction(() => client.get.restore());
+  const secureClient = RemoteSettings("nimbus-secure-experiments");
+  sinon.stub(secureClient, "get").resolves([]);
+
+  registerCleanupFunction(() => {
+    client.get.restore();
+    secureClient.get.restore();
+  });
 });
 
 function setup(configuration) {
@@ -66,6 +72,8 @@ function setup(configuration) {
   client.get.resolves(
     configuration ?? [REMOTE_CONFIGURATION_FOO, REMOTE_CONFIGURATION_BAR]
   );
+  const secureClient = RemoteSettings("nimbus-secure-experiments");
+  secureClient.get.resolves([]);
 
   // Simulate a state where no experiment exists.
   const cleanup = () => client.get.resolves([]);
@@ -356,7 +364,7 @@ add_task(async function test_finalizeRemoteConfigs_cleanup() {
     "Pref was cleared"
   );
 
-  fooCleanup();
+  await fooCleanup();
   // This will also remove the inactive recipe from the store
   // the previous update (from recipe not seen code path)
   // only sets the recipe as inactive
@@ -445,6 +453,8 @@ add_task(async function remote_defaults_active_remote_defaults() {
   await featureUpdate;
 
   Assert.ok(fooFeature.getVariable("enabled"), "Targeting should match");
+
+  await NimbusTestUtils.cleanupManager(["foo", "bar"]);
   ExperimentAPI.manager.store._deleteForTests("foo");
   ExperimentAPI.manager.store._deleteForTests("bar");
 
@@ -513,7 +523,7 @@ add_task(async function remote_defaults_variables_storage() {
     "Test types are returned correctly"
   );
 
-  doCleanup();
+  await doCleanup();
 
   Assert.equal(
     Services.prefs.getIntPref(`${SYNC_DEFAULTS_PREF_BRANCH}bar.storage`, -1),

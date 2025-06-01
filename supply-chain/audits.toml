@@ -2178,6 +2178,12 @@ criteria = "safe-to-deploy"
 delta = "0.4.6 -> 0.4.9"
 notes = "Mostly soundness fixes."
 
+[[audits.fallible_collections]]
+who = "Matthew Gregan <kinetik@flim.org>"
+criteria = "safe-to-deploy"
+delta = "0.4.9 -> 0.5.1"
+notes = "Changes are largely removal of Rust < 1.57 support and dependency updates."
+
 [[audits.fastrand]]
 who = "Mike Hommey <mh+mozilla@glandium.org>"
 criteria = "safe-to-deploy"
@@ -2683,6 +2689,11 @@ delta = "0.2.2 -> 0.2.3"
 who = "Erich Gubler <erichdongubler@gmail.com>"
 criteria = "safe-to-deploy"
 delta = "0.2.3 -> 0.3.0"
+
+[[audits.gpu-descriptor]]
+who = "Andy Leiserson <aleiserson@mozilla.com>"
+criteria = "safe-to-deploy"
+delta = "0.3.0 -> 0.3.2"
 
 [[audits.gpu-descriptor-types]]
 who = "Erich Gubler <erichdongubler@gmail.com>"
@@ -3808,9 +3819,10 @@ who = [
     "Teodor Tanasoaia <ttanasoaia@mozilla.com>",
     "Erich Gubler <erichdongubler@gmail.com>",
     "Jim Blandy <jimb@red-bean.com>",
+    "Andy Leiserson <aleiserson@mozilla.com>",
 ]
 criteria = "safe-to-deploy"
-delta = "25.0.0 -> 25.0.0@git:85001b2436f686451d6d783225311c06b60e6680"
+delta = "25.0.0 -> 25.0.0@git:f34dfd90e002eea1c2ede8d758e478683ded6cb7"
 importable = false
 
 [[audits.net2]]
@@ -6108,9 +6120,10 @@ who = [
     "Teodor Tanasoaia <ttanasoaia@mozilla.com>",
     "Erich Gubler <erichdongubler@gmail.com>",
     "Jim Blandy <jimb@red-bean.com>",
+    "Andy Leiserson <aleiserson@mozilla.com>",
 ]
 criteria = "safe-to-deploy"
-delta = "25.0.0 -> 25.0.0@git:85001b2436f686451d6d783225311c06b60e6680"
+delta = "25.0.0 -> 25.0.0@git:f34dfd90e002eea1c2ede8d758e478683ded6cb7"
 importable = false
 
 [[audits.wgpu-core-deps-apple]]
@@ -6123,9 +6136,10 @@ who = [
     "Teodor Tanasoaia <ttanasoaia@mozilla.com>",
     "Erich Gubler <erichdongubler@gmail.com>",
     "Jim Blandy <jimb@red-bean.com>",
+    "Andy Leiserson <aleiserson@mozilla.com>",
 ]
 criteria = "safe-to-deploy"
-delta = "25.0.0 -> 25.0.0@git:85001b2436f686451d6d783225311c06b60e6680"
+delta = "25.0.0 -> 25.0.0@git:f34dfd90e002eea1c2ede8d758e478683ded6cb7"
 importable = false
 
 [[audits.wgpu-core-deps-windows-linux-android]]
@@ -6138,9 +6152,10 @@ who = [
     "Teodor Tanasoaia <ttanasoaia@mozilla.com>",
     "Erich Gubler <erichdongubler@gmail.com>",
     "Jim Blandy <jimb@red-bean.com>",
+    "Andy Leiserson <aleiserson@mozilla.com>",
 ]
 criteria = "safe-to-deploy"
-delta = "25.0.0 -> 25.0.0@git:85001b2436f686451d6d783225311c06b60e6680"
+delta = "25.0.0 -> 25.0.0@git:f34dfd90e002eea1c2ede8d758e478683ded6cb7"
 importable = false
 
 [[audits.wgpu-hal]]
@@ -6231,9 +6246,10 @@ who = [
     "Teodor Tanasoaia <ttanasoaia@mozilla.com>",
     "Erich Gubler <erichdongubler@gmail.com>",
     "Jim Blandy <jimb@red-bean.com>",
+    "Andy Leiserson <aleiserson@mozilla.com>",
 ]
 criteria = "safe-to-deploy"
-delta = "25.0.0 -> 25.0.0@git:85001b2436f686451d6d783225311c06b60e6680"
+delta = "25.0.0 -> 25.0.0@git:f34dfd90e002eea1c2ede8d758e478683ded6cb7"
 importable = false
 
 [[audits.wgpu-types]]
@@ -6319,9 +6335,10 @@ who = [
     "Teodor Tanasoaia <ttanasoaia@mozilla.com>",
     "Erich Gubler <erichdongubler@gmail.com>",
     "Jim Blandy <jimb@red-bean.com>",
+    "Andy Leiserson <aleiserson@mozilla.com>",
 ]
 criteria = "safe-to-deploy"
-delta = "25.0.0 -> 25.0.0@git:85001b2436f686451d6d783225311c06b60e6680"
+delta = "25.0.0 -> 25.0.0@git:f34dfd90e002eea1c2ede8d758e478683ded6cb7"
 importable = false
 
 [[audits.whatsys]]
@@ -6616,6 +6633,20 @@ criteria = "safe-to-deploy"
 user-id = 6743 # Ed Page (epage)
 start = "2022-04-15"
 end = "2025-08-21"
+
+[[trusted.derive_more]]
+criteria = "safe-to-deploy"
+user-id = 3797 # Jelte Fennema-Nio (JelteF)
+start = "2019-05-25"
+end = "2026-04-21"
+notes = "Jelte audits each PR that was submitted for security issues. He has not contributed much to Mozilla codebases, but is the maintainer of PgBouncer and is a Postgres contributor. Unsafe code is forbidden using #[forbid(unsafe_code)]."
+
+[[trusted.derive_more-impl]]
+criteria = "safe-to-deploy"
+user-id = 3797 # Jelte Fennema-Nio (JelteF)
+start = "2023-07-23"
+end = "2026-04-21"
+notes = "Jelte audits each PR that was submitted for security issues. He has not contributed much to Mozilla codebases, but is the maintainer of PgBouncer and is a Postgres contributor. Unsafe code is forbidden using #[forbid(unsafe_code)]."
 
 [[trusted.dtoa]]
 criteria = "safe-to-deploy"

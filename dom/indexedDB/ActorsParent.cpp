@@ -1466,7 +1466,25 @@ class ConnectionPool final {
                  bool aIsWriteTransaction,
                  TransactionDatabaseOperationBase* aTransactionOp);
 
-  void Dispatch(uint64_t aTransactionId, nsIRunnable* aRunnable);
+  /**
+   * Starts a new operation associated with the given transaction.
+   *
+   * This method initiates an operation by:
+   * 1. Dispatching the provided runnable to the task queue created on top of
+   *    the I/O thread pool if the transaction is currently running.
+   * 2. Queuing the runnable for later execution if the transaction is not yet
+   *    running.
+   *
+   * It is mandatory for all operations to call StartOp to ensure proper
+   * handling and sequencing within the transaction context.
+   *
+   * Note:
+   * - For more complex operations that involve work on other threads or require
+   *   communication with content processes, StartOp should not be called again
+   *   to dispatch to the task queue, as this could disrupt proper queuing and
+   *   execution.
+   */
+  void StartOp(uint64_t aTransactionId, nsCOMPtr<nsIRunnable> aRunnable);
 
   void Finish(uint64_t aTransactionId, FinishCallback* aCallback);
 
@@ -1699,6 +1717,8 @@ class ConnectionPool::TransactionInfo final {
   void AddBlockingTransaction(TransactionInfo& aTransactionInfo);
 
   void RemoveBlockingTransactions();
+
+  void StartOp(nsCOMPtr<nsIRunnable> aRunnable);
 
  private:
   ~TransactionInfo();
@@ -7947,29 +7967,16 @@ uint64_t ConnectionPool::Start(
   return transactionId;
 }
 
-void ConnectionPool::Dispatch(uint64_t aTransactionId, nsIRunnable* aRunnable) {
+void ConnectionPool::StartOp(uint64_t aTransactionId,
+                             nsCOMPtr<nsIRunnable> aRunnable) {
   AssertIsOnOwningThread();
-  MOZ_ASSERT(aRunnable);
 
-  AUTO_PROFILER_LABEL("ConnectionPool::Dispatch", DOM);
+  AUTO_PROFILER_LABEL("ConnectionPool::StartOp", DOM);
 
   auto* const transactionInfo = mTransactions.Get(aTransactionId);
   MOZ_ASSERT(transactionInfo);
-  MOZ_ASSERT(!transactionInfo->mFinished);
 
-  if (transactionInfo->mRunning) {
-    DatabaseInfo& dbInfo = transactionInfo->mDatabaseInfo;
-    MOZ_ASSERT(dbInfo.mEventTarget);
-    MOZ_ASSERT(!dbInfo.mClosing);
-    MOZ_ASSERT_IF(
-        transactionInfo->mIsWriteTransaction,
-        dbInfo.mRunningWriteTransaction &&
-            dbInfo.mRunningWriteTransaction.refEquals(*transactionInfo));
-
-    MOZ_ALWAYS_SUCCEEDS(dbInfo.Dispatch(do_AddRef(aRunnable)));
-  } else {
-    transactionInfo->mQueuedRunnables.AppendElement(aRunnable);
-  }
+  transactionInfo->StartOp(std::move(aRunnable));
 }
 
 void ConnectionPool::Finish(uint64_t aTransactionId,
@@ -7984,10 +7991,10 @@ void ConnectionPool::Finish(uint64_t aTransactionId,
 
   AUTO_PROFILER_LABEL("ConnectionPool::Finish", DOM);
 
-  RefPtr<FinishCallbackWrapper> wrapper =
+  nsCOMPtr<nsIRunnable> wrapper =
       new FinishCallbackWrapper(this, aTransactionId, aCallback);
 
-  Dispatch(aTransactionId, wrapper);
+  StartOp(aTransactionId, std::move(wrapper));
 
 #ifdef DEBUG
   transactionInfo->mFinished.Flip();
@@ -8828,6 +8835,23 @@ void ConnectionPool::TransactionInfo::RemoveBlockingTransactions() {
 
   mBlocking.Clear();
   mBlockingOrdered.Clear();
+}
+
+void ConnectionPool::TransactionInfo::StartOp(nsCOMPtr<nsIRunnable> aRunnable) {
+  AssertIsOnBackgroundThread();
+  MOZ_ASSERT(!mFinished);
+
+  if (mRunning) {
+    MOZ_ASSERT(mDatabaseInfo.mEventTarget);
+    MOZ_ASSERT(!mDatabaseInfo.mClosing);
+    MOZ_ASSERT_IF(mIsWriteTransaction,
+                  mDatabaseInfo.mRunningWriteTransaction &&
+                      mDatabaseInfo.mRunningWriteTransaction.refEquals(*this));
+
+    MOZ_ALWAYS_SUCCEEDS(mDatabaseInfo.Dispatch(aRunnable.forget()));
+  } else {
+    mQueuedRunnables.AppendElement(std::move(aRunnable));
+  }
 }
 
 void ConnectionPool::TransactionInfo::MaybeUnblock(
@@ -17185,7 +17209,7 @@ void TransactionDatabaseOperationBase::SendToConnectionPool() {
   // connection thread.
   mInternalState = InternalState::DatabaseWork;
 
-  gConnectionPool->Dispatch((*mTransaction)->TransactionId(), this);
+  gConnectionPool->StartOp((*mTransaction)->TransactionId(), this);
 
   (*mTransaction)->NoteActiveRequest();
 }

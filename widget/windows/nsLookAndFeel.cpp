@@ -147,6 +147,7 @@ nsresult nsLookAndFeel::NativeGetColor(ColorID aID, ColorScheme aScheme,
     switch (aID) {
       case ColorID::MozButtonhoverface:
       case ColorID::MozButtonactivetext:
+      case ColorID::MozButtonactiveborder:
         return mHighContrastOn;
       case ColorID::MozMenuhover:
         return !UseNonNativeMenuColors();
@@ -166,6 +167,7 @@ nsresult nsLookAndFeel::NativeGetColor(ColorID aID, ColorScheme aScheme,
   auto IsHighlightTextColor = [&] {
     switch (aID) {
       case ColorID::MozButtonhovertext:
+      case ColorID::MozButtonhoverborder:
       case ColorID::MozButtonactiveface:
         return mHighContrastOn;
       case ColorID::MozMenubarhovertext:
@@ -306,12 +308,29 @@ nsresult nsLookAndFeel::NativeGetColor(ColorID aID, ColorScheme aScheme,
       idx = COLOR_BACKGROUND;
       break;
     case ColorID::Buttonface:
-    case ColorID::MozButtonhoverface:
-    case ColorID::MozButtonactiveface:
-    case ColorID::MozButtondisabledface:
     case ColorID::MozColheader:
+    case ColorID::MozButtondisabledface:
+      if (!mHighContrastOn) {
+        // Taken from win11 task manager "new task" button.
+        aColor = NS_RGB(0xff, 0xff, 0xff);
+        return NS_OK;
+      }
+      idx = COLOR_BTNFACE;
+      break;
+    case ColorID::MozButtonhoverface:
     case ColorID::MozColheaderhover:
+      if (!mHighContrastOn) {
+        aColor = NS_RGB(0xf6, 0xf6, 0xf6);
+        return NS_OK;
+      }
+      idx = COLOR_BTNFACE;
+      break;
+    case ColorID::MozButtonactiveface:
     case ColorID::MozColheaderactive:
+      if (!mHighContrastOn) {
+        aColor = NS_RGB(0xf9, 0xf9, 0xf9);
+        return NS_OK;
+      }
       idx = COLOR_BTNFACE;
       break;
     case ColorID::Buttonhighlight:
@@ -323,6 +342,10 @@ nsresult nsLookAndFeel::NativeGetColor(ColorID aID, ColorScheme aScheme,
     case ColorID::Buttontext:
     case ColorID::MozButtonhovertext:
     case ColorID::MozButtonactivetext:
+      if (!mHighContrastOn) {
+        aColor = NS_RGB(0x1b, 0x1b, 0x1b);
+        return NS_OK;
+      }
       idx = COLOR_BTNTEXT;
       break;
     case ColorID::MozCellhighlighttext:
@@ -378,6 +401,9 @@ nsresult nsLookAndFeel::NativeGetColor(ColorID aID, ColorScheme aScheme,
       break;
     case ColorID::Threedlightshadow:
     case ColorID::Buttonborder:
+    case ColorID::MozButtonhoverborder:
+    case ColorID::MozButtonactiveborder:
+    case ColorID::MozButtondisabledborder:
     case ColorID::MozSidebarborder:
       idx = COLOR_3DLIGHT;
       break;

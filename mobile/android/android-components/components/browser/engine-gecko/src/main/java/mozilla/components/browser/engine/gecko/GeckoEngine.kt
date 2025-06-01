@@ -144,6 +144,16 @@ class GeckoEngine(
     }
 
     /**
+     * Notifies Gecko observers of "mobile-telemetry-pref-changed".
+     * The data is "enabled" or "disabled" based on [enabled]
+     *
+     * @param enabled Whether the user enabled or disabled telemetry
+     */
+    override fun notifyTelemetryPrefChanged(enabled: Boolean) {
+        runtime.notifyTelemetryPrefChanged(enabled)
+    }
+
+    /**
      * Fetch a list of trackers logged for a given [session] .
      *
      * @param session the session where the trackers were logged.
@@ -1073,7 +1083,7 @@ class GeckoEngine(
     /**
      * See [Engine.profiler].
      */
-    override val profiler: Profiler? = Profiler(runtime)
+    override val profiler: Profiler = Profiler()
 
     override fun name(): String = "Gecko"
 

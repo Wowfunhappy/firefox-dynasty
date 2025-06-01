@@ -1326,20 +1326,6 @@ nsDOMWindowUtils::GetParsedStyleSheets(uint32_t* aSheets) {
 }
 
 NS_IMETHODIMP
-nsDOMWindowUtils::ClearNativeTouchSequence(nsIObserver* aObserver) {
-  nsCOMPtr<nsIWidget> widget = GetWidget();
-  if (!widget) {
-    return NS_ERROR_FAILURE;
-  }
-
-  NS_DispatchToMainThread(
-      NativeInputRunnable::Create(NewRunnableMethod<nsIObserver*>(
-          "nsIWidget::ClearNativeTouchSequence", widget,
-          &nsIWidget::ClearNativeTouchSequence, aObserver)));
-  return NS_OK;
-}
-
-NS_IMETHODIMP
 nsDOMWindowUtils::ActivateNativeMenuItemAt(const nsAString& indexString) {
   // get the widget to send the event to
   nsCOMPtr<nsIWidget> widget = GetWidget();
@@ -3108,7 +3094,7 @@ static nsTArray<ScrollContainerFrame*> CollectScrollableAncestors(
   nsTArray<ScrollContainerFrame*> result;
   nsIFrame* frame = aStart;
   while (frame) {
-    frame = nsLayoutUtils::GetCrossDocParentFrame(frame);
+    frame = DisplayPortUtils::OneStepInAsyncScrollableAncestorChain(frame);
     if (!frame) {
       break;
     }

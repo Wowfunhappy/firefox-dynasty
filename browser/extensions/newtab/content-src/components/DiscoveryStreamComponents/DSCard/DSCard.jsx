@@ -40,7 +40,11 @@ export const DSSource = ({
   sponsor,
   sponsored_by_override,
   icon_src,
+  refinedCardsLayout,
 }) => {
+  // refinedCard styles will have a larger favicon size
+  const faviconSize = refinedCardsLayout ? 24 : 16;
+
   // First try to display sponsored label or time to read here.
   if (newSponsoredLabel) {
     // If we can display something for spocs, do so.
@@ -73,7 +77,9 @@ export const DSSource = ({
   // Otherwise display a default source.
   return (
     <div className="source-wrapper">
-      {icon_src && <img src={icon_src} height="16" width="16" alt="" />}
+      {icon_src && (
+        <img src={icon_src} height={faviconSize} width={faviconSize} alt="" />
+      )}
       <p className="source clamp">{source}</p>
     </div>
   );
@@ -167,6 +173,7 @@ export const DefaultMeta = ({
                 sponsor={sponsor}
                 sponsored_by_override={sponsored_by_override}
                 icon_src={icon_src}
+                refinedCardsLayout={refinedCardsLayout}
               />
             )}
           {(shouldHaveThumbs || refinedCardsLayout) && (
@@ -176,6 +183,7 @@ export const DefaultMeta = ({
               sponsor={sponsor}
               isThumbsDownActive={state.isThumbsDownActive}
               isThumbsUpActive={state.isThumbsUpActive}
+              refinedCardsLayout={refinedCardsLayout}
             />
           )}
           {showTopics && (
@@ -688,20 +696,40 @@ export class _DSCard extends React.PureComponent {
       format,
       alt_text,
     } = this.props;
+
+    const refinedCardsLayout =
+      Prefs.values["discoverystream.refinedCardsLayout.enabled"];
+    const refinedCardsClassName = refinedCardsLayout ? `refined-cards` : ``;
+
     if (this.props.placeholder || !this.state.isSeen) {
       // placeholder-seen is used to ensure the loading animation is only used if the card is visible.
       const placeholderClassName = this.state.isSeen ? `placeholder-seen` : ``;
-      return (
-        <div
-          className={`ds-card placeholder ${placeholderClassName} ${
-            isListCard ? "list-card-placeholder" : ""
-          }`}
-          ref={this.setPlaceholderRef}
-        >
+      let placeholderElements = (
+        <>
           <div className="placeholder-image placeholder-fill" />
           <div className="placeholder-label placeholder-fill" />
           <div className="placeholder-header placeholder-fill" />
           <div className="placeholder-description placeholder-fill" />
+        </>
+      );
+
+      if (refinedCardsLayout) {
+        placeholderElements = (
+          <>
+            <div className="placeholder-image placeholder-fill" />
+            <div className="placeholder-description placeholder-fill" />
+            <div className="placeholder-header placeholder-fill" />
+          </>
+        );
+      }
+      return (
+        <div
+          className={`ds-card placeholder ${placeholderClassName} ${
+            isListCard ? "list-card-placeholder" : ""
+          } ${refinedCardsClassName}`}
+          ref={this.setPlaceholderRef}
+        >
+          {placeholderElements}
         </div>
       );
     }
@@ -727,8 +755,6 @@ export class _DSCard extends React.PureComponent {
     const layoutsVariantAEnabled = Prefs.values["newtabLayouts.variant-a"];
     const layoutsVariantBEnabled = Prefs.values["newtabLayouts.variant-b"];
     const sectionsEnabled = Prefs.values["discoverystream.sections.enabled"];
-    const refinedCardsLayout =
-      Prefs.values["discoverystream.refinedCardsLayout.enabled"];
     const layoutsVariantAorB = layoutsVariantAEnabled || layoutsVariantBEnabled;
 
     const smartCrop = Prefs.values["images.smart"];
@@ -767,7 +793,6 @@ export class _DSCard extends React.PureComponent {
     const descLinesClassName = `ds-card-desc-lines-${descLines}`;
     const isMediumRectangle = format === "rectangle";
     const spocFormatClassName = isMediumRectangle ? `ds-spoc-rectangle` : ``;
-    const refinedCardsClassName = refinedCardsLayout ? `refined-cards` : ``;
 
     let sizes = [];
     if (!isMediumRectangle) {

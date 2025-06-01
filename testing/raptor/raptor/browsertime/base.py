@@ -676,7 +676,7 @@ class Browsertime(Perftest):
             (
                 "gecko_profile_entries",
                 "--firefox.geckoProfilerParams.bufferSize",
-                str(13_107_200 * 5),  # ~500mb
+                str(128 * 1024 * 1024),  # 1GiB
             ),
         ):
             # 0 is a valid value. The setting may be present but set to None.
@@ -969,7 +969,7 @@ class Browsertime(Perftest):
         if self.debug_mode:
             output_timeout = 2147483647
 
-        LOG.info(f"timeout (s): {timeout}")
+        LOG.info(f"timeout (ms): {timeout}")
         LOG.info(f"browsertime cwd: {os.getcwd()}")
         LOG.info("browsertime cmd: {}".format(" ".join([str(c) for c in cmd])))
         if self.browsertime_video:
