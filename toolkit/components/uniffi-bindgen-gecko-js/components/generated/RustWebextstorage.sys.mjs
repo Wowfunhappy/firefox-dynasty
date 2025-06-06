@@ -312,30 +312,34 @@ export class FfiConverterString extends FfiConverter {
         return 4 + lazy.encoder.encode(value).length
     }
 }
-// Export the FFIConverter object to make external types work.
 export class FfiConverterTypeJsonValue extends FfiConverter {
-    static lift(buf) {
-        return FfiConverterString.lift(buf);    
+    static lift(value) {
+        return FfiConverterString.lift(value);
     }
-    
-    static lower(buf) {
-        return FfiConverterString.lower(buf);
+
+    static lower(value) {
+        return FfiConverterString.lower(value);
     }
-    
+
     static write(dataStream, value) {
         FfiConverterString.write(dataStream, value);
-    } 
-    
-    static read(buf) {
-        return FfiConverterString.read(buf);
     }
-    
+
+    static read(dataStream) {
+        const builtinVal = FfiConverterString.read(dataStream);
+        return builtinVal;
+    }
+
     static computeSize(value) {
         return FfiConverterString.computeSize(value);
     }
-}
 
-// TODO: We should also allow JS to customize the type eventually.
+    static checkType(value) {
+        if (value === null || value === undefined) {
+            throw new TypeError("value is null or undefined");
+        }
+    }
+}
 // Export the FFIConverter object to make external types work.
 export class FfiConverterOptionalTypeJsonValue extends FfiConverterArrayBuffer {
     static checkType(value) {
@@ -870,30 +874,34 @@ export class FfiConverterTypeWebExtStorageApiError extends FfiConverterArrayBuff
 
     static errorClass = WebExtStorageApiError;
 }
-// Export the FFIConverter object to make external types work.
 export class FfiConverterTypeGuid extends FfiConverter {
-    static lift(buf) {
-        return FfiConverterString.lift(buf);    
+    static lift(value) {
+        return FfiConverterString.lift(value);
     }
-    
-    static lower(buf) {
-        return FfiConverterString.lower(buf);
+
+    static lower(value) {
+        return FfiConverterString.lower(value);
     }
-    
+
     static write(dataStream, value) {
         FfiConverterString.write(dataStream, value);
-    } 
-    
-    static read(buf) {
-        return FfiConverterString.read(buf);
     }
-    
+
+    static read(dataStream) {
+        const builtinVal = FfiConverterString.read(dataStream);
+        return builtinVal;
+    }
+
     static computeSize(value) {
         return FfiConverterString.computeSize(value);
     }
-}
 
-// TODO: We should also allow JS to customize the type eventually.
+    static checkType(value) {
+        if (value === null || value === undefined) {
+            throw new TypeError("value is null or undefined");
+        }
+    }
+}
 // Export the FFIConverter object to make external types work.
 export class FfiConverterSequenceString extends FfiConverterArrayBuffer {
     static read(dataStream) {
@@ -1059,6 +1067,7 @@ export class WebExtStorageBridgedEngine {
 
     /**
      * apply
+     * @returns {Promise<Array.<string>>}}
      */
     async apply() {
        
@@ -1075,6 +1084,8 @@ export class WebExtStorageBridgedEngine {
 
     /**
      * ensureCurrentSyncId
+     * @param {string} newSyncId
+     * @returns {Promise<string>}}
      */
     async ensureCurrentSyncId(
         newSyncId) {
@@ -1094,6 +1105,7 @@ export class WebExtStorageBridgedEngine {
 
     /**
      * lastSync
+     * @returns {Promise<number>}}
      */
     async lastSync() {
        
@@ -1110,6 +1122,7 @@ export class WebExtStorageBridgedEngine {
 
     /**
      * prepareForSync
+     * @param {string} clientData
      */
     async prepareForSync(
         clientData) {
@@ -1145,6 +1158,7 @@ export class WebExtStorageBridgedEngine {
 
     /**
      * resetSyncId
+     * @returns {Promise<string>}}
      */
     async resetSyncId() {
        
@@ -1161,6 +1175,7 @@ export class WebExtStorageBridgedEngine {
 
     /**
      * setLastSync
+     * @param {number} lastSync
      */
     async setLastSync(
         lastSync) {
@@ -1180,6 +1195,8 @@ export class WebExtStorageBridgedEngine {
 
     /**
      * setUploaded
+     * @param {number} serverModifiedMillis
+     * @param {Array.<Guid>} guids
      */
     async setUploaded(
         serverModifiedMillis, 
@@ -1202,6 +1219,7 @@ export class WebExtStorageBridgedEngine {
 
     /**
      * storeIncoming
+     * @param {Array.<string>} incoming
      */
     async storeIncoming(
         incoming) {
@@ -1237,6 +1255,7 @@ export class WebExtStorageBridgedEngine {
 
     /**
      * syncId
+     * @returns {Promise<?string>}}
      */
     async syncId() {
        
@@ -1399,7 +1418,11 @@ export class WebExtStorageStore {
         }
         this[uniffiObjectPtr] = opts[constructUniffiObject];
     }
-    
+    /**
+     * init
+     * @param {string} path
+     * @returns {Promise<WebExtStorageStore>}}
+     */
     static async init(
         path) {
        
@@ -1417,6 +1440,7 @@ export class WebExtStorageStore {
 
     /**
      * bridgedEngine
+     * @returns {Promise<WebExtStorageBridgedEngine>}}
      */
     async bridgedEngine() {
        
@@ -1433,6 +1457,8 @@ export class WebExtStorageStore {
 
     /**
      * clear
+     * @param {string} extId
+     * @returns {Promise<StorageChanges>}}
      */
     async clear(
         extId) {
@@ -1468,6 +1494,9 @@ export class WebExtStorageStore {
 
     /**
      * get
+     * @param {string} extId
+     * @param {JsonValue} keys
+     * @returns {Promise<JsonValue>}}
      */
     async get(
         extId, 
@@ -1490,6 +1519,9 @@ export class WebExtStorageStore {
 
     /**
      * getBytesInUse
+     * @param {string} extId
+     * @param {JsonValue} keys
+     * @returns {Promise<number>}}
      */
     async getBytesInUse(
         extId, 
@@ -1512,6 +1544,7 @@ export class WebExtStorageStore {
 
     /**
      * getSyncedChanges
+     * @returns {Promise<Array.<SyncedExtensionChange>>}}
      */
     async getSyncedChanges() {
        
@@ -1528,6 +1561,9 @@ export class WebExtStorageStore {
 
     /**
      * remove
+     * @param {string} extId
+     * @param {JsonValue} keys
+     * @returns {Promise<StorageChanges>}}
      */
     async remove(
         extId, 
@@ -1550,6 +1586,9 @@ export class WebExtStorageStore {
 
     /**
      * set
+     * @param {string} extId
+     * @param {JsonValue} val
+     * @returns {Promise<StorageChanges>}}
      */
     async set(
         extId, 

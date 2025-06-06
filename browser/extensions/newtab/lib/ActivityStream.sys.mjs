@@ -294,22 +294,6 @@ export const PREFS_CONFIG = new Map([
     },
   ],
   [
-    "unifiedAds.adsFeed.tiles.enabled",
-    {
-      title:
-        "Use AdsFeed.sys.mjs to fetch/cache/serve sponsored top sites tiles",
-      value: false,
-    },
-  ],
-  [
-    "unifiedAds.adsFeed.spocs.enabled",
-    {
-      title:
-        "Use AdsFeed.sys.mjs to fetch/cache/serve sponsored content in recommended stories",
-      value: false,
-    },
-  ],
-  [
     "unifiedAds.tiles.enabled",
     {
       title:
@@ -482,14 +466,6 @@ export const PREFS_CONFIG = new Map([
     {
       title:
         "Boolean flag that decides whether or not to show bookmarks in highlights.",
-      value: true,
-    },
-  ],
-  [
-    "section.highlights.includePocket",
-    {
-      title:
-        "Boolean flag that decides whether or not to show saved Pocket stories in highlights.",
       value: true,
     },
   ],
@@ -1207,6 +1183,23 @@ export const PREFS_CONFIG = new Map([
       getValue: () => {
         return Services.appinfo.caretBlinkTime;
       },
+    },
+  ],
+  // Sponsored checkboxes placement experiment
+  [
+    "system.showSponsoredCheckboxes",
+    {
+      title:
+        "Switches on grouping of sponsored checkboxes on 'about:settings#home' page",
+      value: false,
+    },
+  ],
+  [
+    "showSponsoredCheckboxes",
+    {
+      title:
+        "'Support Firefox' pref on 'about:settings#home' page. Toggles all sponsored results on and off at the same time",
+      value: true,
     },
   ],
 ]);

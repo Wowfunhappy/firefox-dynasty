@@ -12,9 +12,10 @@
 #placesMenu > menu {
   appearance: auto;
   -moz-default-appearance: toolbarbutton;
+  min-height: var(--button-min-height);
 
   &:hover {
-    color: ButtonText;
+    color: -moz-buttonhovertext;
   }
 
   &:hover:active,

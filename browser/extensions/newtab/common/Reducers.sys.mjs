@@ -31,7 +31,9 @@ export const INITIAL_STATE = {
   Ads: {
     initialized: false,
     lastUpdated: null,
-    topsites: {},
+    tiles: {},
+    spocs: {},
+    spocPlacements: {},
   },
   TopSites: {
     // Have we received real data from history yet?
@@ -174,6 +176,7 @@ export const INITIAL_STATE = {
   },
   TrendingSearch: {
     suggestions: [],
+    collapsed: false,
   },
 };
 
@@ -1095,11 +1098,19 @@ function Ads(prevState = INITIAL_STATE.Ads, action) {
         ...prevState,
         initialized: true,
       };
-    case at.ADS_UPDATE_DATA:
+    case at.ADS_UPDATE_TILES:
       return {
         ...prevState,
-        topsites: action.data,
+        tiles: action.data.tiles,
       };
+    case at.ADS_UPDATE_SPOCS:
+      return {
+        ...prevState,
+        spocs: action.data.spocs,
+        spocPlacements: action.data.spocPlacements,
+      };
+    case at.ADS_RESET:
+      return { ...INITIAL_STATE.Ads };
     default:
       return prevState;
   }
@@ -1108,7 +1119,9 @@ function Ads(prevState = INITIAL_STATE.Ads, action) {
 function TrendingSearch(prevState = INITIAL_STATE.TrendingSearch, action) {
   switch (action.type) {
     case at.TRENDING_SEARCH_UPDATE:
-      return { suggestions: action.data };
+      return { ...prevState, suggestions: action.data };
+    case at.TRENDING_SERACH_TOGGLE_COLLAPSE:
+      return { ...prevState, collapsed: !prevState.collapsed };
     default:
       return prevState;
   }

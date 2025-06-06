@@ -21,10 +21,6 @@ import MozInputText from "chrome://global/content/elements/moz-input-text.mjs";
  *  The aria-label text for cases where there is no visible label.
  */
 export default class MozInputSearch extends MozInputText {
-  static properties = {
-    ariaLabel: { type: String, mapped: true },
-  };
-
   // The amount of milliseconds that we wait before firing the "search" event.
   static #searchDebounceDelayMs = 500;
 
@@ -35,6 +31,16 @@ export default class MozInputSearch extends MozInputText {
       clearTimeout(this.#searchTimer);
     }
     this.#searchTimer = null;
+  }
+
+  #dispatchSearch() {
+    this.dispatchEvent(
+      new CustomEvent("MozInputSearch:search", {
+        bubbles: true,
+        composed: true,
+        detail: { query: this.value },
+      })
+    );
   }
 
   disconnectedCallback() {
@@ -50,8 +56,17 @@ export default class MozInputSearch extends MozInputText {
     super.handleInput(e);
     this.#clearSearchTimer();
     this.#searchTimer = setTimeout(() => {
-      this.dispatchEvent(new CustomEvent("MozInputSearch:search"));
+      this.#dispatchSearch();
     }, MozInputSearch.#searchDebounceDelayMs);
+  }
+
+  // Clears the value and synchronously dispatches a search event if needed.
+  clear() {
+    this.#clearSearchTimer();
+    if (this.value) {
+      this.value = "";
+      this.#dispatchSearch();
+    }
   }
 
   inputTemplate() {

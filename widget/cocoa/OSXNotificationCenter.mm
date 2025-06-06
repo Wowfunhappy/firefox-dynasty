@@ -102,12 +102,6 @@ enum { NSUserNotificationActivationTypeAdditionalActionClicked = 4 };
 
 - (void)userNotificationCenter:(id<FakeNSUserNotificationCenter>)center
        didActivateNotification:(id<FakeNSUserNotification>)notification {
-  unsigned long long additionalActionIndex = ULLONG_MAX;
-  if ([notification respondsToSelector:@selector(_alternateActionIndex)]) {
-    NSNumber* alternateActionIndex =
-        [(NSObject*)notification valueForKey:@"_alternateActionIndex"];
-    additionalActionIndex = [alternateActionIndex unsignedLongLongValue];
-  }
   mOSXNC->OnActivate([[notification userInfo] valueForKey:@"name"],
                      notification.activationType, 
                      notification.additionalActivationAction);

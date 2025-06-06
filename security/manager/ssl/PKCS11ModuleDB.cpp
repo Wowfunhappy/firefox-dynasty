@@ -17,6 +17,7 @@
 #include "nsPKCS11Slot.h"
 #include "nsServiceManagerUtils.h"
 
+
 namespace mozilla {
 namespace psm {
 
@@ -206,7 +207,7 @@ const nsLiteralCString kBuiltInModuleNames[] = {
     kIPCClientCertsModuleName,
 };
 
-void CollectThirdPartyPKCS11ModuleTelemetry() {
+void CollectThirdPartyPKCS11ModuleTelemetry(bool aIsInitialization) {
   size_t thirdPartyModulesLoaded = 0;
   AutoSECMODListReadLock lock;
   for (SECMODModuleList* list = SECMOD_GetDefaultModuleList(); list;

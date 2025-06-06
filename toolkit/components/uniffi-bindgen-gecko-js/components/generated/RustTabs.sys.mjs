@@ -885,30 +885,34 @@ export class FfiConverterTypeRemoteCommand extends FfiConverterArrayBuffer {
       }
     }
 }
-// Export the FFIConverter object to make external types work.
 export class FfiConverterTypeTimestamp extends FfiConverter {
-    static lift(buf) {
-        return FfiConverterInt64.lift(buf);    
+    static lift(value) {
+        return FfiConverterInt64.lift(value);
     }
-    
-    static lower(buf) {
-        return FfiConverterInt64.lower(buf);
+
+    static lower(value) {
+        return FfiConverterInt64.lower(value);
     }
-    
+
     static write(dataStream, value) {
         FfiConverterInt64.write(dataStream, value);
-    } 
-    
-    static read(buf) {
-        return FfiConverterInt64.read(buf);
     }
-    
+
+    static read(dataStream) {
+        const builtinVal = FfiConverterInt64.read(dataStream);
+        return builtinVal;
+    }
+
     static computeSize(value) {
         return FfiConverterInt64.computeSize(value);
     }
-}
 
-// TODO: We should also allow JS to customize the type eventually.
+    static checkType(value) {
+        if (value === null || value === undefined) {
+            throw new TypeError("value is null or undefined");
+        }
+    }
+}
 // Export the FFIConverter object to make external types work.
 export class FfiConverterOptionalTypeTimestamp extends FfiConverterArrayBuffer {
     static checkType(value) {
@@ -1206,30 +1210,34 @@ export class FfiConverterTypeTabsApiError extends FfiConverterArrayBuffer {
 
     static errorClass = TabsApiError;
 }
-// Export the FFIConverter object to make external types work.
 export class FfiConverterTypeTabsGuid extends FfiConverter {
-    static lift(buf) {
-        return FfiConverterString.lift(buf);    
+    static lift(value) {
+        return FfiConverterString.lift(value);
     }
-    
-    static lower(buf) {
-        return FfiConverterString.lower(buf);
+
+    static lower(value) {
+        return FfiConverterString.lower(value);
     }
-    
+
     static write(dataStream, value) {
         FfiConverterString.write(dataStream, value);
-    } 
-    
-    static read(buf) {
-        return FfiConverterString.read(buf);
     }
-    
+
+    static read(dataStream) {
+        const builtinVal = FfiConverterString.read(dataStream);
+        return builtinVal;
+    }
+
     static computeSize(value) {
         return FfiConverterString.computeSize(value);
     }
-}
 
-// TODO: We should also allow JS to customize the type eventually.
+    static checkType(value) {
+        if (value === null || value === undefined) {
+            throw new TypeError("value is null or undefined");
+        }
+    }
+}
 // Export the FFIConverter object to make external types work.
 export class FfiConverterSequenceTypePendingCommand extends FfiConverterArrayBuffer {
     static read(dataStream) {
@@ -1292,6 +1300,9 @@ export class RemoteCommandStore {
 
     /**
      * Add a new command, after which it will be pending. Returns false if the command is already active.
+     * @param {string} deviceId
+     * @param {RemoteCommand} command
+     * @returns {Promise<boolean>}}
      */
     async addRemoteCommand(
         deviceId, 
@@ -1314,6 +1325,10 @@ export class RemoteCommandStore {
 
     /**
      * Add a new command with an explicit timestamp. Primarily used by tests.
+     * @param {string} deviceId
+     * @param {RemoteCommand} command
+     * @param {Timestamp} when
+     * @returns {Promise<boolean>}}
      */
     async addRemoteCommandAt(
         deviceId, 
@@ -1339,6 +1354,7 @@ export class RemoteCommandStore {
 
     /**
      * Return all unsent commands. This is for the code sending the commands, result is sorted by time_requested.
+     * @returns {Promise<Array.<PendingCommand>>}}
      */
     async getUnsentCommands() {
        
@@ -1356,6 +1372,9 @@ export class RemoteCommandStore {
     /**
      * Removes the remote command. Typically used to implement "undo" but may also be used by the queue
      * processor when it gives up trying to send a command.
+     * @param {string} deviceId
+     * @param {RemoteCommand} command
+     * @returns {Promise<boolean>}}
      */
     async removeRemoteCommand(
         deviceId, 
@@ -1378,6 +1397,8 @@ export class RemoteCommandStore {
 
     /**
      * Flag a command as sent.
+     * @param {PendingCommand} command
+     * @returns {Promise<boolean>}}
      */
     async setPendingCommandSent(
         command) {
@@ -1489,6 +1510,7 @@ export class TabsBridgedEngine {
 
     /**
      * apply
+     * @returns {Promise<Array.<string>>}}
      */
     async apply() {
        
@@ -1505,6 +1527,8 @@ export class TabsBridgedEngine {
 
     /**
      * ensureCurrentSyncId
+     * @param {string} newSyncId
+     * @returns {Promise<string>}}
      */
     async ensureCurrentSyncId(
         newSyncId) {
@@ -1524,6 +1548,7 @@ export class TabsBridgedEngine {
 
     /**
      * lastSync
+     * @returns {Promise<number>}}
      */
     async lastSync() {
        
@@ -1540,6 +1565,7 @@ export class TabsBridgedEngine {
 
     /**
      * prepareForSync
+     * @param {string} clientData
      */
     async prepareForSync(
         clientData) {
@@ -1575,6 +1601,7 @@ export class TabsBridgedEngine {
 
     /**
      * resetSyncId
+     * @returns {Promise<string>}}
      */
     async resetSyncId() {
        
@@ -1591,6 +1618,7 @@ export class TabsBridgedEngine {
 
     /**
      * setLastSync
+     * @param {number} lastSync
      */
     async setLastSync(
         lastSync) {
@@ -1610,6 +1638,8 @@ export class TabsBridgedEngine {
 
     /**
      * setUploaded
+     * @param {number} newTimestamp
+     * @param {Array.<TabsGuid>} uploadedIds
      */
     async setUploaded(
         newTimestamp, 
@@ -1632,6 +1662,7 @@ export class TabsBridgedEngine {
 
     /**
      * storeIncoming
+     * @param {Array.<string>} incomingEnvelopesAsJson
      */
     async storeIncoming(
         incomingEnvelopesAsJson) {
@@ -1667,6 +1698,7 @@ export class TabsBridgedEngine {
 
     /**
      * syncId
+     * @returns {Promise<?string>}}
      */
     async syncId() {
        
@@ -1802,7 +1834,11 @@ export class TabsStore {
         }
         this[uniffiObjectPtr] = opts[constructUniffiObject];
     }
-    
+    /**
+     * init
+     * @param {string} path
+     * @returns {Promise<TabsStore>}}
+     */
     static async init(
         path) {
        
@@ -1820,6 +1856,7 @@ export class TabsStore {
 
     /**
      * bridgedEngine
+     * @returns {Promise<TabsBridgedEngine>}}
      */
     async bridgedEngine() {
        
@@ -1852,6 +1889,7 @@ export class TabsStore {
 
     /**
      * getAll
+     * @returns {Promise<Array.<ClientRemoteTabs>>}}
      */
     async getAll() {
        
@@ -1868,6 +1906,7 @@ export class TabsStore {
 
     /**
      * newRemoteCommandStore
+     * @returns {Promise<RemoteCommandStore>}}
      */
     async newRemoteCommandStore() {
        
@@ -1900,6 +1939,7 @@ export class TabsStore {
 
     /**
      * setLocalTabs
+     * @param {Array.<RemoteTabRecord>} remoteTabs
      */
     async setLocalTabs(
         remoteTabs) {
