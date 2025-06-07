@@ -55,8 +55,10 @@ class UniFFICallbackHandler {
         if (!this.#allowNewCallbacks) {
             throw new UniFFIError(`No new callbacks allowed for ${this.#name}`);
         }
-        const handle = this.#handleCounter;
+        // Increment first.  This way handles start at `1` and we can use `0` to represent a NULL
+        // handle.
         this.#handleCounter += 1;
+        const handle = this.#handleCounter;
         this.#handleMap.set(handle, new UniFFICallbackHandleMapEntry(callbackObj, Components.stack.caller.formattedStack.trim()));
         return handle;
     }
@@ -99,6 +101,14 @@ class UniFFICallbackHandler {
         this.#allowNewCallbacks = allow
     }
 
+    /**
+     * Check if there are any registered callbacks in the handle map
+     *
+     * This is used in the unit tests
+     */
+    hasRegisteredCallbacks() {
+        return this.#handleMap.size > 0;
+    }
     /**
      * Check that no callbacks are currently registered
      *
@@ -216,6 +226,10 @@ class UniFFICallbackMethodHandler {
             code: "error",
             data: this.#errorConverter(error),
         };
+    }
+
+    toString() {
+      return `CallbackMethodHandler(${this.#name})`
     }
 }
 
@@ -622,9 +636,7 @@ export class FfiConverterTypeApplicationErrorReporter extends FfiConverter {
     static computeSize(callbackObj) {
         return 8;
     }
-}
-
-const uniffiCallbackHandlerApplicationErrorReporter = new UniFFICallbackHandler(
+}const uniffiCallbackHandlerApplicationErrorReporter = new UniFFICallbackHandler(
     "ApplicationErrorReporter",
     2,
     [

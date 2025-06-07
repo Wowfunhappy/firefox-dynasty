@@ -2087,6 +2087,7 @@ pref("sidebar.new-sidebar.has-used", false);
 
 pref("browser.ml.chat.enabled", true);
 pref("browser.ml.chat.hideLocalhost", true);
+pref("browser.ml.chat.page", false);
 pref("browser.ml.chat.prompt.prefix", '{"l10nId":"genai-prompt-prefix-selection"}');
 pref("browser.ml.chat.prompts.0", '{"id":"summarize","l10nId":"genai-prompts-summarize"}');
 pref("browser.ml.chat.prompts.1", '{"id":"explain","l10nId":"genai-prompts-explain"}');
@@ -2369,12 +2370,6 @@ pref("browser.contentblocking.reject-and-isolate-cookies.preferences.ui.enabled"
 //     "-btp": BTP disabled
 // One value from each section must be included in the browser.contentblocking.features.strict pref.
 pref("browser.contentblocking.features.strict", "tp,tpPrivate,cookieBehavior5,cookieBehaviorPBM5,cryptoTP,fp,stp,emailTP,emailTPPrivate,-consentmanagerSkip,-consentmanagerSkipPrivate,lvl2,rp,rpTop,ocsp,qps,qpsPBM,fpp,fppPrivate,btp");
-
-// Hide the "Change Block List" link for trackers/tracking content in the custom
-// Content Blocking/ETP panel. By default, it will not be visible. There is also
-// an UI migration in place to set this pref to true if a user has a custom block
-// lists enabled.
-pref("browser.contentblocking.customBlockList.preferences.ui.enabled", false);
 
 // Enable Protections report's Lockwise card by default.
 pref("browser.contentblocking.report.lockwise.enabled", true);

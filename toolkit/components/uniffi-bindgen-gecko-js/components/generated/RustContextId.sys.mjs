@@ -55,8 +55,10 @@ class UniFFICallbackHandler {
         if (!this.#allowNewCallbacks) {
             throw new UniFFIError(`No new callbacks allowed for ${this.#name}`);
         }
-        const handle = this.#handleCounter;
+        // Increment first.  This way handles start at `1` and we can use `0` to represent a NULL
+        // handle.
         this.#handleCounter += 1;
+        const handle = this.#handleCounter;
         this.#handleMap.set(handle, new UniFFICallbackHandleMapEntry(callbackObj, Components.stack.caller.formattedStack.trim()));
         return handle;
     }
@@ -99,6 +101,14 @@ class UniFFICallbackHandler {
         this.#allowNewCallbacks = allow
     }
 
+    /**
+     * Check if there are any registered callbacks in the handle map
+     *
+     * This is used in the unit tests
+     */
+    hasRegisteredCallbacks() {
+        return this.#handleMap.size > 0;
+    }
     /**
      * Check that no callbacks are currently registered
      *
@@ -216,6 +226,10 @@ class UniFFICallbackMethodHandler {
             code: "error",
             data: this.#errorConverter(error),
         };
+    }
+
+    toString() {
+      return `CallbackMethodHandler(${this.#name})`
     }
 }
 
@@ -680,7 +694,7 @@ export class ContextIdComponent {
        
         const result = await UniFFIScaffolding.callAsyncWrapper(
             2, // uniffi_context_id_fn_method_contextidcomponent_force_rotation
-            FfiConverterTypeContextIDComponent.lower(this),
+            FfiConverterTypeContextIDComponent.lowerReceiver(this),
         )
         return handleRustResult(
             result,
@@ -700,7 +714,7 @@ export class ContextIdComponent {
         FfiConverterUInt8.checkType(rotationDaysInS);
         const result = await UniFFIScaffolding.callAsyncWrapper(
             3, // uniffi_context_id_fn_method_contextidcomponent_request
-            FfiConverterTypeContextIDComponent.lower(this),
+            FfiConverterTypeContextIDComponent.lowerReceiver(this),
             FfiConverterUInt8.lower(rotationDaysInS),
         )
         return handleRustResult(
@@ -718,7 +732,7 @@ export class ContextIdComponent {
        
         const result = await UniFFIScaffolding.callAsyncWrapper(
             4, // uniffi_context_id_fn_method_contextidcomponent_unset_callback
-            FfiConverterTypeContextIDComponent.lower(this),
+            FfiConverterTypeContextIDComponent.lowerReceiver(this),
         )
         return handleRustResult(
             result,
@@ -745,6 +759,11 @@ export class FfiConverterTypeContextIDComponent extends FfiConverter {
         return ptr;
     }
 
+    static lowerReceiver(value) {
+        // This works exactly the same as lower for non-trait interfaces
+        return this.lower(value);
+    }
+
     static read(dataStream) {
         return this.lift(dataStream.readPointer(1));
     }
@@ -757,6 +776,7 @@ export class FfiConverterTypeContextIDComponent extends FfiConverter {
         return 8;
     }
 }
+
 // Export the FFIConverter object to make external types work.
 export class FfiConverterInt64 extends FfiConverter {
     static checkType(value) {
@@ -802,9 +822,7 @@ export class FfiConverterTypeContextIdCallback extends FfiConverter {
     static computeSize(callbackObj) {
         return 8;
     }
-}
-
-const uniffiCallbackHandlerContextIdCallback = new UniFFICallbackHandler(
+}const uniffiCallbackHandlerContextIdCallback = new UniFFICallbackHandler(
     "ContextIdCallback",
     1,
     [

@@ -67,7 +67,6 @@ export var UrlbarUtils = {
     HEURISTIC_SEARCH_TIP: "heuristicSearchTip",
     HEURISTIC_TEST: "heuristicTest",
     HEURISTIC_TOKEN_ALIAS_ENGINE: "heuristicTokenAliasEngine",
-    HISTORY_SEMANTIC: "historySemantic",
     INPUT_HISTORY: "inputHistory",
     OMNIBOX: "extension",
     RECENT_SEARCH: "recentSearch",
@@ -574,8 +573,6 @@ export var UrlbarUtils = {
         return this.RESULT_GROUP.ABOUT_PAGES;
       case "InputHistory":
         return this.RESULT_GROUP.INPUT_HISTORY;
-      case "SemanticHistorySearch":
-        return this.RESULT_GROUP.HISTORY_SEMANTIC;
       case "UrlbarProviderQuickSuggest":
         return this.RESULT_GROUP.GENERAL_PARENT;
       default:
@@ -1084,6 +1081,7 @@ export var UrlbarUtils = {
       userContextId: parseInt(
         window.gBrowser.selectedBrowser.getAttribute("usercontextid") || 0
       ),
+      tabGroup: window.gBrowser.selectedTab.group?.id ?? null,
       prohibitRemoteResults: true,
       providers: ["AliasEngines", "BookmarkKeywords", "HeuristicFallback"],
     };
@@ -1821,6 +1819,9 @@ UrlbarUtils.RESULT_PAYLOAD_SCHEMA = {
       displayUrl: {
         type: "string",
       },
+      frecency: {
+        type: "number",
+      },
       icon: {
         type: "string",
       },
@@ -1946,6 +1947,9 @@ UrlbarUtils.RESULT_PAYLOAD_SCHEMA = {
       },
       fallbackTitle: {
         type: "string",
+      },
+      frecency: {
+        type: "number",
       },
       helpL10n: L10N_SCHEMA,
       helpUrl: {
@@ -2243,6 +2247,8 @@ export class UrlbarQueryContext {
    *   Whether or not to allow providers to include autofill results.
    * @param {number} [options.userContextId]
    *   The container id where this context was generated, if any.
+   * @param {string | null} [options.tabGroup]
+   *   The tab group where this context was generated, if any.
    * @param {Array} [options.sources]
    *   A list of acceptable UrlbarUtils.RESULT_SOURCE for the context.
    * @param {object} [options.searchMode]
@@ -2307,6 +2313,7 @@ export class UrlbarQueryContext {
         options.userContextId,
         this.isPrivate
       ) || Ci.nsIScriptSecurityManager.DEFAULT_USER_CONTEXT_ID;
+    this.tabGroup = options.tabGroup || null;
 
     // Used to store glean timing distribution timer ids.
     this.firstTimerId = 0;
