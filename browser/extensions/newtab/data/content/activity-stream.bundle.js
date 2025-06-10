@@ -2317,6 +2317,23 @@ const LinkMenuOptions = {
       }),
     };
   },
+  TrendingSearchLearnMore: site => ({
+    id: "newtab-trending-searches-learn-more",
+    action: actionCreators.OnlyToMain({
+      type: actionTypes.OPEN_LINK,
+      data: { url: site.url },
+    }),
+  }),
+  TrendingSearchDismiss: () => ({
+    id: "newtab-trending-searches-dismiss",
+    action: actionCreators.OnlyToMain({
+      type: actionTypes.SET_PREF,
+      data: {
+        name: "trendingSearch.enabled",
+        value: false,
+      },
+    }),
+  }),
 };
 
 ;// CONCATENATED MODULE: ./content-src/components/LinkMenu/LinkMenu.jsx
@@ -4936,8 +4953,13 @@ const AdBanner = ({
 
 
 
+
 const PREF_TRENDING_VARIANT = "trendingSearch.variant";
 function TrendingSearches() {
+  const [showContextMenu, setShowContextMenu] = (0,external_React_namespaceObject.useState)(false);
+  // The keyboard access parameter is passed down to LinkMenu component
+  // that uses it to focus on the first context menu option for accessibility.
+  const [isKeyboardAccess, setIsKeyboardAccess] = (0,external_React_namespaceObject.useState)(false);
   const dispatch = (0,external_ReactRedux_namespaceObject.useDispatch)();
   const {
     TrendingSearch,
@@ -4951,12 +4973,33 @@ function TrendingSearches() {
     collapsed
   } = TrendingSearch;
   const variant = prefs[PREF_TRENDING_VARIANT];
+  const TRENDING_SEARCH_CONTEXT_MENU_OPTIONS = ["TrendingSearchLearnMore", "TrendingSearchDismiss"];
   function onArrowClick() {
     dispatch(actionCreators.AlsoToMain({
-      type: actionTypes.TRENDING_SEARCH_TOGGLE_COLLAPSE
+      type: actionTypes.TRENDING_SEARCH_TOGGLE_COLLAPSE,
+      data: !collapsed
     }));
   }
-  if (variant === "a") {
+  const toggleContextMenu = isKeyBoard => {
+    setShowContextMenu(!showContextMenu);
+    setIsKeyboardAccess(isKeyBoard);
+  };
+  function onContextMenuClick(e) {
+    e.preventDefault();
+    toggleContextMenu(false);
+  }
+  function onContextMenuKeyDown(e) {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      toggleContextMenu(true);
+    }
+  }
+  function onUpdate() {
+    setShowContextMenu(!showContextMenu);
+  }
+  if (!suggestions?.length) {
+    return null;
+  } else if (variant === "a") {
     return /*#__PURE__*/external_React_default().createElement("section", {
       className: "trending-searches-pill-wrapper"
     }, /*#__PURE__*/external_React_default().createElement("div", {
@@ -4969,11 +5012,11 @@ function TrendingSearches() {
     }), /*#__PURE__*/external_React_default().createElement("div", {
       className: "close-open-trending-searches"
     }, /*#__PURE__*/external_React_default().createElement("moz-button", {
-      iconsrc: `chrome://global/skin/icons/arrow-${!collapsed ? "up" : "down"}.svg`,
+      iconsrc: `chrome://global/skin/icons/arrow-${collapsed ? "down" : "up"}.svg`,
       onClick: onArrowClick,
       className: `icon icon-arrowhead-up`,
-      "data-l10n-id": `newtab-trending-searches-${collapsed ? "hide" : "show"}-trending`,
-      type: "icon ghost"
+      type: "icon ghost",
+      "data-l10n-id": `newtab-trending-searches-${collapsed ? "hide" : "show"}-trending`
     }))), !collapsed && /*#__PURE__*/external_React_default().createElement("ul", {
       className: "trending-searches-list"
     }, suggestions.map((result, index) => {
@@ -4987,9 +5030,30 @@ function TrendingSearches() {
   } else if (variant === "b") {
     return /*#__PURE__*/external_React_default().createElement("div", {
       className: "trending-searches-list-view"
+    }, /*#__PURE__*/external_React_default().createElement("div", {
+      className: "trending-searches-list-view-header"
     }, /*#__PURE__*/external_React_default().createElement("h3", {
       "data-l10n-id": "newtab-trending-searches-trending-on-google"
-    }), /*#__PURE__*/external_React_default().createElement("ul", {
+    }), /*#__PURE__*/external_React_default().createElement("div", {
+      className: "trending-searches-context-menu-wrapper"
+    }, /*#__PURE__*/external_React_default().createElement("div", {
+      className: `trending-searches-context-menu ${showContextMenu ? "context-menu-open" : ""}`
+    }, /*#__PURE__*/external_React_default().createElement("moz-button", {
+      type: "icon ghost",
+      size: "default",
+      "data-l10n-id": "newtab-menu-section-tooltip",
+      iconsrc: "chrome://global/skin/icons/more.svg",
+      onClick: onContextMenuClick,
+      onKeyDown: onContextMenuKeyDown
+    }), showContextMenu && /*#__PURE__*/external_React_default().createElement(LinkMenu, {
+      onUpdate: onUpdate,
+      dispatch: dispatch,
+      keyboardAccess: isKeyboardAccess,
+      options: TRENDING_SEARCH_CONTEXT_MENU_OPTIONS,
+      site: {
+        url: "https://support.mozilla.org/1/firefox/%VERSION%/%OS%/%LOCALE%/trending-searches-new-tab"
+      }
+    })))), /*#__PURE__*/external_React_default().createElement("ul", {
       className: "trending-searches-list-items"
     }, suggestions.slice(0, 6).map(result => /*#__PURE__*/external_React_default().createElement("li", {
       key: result.suggestion,
@@ -8610,8 +8674,8 @@ function TrendingSearch(prevState = INITIAL_STATE.TrendingSearch, action) {
   switch (action.type) {
     case actionTypes.TRENDING_SEARCH_UPDATE:
       return { ...prevState, suggestions: action.data };
-    case actionTypes.TRENDING_SERACH_TOGGLE_COLLAPSE:
-      return { ...prevState, collapsed: !prevState.collapsed };
+    case actionTypes.TRENDING_SEARCH_TOGGLE_COLLAPSE:
+      return { ...prevState, collapsed: action.data };
     default:
       return prevState;
   }
@@ -13303,48 +13367,6 @@ function Logo() {
   })));
 }
 
-;// CONCATENATED MODULE: ./content-src/components/DiscoveryStreamComponents/TrendingSearches/TrendingSearchesVarA.jsx
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this file,
- * You can obtain one at http://mozilla.org/MPL/2.0/. */
-
-
-
-
-function TrendingSearchesVarA() {
-  const [showTrends, setShowTrends] = (0,external_React_namespaceObject.useState)(true);
-  const onArrowClick = () => {
-    setShowTrends(!showTrends);
-  };
-  const resultsObject = (0,external_ReactRedux_namespaceObject.useSelector)(state => state.TrendingSearch);
-  const searchResults = resultsObject.suggestions;
-  return /*#__PURE__*/React.createElement("section", {
-    className: "trending-searches-pill-wrapper"
-  }, /*#__PURE__*/React.createElement("div", {
-    className: "trending-searches-title-wrapper"
-  }, /*#__PURE__*/React.createElement("span", {
-    className: "trending-searches-icon icon icon-arrow-trending"
-  }), /*#__PURE__*/React.createElement("h2", {
-    className: "trending-searches-title"
-  }, "Trending on Google"), /*#__PURE__*/React.createElement("div", {
-    className: "close-open-trending-searches"
-  }, /*#__PURE__*/React.createElement("moz-button", {
-    iconsrc: `chrome://global/skin/icons/arrow-${showTrends ? "up" : "down"}.svg`,
-    onClick: onArrowClick,
-    className: `icon icon-arrowhead-up`,
-    type: "icon ghost"
-  }))), showTrends && /*#__PURE__*/React.createElement("ul", {
-    className: "trending-searches-list"
-  }, searchResults.map((result, index) => {
-    return /*#__PURE__*/React.createElement("li", {
-      key: index,
-      className: "trending-search-item"
-    }, /*#__PURE__*/React.createElement(SafeAnchor, {
-      url: ""
-    }, result.lowerCaseSuggestion));
-  })));
-}
-
 ;// CONCATENATED MODULE: ./content-src/components/Search/Search.jsx
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
@@ -13368,8 +13390,6 @@ class _Search extends (external_React_default()).PureComponent {
     this.onInputMount = this.onInputMount.bind(this);
     this.onInputMountHandoff = this.onInputMountHandoff.bind(this);
     this.onSearchHandoffButtonMount = this.onSearchHandoffButtonMount.bind(this);
-    this.trendingSearchEnabled = this.props.Prefs.values["trendingSearch.enabled"];
-    this.trendingSearchVariant = this.props.Prefs.values["trendingSearch.variant"];
   }
   handleEvent(event) {
     // Also track search events with our own telemetry
@@ -13482,6 +13502,8 @@ class _Search extends (external_React_default()).PureComponent {
    */
   render() {
     const wrapperClassName = ["search-wrapper", this.props.disable && "search-disabled", this.props.fakeFocus && "fake-focus"].filter(v => v).join(" ");
+    const trendingSearchEnabled = this.props.Prefs.values["trendingSearch.enabled"];
+    const trendingSearchVariant = this.props.Prefs.values["trendingSearch.variant"];
     return /*#__PURE__*/external_React_default().createElement((external_React_default()).Fragment, null, /*#__PURE__*/external_React_default().createElement("div", {
       className: wrapperClassName
     }, this.props.showLogo && /*#__PURE__*/external_React_default().createElement(Logo, null), !this.props.handoffEnabled && /*#__PURE__*/external_React_default().createElement("div", {
@@ -13497,7 +13519,7 @@ class _Search extends (external_React_default()).PureComponent {
       className: "search-button",
       "data-l10n-id": "newtab-search-box-search-button",
       onClick: this.onSearchClick
-    }), this.trendingSearchEnabled && this.trendingSearchVariant === "a" && /*#__PURE__*/external_React_default().createElement(TrendingSearchesVarA, null)), this.props.handoffEnabled && /*#__PURE__*/external_React_default().createElement("div", {
+    }), trendingSearchEnabled && trendingSearchVariant === "a" && /*#__PURE__*/external_React_default().createElement(TrendingSearches, null)), this.props.handoffEnabled && /*#__PURE__*/external_React_default().createElement("div", {
       className: "search-inner-wrapper"
     }, /*#__PURE__*/external_React_default().createElement("button", {
       className: "search-handoff-button",
@@ -13519,7 +13541,7 @@ class _Search extends (external_React_default()).PureComponent {
       ref: el => {
         this.fakeCaret = el;
       }
-    })), this.trendingSearchEnabled && this.trendingSearchVariant === "a" && /*#__PURE__*/external_React_default().createElement(TrendingSearchesVarA, null))));
+    })), trendingSearchEnabled && trendingSearchVariant === "a" && /*#__PURE__*/external_React_default().createElement(TrendingSearches, null))));
   }
 }
 const Search_Search = (0,external_ReactRedux_namespaceObject.connect)(state => ({

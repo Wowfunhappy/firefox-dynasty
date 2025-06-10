@@ -223,7 +223,8 @@ class QuotaManager final : public BackgroundThreadObject {
                               const OriginMetadata& aOriginMetadata,
                               Client::Type aClientType);
 
-  void UpdateOriginAccessTime(const OriginMetadata& aOriginMetadata);
+  void UpdateOriginAccessTime(const OriginMetadata& aOriginMetadata,
+                              int64_t aTimestamp);
 
   void RemoveQuota();
 
@@ -545,7 +546,11 @@ class QuotaManager final : public BackgroundThreadObject {
   RefPtr<BoolPromise> InitializeAllTemporaryOrigins();
 
   RefPtr<BoolPromise> SaveOriginAccessTime(
-      const OriginMetadata& aOriginMetadata, int64_t aTimestamp);
+      const OriginMetadata& aOriginMetadata);
+
+  RefPtr<BoolPromise> SaveOriginAccessTime(
+      const OriginMetadata& aOriginMetadata,
+      RefPtr<UniversalDirectoryLock> aDirectoryLock);
 
   RefPtr<OriginUsageMetadataArrayPromise> GetUsage(
       bool aGetAll, RefPtr<BoolPromise> aOnCancelPromise = nullptr);
@@ -860,8 +865,6 @@ class QuotaManager final : public BackgroundThreadObject {
     }
   }
 
-  void ClearOpenClientDirectoryInfos();
-
   void AddTemporaryOrigin(const FullOriginMetadata& aFullOriginMetadata);
 
   void RemoveTemporaryOrigin(const OriginMetadata& aOriginMetadata);
@@ -1033,6 +1036,12 @@ class QuotaManager final : public BackgroundThreadObject {
   // Maintains a list of directory locks that are acquired or queued. It can be
   // accessed on the owning (PBackground) thread only.
   nsTArray<NotNull<DirectoryLockImpl*>> mDirectoryLocks;
+
+  // Maintains a list of directory locks that are exclusive. This is a subset
+  // of mDirectoryLocks and is used to optimize lock acquisition by allowing
+  // shared locks to skip unnecessary comparisons. It is accessed only on the
+  // owning (PBackground) thread.
+  nsTArray<NotNull<DirectoryLockImpl*>> mExclusiveDirectoryLocks;
 
   // Only modifed on the owning thread, but read on multiple threads. Therefore
   // all modifications (including those on the owning thread) and all reads off
