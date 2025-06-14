@@ -695,12 +695,9 @@ TEST_F(TestQuotaManager, OpenClientDirectory_Ongoing_OriginDirectoryExists) {
                      const auto saveOriginAccessTimeCountNow =
                          quotaManager->SaveOriginAccessTimeCount();
 
-                     // XXX This callback should only be called once the access
-                     // time update has completed, but it's currently triggered
-                     // before the update finishes!
                      EXPECT_EQ(saveOriginAccessTimeCountNow -
                                    saveOriginAccessTimeCountBefore,
-                               0u);
+                               1u);
 
                      directoryLockHandle = std::move(aValue.ResolveValue());
 
@@ -743,12 +740,9 @@ TEST_F(TestQuotaManager, OpenClientDirectory_Ongoing_OriginDirectoryExists) {
                      const auto saveOriginAccessTimeCountNow =
                          quotaManager->SaveOriginAccessTimeCount();
 
-                     // XXX This callback should only be called once the access
-                     // time update has completed, but it's currently triggered
-                     // before the update finishes!
                      EXPECT_EQ(saveOriginAccessTimeCountNow -
                                    saveOriginAccessTimeCountBefore,
-                               0u);
+                               1u);
 
                      directoryLockHandle2 = std::move(aValue.ResolveValue());
 
@@ -3095,6 +3089,40 @@ TEST_F(TestQuotaManager, ProcessPendingNormalOriginOperations_Basic) {
   });
 
   AssertStorageInitialized();
+
+  ASSERT_NO_FATAL_FAILURE(ShutdownStorage());
+}
+
+TEST_F(TestQuotaManager, GetOriginStateMetadata_EmptyRepository) {
+  ASSERT_NO_FATAL_FAILURE(ShutdownStorage());
+
+  ASSERT_NO_FATAL_FAILURE(InitializeStorage());
+  ASSERT_NO_FATAL_FAILURE(InitializeTemporaryStorage());
+
+  const auto maybeOriginStateMetadata =
+      GetOriginStateMetadata(GetTestOriginMetadata());
+  ASSERT_FALSE(maybeOriginStateMetadata);
+
+  ASSERT_NO_FATAL_FAILURE(ShutdownStorage());
+}
+
+TEST_F(TestQuotaManager, GetOriginStateMetadata_OriginDirectoryExists) {
+  auto testOriginMetadata = GetTestOriginMetadata();
+
+  ASSERT_NO_FATAL_FAILURE(ShutdownStorage());
+
+  ASSERT_NO_FATAL_FAILURE(InitializeStorage());
+  ASSERT_NO_FATAL_FAILURE(InitializeTemporaryStorage());
+  ASSERT_NO_FATAL_FAILURE(
+      InitializeTemporaryOrigin(testOriginMetadata,
+                                /* aCreateIfNonExistent */ true));
+
+  auto maybeOriginStateMetadata = GetOriginStateMetadata(testOriginMetadata);
+  ASSERT_TRUE(maybeOriginStateMetadata);
+
+  auto originStateMetadata = maybeOriginStateMetadata.extract();
+  ASSERT_GT(originStateMetadata.mLastAccessTime, 0);
+  ASSERT_FALSE(originStateMetadata.mPersisted);
 
   ASSERT_NO_FATAL_FAILURE(ShutdownStorage());
 }

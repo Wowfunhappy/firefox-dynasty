@@ -2,11 +2,12 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-import React, { useState } from "react";
+import { useState, useRef, useCallback } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { SafeAnchor } from "../SafeAnchor/SafeAnchor";
 import { actionCreators as ac, actionTypes as at } from "common/Actions.mjs";
 import { LinkMenu } from "../../LinkMenu/LinkMenu";
+import { useIntersectionObserver } from "../../../lib/utils";
 
 const PREF_TRENDING_VARIANT = "trendingSearch.variant";
 
@@ -20,6 +21,7 @@ function TrendingSearches() {
   const { values: prefs } = Prefs;
   const { suggestions, collapsed } = TrendingSearch;
   const variant = prefs[PREF_TRENDING_VARIANT];
+  let resultRef = useRef([]);
 
   const TRENDING_SEARCH_CONTEXT_MENU_OPTIONS = [
     "TrendingSearchLearnMore",
@@ -30,7 +32,21 @@ function TrendingSearches() {
     dispatch(
       ac.AlsoToMain({
         type: at.TRENDING_SEARCH_TOGGLE_COLLAPSE,
-        data: !collapsed,
+        data: {
+          collapsed: !collapsed,
+          variant,
+        },
+      })
+    );
+  }
+
+  function handleLinkOpen() {
+    dispatch(
+      ac.AlsoToMain({
+        type: at.TRENDING_SEARCH_SUGGESTION_OPEN,
+        data: {
+          variant,
+        },
       })
     );
   }
@@ -56,11 +72,53 @@ function TrendingSearches() {
     setShowContextMenu(!showContextMenu);
   }
 
+  function handleResultKeyDown(event, index) {
+    const maxResults = suggestions.length;
+    let nextIndex = index;
+
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      if (index < maxResults - 1) {
+        nextIndex = index + 1;
+      } else {
+        return;
+      }
+    } else if (event.key === "ArrowUp") {
+      event.preventDefault();
+      if (index > 0) {
+        nextIndex = index - 1;
+      } else {
+        return;
+      }
+    }
+
+    resultRef.current[index].tabIndex = -1;
+    resultRef.current[nextIndex].tabIndex = 0;
+    resultRef.current[nextIndex].focus();
+  }
+  const handleIntersection = useCallback(() => {
+    dispatch(
+      ac.AlsoToMain({
+        type: at.TRENDING_SEARCH_IMPRESSION,
+        data: {
+          variant,
+        },
+      })
+    );
+  }, [dispatch, variant]);
+
+  const ref = useIntersectionObserver(handleIntersection);
+
   if (!suggestions?.length) {
     return null;
   } else if (variant === "a") {
     return (
-      <section className="trending-searches-pill-wrapper">
+      <section
+        ref={el => {
+          ref.current = [el];
+        }}
+        className="trending-searches-pill-wrapper"
+      >
         <div className="trending-searches-title-wrapper">
           <span className="trending-searches-icon icon icon-arrow-trending"></span>
           <h2
@@ -81,8 +139,20 @@ function TrendingSearches() {
           <ul className="trending-searches-list">
             {suggestions.map((result, index) => {
               return (
-                <li key={index} className="trending-search-item">
-                  <SafeAnchor url="">{result.lowerCaseSuggestion}</SafeAnchor>
+                <li
+                  key={result.suggestion}
+                  className="trending-search-item"
+                  onKeyDown={e => handleResultKeyDown(e, index)}
+                >
+                  <SafeAnchor
+                    url={result.searchUrl}
+                    onLinkClick={handleLinkOpen}
+                    title={result.suggestion}
+                    setRef={item => (resultRef.current[index] = item)}
+                    tabIndex={index === 0 ? 0 : -1}
+                  >
+                    {result.lowerCaseSuggestion}
+                  </SafeAnchor>
                 </li>
               );
             })}
@@ -92,7 +162,12 @@ function TrendingSearches() {
     );
   } else if (variant === "b") {
     return (
-      <div className="trending-searches-list-view">
+      <div
+        ref={el => {
+          ref.current = [el];
+        }}
+        className="trending-searches-list-view"
+      >
         <div className="trending-searches-list-view-header">
           <h3 data-l10n-id="newtab-trending-searches-trending-on-google"></h3>
           <div className="trending-searches-context-menu-wrapper">
@@ -113,8 +188,10 @@ function TrendingSearches() {
                   dispatch={dispatch}
                   keyboardAccess={isKeyboardAccess}
                   options={TRENDING_SEARCH_CONTEXT_MENU_OPTIONS}
+                  shouldSendImpressionStats={true}
                   site={{
                     url: "https://support.mozilla.org/1/firefox/%VERSION%/%OS%/%LOCALE%/trending-searches-new-tab",
+                    variant,
                   }}
                 />
               )}
@@ -122,14 +199,26 @@ function TrendingSearches() {
           </div>
         </div>
         <ul className="trending-searches-list-items">
-          {suggestions.slice(0, 6).map(result => (
-            <li key={result.suggestion} className="trending-searches-list-item">
-              <SafeAnchor url="" title={result.suggestion}>
-                <span className="trending-searches-icon icon icon-arrow-trending"></span>
-                {result.lowerCaseSuggestion}
-              </SafeAnchor>
-            </li>
-          ))}
+          {suggestions.slice(0, 6).map((result, index) => {
+            return (
+              <li
+                key={result.suggestion}
+                className="trending-searches-list-item"
+                onKeyDown={e => handleResultKeyDown(e, index)}
+              >
+                <SafeAnchor
+                  url={result.searchUrl}
+                  onLinkClick={handleLinkOpen}
+                  title={result.suggestion}
+                  setRef={item => (resultRef.current[index] = item)}
+                  tabIndex={index === 0 ? 0 : -1}
+                >
+                  <span className="trending-searches-icon icon icon-arrow-trending"></span>
+                  {result.lowerCaseSuggestion}
+                </SafeAnchor>
+              </li>
+            );
+          })}
         </ul>
       </div>
     );
