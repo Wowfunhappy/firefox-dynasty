@@ -3218,6 +3218,7 @@ static void DrawTopLeftCornerMask(CGContextRef aCtx, int aRadius) {
 
   EventMessage msg = aEnter ? eMouseEnterIntoWidget : eMouseExitFromWidget;
   WidgetMouseEvent event(true, msg, mGeckoChild, WidgetMouseEvent::eReal);
+  [self convertCocoaMouseEvent:aEvent toGeckoEvent:&event];
   event.mRefPoint = mGeckoChild->CocoaPointsToDevPixels(localEventLocation);
   if (event.mMessage == eMouseExitFromWidget) {
     event.mExitFrom = Some(aExitFrom);

@@ -109,7 +109,10 @@ var gBrowserInit = {
         extraOptions instanceof Ci.nsIWritablePropertyBag2 &&
         extraOptions.hasKey("taskbartab")
       ) {
-        window.document.documentElement.setAttribute("taskbartab", "");
+        window.document.documentElement.setAttribute(
+          "taskbartab",
+          extraOptions.getPropertyAsAString("taskbartab")
+        );
       }
     }
 
@@ -245,7 +248,7 @@ var gBrowserInit = {
     Win10TabletModeUpdater.init();
     CombinedStopReload.ensureInitialized();
     gPrivateBrowsingUI.init();
-    TaskbarTabUI.init(window);
+    TaskbarTabsChrome.init(window);
     BrowserPageActions.init();
     if (gToolbarKeyNavEnabled) {
       ToolbarKeyboardNavigator.init();
@@ -507,7 +510,7 @@ var gBrowserInit = {
       }
 
       // Enable the Restore Last Session command if needed
-      RestoreLastSessionObserver.init();
+      gRestoreLastSessionObserver.init();
 
       SidebarController.startDelayedLoad();
 

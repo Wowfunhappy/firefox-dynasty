@@ -164,7 +164,10 @@ pub extern "C" fn wgpu_server_new(owner: *mut c_void) -> *mut Global {
             },
         },
     );
-    let global = Global { global, webgpu_parent: owner };
+    let global = Global {
+        global,
+        webgpu_parent: owner,
+    };
     Box::into_raw(Box::new(global))
 }
 
@@ -293,13 +296,17 @@ fn support_use_external_texture_in_swap_chain(
     #[cfg(target_os = "windows")]
     {
         if backend != wgt::Backend::Dx12 {
-            log::info!("WebGPU: disabling ExternalTexture swapchain: \n\
-                        wgpu backend is not Dx12");
+            log::info!(
+                "WebGPU: disabling ExternalTexture swapchain: \n\
+                        wgpu backend is not Dx12"
+            );
             return false;
         }
         if !is_hardware {
-            log::info!("WebGPU: disabling ExternalTexture swapchain: \n\
-                        Dx12 backend is not hardware");
+            log::info!(
+                "WebGPU: disabling ExternalTexture swapchain: \n\
+                        Dx12 backend is not hardware"
+            );
             return false;
         }
         return true;
@@ -308,8 +315,10 @@ fn support_use_external_texture_in_swap_chain(
     #[cfg(target_os = "linux")]
     {
         let support = if backend != wgt::Backend::Vulkan {
-            log::info!("WebGPU: disabling ExternalTexture swapchain: \n\
-                        wgpu backend is not Vulkan");
+            log::info!(
+                "WebGPU: disabling ExternalTexture swapchain: \n\
+                        wgpu backend is not Vulkan"
+            );
             false
         } else {
             unsafe {
@@ -333,8 +342,11 @@ fn support_use_external_texture_in_swap_chain(
                     REQUIRED.iter().all(|extension| {
                         let supported = capabilities.supports_extension(extension);
                         if !supported {
-                            log::info!("WebGPU: disabling ExternalTexture swapchain: \n\
-                                        Vulkan extension not supported: {:?}", extension.to_string_lossy());
+                            log::info!(
+                                "WebGPU: disabling ExternalTexture swapchain: \n\
+                                        Vulkan extension not supported: {:?}",
+                                extension.to_string_lossy()
+                            );
                         }
                         supported
                     })
@@ -347,13 +359,17 @@ fn support_use_external_texture_in_swap_chain(
     #[cfg(target_os = "macos")]
     {
         if backend != wgt::Backend::Metal {
-            log::info!("WebGPU: disabling ExternalTexture swapchain: \n\
-                        wgpu backend is not Metal");
+            log::info!(
+                "WebGPU: disabling ExternalTexture swapchain: \n\
+                        wgpu backend is not Metal"
+            );
             return false;
         }
         if !is_hardware {
-            log::info!("WebGPU: disabling ExternalTexture swapchain: \n\
-                        Metal backend is not hardware");
+            log::info!(
+                "WebGPU: disabling ExternalTexture swapchain: \n\
+                        Metal backend is not hardware"
+            );
             return false;
         }
 
@@ -364,9 +380,11 @@ fn support_use_external_texture_in_swap_chain(
         };
 
         if !version.at_least((10, 14), (12, 0), /* os_is_mac */ true) {
-            log::info!("WebGPU: disabling ExternalTexture swapchain:\n\
+            log::info!(
+                "WebGPU: disabling ExternalTexture swapchain:\n\
                         operating system version is not at least 10.14 (macOS) or 12.0 (iOS)\n\
-                        shared event not supported");
+                        shared event not supported"
+            );
             return false;
         }
 
@@ -1623,7 +1641,8 @@ impl Global {
             return false;
         }
 
-        let handle = unsafe { wgpu_server_get_external_texture_handle(self.webgpu_parent, texture_id) };
+        let handle =
+            unsafe { wgpu_server_get_external_texture_handle(self.webgpu_parent, texture_id) };
         if handle.is_null() {
             let msg = c"Failed to get external texture handle";
             unsafe {
@@ -2027,7 +2046,9 @@ impl Global {
                 }
 
                 let use_external_texture = if let Some(id) = swap_chain_id {
-                    unsafe { wgpu_server_use_external_texture_for_swap_chain(self.webgpu_parent, id) }
+                    unsafe {
+                        wgpu_server_use_external_texture_for_swap_chain(self.webgpu_parent, id)
+                    }
                 } else {
                     false
                 };
@@ -2289,15 +2310,11 @@ impl Global {
             CommandEncoderAction::RunComputePass {
                 base,
                 timestamp_writes,
-            } => {
-                if let Err(err) = self.compute_pass_end_with_unresolved_commands(
-                    self_id,
-                    base,
-                    timestamp_writes.as_ref(),
-                ) {
-                    error_buf.init(err);
-                }
-            }
+            } => self.compute_pass_end_with_unresolved_commands(
+                self_id,
+                base,
+                timestamp_writes.as_ref(),
+            ),
             CommandEncoderAction::WriteTimestamp {
                 query_set_id,
                 query_index,
@@ -2332,18 +2349,14 @@ impl Global {
                 target_depth_stencil,
                 timestamp_writes,
                 occlusion_query_set_id,
-            } => {
-                if let Err(err) = self.render_pass_end_with_unresolved_commands(
-                    self_id,
-                    base,
-                    &target_colors,
-                    target_depth_stencil.as_ref(),
-                    timestamp_writes.as_ref(),
-                    occlusion_query_set_id,
-                ) {
-                    error_buf.init(err);
-                }
-            }
+            } => self.render_pass_end_with_unresolved_commands(
+                self_id,
+                base,
+                &target_colors,
+                target_depth_stencil.as_ref(),
+                timestamp_writes.as_ref(),
+                occlusion_query_set_id,
+            ),
             CommandEncoderAction::ClearBuffer { dst, offset, size } => {
                 if let Err(err) = self.command_encoder_clear_buffer(self_id, dst, offset, size) {
                     error_buf.init(err);
@@ -2374,8 +2387,7 @@ impl Global {
                     error_buf.init(err);
                 }
             }
-            CommandEncoderAction::BuildAccelerationStructuresUnsafeTlas { .. }
-            | CommandEncoderAction::BuildAccelerationStructures { .. } => {
+            CommandEncoderAction::BuildAccelerationStructures { .. } => {
                 unreachable!("internal error: attempted to build acceleration structures")
             }
         }

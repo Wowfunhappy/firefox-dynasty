@@ -111,13 +111,15 @@ function TrendingSearches() {
 
   if (!suggestions?.length) {
     return null;
-  } else if (variant === "a") {
+  } else if (variant === "a" || variant === "c") {
     return (
       <section
         ref={el => {
           ref.current = [el];
         }}
-        className="trending-searches-pill-wrapper"
+        // Variant C matches the design of variant A but should only
+        // appear on hover
+        className={`trending-searches-pill-wrapper ${variant === "c" ? "hover-only" : ""}`}
       >
         <div className="trending-searches-title-wrapper">
           <span className="trending-searches-icon icon icon-arrow-trending"></span>
@@ -213,8 +215,20 @@ function TrendingSearches() {
                   setRef={item => (resultRef.current[index] = item)}
                   tabIndex={index === 0 ? 0 : -1}
                 >
-                  <span className="trending-searches-icon icon icon-arrow-trending"></span>
-                  {result.lowerCaseSuggestion}
+                  {result.icon ? (
+                    <div className="trending-icon-wrapper">
+                      <img src={result.icon} alt="" className="trending-icon" />
+                      <div className="trending-info-wrapper">
+                        {result.lowerCaseSuggestion}
+                        <small>{result.description}</small>
+                      </div>
+                    </div>
+                  ) : (
+                    <>
+                      <span className="trending-searches-icon icon icon-arrow-trending"></span>
+                      {result.lowerCaseSuggestion}
+                    </>
+                  )}
                 </SafeAnchor>
               </li>
             );

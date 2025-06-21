@@ -131,7 +131,7 @@
     min-height: var(--tabstrip-min-height);
 
     --tab-min-width: 76px;
-    :root[uidensity="touch"] & .tabbrowser-tab:not([pinned]) {
+    :root[uidensity="touch"] & .tabbrowser-tab[fadein]:not([pinned]) {
       /* Touch mode needs additional space for the close button. */
       min-width: max(var(--tab-min-width-pref, var(--tab-min-width)), 86px);
     }
@@ -202,16 +202,20 @@
     }
   }
 
+  &[dragtarget] {
+    z-index: 3 !important;
+    position: absolute !important;
+    pointer-events: none; /* avoid blocking dragover events on scroll buttons */
+  }
+
   &:not([pinned], [fadein]) {
     max-width: 0.1px;
     min-width: 0.1px;
     visibility: hidden;
   }
 
-  #tabbrowser-tabs[movingtab] &:is(:active, [multiselected]) {
+  #tabbrowser-tabs[movingtab] & {
     position: relative;
-    z-index: 2;
-    pointer-events: none; /* avoid blocking dragover events on scroll buttons */
   }
 
   @media (prefers-reduced-motion: no-preference) {
@@ -235,7 +239,7 @@
     &:is([muted], [soundplaying], [activemedia-blocked]) {
       --tab-icon-end-margin: 2px;
 
-      #tabbrowser-tabs[orient="horizontal"] &:not([pinned]) {
+      #tabbrowser-tabs[orient="horizontal"] &[fadein]:not([pinned]) {
         min-width: max(var(--tab-min-width-pref, var(--tab-min-width)), 100px);
       }
     }
@@ -1024,9 +1028,9 @@ tab-group {
 }
 
 .tab-group-label-container {
-  #tabbrowser-tabs[movingtab] &:active {
-    position: relative;
-    z-index: 2;
+  &[dragtarget] {
+    z-index: 3;
+    position: absolute;
     pointer-events: none; /* avoid blocking dragover events on scroll buttons */
   }
   @media (prefers-reduced-motion: no-preference) {
@@ -1116,6 +1120,7 @@ tab-group {
     height: 24px;
     min-height: auto;
     line-height: 24px;
+    min-width: 24px;
 
     #tabbrowser-tabs:not([expanded]) & {
       width: 24px;

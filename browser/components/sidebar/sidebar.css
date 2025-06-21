@@ -14,6 +14,20 @@
   background-color: transparent;
   color: var(--sidebar-text-color);
   height: 100%;
+
+  &:not([lwt-sidebar]) {
+    /* Prevent :root[lwtheme] in global-shared.css from forcing our
+     * color-scheme to light when unthemed */
+    color-scheme: light dark;
+  }
+
+  &[lwt-sidebar="light"] {
+    color-scheme: light;
+  }
+
+  &[lwt-sidebar="dark"] {
+    color-scheme: dark;
+  }
 }
 
 body {
