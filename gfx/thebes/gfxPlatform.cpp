@@ -2987,6 +2987,9 @@ void gfxPlatform::InitWebRenderConfig() {
   gfxVars::SetUseWebRenderScissoredCacheClears(gfx::gfxConfig::IsEnabled(
       gfx::Feature::WEBRENDER_SCISSORED_CACHE_CLEARS));
 
+  gfxVars::SetAllowGLNorm16Textures(
+      gfx::gfxConfig::IsEnabled(gfx::Feature::GL_NORM16_TEXTURES));
+
   // The RemoveShaderCacheFromDiskIfNecessary() needs to be called after
   // WebRenderConfig initialization.
   gfxUtils::RemoveShaderCacheFromDiskIfNecessary();
