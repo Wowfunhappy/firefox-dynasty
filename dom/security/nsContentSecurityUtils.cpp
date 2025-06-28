@@ -674,18 +674,6 @@ bool nsContentSecurityUtils::IsEvalAllowed(JSContext* cx,
     return true;
   }
 
-#ifndef NIGHTLY_BUILD
-  DetectJsHacks();
-  if (MOZ_UNLIKELY(sJSHacksPresent)) {
-    MOZ_LOG(
-        sCSMLog, LogLevel::Debug,
-        ("Allowing eval() %s because some "
-         "JS hacks may be present.",
-         (aIsSystemPrincipal ? "with System Principal" : "in parent process")));
-    return true;
-  }
-#endif
-
   if (XRE_IsE10sParentProcess() &&
       !StaticPrefs::extensions_webextensions_remote()) {
     MOZ_LOG(sCSMLog, LogLevel::Debug,
@@ -753,7 +741,12 @@ bool nsContentSecurityUtils::IsEvalAllowed(JSContext* cx,
   MOZ_CRASH_UNSAFE_PRINTF("%s", crashString.get());
 #endif
 
+#ifdef MOZ_WIDGET_ANDROID
+  // TODO(bug 1895823)
+  return true;
+#else
   return false;
+#endif
 }
 
 /* static */

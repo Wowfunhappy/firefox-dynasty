@@ -114,7 +114,8 @@ class Navigation final : public DOMEventTargetHelper {
 
   MOZ_CAN_RUN_SCRIPT bool FirePushReplaceReloadNavigateEvent(
       JSContext* aCx, NavigationType aNavigationType, nsIURI* aDestinationURL,
-      bool aIsSameDocument, Maybe<UserNavigationInvolvement> aUserInvolvement,
+      bool aIsSameDocument, bool aIsSync,
+      Maybe<UserNavigationInvolvement> aUserInvolvement,
       Element* aSourceElement, already_AddRefed<FormData> aFormDataEntryList,
       nsIStructuredCloneContainer* aNavigationAPIState,
       nsIStructuredCloneContainer* aClassicHistoryAPIState);
@@ -178,13 +179,16 @@ class Navigation final : public DOMEventTargetHelper {
   RefPtr<NavigationAPIMethodTracker> AddUpcomingTraverseAPIMethodTracker(
       const nsID& aKey, JS::Handle<JS::Value> aInfo);
 
-  void SetEarlyErrorResult(NavigationResult& aResult, ErrorResult&& aRv) const;
+  void SetEarlyErrorResult(JSContext* aCx, NavigationResult& aResult,
+                           ErrorResult&& aRv) const;
 
   bool CheckIfDocumentIsFullyActiveAndMaybeSetEarlyErrorResult(
-      const Document* aDocument, NavigationResult& aResult) const;
+      JSContext* aCx, const Document* aDocument,
+      NavigationResult& aResult) const;
 
   bool CheckDocumentUnloadCounterAndMaybeSetEarlyErrorResult(
-      const Document* aDocument, NavigationResult& aResult) const;
+      JSContext* aCx, const Document* aDocument,
+      NavigationResult& aResult) const;
 
   already_AddRefed<nsIStructuredCloneContainer>
   CreateSerializedStateAndMaybeSetEarlyErrorResult(

@@ -844,7 +844,7 @@ EditorDOMPoint HTMLEditUtils::LineRequiresPaddingLineBreakToBeVisible(
   if (!followedByBlockBoundary) {
     return EditorDOMPoint();
   }
-  const bool followingBlockBoundaryOrCollapsibleWhiteSpace = [&]() {
+  const bool isFollowingBlockBoundary = [&]() {
     if (point.GetContainer() == maybeNonEditableBlock &&
         point.IsStartOfContainer()) {
       return true;
@@ -861,25 +861,11 @@ EditorDOMPoint HTMLEditUtils::LineRequiresPaddingLineBreakToBeVisible(
       // Reached current block.
       return true;
     }
-    if (HTMLEditUtils::IsBlockElement(
-            *previousVisibleLeafOrChildBlock,
-            BlockInlineCheck::UseComputedDisplayOutsideStyle)) {
-      // We reached previous child block.
-      return true;
-    }
-    Text* const previousVisibleText =
-        Text::FromNode(previousVisibleLeafOrChildBlock);
-    if (!previousVisibleText) {
-      // We reached visible inline element.
-      return false;
-    }
-    MOZ_ASSERT(previousVisibleText->TextDataLength());
-    // We reached previous (currently) invisible white-space or visible
-    // character.
-    return EditorRawDOMPoint::AtEndOf(*previousVisibleText)
-        .IsPreviousCharASCIISpace();
+    return HTMLEditUtils::IsBlockElement(
+        *previousVisibleLeafOrChildBlock,
+        BlockInlineCheck::UseComputedDisplayOutsideStyle);
   }();
-  if (!followingBlockBoundaryOrCollapsibleWhiteSpace) {
+  if (!isFollowingBlockBoundary) {
     return EditorDOMPoint();
   }
   AdjustPointToInsertPaddingLineBreak(preferredPaddingLineBreakPoint,
@@ -972,36 +958,25 @@ Element* HTMLEditUtils::GetElementOfImmediateBlockBoundary(
 
     Text* textNode = Text::FromNode(nextContent);
     MOZ_ASSERT(textNode);
-    if (!textNode->TextLength()) {
+    if (!textNode->TextDataLength()) {
       continue;  // empty invisible text node, keep scanning next one.
     }
     if (HTMLEditUtils::IsInclusiveAncestorCSSDisplayNone(*textNode)) {
       continue;  // Styled as invisible.
     }
-    if (!textNode->TextIsOnlyWhitespace()) {
+    if (EditorUtils::IsWhiteSpacePreformatted(*textNode)) {
       return nullptr;  // found a visible text node.
     }
-    const nsTextFragment& textFragment = textNode->TextFragment();
-    const bool isWhiteSpacePreformatted =
-        EditorUtils::IsWhiteSpacePreformatted(*textNode);
-    const bool isNewLinePreformatted =
-        EditorUtils::IsNewLinePreformatted(*textNode);
-    if (!isWhiteSpacePreformatted && !isNewLinePreformatted) {
-      // if the white-space only text node is not preformatted, ignore it.
-      continue;
+    const uint32_t nonWhiteSpaceOffset =
+        textNode->TextFragment().FindNonWhitespaceChar(
+            EditorUtils::IsNewLinePreformatted(*textNode)
+                ? WhitespaceOptions{WhitespaceOption::FormFeedIsSignificant,
+                                    WhitespaceOption::NewLineIsSignificant}
+                : WhitespaceOptions{WhitespaceOption::FormFeedIsSignificant});
+    if (nonWhiteSpaceOffset != nsTextFragment::kNotFound) {
+      return nullptr;  // found a visible text node.
     }
-    for (uint32_t i = 0; i < textFragment.GetLength(); i++) {
-      if (textFragment.CharAt(i) == HTMLEditUtils::kNewLine) {
-        if (isNewLinePreformatted) {
-          return nullptr;  // found a visible text node.
-        }
-        continue;
-      }
-      if (isWhiteSpacePreformatted) {
-        return nullptr;  // found a visible text node.
-      }
-    }
-    // All white-spaces in the text node is invisible, keep scanning next one.
+    // All white-spaces in the text node are invisible, keep scanning next one.
   }
 
   // There is no visible content and reached current block boundary.  Then,

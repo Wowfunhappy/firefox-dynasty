@@ -208,8 +208,10 @@ nsresult HttpConnectionUDP::Activate(nsAHttpTransaction* trans, uint32_t caps,
         caps));
 
   nsHttpTransaction* hTrans = trans->QueryHttpTransaction();
+  nsHttpConnectionInfo* transCI = trans->ConnectionInfo();
   NetAddr peerAddr;
-  if (hTrans && NS_SUCCEEDED(GetPeerAddr(&peerAddr))) {
+  if (!transCI->UsingProxy() && hTrans &&
+      NS_SUCCEEDED(GetPeerAddr(&peerAddr))) {
     if (!hTrans->AllowedToConnectToIpAddressSpace(
             peerAddr.GetIpAddressSpace())) {
       // we could probably fail early and avoid recreating the H3 session
@@ -666,14 +668,10 @@ void HttpConnectionUDP::SetEvent(nsresult aStatus) {
       break;
     case NS_NET_STATUS_CONNECTING_TO:
       mBootstrappedTimings.connectStart = TimeStamp::Now();
+      mBootstrappedTimings.secureConnectionStart =
+          mBootstrappedTimings.connectStart;
       break;
     case NS_NET_STATUS_CONNECTED_TO:
-      mBootstrappedTimings.connectEnd = TimeStamp::Now();
-      break;
-    case NS_NET_STATUS_TLS_HANDSHAKE_STARTING:
-      mBootstrappedTimings.secureConnectionStart = TimeStamp::Now();
-      break;
-    case NS_NET_STATUS_TLS_HANDSHAKE_ENDED:
       mBootstrappedTimings.connectEnd = TimeStamp::Now();
       break;
     default:

@@ -30,6 +30,7 @@ import mozilla.components.compose.base.theme.AcornTheme
 import mozilla.components.compose.browser.toolbar.BrowserToolbar
 import mozilla.components.compose.browser.toolbar.store.BrowserToolbarState
 import mozilla.components.compose.browser.toolbar.store.BrowserToolbarStore
+import mozilla.components.support.ktx.android.view.ImeInsetsSynchronizer
 import org.mozilla.fenix.R
 import org.mozilla.fenix.browser.browsingmode.BrowsingModeManager
 import org.mozilla.fenix.browser.tabstrip.isTabStripEnabled
@@ -40,6 +41,8 @@ import org.mozilla.fenix.components.toolbar.ToolbarPosition.TOP
 import org.mozilla.fenix.databinding.FragmentHomeBinding
 import org.mozilla.fenix.ext.components
 import org.mozilla.fenix.home.toolbar.BrowserToolbarMiddleware.LifecycleDependencies
+import org.mozilla.fenix.search.BrowserToolbarSearchMiddleware
+import org.mozilla.fenix.search.BrowserToolbarSearchStatusSyncMiddleware
 import org.mozilla.fenix.utils.Settings
 
 /**
@@ -55,6 +58,8 @@ import org.mozilla.fenix.utils.Settings
  * @param browsingModeManager [BrowsingModeManager] for querying the current browsing mode.
  * @param settings [Settings] for querying various application settings.
  * @param tabStripContent [Composable] as the tab strip content to be displayed together with this toolbar.
+ * @param searchSuggestionsContent [Composable] as the search suggestions content to be displayed
+ * together with this toolbar.
  */
 @Suppress("LongParameterList")
 internal class HomeToolbarComposable(
@@ -67,14 +72,17 @@ internal class HomeToolbarComposable(
     private val browsingModeManager: BrowsingModeManager,
     private val settings: Settings,
     private val tabStripContent: @Composable () -> Unit,
+    private val searchSuggestionsContent: @Composable (BrowserToolbarStore, Modifier) -> Unit,
 ) : FenixHomeToolbar {
     private var showDivider by mutableStateOf(true)
 
-    private val middleware = getOrCreate<BrowserToolbarMiddleware>()
+    private val displayMiddleware = getOrCreate<BrowserToolbarMiddleware>()
+    private val searchMiddleware = getOrCreate<BrowserToolbarSearchMiddleware>()
+    private val searchSyncMiddleware = getOrCreate<BrowserToolbarSearchStatusSyncMiddleware>()
     private val store = StoreProvider.get(lifecycleOwner) {
         BrowserToolbarStore(
             initialState = BrowserToolbarState(),
-            middleware = listOf(middleware),
+            middleware = listOf(displayMiddleware, searchMiddleware, searchSyncMiddleware),
         )
     }
 
@@ -82,20 +90,25 @@ internal class HomeToolbarComposable(
         id = R.id.composable_toolbar
 
         setContent {
-            val shouldShowDivider by remember { mutableStateOf(showDivider) }
             val shouldShowTabStrip: Boolean = remember { context.isTabStripEnabled() }
 
             AcornTheme {
-                when (shouldShowTabStrip) {
-                    true -> Column {
+                Column {
+                    if (shouldShowTabStrip) {
                         tabStripContent()
-                        BrowserToolbar(shouldShowDivider, settings.shouldUseBottomToolbar)
                     }
 
-                    false -> BrowserToolbar(shouldShowDivider, settings.shouldUseBottomToolbar)
+                    if (settings.shouldUseBottomToolbar) {
+                        searchSuggestionsContent(store, Modifier.weight(1f))
+                    }
+                    BrowserToolbar(showDivider, settings.shouldUseBottomToolbar)
+                    if (!settings.shouldUseBottomToolbar) {
+                        searchSuggestionsContent(store, Modifier.weight(1f))
+                    }
                 }
             }
         }
+        translationZ = context.resources.getDimension(R.dimen.browser_fragment_above_toolbar_panels_elevation)
         homeBinding.homeLayout.addView(this)
     }
 
@@ -105,6 +118,10 @@ internal class HomeToolbarComposable(
                 TOP -> Gravity.TOP
                 BOTTOM -> Gravity.BOTTOM
             }
+        }
+
+        if (settings.shouldUseBottomToolbar) {
+            ImeInsetsSynchronizer.setup(layout)
         }
 
         updateHomeAppBarIntegration()
@@ -177,6 +194,39 @@ internal class HomeToolbarComposable(
                         navController = navController,
                         browsingModeManager = browsingModeManager,
                         useCases = context.components.useCases,
+                    ),
+                )
+            } as T
+
+        BrowserToolbarSearchStatusSyncMiddleware::class.java ->
+            ViewModelProvider(
+                lifecycleOwner,
+                BrowserToolbarSearchStatusSyncMiddleware.viewModelFactory(
+                    appStore = appStore,
+                ),
+            ).get(BrowserToolbarSearchStatusSyncMiddleware::class.java).also {
+                it.updateLifecycleDependencies(
+                    BrowserToolbarSearchStatusSyncMiddleware.LifecycleDependencies(
+                        lifecycleOwner = lifecycleOwner,
+                    ),
+                )
+            } as T
+
+        BrowserToolbarSearchMiddleware::class.java ->
+            ViewModelProvider(
+                lifecycleOwner,
+                BrowserToolbarSearchMiddleware.viewModelFactory(
+                    appStore = appStore,
+                    browserStore = browserStore,
+                    components = context.components,
+                    settings = context.components.settings,
+                ),
+            ).get(BrowserToolbarSearchMiddleware::class.java).also {
+                it.updateLifecycleDependencies(
+                    BrowserToolbarSearchMiddleware.LifecycleDependencies(
+                        lifecycleOwner = lifecycleOwner,
+                        navController = navController,
+                        resources = context.resources,
                     ),
                 )
             } as T

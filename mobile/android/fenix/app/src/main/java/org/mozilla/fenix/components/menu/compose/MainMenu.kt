@@ -72,7 +72,7 @@ import org.mozilla.fenix.components.menu.compose.header.MenuNavHeader
 import org.mozilla.fenix.components.menu.store.WebExtensionMenuItem
 import org.mozilla.fenix.theme.FirefoxTheme
 import org.mozilla.fenix.theme.Theme
-import org.mozilla.fenix.utils.DURATION_MS_MAIN_MENU
+import org.mozilla.fenix.utils.DURATION_MS_MAIN_MENU_ITEM
 
 /**
  * Wrapper column containing the main menu items.
@@ -93,7 +93,6 @@ import org.mozilla.fenix.utils.DURATION_MS_MAIN_MENU
  * @param allWebExtensionsDisabled Whether or not all web extensions are disabled.
  * @param canGoBack Whether or not the back button is enabled.
  * @param canGoForward Whether or not the forward button is enabled.
- * @param extensionsMenuItemDescription The label of extensions menu item description.
  * @param scrollState The [ScrollState] used for vertical scrolling.
  * @param showBanner Whether or not the default browser banner should be shown.
  * @param webExtensionMenuCount The number of web extensions.
@@ -115,7 +114,6 @@ import org.mozilla.fenix.utils.DURATION_MS_MAIN_MENU
  * @param onPasswordsMenuClick Invoked when the user clicks on the passwords menu item.
  * @param onCustomizeHomepageMenuClick Invoked when the user clicks on the customize
  * homepage menu item.
- * @param onNewInFirefoxMenuClick Invoked when the user clicks on the release note menu item.
  * @param onQuitMenuClick Invoked when the user clicks on the quit menu item.
  * @param onBackButtonClick Invoked when the user clicks on the back button.
  * @param onForwardButtonClick Invoked when the user clicks on the forward button.
@@ -124,6 +122,7 @@ import org.mozilla.fenix.utils.DURATION_MS_MAIN_MENU
  * @param onShareButtonClick Invoked when the user clicks on the share button.
  * @param moreSettingsSubmenu The content of more menu item.
  * @param extensionSubmenu The content of extensions menu item to avoid configuration during animation.
+ * @param extensionsMenuItemDescription The label of extensions menu item description.
  */
 @Suppress("LongParameterList", "LongMethod")
 @Composable
@@ -143,7 +142,6 @@ fun MainMenu(
     allWebExtensionsDisabled: Boolean,
     canGoBack: Boolean,
     canGoForward: Boolean,
-    extensionsMenuItemDescription: String,
     scrollState: ScrollState,
     showBanner: Boolean,
     webExtensionMenuCount: Int,
@@ -163,7 +161,6 @@ fun MainMenu(
     onDownloadsMenuClick: () -> Unit,
     onPasswordsMenuClick: () -> Unit,
     onCustomizeHomepageMenuClick: () -> Unit,
-    onNewInFirefoxMenuClick: () -> Unit,
     onQuitMenuClick: () -> Unit,
     onBackButtonClick: (longPress: Boolean) -> Unit,
     onForwardButtonClick: (longPress: Boolean) -> Unit,
@@ -172,6 +169,7 @@ fun MainMenu(
     onShareButtonClick: () -> Unit,
     moreSettingsSubmenu: @Composable ColumnScope.() -> Unit,
     extensionSubmenu: @Composable ColumnScope.() -> Unit,
+    extensionsMenuItemDescription: String?,
 ) {
     MenuFrame(
         header = {
@@ -227,14 +225,13 @@ fun MainMenu(
         if (accessPoint == MenuAccessPoint.Home) {
             HomepageMenuGroup(
                 onCustomizeHomepageMenuClick = onCustomizeHomepageMenuClick,
-                onNewInFirefoxMenuClick = onNewInFirefoxMenuClick,
                 onExtensionsMenuClick = onExtensionsMenuClick,
-                extensionsMenuItemDescription = extensionsMenuItemDescription,
                 isExtensionsProcessDisabled = isExtensionsProcessDisabled,
                 isExtensionsExpanded = isExtensionsExpanded,
                 webExtensionMenuCount = webExtensionMenuCount,
                 allWebExtensionsDisabled = allWebExtensionsDisabled,
                 extensionSubmenu = extensionSubmenu,
+                extensionsMenuItemDescription = extensionsMenuItemDescription,
             )
         }
 
@@ -243,7 +240,6 @@ fun MainMenu(
                 isBookmarked = isBookmarked,
                 isDesktopMode = isDesktopMode,
                 isPdf = isPdf,
-                extensionsMenuItemDescription = extensionsMenuItemDescription,
                 isExtensionsProcessDisabled = isExtensionsProcessDisabled,
                 isExtensionsExpanded = isExtensionsExpanded,
                 moreMenuExpanded = isMoreMenuExpanded,
@@ -257,6 +253,7 @@ fun MainMenu(
                 onMoreMenuClick = onMoreMenuClick,
                 moreSettingsSubmenu = moreSettingsSubmenu,
                 extensionSubmenu = extensionSubmenu,
+                extensionsMenuItemDescription = extensionsMenuItemDescription,
                 )
         }
 
@@ -292,13 +289,13 @@ fun MainMenu(
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
 private fun ExtensionsMenuItem(
-    extensionsMenuItemDescription: String,
     isExtensionsProcessDisabled: Boolean,
     isExtensionsExpanded: Boolean,
     webExtensionMenuCount: Int,
     allWebExtensionsDisabled: Boolean,
     onExtensionsMenuClick: () -> Unit,
     extensionSubmenu: @Composable ColumnScope.() -> Unit,
+    extensionsMenuItemDescription: String?,
 ) {
     Column {
         val leftPadding = if (webExtensionMenuCount > 0) 8.dp else 2.dp
@@ -321,6 +318,10 @@ private fun ExtensionsMenuItem(
                 testTagsAsResourceId = true
             },
         ) {
+            if (extensionsMenuItemDescription == null) {
+                return@MenuItem
+            }
+
             if (isExtensionsProcessDisabled || allWebExtensionsDisabled) {
                 Icon(
                     painter = painterResource(id = R.drawable.mozac_ic_settings_24),
@@ -379,24 +380,24 @@ private fun MenuItemAnimation(
         enter = expandVertically(
             expandFrom = Alignment.Top,
             animationSpec = tween(
-                durationMillis = DURATION_MS_MAIN_MENU,
+                durationMillis = DURATION_MS_MAIN_MENU_ITEM,
                 easing = LinearEasing,
             ),
         ) + fadeIn(
             animationSpec = tween(
-                durationMillis = DURATION_MS_MAIN_MENU,
+                durationMillis = DURATION_MS_MAIN_MENU_ITEM,
                 easing = LinearEasing,
             ),
         ),
         exit = shrinkVertically(
             shrinkTowards = Alignment.Top,
             animationSpec = tween(
-                durationMillis = DURATION_MS_MAIN_MENU,
+                durationMillis = DURATION_MS_MAIN_MENU_ITEM,
                 easing = LinearEasing,
             ),
         ) + fadeOut(
             animationSpec = tween(
-                durationMillis = DURATION_MS_MAIN_MENU,
+                durationMillis = DURATION_MS_MAIN_MENU_ITEM,
                 easing = LinearEasing,
             ),
         ),
@@ -431,7 +432,6 @@ private fun ToolsAndActionsMenuGroup(
     isDesktopMode: Boolean,
     isPdf: Boolean,
     isExtensionsProcessDisabled: Boolean,
-    extensionsMenuItemDescription: String,
     isExtensionsExpanded: Boolean,
     moreMenuExpanded: Boolean,
     webExtensionMenuCount: Int,
@@ -444,6 +444,7 @@ private fun ToolsAndActionsMenuGroup(
     onMoreMenuClick: () -> Unit,
     moreSettingsSubmenu: @Composable ColumnScope.() -> Unit,
     extensionSubmenu: @Composable ColumnScope.() -> Unit,
+    extensionsMenuItemDescription: String?,
     ) {
     MenuGroup {
         val labelId = R.string.browser_menu_desktop_site
@@ -454,7 +455,7 @@ private fun ToolsAndActionsMenuGroup(
         if (isDesktopMode) {
             badgeText = stringResource(id = R.string.browser_feature_desktop_site_on)
             badgeBackgroundColor = FirefoxTheme.colors.badgeActive
-            menuItemState = MenuItemState.ACTIVE
+            menuItemState = if (isPdf) MenuItemState.DISABLED else MenuItemState.ACTIVE
         } else {
             badgeText = stringResource(id = R.string.browser_feature_desktop_site_off)
             badgeBackgroundColor = FirefoxTheme.colors.layerSearch
@@ -476,6 +477,12 @@ private fun ToolsAndActionsMenuGroup(
                 )
             }
 
+        MenuItem(
+            label = stringResource(id = R.string.browser_menu_find_in_page),
+            beforeIconPainter = painterResource(id = R.drawable.mozac_ic_search_24),
+            onClick = onFindInPageMenuClick,
+        )
+
             MenuItem(
                 label = stringResource(id = labelId),
                 beforeIconPainter = painterResource(id = R.drawable.mozac_ic_device_mobile_24),
@@ -493,20 +500,14 @@ private fun ToolsAndActionsMenuGroup(
             )
         }
 
-        MenuItem(
-            label = stringResource(id = R.string.browser_menu_find_in_page),
-            beforeIconPainter = painterResource(id = R.drawable.mozac_ic_search_24),
-            onClick = onFindInPageMenuClick,
-        )
-
         ExtensionsMenuItem(
-            extensionsMenuItemDescription = extensionsMenuItemDescription,
             isExtensionsProcessDisabled = isExtensionsProcessDisabled,
             isExtensionsExpanded = isExtensionsExpanded,
             webExtensionMenuCount = webExtensionMenuCount,
             allWebExtensionsDisabled = allWebExtensionsDisabled,
             onExtensionsMenuClick = onExtensionsMenuClick,
             extensionSubmenu = extensionSubmenu,
+            extensionsMenuItemDescription = extensionsMenuItemDescription,
         )
 
         MoreMenuButtonGroup(
@@ -637,26 +638,16 @@ private fun LibraryMenuGroup(
 @Suppress("LongParameterList")
 @Composable
 private fun HomepageMenuGroup(
-    extensionsMenuItemDescription: String,
     isExtensionsProcessDisabled: Boolean,
     isExtensionsExpanded: Boolean,
     webExtensionMenuCount: Int,
     allWebExtensionsDisabled: Boolean,
     onExtensionsMenuClick: () -> Unit,
     onCustomizeHomepageMenuClick: () -> Unit,
-    onNewInFirefoxMenuClick: () -> Unit,
     extensionSubmenu: @Composable ColumnScope.() -> Unit,
+    extensionsMenuItemDescription: String?,
 ) {
     MenuGroup {
-        MenuItem(
-            label = stringResource(
-                id = R.string.browser_menu_new_in_firefox,
-                stringResource(id = R.string.app_name),
-            ),
-            beforeIconPainter = painterResource(id = R.drawable.mozac_ic_whats_new_24),
-            onClick = onNewInFirefoxMenuClick,
-        )
-
         MenuItem(
             label = stringResource(id = R.string.browser_menu_customize_home_1),
             beforeIconPainter = painterResource(id = R.drawable.mozac_ic_tool_24),
@@ -664,13 +655,13 @@ private fun HomepageMenuGroup(
         )
 
         ExtensionsMenuItem(
-            extensionsMenuItemDescription = extensionsMenuItemDescription,
             isExtensionsProcessDisabled = isExtensionsProcessDisabled,
             isExtensionsExpanded = isExtensionsExpanded,
             webExtensionMenuCount = webExtensionMenuCount,
             allWebExtensionsDisabled = allWebExtensionsDisabled,
             onExtensionsMenuClick = onExtensionsMenuClick,
             extensionSubmenu = extensionSubmenu,
+            extensionsMenuItemDescription = extensionsMenuItemDescription,
         )
     }
 }
@@ -925,7 +916,6 @@ private fun MenuDialogPreview() {
                 onDownloadsMenuClick = {},
                 onPasswordsMenuClick = {},
                 onCustomizeHomepageMenuClick = {},
-                onNewInFirefoxMenuClick = {},
                 onQuitMenuClick = {},
                 onBackButtonClick = {},
                 onForwardButtonClick = {},
@@ -986,7 +976,6 @@ private fun MenuDialogPrivatePreview(
                 onDownloadsMenuClick = {},
                 onPasswordsMenuClick = {},
                 onCustomizeHomepageMenuClick = {},
-                onNewInFirefoxMenuClick = {},
                 onQuitMenuClick = {},
                 onBackButtonClick = {},
                 onForwardButtonClick = {},

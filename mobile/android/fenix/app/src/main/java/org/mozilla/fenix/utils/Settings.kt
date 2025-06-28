@@ -16,6 +16,7 @@ import androidx.annotation.VisibleForTesting
 import androidx.annotation.VisibleForTesting.Companion.PRIVATE
 import androidx.core.content.edit
 import androidx.lifecycle.LifecycleOwner
+import androidx.preference.PreferenceManager
 import mozilla.components.concept.engine.Engine
 import mozilla.components.concept.engine.Engine.HttpsOnlyMode
 import mozilla.components.concept.engine.EngineSession.CookieBannerHandlingMode
@@ -415,6 +416,15 @@ class Settings(private val appContext: Context) : PreferencesHolder {
     var isExperimentationEnabled by booleanPreference(
         appContext.getPreferenceKey(R.string.pref_key_experimentation_v2),
         default = isTelemetryEnabled,
+    )
+
+    /**
+     * This lets us know if the user has disabled experimentation manually so that we know
+     * if we should re-enable experimentation if the user disables and re-enables telemetry.
+     */
+    var hasUserDisabledExperimentation by booleanPreference(
+        appContext.getPreferenceKey(R.string.pref_key_user_disabled_experimentation),
+        default = false,
     )
 
     var isOverrideTPPopupsForPerformanceTest = false
@@ -1060,9 +1070,9 @@ class Settings(private val appContext: Context) : PreferencesHolder {
         persistDefaultIfNotExists = true,
     )
 
-    var shouldUseExpandedToolbar by booleanPreference(
-        key = appContext.getPreferenceKey(R.string.pref_key_toolbar_expanded),
-        default = false,
+    var shouldUseSimpleToolbar by booleanPreference(
+        key = appContext.getPreferenceKey(R.string.pref_key_toolbar_simple),
+        default = true,
         persistDefaultIfNotExists = true,
     )
 
@@ -1866,10 +1876,9 @@ class Settings(private val appContext: Context) : PreferencesHolder {
     )
 
     /**
-     * Indicates if the user have access to the toolbar redesign option in settings.
+     * Indicates if the user has access to the toolbar redesign option in settings.
      */
-    @VisibleForTesting
-    internal var toolbarRedesignEnabled by booleanPreference(
+    var toolbarRedesignEnabled by booleanPreference(
         appContext.getPreferenceKey(R.string.pref_key_enable_toolbar_redesign),
         default = { FxNimbus.features.toolbarRedesignOption.value().showOptions },
     )
@@ -2481,4 +2490,13 @@ class Settings(private val appContext: Context) : PreferencesHolder {
         key = appContext.getPreferenceKey(R.string.pref_key_distribution_id),
         default = "",
     )
+
+    /**
+     * Indicates whether the app should automatically clean up downloaded files.
+     */
+    fun shouldCleanUpDownloadsAutomatically(): Boolean {
+        val sharedPreferences = PreferenceManager.getDefaultSharedPreferences(appContext)
+        val cleanupPreferenceKey = appContext.getString(R.string.pref_key_downloads_clean_up_files_automatically)
+        return sharedPreferences.getBoolean(cleanupPreferenceKey, false)
+    }
 }

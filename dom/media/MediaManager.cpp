@@ -184,6 +184,7 @@ using dom::OwningStringOrStringSequenceOrConstrainDOMStringParameters;
 using dom::Promise;
 using dom::Sequence;
 using dom::UserActivation;
+using dom::VideoResizeModeEnum;
 using dom::WindowGlobalChild;
 using ConstDeviceSetPromise = MediaManager::ConstDeviceSetPromise;
 using DeviceSetPromise = MediaManager::DeviceSetPromise;
@@ -1059,7 +1060,7 @@ uint32_t LocalMediaDevice::FitnessDistance(
 
 uint32_t LocalMediaDevice::GetBestFitnessDistance(
     const nsTArray<const NormalizedConstraintSet*>& aConstraintSets,
-    CallerType aCallerType) {
+    const MediaEnginePrefs& aPrefs, CallerType aCallerType) {
   MOZ_ASSERT(MediaManager::IsInMediaThread());
   MOZ_ASSERT(GetMediaSource() != MediaSourceEnum::Other);
 
@@ -1080,7 +1081,7 @@ uint32_t LocalMediaDevice::GetBestFitnessDistance(
   if (distance < UINT32_MAX) {
     // Forward request to underlying object to interrogate per-mode
     // capabilities.
-    distance += Source()->GetBestFitnessDistance(aConstraintSets);
+    distance += Source()->GetBestFitnessDistance(aConstraintSets, aPrefs);
   }
   return std::min<uint64_t>(distance, UINT32_MAX);
 }
@@ -1190,18 +1191,29 @@ nsresult LocalMediaDevice::Reconfigure(
     const MediaTrackConstraints& aConstraints, const MediaEnginePrefs& aPrefs,
     const char** aOutBadConstraint) {
   MOZ_ASSERT(MediaManager::IsInMediaThread());
+  using H = MediaConstraintsHelper;
   auto type = GetMediaSource();
   if (type == MediaSourceEnum::Camera || type == MediaSourceEnum::Microphone) {
     NormalizedConstraints c(aConstraints);
-    if (MediaConstraintsHelper::FitnessDistance(Some(mID), c.mDeviceId) ==
-        UINT32_MAX) {
+    if (H::FitnessDistance(Some(mID), c.mDeviceId) == UINT32_MAX) {
       *aOutBadConstraint = "deviceId";
       return NS_ERROR_INVALID_ARG;
     }
-    if (MediaConstraintsHelper::FitnessDistance(Some(mGroupID), c.mGroupId) ==
-        UINT32_MAX) {
+    if (H::FitnessDistance(Some(mGroupID), c.mGroupId) == UINT32_MAX) {
       *aOutBadConstraint = "groupId";
       return NS_ERROR_INVALID_ARG;
+    }
+    if (aPrefs.mResizeModeEnabled && type == MediaSourceEnum::Camera) {
+      // Check invalid exact resizeMode constraint (not a device property)
+      nsString none =
+          NS_ConvertASCIItoUTF16(dom::GetEnumString(VideoResizeModeEnum::None));
+      nsString crop = NS_ConvertASCIItoUTF16(
+          dom::GetEnumString(VideoResizeModeEnum::Crop_and_scale));
+      if (H::FitnessDistance(Some(none), c.mResizeMode) == UINT32_MAX &&
+          H::FitnessDistance(Some(crop), c.mResizeMode) == UINT32_MAX) {
+        *aOutBadConstraint = "resizeMode";
+        return NS_ERROR_INVALID_ARG;
+      }
     }
   }
   return Source()->Reconfigure(aConstraints, aPrefs, aOutBadConstraint);
@@ -1280,7 +1292,7 @@ RefPtr<LocalDeviceSetPromise> MediaManager::SelectSettings(
   // Modifies passed-in aDevices.
 
   return MediaManager::Dispatch<LocalDeviceSetPromise>(
-      __func__, [aConstraints, devices = std::move(aDevices),
+      __func__, [aConstraints, devices = std::move(aDevices), prefs = mPrefs,
                  aCallerType](MozPromiseHolder<LocalDeviceSetPromise>& holder) {
         auto& devicesRef = *devices;
 
@@ -1308,13 +1320,13 @@ RefPtr<LocalDeviceSetPromise> MediaManager::SelectSettings(
 
         if (needVideo && videos.Length()) {
           badConstraint = MediaConstraintsHelper::SelectSettings(
-              NormalizedConstraints(GetInvariant(aConstraints.mVideo)), videos,
-              aCallerType);
+              NormalizedConstraints(GetInvariant(aConstraints.mVideo)), prefs,
+              videos, aCallerType);
         }
         if (!badConstraint && needAudio && audios.Length()) {
           badConstraint = MediaConstraintsHelper::SelectSettings(
-              NormalizedConstraints(GetInvariant(aConstraints.mAudio)), audios,
-              aCallerType);
+              NormalizedConstraints(GetInvariant(aConstraints.mAudio)), prefs,
+              audios, aCallerType);
         }
         if (badConstraint) {
           LOG("SelectSettings: bad constraint found! Calling error handler!");
@@ -1497,7 +1509,7 @@ class GetUserMediaStreamTask final : public GetUserMediaTask {
           nsTArray<RefPtr<LocalMediaDevice>> devices;
           devices.AppendElement(mAudioDevice);
           badConstraint = MediaConstraintsHelper::SelectSettings(
-              NormalizedConstraints(constraints), devices, mCallerType);
+              NormalizedConstraints(constraints), mPrefs, devices, mCallerType);
         }
       }
     }
@@ -1511,7 +1523,7 @@ class GetUserMediaStreamTask final : public GetUserMediaTask {
           nsTArray<RefPtr<LocalMediaDevice>> devices;
           devices.AppendElement(mVideoDevice);
           badConstraint = MediaConstraintsHelper::SelectSettings(
-              NormalizedConstraints(constraints), devices, mCallerType);
+              NormalizedConstraints(constraints), mPrefs, devices, mCallerType);
         }
         if (mAudioDevice) {
           mAudioDevice->Deallocate();
@@ -2381,6 +2393,8 @@ MediaManager::MediaManager(already_AddRefed<TaskQueue> aMediaThread)
   mPrefs.mFreq = 1000;  // 1KHz test tone
   mPrefs.mWidth = 0;    // adaptive default
   mPrefs.mHeight = 0;   // adaptive default
+  mPrefs.mResizeModeEnabled = false;
+  mPrefs.mResizeMode = VideoResizeModeEnum::None;
   mPrefs.mFPS = MediaEnginePrefs::DEFAULT_VIDEO_FPS;
   mPrefs.mUsePlatformProcessing = false;
   mPrefs.mAecOn = false;
@@ -2435,6 +2449,8 @@ static void ForeachObservedPref(const Function& aFunction) {
   aFunction("media.video_loopback_dev"_ns);
   aFunction("media.getusermedia.fake-camera-name"_ns);
 #ifdef MOZ_WEBRTC
+  aFunction("media.navigator.video.resize_mode.enabled"_ns);
+  aFunction("media.navigator.video.default_resize_mode"_ns);
   aFunction("media.getusermedia.audio.processing.aec.enabled"_ns);
   aFunction("media.getusermedia.audio.processing.aec"_ns);
   aFunction("media.getusermedia.audio.processing.agc.enabled"_ns);
@@ -3694,6 +3710,15 @@ void MediaManager::GetPrefBool(nsIPrefBranch* aBranch, const char* aPref,
   }
 }
 
+#ifdef MOZ_WEBRTC
+template <class Enum, class Int>
+constexpr Enum ClampEnum(Int v) {
+  return std::clamp(
+      static_cast<Enum>(SaturatingCast<std::underlying_type_t<Enum>>(v)),
+      ContiguousEnumValues<Enum>::min, ContiguousEnumValues<Enum>::max);
+}
+#endif
+
 void MediaManager::GetPrefs(nsIPrefBranch* aBranch, const char* aData) {
   GetPref(aBranch, "media.navigator.video.default_width", aData,
           &mPrefs.mWidth);
@@ -3703,6 +3728,12 @@ void MediaManager::GetPrefs(nsIPrefBranch* aBranch, const char* aData) {
   GetPref(aBranch, "media.navigator.audio.fake_frequency", aData,
           &mPrefs.mFreq);
 #ifdef MOZ_WEBRTC
+  GetPrefBool(aBranch, "media.navigator.video.resize_mode.enabled", aData,
+              &mPrefs.mResizeModeEnabled);
+  int32_t resizeMode{};
+  GetPref(aBranch, "media.navigator.video.default_resize_mode", aData,
+          &resizeMode);
+  mPrefs.mResizeMode = ClampEnum<VideoResizeModeEnum>(resizeMode);
   GetPrefBool(aBranch, "media.getusermedia.audio.processing.platform.enabled",
               aData, &mPrefs.mUsePlatformProcessing);
   GetPrefBool(aBranch, "media.getusermedia.audio.processing.aec.enabled", aData,
@@ -3730,11 +3761,14 @@ void MediaManager::GetPrefs(nsIPrefBranch* aBranch, const char* aData) {
   GetPref(aBranch, "media.getusermedia.audio.max_channels", aData,
           &mPrefs.mChannels);
 #endif
-  LOG("%s: default prefs: %dx%d @%dfps, %dHz test tones, platform processing: "
-      "%s, aec: %s, agc: %s, hpf: %s, noise: %s, drift: %s, agc level: %d, agc "
+  LOG("%s: default prefs: %dx%d @%dfps, %dHz test tones, "
+      "resize mode: %s, platform processing: %s, "
+      "aec: %s, agc: %s, hpf: %s, noise: %s, drift: %s, agc level: %d, agc "
       "version: "
       "%s, noise level: %d, transient: %s, channels %d",
       __FUNCTION__, mPrefs.mWidth, mPrefs.mHeight, mPrefs.mFPS, mPrefs.mFreq,
+      mPrefs.mResizeModeEnabled ? dom::GetEnumString(mPrefs.mResizeMode).get()
+                                : "disabled",
       mPrefs.mUsePlatformProcessing ? "on" : "off",
       mPrefs.mAecOn ? "on" : "off", mPrefs.mAgcOn ? "on" : "off",
       mPrefs.mHPFOn ? "on" : "off", mPrefs.mNoiseOn ? "on" : "off",
@@ -4701,8 +4735,9 @@ RefPtr<DeviceListener::DeviceListenerPromise> DeviceListener::ApplyConstraints(
   }
 
   return MediaManager::Dispatch<DeviceListenerPromise>(
-      __func__, [device = mDeviceState->mDevice, aConstraints, aCallerType](
-                    MozPromiseHolder<DeviceListenerPromise>& aHolder) mutable {
+      __func__,
+      [device = mDeviceState->mDevice, aConstraints, prefs = mgr->mPrefs,
+       aCallerType](MozPromiseHolder<DeviceListenerPromise>& aHolder) mutable {
         MOZ_ASSERT(MediaManager::IsInMediaThread());
         MediaManager* mgr = MediaManager::GetIfExists();
         MOZ_RELEASE_ASSERT(mgr);  // Must exist while media thread is alive
@@ -4716,7 +4751,8 @@ RefPtr<DeviceListener::DeviceListenerPromise> DeviceListener::ApplyConstraints(
               nsTArray<RefPtr<LocalMediaDevice>> devices;
               devices.AppendElement(device);
               badConstraint = MediaConstraintsHelper::SelectSettings(
-                  NormalizedConstraints(aConstraints), devices, aCallerType);
+                  NormalizedConstraints(aConstraints), prefs, devices,
+                  aCallerType);
             }
           } else {
             // Unexpected. ApplyConstraints* cannot fail with any other error.

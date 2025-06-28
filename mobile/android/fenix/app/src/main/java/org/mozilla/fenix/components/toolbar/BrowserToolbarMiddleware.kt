@@ -14,6 +14,8 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.navigation.NavController
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChangedBy
 import kotlinx.coroutines.launch
@@ -22,10 +24,12 @@ import mozilla.components.browser.state.selector.getNormalOrPrivateTabs
 import mozilla.components.browser.state.selector.normalTabs
 import mozilla.components.browser.state.selector.privateTabs
 import mozilla.components.browser.state.selector.selectedTab
+import mozilla.components.browser.state.state.SessionState
 import mozilla.components.browser.state.store.BrowserStore
 import mozilla.components.browser.thumbnails.BrowserThumbnails
 import mozilla.components.compose.browser.toolbar.concept.Action
 import mozilla.components.compose.browser.toolbar.concept.Action.ActionButton
+import mozilla.components.compose.browser.toolbar.concept.Action.ActionButtonRes
 import mozilla.components.compose.browser.toolbar.concept.Action.TabCounterAction
 import mozilla.components.compose.browser.toolbar.concept.PageOrigin
 import mozilla.components.compose.browser.toolbar.concept.PageOrigin.Companion.ContextualMenuOption
@@ -42,19 +46,29 @@ import mozilla.components.compose.browser.toolbar.store.BrowserToolbarAction.Tog
 import mozilla.components.compose.browser.toolbar.store.BrowserToolbarInteraction.BrowserToolbarEvent
 import mozilla.components.compose.browser.toolbar.store.BrowserToolbarInteraction.BrowserToolbarMenu
 import mozilla.components.compose.browser.toolbar.store.BrowserToolbarMenuItem.BrowserToolbarMenuButton
+import mozilla.components.compose.browser.toolbar.store.BrowserToolbarMenuItem.BrowserToolbarMenuButton.ContentDescription.StringResContentDescription
+import mozilla.components.compose.browser.toolbar.store.BrowserToolbarMenuItem.BrowserToolbarMenuButton.Icon.DrawableResIcon
+import mozilla.components.compose.browser.toolbar.store.BrowserToolbarMenuItem.BrowserToolbarMenuButton.Text.StringResText
 import mozilla.components.compose.browser.toolbar.store.BrowserToolbarMenuItem.BrowserToolbarMenuDivider
 import mozilla.components.compose.browser.toolbar.store.BrowserToolbarState
 import mozilla.components.compose.browser.toolbar.store.BrowserToolbarStore
 import mozilla.components.compose.browser.toolbar.store.ProgressBarConfig
 import mozilla.components.compose.browser.toolbar.store.ProgressBarGravity
 import mozilla.components.concept.engine.EngineSession.LoadUrlFlags
+import mozilla.components.concept.engine.cookiehandling.CookieBannersStorage
+import mozilla.components.concept.engine.permission.SitePermissions
+import mozilla.components.concept.engine.permission.SitePermissionsStorage
 import mozilla.components.feature.session.SessionUseCases
+import mozilla.components.feature.session.TrackingProtectionUseCases
+import mozilla.components.lib.publicsuffixlist.PublicSuffixList
 import mozilla.components.lib.state.Middleware
 import mozilla.components.lib.state.MiddlewareContext
 import mozilla.components.lib.state.State
 import mozilla.components.lib.state.Store
 import mozilla.components.lib.state.ext.flow
 import mozilla.components.support.base.log.logger.Logger
+import mozilla.components.support.ktx.kotlin.getOrigin
+import mozilla.components.support.ktx.kotlin.isContentUrl
 import mozilla.components.support.ktx.util.URLStringUtils
 import mozilla.components.support.utils.ClipboardHandler
 import org.mozilla.fenix.GleanMetrics.Translations
@@ -89,9 +103,12 @@ import org.mozilla.fenix.components.toolbar.TabCounterInteractions.AddNewPrivate
 import org.mozilla.fenix.components.toolbar.TabCounterInteractions.AddNewTab
 import org.mozilla.fenix.components.toolbar.TabCounterInteractions.CloseCurrentTab
 import org.mozilla.fenix.components.toolbar.TabCounterInteractions.TabCounterClicked
+import org.mozilla.fenix.components.toolbar.URLDomainHighlight.getRegistrableDomainOrHostIndexRange
+import org.mozilla.fenix.components.usecases.FenixBrowserUseCases.Companion.ABOUT_HOME
 import org.mozilla.fenix.ext.isLargeWindow
 import org.mozilla.fenix.ext.nav
 import org.mozilla.fenix.ext.navigateSafe
+import org.mozilla.fenix.settings.quicksettings.protections.cookiebanners.getCookieBannerUIMode
 import org.mozilla.fenix.tabstray.Page
 import org.mozilla.fenix.tabstray.ext.isActiveDownload
 import org.mozilla.fenix.utils.Settings
@@ -109,6 +126,11 @@ internal sealed class DisplayActions : BrowserToolbarEvent {
         val bypassCache: Boolean,
     ) : DisplayActions()
     data object StopRefreshClicked : DisplayActions()
+}
+
+@VisibleForTesting
+internal sealed class StartPageActions : BrowserToolbarEvent {
+    data object SiteInfoClicked : StartPageActions()
 }
 
 @VisibleForTesting
@@ -141,22 +163,34 @@ internal sealed class PageEndActionsInteractions : BrowserToolbarEvent {
  * @param appStore [AppStore] allowing to integrate with other features of the applications.
  * @param browserScreenStore [BrowserScreenStore] used for integration with other browser screen functionalities.
  * @param browserStore [BrowserStore] to sync from.
+ * @param permissionsStorage [SitePermissionsStorage] to find currently selected tab site permissions.
+ * @param cookieBannersStorage [CookieBannersStorage] to get the current status of cookie banner ui mode.
+ * @param trackingProtectionUseCases [TrackingProtectionUseCases] allowing to query
+ * tracking protection data of the current tab.
  * @param useCases [UseCases] helping this integrate with other features of the applications.
  * @param clipboard [ClipboardHandler] to use for reading from device's clipboard.
+ * @param publicSuffixList [PublicSuffixList] used to obtain the base domain of the current site.
  * @param settings [Settings] for accessing user preferences.
  * @param sessionUseCases [SessionUseCases] for interacting with the current session.
  */
+@Suppress("LongParameterList", "TooManyFunctions")
 class BrowserToolbarMiddleware(
     private val appStore: AppStore,
     private val browserScreenStore: BrowserScreenStore,
     private val browserStore: BrowserStore,
+    private val permissionsStorage: SitePermissionsStorage,
+    private val cookieBannersStorage: CookieBannersStorage,
+    private val trackingProtectionUseCases: TrackingProtectionUseCases,
     private val useCases: UseCases,
     private val clipboard: ClipboardHandler,
+    private val publicSuffixList: PublicSuffixList,
     private val settings: Settings,
     private val sessionUseCases: SessionUseCases = SessionUseCases(browserStore),
 ) : Middleware<BrowserToolbarState, BrowserToolbarAction>, ViewModel() {
     private lateinit var dependencies: LifecycleDependencies
     private var store: BrowserToolbarStore? = null
+    private val currentTab
+        get() = browserStore.state.selectedTab
 
     /**
      * Updates the [LifecycleDependencies] of this middleware.
@@ -175,6 +209,7 @@ class BrowserToolbarMiddleware(
         observeReaderModeUpdates()
         observePageTranslationsUpdates()
         observePageRefreshUpdates()
+        observePageSecurityUpdates()
     }
 
     @Suppress("LongMethod")
@@ -190,6 +225,12 @@ class BrowserToolbarMiddleware(
                 updateStartBrowserActions()
                 updateCurrentPageOrigin()
                 updateEndBrowserActions()
+                updateCurrentPageOrigin()
+                updateStartPageActions(currentTab)
+            }
+
+            is StartPageActions.SiteInfoClicked -> {
+                onSiteInfoClicked()
             }
 
             is HomeClicked -> {
@@ -358,6 +399,61 @@ class BrowserToolbarMiddleware(
         }
     }
 
+    private fun onSiteInfoClicked() {
+        val tab = requireNotNull(currentTab)
+        dependencies.lifecycleOwner.lifecycleScope.launch(Dispatchers.IO) {
+            val sitePermissions: SitePermissions? = tab.content.url.getOrigin()?.let { origin ->
+                permissionsStorage.findSitePermissionsBy(origin, private = tab.content.private)
+            }
+
+            dependencies.lifecycleOwner.lifecycleScope.launch(Dispatchers.Main) {
+                trackingProtectionUseCases.containsException(tab.id) { hasTrackingProtectionException ->
+                    dependencies.lifecycleOwner.lifecycleScope.launch {
+                        val cookieBannerUIMode = cookieBannersStorage.getCookieBannerUIMode(
+                            tab = tab,
+                            isFeatureEnabledInPrivateMode = settings.shouldUseCookieBannerPrivateMode,
+                            publicSuffixList = publicSuffixList,
+                        )
+
+                        val isTrackingProtectionEnabled =
+                            tab.trackingProtection.enabled && !hasTrackingProtectionException
+                        val directions = if (settings.enableUnifiedTrustPanel) {
+                            BrowserFragmentDirections.actionBrowserFragmentToTrustPanelFragment(
+                                sessionId = tab.id,
+                                url = tab.content.url,
+                                title = tab.content.title,
+                                isSecured = tab.content.securityInfo.secure,
+                                sitePermissions = sitePermissions,
+                                certificateName = tab.content.securityInfo.issuer,
+                                permissionHighlights = tab.content.permissionHighlights,
+                                isTrackingProtectionEnabled = isTrackingProtectionEnabled,
+                                cookieBannerUIMode = cookieBannerUIMode,
+                            )
+                        } else {
+                            BrowserFragmentDirections.actionBrowserFragmentToQuickSettingsSheetDialogFragment(
+                                sessionId = tab.id,
+                                url = tab.content.url,
+                                title = tab.content.title,
+                                isLocalPdf = tab.content.url.isContentUrl(),
+                                isSecured = tab.content.securityInfo.secure,
+                                sitePermissions = sitePermissions,
+                                gravity = settings.toolbarPosition.androidGravity,
+                                certificateName = tab.content.securityInfo.issuer,
+                                permissionHighlights = tab.content.permissionHighlights,
+                                isTrackingProtectionEnabled = isTrackingProtectionEnabled,
+                                cookieBannerUIMode = cookieBannerUIMode,
+                            )
+                        }
+                        dependencies.navController.nav(
+                            R.id.browserFragment,
+                            directions,
+                        )
+                    }
+                }
+            }
+        }
+    }
+
     private fun getCurrentNumberOfOpenedTabs() = when (dependencies.browsingModeManager.mode) {
         Normal -> browserStore.state.normalTabs.size
         Private -> browserStore.state.privateTabs.size
@@ -369,6 +465,12 @@ class BrowserToolbarMiddleware(
         ),
     )
 
+    private fun updateStartPageActions(tab: SessionState?) = store?.dispatch(
+        BrowserDisplayToolbarAction.PageActionsStartUpdated(
+            buildStartPageActions(tab),
+        ),
+    )
+
     private fun updateEndBrowserActions() = store?.dispatch(
         BrowserActionsEndUpdated(
             buildEndBrowserActions(getCurrentNumberOfOpenedTabs()),
@@ -377,8 +479,8 @@ class BrowserToolbarMiddleware(
 
     private fun buildStartBrowserActions(): List<Action> = buildList {
         add(
-            ActionButton(
-                icon = R.drawable.mozac_ic_home_24,
+            ActionButtonRes(
+                drawableResId = R.drawable.mozac_ic_home_24,
                 contentDescription = R.string.browser_toolbar_home,
                 onClick = HomeClicked,
             ),
@@ -388,8 +490,8 @@ class BrowserToolbarMiddleware(
             val canGoBack = browserStore.state.selectedTab?.content?.canGoBack == true
             val isCurrentTabRefreshing = browserStore.state.selectedTab?.content?.loading == true
             add(
-                ActionButton(
-                    icon = R.drawable.mozac_ic_back_24,
+                ActionButtonRes(
+                    drawableResId = R.drawable.mozac_ic_back_24,
                     contentDescription = R.string.browser_menu_back,
                     state = if (canGoBack) {
                         ActionButton.State.DEFAULT
@@ -401,8 +503,8 @@ class BrowserToolbarMiddleware(
                 ),
             )
             add(
-                ActionButton(
-                    icon = R.drawable.mozac_ic_forward_24,
+                ActionButtonRes(
+                    drawableResId = R.drawable.mozac_ic_forward_24,
                     contentDescription = R.string.browser_menu_forward,
                     state = if (canGoForward) {
                         ActionButton.State.DEFAULT
@@ -415,16 +517,16 @@ class BrowserToolbarMiddleware(
             )
             when (isCurrentTabRefreshing) {
                 true -> add(
-                    ActionButton(
-                        icon = R.drawable.mozac_ic_cross_24,
+                    ActionButtonRes(
+                        drawableResId = R.drawable.mozac_ic_cross_24,
                         contentDescription = R.string.browser_menu_stop,
                         state = ActionButton.State.DEFAULT,
                         onClick = StopRefreshClicked,
                     ),
                 )
                 false -> add(
-                    ActionButton(
-                        icon = R.drawable.mozac_ic_arrow_clockwise_24,
+                    ActionButtonRes(
+                        drawableResId = R.drawable.mozac_ic_arrow_clockwise_24,
                         contentDescription = R.string.browser_menu_refresh,
                         state = ActionButton.State.DEFAULT,
                         onClick = RefreshClicked(false),
@@ -432,6 +534,33 @@ class BrowserToolbarMiddleware(
                     ),
                 )
             }
+        }
+    }
+    private fun buildStartPageActions(tab: SessionState?) = buildList {
+        if (tab?.content?.url?.isContentUrl() == true) {
+            add(
+                ActionButtonRes(
+                    drawableResId = R.drawable.mozac_ic_page_portrait_24,
+                    contentDescription = R.string.mozac_browser_toolbar_content_description_site_info,
+                    onClick = StartPageActions.SiteInfoClicked,
+                ),
+            )
+        } else if (tab?.content?.securityInfo?.secure == true) {
+            add(
+                ActionButtonRes(
+                    drawableResId = R.drawable.mozac_ic_lock_24,
+                    contentDescription = R.string.mozac_browser_toolbar_content_description_site_info,
+                    onClick = StartPageActions.SiteInfoClicked,
+                ),
+            )
+        } else {
+            add(
+                ActionButtonRes(
+                    drawableResId = R.drawable.mozac_ic_broken_lock,
+                    contentDescription = R.string.mozac_browser_toolbar_content_description_site_info,
+                    onClick = StartPageActions.SiteInfoClicked,
+                ),
+            )
         }
     }
 
@@ -445,8 +574,8 @@ class BrowserToolbarMiddleware(
         val readerModeStatus = browserScreenStore.state.readerModeStatus
         if (readerModeStatus.isAvailable) {
             add(
-                ActionButton(
-                    icon = R.drawable.ic_readermode,
+                ActionButtonRes(
+                    drawableResId = R.drawable.ic_readermode,
                     contentDescription = when (readerModeStatus.isActive) {
                         true -> R.string.browser_menu_read_close
                         false -> R.string.browser_menu_read
@@ -464,8 +593,8 @@ class BrowserToolbarMiddleware(
         val translationStatus = browserScreenStore.state.pageTranslationStatus
         if (translationStatus.isTranslationPossible) {
             add(
-                ActionButton(
-                    icon = R.drawable.mozac_ic_translate_24,
+                ActionButtonRes(
+                    drawableResId = R.drawable.mozac_ic_translate_24,
                     contentDescription = R.string.browser_toolbar_translate,
                     state = if (translationStatus.isTranslated) {
                         ActionButton.State.ACTIVE
@@ -490,8 +619,8 @@ class BrowserToolbarMiddleware(
                 onClick = TabCounterClicked,
                 onLongClick = buildTabCounterMenu(),
             ),
-            ActionButton(
-                icon = R.drawable.mozac_ic_ellipsis_vertical_24,
+            ActionButtonRes(
+                drawableResId = R.drawable.mozac_ic_ellipsis_vertical_24,
                 contentDescription = R.string.content_description_menu,
                 onClick = MenuClicked,
             ),
@@ -500,25 +629,25 @@ class BrowserToolbarMiddleware(
     private fun buildTabCounterMenu() = BrowserToolbarMenu {
         listOf(
             BrowserToolbarMenuButton(
-                iconResource = iconsR.drawable.mozac_ic_plus_24,
-                text = R.string.mozac_browser_menu_new_tab,
-                contentDescription = R.string.mozac_browser_menu_new_tab,
+                icon = DrawableResIcon(iconsR.drawable.mozac_ic_plus_24),
+                text = StringResText(R.string.mozac_browser_menu_new_tab),
+                contentDescription = StringResContentDescription(R.string.mozac_browser_menu_new_tab),
                 onClick = AddNewTab,
             ),
 
             BrowserToolbarMenuButton(
-                iconResource = iconsR.drawable.mozac_ic_private_mode_24,
-                text = R.string.mozac_browser_menu_new_private_tab,
-                contentDescription = R.string.mozac_browser_menu_new_private_tab,
+                icon = DrawableResIcon(iconsR.drawable.mozac_ic_private_mode_24),
+                text = StringResText(R.string.mozac_browser_menu_new_private_tab),
+                contentDescription = StringResContentDescription(R.string.mozac_browser_menu_new_private_tab),
                 onClick = AddNewPrivateTab,
             ),
 
             BrowserToolbarMenuDivider,
 
             BrowserToolbarMenuButton(
-                iconResource = iconsR.drawable.mozac_ic_cross_24,
-                text = R.string.mozac_close_tab,
-                contentDescription = R.string.mozac_close_tab,
+                icon = DrawableResIcon(iconsR.drawable.mozac_ic_cross_24),
+                text = StringResText(R.string.mozac_close_tab),
+                contentDescription = StringResContentDescription(R.string.mozac_close_tab),
                 onClick = CloseCurrentTab,
             ),
         )
@@ -579,21 +708,42 @@ class BrowserToolbarMiddleware(
         }
     }
 
-    private fun updateCurrentPageOrigin() {
-        val urlString = browserStore.state.selectedTab?.content?.url
-            ?.let { URLStringUtils.toDisplayUrl(it).toString() }
+    private fun updateCurrentPageOrigin() = MainScope().launch {
+        val url = browserStore.state.selectedTab?.content?.url
+        val displayUrl = url?.let { originalUrl ->
+            if (originalUrl == ABOUT_HOME) {
+                // Default to showing the toolbar hint when the URL is ABOUT_HOME.
+                ""
+            } else {
+                URLStringUtils.toDisplayUrl(originalUrl).toString()
+            }
+        }
+        val registrableDomainIndexRange = when (displayUrl != null && displayUrl.isNotEmpty()) {
+            true -> getRegistrableDomainOrHostIndexRange(url, displayUrl, publicSuffixList)
+            false -> null
+        }
 
         store?.dispatch(
             BrowserDisplayToolbarAction.PageOriginUpdated(
                 PageOrigin(
                     hint = R.string.search_hint,
                     title = null,
-                    url = urlString,
+                    url = displayUrl,
+                    registrableDomainIndexRange = registrableDomainIndexRange,
                     contextualMenuOptions = ContextualMenuOption.entries,
                     onClick = OriginClicked,
                 ),
             ),
         )
+    }
+
+    private fun observePageSecurityUpdates() {
+        observeWhileActive(browserStore) {
+            distinctUntilChangedBy { it.selectedTab?.content?.securityInfo }
+                .collect {
+                    updateStartPageActions(it.selectedTab)
+                }
+        }
     }
 
     private fun observeAcceptingCancellingPrivateDownloads() {
@@ -660,7 +810,7 @@ class BrowserToolbarMiddleware(
     private fun observePageRefreshUpdates() {
         with(dependencies.lifecycleOwner) {
             this.lifecycleScope.launch {
-                repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.RESUMED) {
+                repeatOnLifecycle(RESUMED) {
                     browserStore.flow()
                         .distinctUntilChangedBy {
                             it.selectedTab?.content?.loading == true
@@ -704,17 +854,27 @@ class BrowserToolbarMiddleware(
          * @param appStore [AppStore] allowing to integrate with other features of the applications.
          * @param browserScreenStore [BrowserScreenStore] used for integration with other
          * browser screen functionalities.
+         * @param permissionsStorage [SitePermissionsStorage] to find currently selected tab site permissions.
+         * @param cookieBannersStorage [CookieBannersStorage] to get the current status of cookie banner ui mode.
          * @param browserStore [BrowserStore] to sync from.
+         * @param trackingProtectionUseCases [TrackingProtectionUseCases] allowing to query
+         * tracking protection data of the current tab.
          * @param useCases [UseCases] helping this integrate with other features of the applications.
          * @param clipboard [ClipboardHandler] to use for reading from device's clipboard.
+         * @param publicSuffixList [PublicSuffixList] used to obtain the base domain of the current site.
          * @param settings [Settings] for accessing user preferences.
          */
+        @Suppress("LongParameterList")
         fun viewModelFactory(
             appStore: AppStore,
             browserScreenStore: BrowserScreenStore,
+            permissionsStorage: SitePermissionsStorage,
+            cookieBannersStorage: CookieBannersStorage,
             browserStore: BrowserStore,
+            trackingProtectionUseCases: TrackingProtectionUseCases,
             useCases: UseCases,
             clipboard: ClipboardHandler,
+            publicSuffixList: PublicSuffixList,
             settings: Settings,
         ): ViewModelProvider.Factory = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
@@ -723,9 +883,13 @@ class BrowserToolbarMiddleware(
                     return BrowserToolbarMiddleware(
                         appStore = appStore,
                         browserScreenStore = browserScreenStore,
+                        permissionsStorage = permissionsStorage,
+                        cookieBannersStorage = cookieBannersStorage,
                         browserStore = browserStore,
+                        trackingProtectionUseCases = trackingProtectionUseCases,
                         useCases = useCases,
                         clipboard = clipboard,
+                        publicSuffixList = publicSuffixList,
                         settings = settings,
                     ) as T
                 }

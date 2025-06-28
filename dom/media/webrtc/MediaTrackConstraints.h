@@ -19,6 +19,7 @@ namespace mozilla {
 
 class LocalMediaDevice;
 class MediaDevice;
+class MediaEnginePrefs;
 
 // Helper classes for orthogonal constraints without interdependencies.
 // Instead of constraining values, constrain the constraints themselves.
@@ -216,6 +217,7 @@ class NormalizedConstraintSet {
   LongRange mWidth, mHeight;
   DoubleRange mFrameRate;
   StringRange mFacingMode;
+  StringRange mResizeMode;
   StringRange mMediaSource;
   LongLongRange mBrowserWindow;
   StringRange mDeviceId;
@@ -236,6 +238,8 @@ class NormalizedConstraintSet {
         mFrameRate(&T::mFrameRate, "frameRate", aOther.mFrameRate, advanced,
                    aList),
         mFacingMode(&T::mFacingMode, "facingMode", aOther.mFacingMode, advanced,
+                    aList),
+        mResizeMode(&T::mResizeMode, "resizeMode", aOther.mResizeMode, advanced,
                     aList),
         mMediaSource(&T::mMediaSource, "mediaSource", aOther.mMediaSource,
                      aList),
@@ -331,7 +335,7 @@ class MediaConstraintsHelper {
 
  protected:
   static bool SomeSettingsFit(
-      const NormalizedConstraints& aConstraints,
+      const NormalizedConstraints& aConstraints, const MediaEnginePrefs& aPrefs,
       const nsTArray<RefPtr<LocalMediaDevice>>& aDevices);
 
  public:
@@ -342,16 +346,16 @@ class MediaConstraintsHelper {
   // Apply constrains to a supplied list of devices (removes items from the
   // list)
   static const char* SelectSettings(
-      const NormalizedConstraints& aConstraints,
+      const NormalizedConstraints& aConstraints, const MediaEnginePrefs& aPrefs,
       nsTArray<RefPtr<LocalMediaDevice>>& aDevices,
       dom::CallerType aCallerType);
 
   static const char* FindBadConstraint(
-      const NormalizedConstraints& aConstraints,
+      const NormalizedConstraints& aConstraints, const MediaEnginePrefs& aPrefs,
       const nsTArray<RefPtr<LocalMediaDevice>>& aDevices);
 
   static const char* FindBadConstraint(
-      const NormalizedConstraints& aConstraints,
+      const NormalizedConstraints& aConstraints, const MediaEnginePrefs& aPrefs,
       const MediaDevice* aMediaDevice);
 
   static void LogConstraints(const NormalizedConstraintSet& aConstraints);

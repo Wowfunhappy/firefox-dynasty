@@ -34,31 +34,33 @@
  * (in X11) or the compositor (in Wayland) does draw the shadow corners
  * already.
  */
-:root[customtitlebar] {
-  background-color: transparent;
+@media (-moz-gtk-csd-transparency-available) {
+  :root[customtitlebar] {
+    background-color: transparent;
 
-  &[sizemode="normal"]:not([gtktiledwindow="true"]) {
-    /* This takes care of drawing our window decorations on X11 */
-    -moz-default-appearance: -moz-window-decorations;
-    appearance: auto;
+    &[sizemode="normal"]:not([gtktiledwindow="true"]) {
+      /* This takes care of drawing our window decorations on X11 */
+      -moz-default-appearance: -moz-window-decorations;
+      appearance: auto;
 
-    #navigator-toolbox,
-    dialog::backdrop {
-      border-top-left-radius: env(-moz-gtk-csd-titlebar-radius);
-      border-top-right-radius: env(-moz-gtk-csd-titlebar-radius);
-    }
-
-    /* stylelint-disable-next-line media-query-no-invalid */
-    @media -moz-pref("widget.gtk.rounded-bottom-corners.enabled") {
-      #navigator-toolbox {
-        /* The body clip below covers this. */
-        border-radius: 0;
+      #navigator-toolbox,
+      dialog::backdrop {
+        border-top-left-radius: env(-moz-gtk-csd-titlebar-radius);
+        border-top-right-radius: env(-moz-gtk-csd-titlebar-radius);
       }
 
-      body,
-      dialog::backdrop {
-        /* Use an uniform clip to allow WebRender to optimize it better */
-        border-radius: env(-moz-gtk-csd-titlebar-radius);
+      /* stylelint-disable-next-line media-query-no-invalid */
+      @media -moz-pref("widget.gtk.rounded-bottom-corners.enabled") {
+        #navigator-toolbox {
+          /* The body clip below covers this. */
+          border-radius: 0;
+        }
+
+        body,
+        dialog::backdrop {
+          /* Use an uniform clip to allow WebRender to optimize it better */
+          border-radius: env(-moz-gtk-csd-titlebar-radius);
+        }
       }
     }
   }
@@ -175,6 +177,8 @@
   align-items: center;
   padding: 0;
   padding-inline: calc(env(-moz-gtk-csd-titlebar-button-spacing) / 2);
+  /* In GTK applications, you can drag the window by titlebar buttons */
+  -moz-window-dragging: drag;
 
   > .toolbarbutton-icon {
     border-radius: 100%;

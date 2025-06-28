@@ -20,6 +20,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.compose.ui.unit.dp
@@ -57,6 +58,7 @@ import mozilla.components.browser.state.state.TabSessionState
 import mozilla.components.browser.state.state.selectedOrDefaultSearchEngine
 import mozilla.components.browser.state.store.BrowserStore
 import mozilla.components.compose.base.Divider
+import mozilla.components.compose.browser.toolbar.store.BrowserToolbarStore
 import mozilla.components.compose.cfr.CFRPopup
 import mozilla.components.compose.cfr.CFRPopupProperties
 import mozilla.components.concept.sync.AccountObserver
@@ -80,6 +82,7 @@ import org.mozilla.fenix.R
 import org.mozilla.fenix.addons.showSnackBar
 import org.mozilla.fenix.biometricauthentication.AuthenticationStatus
 import org.mozilla.fenix.biometricauthentication.BiometricAuthenticationManager
+import org.mozilla.fenix.biometricauthentication.NavigationOrigin
 import org.mozilla.fenix.browser.browsingmode.BrowsingMode
 import org.mozilla.fenix.browser.tabstrip.TabStrip
 import org.mozilla.fenix.browser.tabstrip.isTabStripEnabled
@@ -115,6 +118,7 @@ import org.mozilla.fenix.home.recenttabs.RecentTabsListFeature
 import org.mozilla.fenix.home.recenttabs.controller.DefaultRecentTabsController
 import org.mozilla.fenix.home.recentvisits.RecentVisitsFeature
 import org.mozilla.fenix.home.recentvisits.controller.DefaultRecentVisitsController
+import org.mozilla.fenix.home.search.DefaultHomeSearchController
 import org.mozilla.fenix.home.sessioncontrol.DefaultSessionControlController
 import org.mozilla.fenix.home.sessioncontrol.SessionControlInteractor
 import org.mozilla.fenix.home.sessioncontrol.SessionControlView
@@ -144,6 +148,7 @@ import org.mozilla.fenix.onboarding.HomeScreenPopupManager
 import org.mozilla.fenix.perf.MarkersFragmentLifecycleCallbacks
 import org.mozilla.fenix.perf.StartupTimeline
 import org.mozilla.fenix.search.SearchDialogFragment
+import org.mozilla.fenix.search.awesomebar.AwesomeBarComposable
 import org.mozilla.fenix.search.toolbar.DefaultSearchSelectorController
 import org.mozilla.fenix.search.toolbar.SearchSelectorMenu
 import org.mozilla.fenix.snackbar.FenixSnackbarDelegate
@@ -173,6 +178,7 @@ class HomeFragment : Fragment() {
     private var _bottomToolbarContainerView: BottomToolbarContainerView? = null
     private val bottomToolbarContainerView: BottomToolbarContainerView
         get() = _bottomToolbarContainerView!!
+    private var awesomeBarComposable: AwesomeBarComposable? = null
 
     private val searchSelectorMenu by lazy {
         SearchSelectorMenu(
@@ -501,9 +507,10 @@ class HomeFragment : Fragment() {
                 store = components.core.store,
             ),
             pocketStoriesController = DefaultPocketStoriesController(
-                homeActivity = activity,
+                navController = findNavController(),
                 appStore = components.appStore,
                 settings = components.settings,
+                fenixBrowserUseCases = requireComponents.useCases.fenixBrowserUseCases,
                 marsUseCases = components.useCases.marsUseCases,
                 viewLifecycleScope = viewLifecycleOwner.lifecycleScope,
             ),
@@ -521,6 +528,9 @@ class HomeFragment : Fragment() {
                 activity = activity,
                 store = components.core.store,
                 navController = findNavController(),
+            ),
+            homeSearchController = DefaultHomeSearchController(
+                appStore = components.appStore,
             ),
         )
 
@@ -570,6 +580,10 @@ class HomeFragment : Fragment() {
                 browsingModeManager = activity.browsingModeManager,
                 settings = activity.settings(),
                 tabStripContent = { TabStrip() },
+                searchSuggestionsContent = { toolbarStore, modifier ->
+                    (awesomeBarComposable ?: initializeAwesomeBarComposable(toolbarStore, modifier))
+                        ?.SearchSuggestions()
+                },
             )
 
             false -> HomeToolbarView(
@@ -833,7 +847,9 @@ class HomeFragment : Fragment() {
             scope = viewLifecycleOwner.lifecycleScope,
             appStore = requireComponents.appStore,
             onPrivateModeLocked = {
-                findNavController().navigate(NavGraphDirections.actionGlobalUnlockPrivateTabsFragment())
+                findNavController().navigate(
+                    NavGraphDirections.actionGlobalUnlockPrivateTabsFragment(NavigationOrigin.HOME_PAGE),
+                )
             },
         )
 
@@ -1037,9 +1053,6 @@ class HomeFragment : Fragment() {
                     showUndoSnackbar(requireContext().tabClosedUndoMessage(isPrivate))
                     TabStripMetrics.closeTab.record()
                 },
-                onPrivateModeToggleClick = { mode ->
-                    browsingModeManager.mode = mode
-                },
                 onTabCounterClick = { openTabsTray() },
             )
         }
@@ -1089,6 +1102,7 @@ class HomeFragment : Fragment() {
         _sessionControlInteractor = null
         sessionControlView = null
         _bottomToolbarContainerView = null
+        awesomeBarComposable = null
         _binding = null
 
         if (!requireContext().components.appStore.state.isPrivateScreenLocked) {
@@ -1314,6 +1328,25 @@ class HomeFragment : Fragment() {
                         )
                     }
                 }
+        }
+    }
+
+    private fun initializeAwesomeBarComposable(
+        toolbarStore: BrowserToolbarStore,
+        modifier: Modifier,
+    ) = context?.let {
+        AwesomeBarComposable(
+            activity = requireActivity() as HomeActivity,
+            modifier = modifier,
+            components = requireComponents,
+            appStore = requireComponents.appStore,
+            browserStore = requireComponents.core.store,
+            toolbarStore = toolbarStore,
+            navController = findNavController(),
+            lifecycleOwner = this,
+            includeSelectedTab = true,
+        ).also {
+            awesomeBarComposable = it
         }
     }
 

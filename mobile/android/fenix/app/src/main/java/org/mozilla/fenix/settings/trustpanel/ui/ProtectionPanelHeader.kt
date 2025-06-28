@@ -82,7 +82,11 @@ internal fun ProtectionPanelHeader(
 
         Spacer(modifier = Modifier.width(8.dp))
 
-        Divider(modifier = Modifier.size(width = 2.dp, height = 32.dp))
+        Divider(
+            modifier = Modifier
+            .size(width = 2.dp, height = 32.dp)
+            .background(FirefoxTheme.colors.layer3),
+        )
 
         IconButton(
             modifier = Modifier.padding(horizontal = 10.dp),
@@ -93,9 +97,9 @@ internal fun ProtectionPanelHeader(
             ) {
                 Icon(
                     painter = if (websiteInfoState.isSecured) {
-                        painterResource(id = R.drawable.mozac_ic_lock_20)
+                        painterResource(id = R.drawable.mozac_ic_shield_checkmark_24)
                     } else {
-                        painterResource(id = R.drawable.mozac_ic_lock_slash_20)
+                        painterResource(id = R.drawable.mozac_ic_shield_slash_24)
                     },
                     contentDescription = null,
                     tint = FirefoxTheme.colors.iconSecondary,
@@ -162,7 +166,7 @@ private fun ProtectionPanelHeaderPreview() {
     FirefoxTheme {
         Column(
             modifier = Modifier
-                .background(color = FirefoxTheme.colors.layer3),
+                .background(color = FirefoxTheme.colors.layer1),
         ) {
             ProtectionPanelHeader(
                 icon = null,

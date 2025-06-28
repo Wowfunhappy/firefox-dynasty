@@ -34,6 +34,7 @@ ChromeUtils.defineESModuleGetters(lazy, {
   ExtensionSettingsStore:
     "resource://gre/modules/ExtensionSettingsStore.sys.mjs",
   HomePage: "resource:///modules/HomePage.sys.mjs",
+  ObliviousHTTP: "resource://gre/modules/ObliviousHTTP.sys.mjs",
   Region: "resource://gre/modules/Region.sys.mjs",
   TelemetryEnvironment: "resource://gre/modules/TelemetryEnvironment.sys.mjs",
   UTEventReporting: "resource://newtab/lib/UTEventReporting.sys.mjs",
@@ -878,6 +879,32 @@ export class TelemetryFeed {
         });
         break;
       }
+      // Bug 1969452 - Feature Highlight Telemetry Events
+      case "FEATURE_HIGHLIGHT_DISMISS":
+      case "FEATURE_HIGHLIGHT_IMPRESSION":
+      case "FEATURE_HIGHLIGHT_OPEN": {
+        // Note that Feature Highlight CLICK events are covered via newtab.tooltipClick Glean event
+        const { feature } = action.data.value ?? {};
+
+        if (action.data.event === "FEATURE_HIGHLIGHT_DISMISS") {
+          Glean.newtab.featureHighlightDismiss.record({
+            newtab_visit_id: session.session_id,
+            feature,
+          });
+        } else if (action.data.event === "FEATURE_HIGHLIGHT_IMPRESSION") {
+          Glean.newtab.featureHighlightImpression.record({
+            newtab_visit_id: session.session_id,
+            feature,
+          });
+        } else if (action.data.event === "FEATURE_HIGHLIGHT_OPEN") {
+          Glean.newtab.featureHighlightOpen.record({
+            newtab_visit_id: session.session_id,
+            feature,
+          });
+        }
+
+        break;
+      }
     }
   }
 
@@ -915,8 +942,69 @@ export class TelemetryFeed {
     const url = new URL(data.url);
     url.searchParams.append("position", data.position);
 
+    const marsOhttpEnabled = Services.prefs.getBoolPref(
+      "browser.newtabpage.activity-stream.unifiedAds.ohttp.enabled",
+      false
+    );
+    const ohttpRelayURL = Services.prefs.getStringPref(
+      "browser.newtabpage.activity-stream.discoverystream.ohttp.relayURL",
+      ""
+    );
+    const ohttpConfigURL = Services.prefs.getStringPref(
+      "browser.newtabpage.activity-stream.discoverystream.ohttp.configURL",
+      ""
+    );
+
+    let fetchPromise;
+    const fetchUrl = url.toString();
+
+    if (marsOhttpEnabled) {
+      if (!ohttpRelayURL) {
+        console.error(
+          new Error(
+            `OHTTP was configured for ${fetchUrl} but we didn't have a valid ohttpRelayURL`
+          )
+        );
+      }
+      if (!ohttpConfigURL) {
+        console.error(
+          new Error(
+            `OHTTP was configured for ${fetchUrl} but we didn't have a valid ohttpConfigURL`
+          )
+        );
+      }
+
+      const headers = new Headers();
+      const controller = new AbortController();
+      const { signal } = controller;
+
+      const options = {
+        method: "GET",
+        headers,
+        signal,
+      };
+
+      let config = await lazy.ObliviousHTTP.getOHTTPConfig(ohttpConfigURL);
+      if (!config) {
+        console.error(
+          new Error(
+            `OHTTP was configured for ${fetchUrl} but we couldn't fetch a valid config`
+          )
+        );
+      }
+
+      fetchPromise = lazy.ObliviousHTTP.ohttpRequest(
+        ohttpRelayURL,
+        config,
+        fetchUrl,
+        options
+      );
+    } else {
+      fetchPromise = fetch(fetchUrl);
+    }
+
     try {
-      await fetch(url.toString());
+      await fetchPromise;
     } catch (error) {
       console.error("Error:", error);
     }

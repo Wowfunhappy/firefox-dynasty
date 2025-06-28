@@ -40,6 +40,9 @@
 
 mozilla::LazyLogModule gNavigationLog("Navigation");
 
+#define LOG_FMT(format, ...) \
+  MOZ_LOG_FMT(gNavigationLog, LogLevel::Debug, format, ##__VA_ARGS__);
+
 namespace mozilla::dom {
 
 struct NavigationAPIMethodTracker final : public nsISupports {
@@ -223,6 +226,9 @@ bool Navigation::HasEntriesAndEventsDisabled() const {
 void Navigation::InitializeHistoryEntries(
     mozilla::Span<const SessionHistoryInfo> aNewSHInfos,
     const SessionHistoryInfo* aInitialSHInfo) {
+  MOZ_LOG(gNavigationLog, LogLevel::Debug,
+          ("Attempting to initialize history entries."));
+
   mEntries.Clear();
   mCurrentEntryIndex.reset();
   if (HasEntriesAndEventsDisabled()) {
@@ -345,7 +351,7 @@ void Navigation::ScheduleEventsFromNavigation(
 }
 
 // https://html.spec.whatwg.org/#navigation-api-early-error-result
-void Navigation::SetEarlyErrorResult(NavigationResult& aResult,
+void Navigation::SetEarlyErrorResult(JSContext* aCx, NavigationResult& aResult,
                                      ErrorResult&& aRv) const {
   MOZ_ASSERT(aRv.Failed());
   // An early error result for an exception e is a NavigationResult dictionary
@@ -360,14 +366,15 @@ void Navigation::SetEarlyErrorResult(NavigationResult& aResult,
     aRv.SuppressException();
     return;
   }
-  ErrorResult rv2;
-  aRv.CloneTo(rv2);
+  JS::Rooted<JS::Value> rootedExceptionValue(aCx);
+  MOZ_ALWAYS_TRUE(ToJSValue(aCx, std::move(aRv), &rootedExceptionValue));
   aResult.mCommitted.Reset();
-  aResult.mCommitted.Construct(
-      Promise::CreateRejectedWithErrorResult(global, aRv));
+  aResult.mCommitted.Construct(Promise::CreateInfallible(global));
+  aResult.mCommitted.Value()->MaybeReject(rootedExceptionValue);
+
   aResult.mFinished.Reset();
-  aResult.mFinished.Construct(
-      Promise::CreateRejectedWithErrorResult(global, rv2));
+  aResult.mFinished.Construct(Promise::CreateInfallible(global));
+  aResult.mFinished.Value()->MaybeReject(rootedExceptionValue);
 }
 
 // https://html.spec.whatwg.org/#navigation-api-method-tracker-derived-result
@@ -385,22 +392,24 @@ static void CreateResultFromAPIMethodTracker(
 }
 
 bool Navigation::CheckIfDocumentIsFullyActiveAndMaybeSetEarlyErrorResult(
-    const Document* aDocument, NavigationResult& aResult) const {
+    JSContext* aCx, const Document* aDocument,
+    NavigationResult& aResult) const {
   if (!aDocument || !aDocument->IsFullyActive()) {
     ErrorResult rv;
     rv.ThrowInvalidStateError("Document is not fully active");
-    SetEarlyErrorResult(aResult, std::move(rv));
+    SetEarlyErrorResult(aCx, aResult, std::move(rv));
     return false;
   }
   return true;
 }
 
 bool Navigation::CheckDocumentUnloadCounterAndMaybeSetEarlyErrorResult(
-    const Document* aDocument, NavigationResult& aResult) const {
+    JSContext* aCx, const Document* aDocument,
+    NavigationResult& aResult) const {
   if (!aDocument || aDocument->ShouldIgnoreOpens()) {
     ErrorResult rv;
     rv.ThrowInvalidStateError("Document is unloading");
-    SetEarlyErrorResult(aResult, std::move(rv));
+    SetEarlyErrorResult(aCx, aResult, std::move(rv));
     return false;
   }
   return true;
@@ -428,7 +437,7 @@ Navigation::CreateSerializedStateAndMaybeSetEarlyErrorResult(
           Promise::Reject(global, exception, IgnoreErrors()));
       return nullptr;
     }
-    SetEarlyErrorResult(aResult, ErrorResult(rv));
+    SetEarlyErrorResult(aCx, aResult, ErrorResult(rv));
     return nullptr;
   }
   return serializedState.forget();
@@ -466,14 +475,14 @@ void Navigation::Reload(JSContext* aCx, const NavigationReloadOptions& aOptions,
   }
   // 5. If document is not fully active, then return an early error result for
   //    an "InvalidStateError" DOMException.
-  if (!CheckIfDocumentIsFullyActiveAndMaybeSetEarlyErrorResult(document,
+  if (!CheckIfDocumentIsFullyActiveAndMaybeSetEarlyErrorResult(aCx, document,
                                                                aResult)) {
     return;
   }
 
   // 6. If document's unload counter is greater than 0, then return an early
   //    error result for an "InvalidStateError" DOMException.
-  if (!CheckDocumentUnloadCounterAndMaybeSetEarlyErrorResult(document,
+  if (!CheckDocumentUnloadCounterAndMaybeSetEarlyErrorResult(aCx, document,
                                                              aResult)) {
     return;
   }
@@ -574,13 +583,22 @@ bool Navigation::FireTraverseNavigateEvent(
 // https://html.spec.whatwg.org/#fire-a-push/replace/reload-navigate-event
 bool Navigation::FirePushReplaceReloadNavigateEvent(
     JSContext* aCx, NavigationType aNavigationType, nsIURI* aDestinationURL,
-    bool aIsSameDocument, Maybe<UserNavigationInvolvement> aUserInvolvement,
-    Element* aSourceElement, already_AddRefed<FormData> aFormDataEntryList,
+    bool aIsSameDocument, bool aIsSync,
+    Maybe<UserNavigationInvolvement> aUserInvolvement, Element* aSourceElement,
+    already_AddRefed<FormData> aFormDataEntryList,
     nsIStructuredCloneContainer* aNavigationAPIState,
     nsIStructuredCloneContainer* aClassicHistoryAPIState) {
   // To not unnecessarily create an event that's never used, step 1 and step 2
   // in #fire-a-push/replace/reload-navigate-event have been moved to after step
   // 25 in #inner-navigate-event-firing-algorithm in our implementation.
+
+  // This is currently not how spec handles this.
+  // See https://github.com/whatwg/html/issues/11184
+  if (aIsSync) {
+    while (HasOngoingNavigateEvent()) {
+      AbortOngoingNavigation(aCx);
+    }
+  }
 
   // Step 3 to step 7
   RefPtr<NavigationDestination> destination =
@@ -671,12 +689,26 @@ static bool HasIdenticalFragment(nsIURI* aURI, nsIURI* aOtherURI) {
   return ref.Equals(otherRef);
 }
 
+static void LogEvent(Event* aEvent, NavigateEvent* aOngoingEvent) {
+  if (!MOZ_LOG_TEST(gNavigationLog, LogLevel::Debug)) {
+    return;
+  }
+
+  RefPtr<NavigationDestination> destination =
+      aOngoingEvent ? aOngoingEvent->Destination() : nullptr;
+  nsAutoString eventType;
+  aEvent->GetType(eventType);
+  LOG_FMT("Fire {} {}", NS_ConvertUTF16toUTF8(eventType),
+          destination ? destination->GetURI()->GetSpecOrDefault() : ""_ns);
+}
+
 nsresult Navigation::FireEvent(const nsAString& aName) {
   RefPtr<Event> event = NS_NewDOMEvent(this, nullptr, nullptr);
   // it doesn't bubble, and it isn't cancelable
   event->InitEvent(aName, false, false);
   event->SetTrusted(true);
   ErrorResult rv;
+  LogEvent(event, mOngoingNavigateEvent);
   DispatchEvent(*event, rv);
   return rv.StealNSResult();
 }
@@ -696,6 +728,8 @@ nsresult Navigation::FireErrorEvent(const nsAString& aName,
                                     const ErrorEventInit& aEventInitDict) {
   RefPtr<Event> event = ErrorEvent::Constructor(this, aName, aEventInitDict);
   ErrorResult rv;
+
+  LogEvent(event, mOngoingNavigateEvent);
   DispatchEvent(*event, rv);
   return rv.StealNSResult();
 }
@@ -860,6 +894,7 @@ bool Navigation::InnerFireNavigateEvent(
   mSuppressNormalScrollRestorationDuringOngoingNavigation = false;
 
   // Step 29 and step 30
+  LogEvent(event, mOngoingNavigateEvent);
   if (!DispatchEvent(*event, CallerType::NonSystem, IgnoreErrors())) {
     // Step 30.1
     if (aNavigationType == NavigationType::Traverse) {

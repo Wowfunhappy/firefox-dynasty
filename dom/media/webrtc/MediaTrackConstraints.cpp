@@ -26,6 +26,7 @@ namespace mozilla {
 
 using dom::CallerType;
 using dom::ConstrainBooleanParameters;
+using dom::VideoResizeModeEnum;
 
 template <class ValueType>
 template <class ConstrainRange>
@@ -327,14 +328,15 @@ FlattenedConstraints::FlattenedConstraints(const NormalizedConstraints& aOther)
 
 /* static */
 bool MediaConstraintsHelper::SomeSettingsFit(
-    const NormalizedConstraints& aConstraints,
+    const NormalizedConstraints& aConstraints, const MediaEnginePrefs& aPrefs,
     const nsTArray<RefPtr<LocalMediaDevice>>& aDevices) {
   nsTArray<const NormalizedConstraintSet*> sets;
   sets.AppendElement(&aConstraints);
 
   MOZ_ASSERT(!aDevices.IsEmpty());
   for (auto& device : aDevices) {
-    auto distance = device->GetBestFitnessDistance(sets, CallerType::NonSystem);
+    auto distance =
+        device->GetBestFitnessDistance(sets, aPrefs, CallerType::NonSystem);
     if (distance != UINT32_MAX) {
       return true;
     }
@@ -360,10 +362,24 @@ uint32_t MediaConstraintsHelper::FitnessDistance(
 }
 
 /* static */ const char* MediaConstraintsHelper::SelectSettings(
-    const NormalizedConstraints& aConstraints,
+    const NormalizedConstraints& aConstraints, const MediaEnginePrefs& aPrefs,
     nsTArray<RefPtr<LocalMediaDevice>>& aDevices, CallerType aCallerType) {
   auto& c = aConstraints;
   LogConstraints(c);
+
+  if (!aDevices.IsEmpty() &&
+      aDevices[0]->Kind() == dom::MediaDeviceKind::Videoinput &&
+      aPrefs.mResizeModeEnabled) {
+    // Check invalid exact resizeMode constraint (not a device property)
+    nsString none =
+        NS_ConvertASCIItoUTF16(dom::GetEnumString(VideoResizeModeEnum::None));
+    nsString crop = NS_ConvertASCIItoUTF16(
+        dom::GetEnumString(VideoResizeModeEnum::Crop_and_scale));
+    if (FitnessDistance(Some(none), c.mResizeMode) == UINT32_MAX &&
+        FitnessDistance(Some(crop), c.mResizeMode) == UINT32_MAX) {
+      return "resizeMode";
+    }
+  }
 
   // First apply top-level constraints.
 
@@ -377,8 +393,8 @@ uint32_t MediaConstraintsHelper::FitnessDistance(
   std::multimap<uint32_t, RefPtr<LocalMediaDevice>> ordered;
 
   for (uint32_t i = 0; i < aDevices.Length();) {
-    uint32_t distance =
-        aDevices[i]->GetBestFitnessDistance(aggregateConstraints, aCallerType);
+    uint32_t distance = aDevices[i]->GetBestFitnessDistance(
+        aggregateConstraints, aPrefs, aCallerType);
     if (distance == UINT32_MAX) {
       unsatisfactory.AppendElement(std::move(aDevices[i]));
       aDevices.RemoveElementAt(i);
@@ -388,7 +404,7 @@ uint32_t MediaConstraintsHelper::FitnessDistance(
     }
   }
   if (aDevices.IsEmpty()) {
-    return FindBadConstraint(c, unsatisfactory);
+    return FindBadConstraint(c, aPrefs, unsatisfactory);
   }
 
   // Order devices by shortest distance
@@ -404,7 +420,7 @@ uint32_t MediaConstraintsHelper::FitnessDistance(
     nsTArray<RefPtr<LocalMediaDevice>> rejects;
     for (uint32_t j = 0; j < aDevices.Length();) {
       uint32_t distance = aDevices[j]->GetBestFitnessDistance(
-          aggregateConstraints, aCallerType);
+          aggregateConstraints, aPrefs, aCallerType);
       if (distance == UINT32_MAX) {
         rejects.AppendElement(std::move(aDevices[j]));
         aDevices.RemoveElementAt(j);
@@ -421,7 +437,7 @@ uint32_t MediaConstraintsHelper::FitnessDistance(
 }
 
 /* static */ const char* MediaConstraintsHelper::FindBadConstraint(
-    const NormalizedConstraints& aConstraints,
+    const NormalizedConstraints& aConstraints, const MediaEnginePrefs& aPrefs,
     const nsTArray<RefPtr<LocalMediaDevice>>& aDevices) {
   // The spec says to report a constraint that satisfies NONE
   // of the sources. Unfortunately, this is a bit laborious to find out, and
@@ -430,48 +446,48 @@ uint32_t MediaConstraintsHelper::FitnessDistance(
   dom::MediaTrackConstraints empty;
 
   if (aDevices.IsEmpty() ||
-      !SomeSettingsFit(NormalizedConstraints(empty), aDevices)) {
+      !SomeSettingsFit(NormalizedConstraints(empty), aPrefs, aDevices)) {
     return "";
   }
   {
     NormalizedConstraints fresh(empty);
     fresh.mDeviceId = c.mDeviceId;
-    if (!SomeSettingsFit(fresh, aDevices)) {
+    if (!SomeSettingsFit(fresh, aPrefs, aDevices)) {
       return "deviceId";
     }
   }
   {
     NormalizedConstraints fresh(empty);
     fresh.mGroupId = c.mGroupId;
-    if (!SomeSettingsFit(fresh, aDevices)) {
+    if (!SomeSettingsFit(fresh, aPrefs, aDevices)) {
       return "groupId";
     }
   }
   {
     NormalizedConstraints fresh(empty);
     fresh.mWidth = c.mWidth;
-    if (!SomeSettingsFit(fresh, aDevices)) {
+    if (!SomeSettingsFit(fresh, aPrefs, aDevices)) {
       return "width";
     }
   }
   {
     NormalizedConstraints fresh(empty);
     fresh.mHeight = c.mHeight;
-    if (!SomeSettingsFit(fresh, aDevices)) {
+    if (!SomeSettingsFit(fresh, aPrefs, aDevices)) {
       return "height";
     }
   }
   {
     NormalizedConstraints fresh(empty);
     fresh.mFrameRate = c.mFrameRate;
-    if (!SomeSettingsFit(fresh, aDevices)) {
+    if (!SomeSettingsFit(fresh, aPrefs, aDevices)) {
       return "frameRate";
     }
   }
   {
     NormalizedConstraints fresh(empty);
     fresh.mFacingMode = c.mFacingMode;
-    if (!SomeSettingsFit(fresh, aDevices)) {
+    if (!SomeSettingsFit(fresh, aPrefs, aDevices)) {
       return "facingMode";
     }
   }
@@ -480,7 +496,7 @@ uint32_t MediaConstraintsHelper::FitnessDistance(
 
 /* static */
 const char* MediaConstraintsHelper::FindBadConstraint(
-    const NormalizedConstraints& aConstraints,
+    const NormalizedConstraints& aConstraints, const MediaEnginePrefs& aPrefs,
     const MediaDevice* aMediaDevice) {
   NormalizedConstraints c(aConstraints);
   NormalizedConstraints empty((dom::MediaTrackConstraints()));
@@ -489,7 +505,7 @@ const char* MediaConstraintsHelper::FindBadConstraint(
   AutoTArray<RefPtr<LocalMediaDevice>, 1> devices;
   devices.EmplaceBack(
       new LocalMediaDevice(aMediaDevice, u""_ns, u""_ns, u""_ns));
-  return FindBadConstraint(c, devices);
+  return FindBadConstraint(c, aPrefs, devices);
 }
 
 static void LogConstraintStringRange(
@@ -547,6 +563,7 @@ void MediaConstraintsHelper::LogConstraints(
     LogConstraintRange(c.mFrameRate);
     LogConstraintStringRange(c.mMediaSource);
     LogConstraintStringRange(c.mFacingMode);
+    LogConstraintStringRange(c.mResizeMode);
     LogConstraintStringRange(c.mDeviceId);
     LogConstraintStringRange(c.mGroupId);
     LogConstraintRange(c.mEchoCancellation);

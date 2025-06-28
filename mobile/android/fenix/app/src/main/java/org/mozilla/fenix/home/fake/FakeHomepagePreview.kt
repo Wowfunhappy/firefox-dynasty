@@ -47,6 +47,7 @@ import org.mozilla.fenix.home.recentvisits.RecentlyVisitedItem
 import org.mozilla.fenix.home.recentvisits.RecentlyVisitedItem.RecentHistoryGroup
 import org.mozilla.fenix.home.recentvisits.RecentlyVisitedItem.RecentHistoryHighlight
 import org.mozilla.fenix.home.recentvisits.interactor.RecentVisitsInteractor
+import org.mozilla.fenix.home.search.HomeSearchInteractor
 import org.mozilla.fenix.home.sessioncontrol.CollectionInteractor
 import org.mozilla.fenix.home.sessioncontrol.TopSiteInteractor
 import org.mozilla.fenix.home.store.NimbusMessageState
@@ -72,6 +73,7 @@ internal object FakeHomepagePreview {
             RecentSyncedTabInteractor by recentSyncedTabInterator,
             BookmarksInteractor by bookmarksInteractor,
             RecentVisitsInteractor by recentVisitsInteractor,
+            HomeSearchInteractor by homeSearchInteractor,
             CollectionInteractor by collectionInteractor {
             override fun reportSessionMetrics(state: AppState) { /* no op */ }
 
@@ -204,6 +206,11 @@ internal object FakeHomepagePreview {
             override fun onRemoveCollectionsPlaceholder() { /* no op */ }
         }
 
+    internal val homeSearchInteractor: HomeSearchInteractor
+        get() = object : HomeSearchInteractor {
+            override fun onHomeContentFocusedWhileSearchIsActive() { /* no op */ }
+        }
+
     @Composable
     internal fun nimbusMessageState() = NimbusMessageState(
         cardState = messageCardState(),
@@ -234,21 +241,10 @@ internal object FakeHomepagePreview {
     )
 
     internal fun topSites(
-        pinnedCount: Int = 2,
         providedCount: Int = 2,
-        defaultCount: Int = 2,
+        pinnedCount: Int = 2,
+        defaultCount: Int = 8,
     ) = mutableListOf<TopSite>().apply {
-        repeat(pinnedCount) {
-            add(
-                TopSite.Pinned(
-                    id = randomLong(),
-                    title = "Mozilla",
-                    url = URL,
-                    createdAt = randomLong(),
-                ),
-            )
-        }
-
         repeat(providedCount) {
             add(
                 TopSite.Provided(
@@ -258,6 +254,17 @@ internal object FakeHomepagePreview {
                     clickUrl = URL,
                     imageUrl = URL,
                     impressionUrl = URL,
+                    createdAt = randomLong(),
+                ),
+            )
+        }
+
+        repeat(pinnedCount) {
+            add(
+                TopSite.Pinned(
+                    id = randomLong(),
+                    title = "Mozilla",
+                    url = URL,
                     createdAt = randomLong(),
                 ),
             )

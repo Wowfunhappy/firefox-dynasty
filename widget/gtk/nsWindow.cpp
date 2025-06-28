@@ -25,7 +25,6 @@
 #include "GLContextProvider.h"
 #include "GLContext.h"
 #include "GtkCompositorWidget.h"
-#include "gtkdrawing.h"
 #include "imgIContainer.h"
 #include "InputData.h"
 #include "mozilla/ArrayUtils.h"
@@ -799,6 +798,20 @@ bool nsWindow::WidgetTypeSupportsAcceleration() {
     return HasRemoteContent();
   }
   return true;
+}
+
+bool nsWindow::WidgetTypeSupportsNativeCompositing() {
+  if (mIsDragPopup) {
+    return false;
+  }
+#if defined(NIGHTLY_BUILD)
+  // For testing purpose use layered native composition for popups
+  // on nightly. It uses rapid map/unmap sequences it may reveal
+  // hidden bugs in layered code.
+  return true;
+#else
+  return WidgetTypeSupportsAcceleration();
+#endif
 }
 
 static bool IsPenEvent(GdkEvent* aEvent, bool* isEraser) {
@@ -1716,9 +1729,9 @@ void nsWindow::LogPopupHierarchy() {
             "Anchored %d Visible %d MovedByRect %d\n",
             indentString.get(), window->GetFrameTag().get(),
             window->GetPopupTypeName().get(), window,
-            window->WaylandPopupIsPermanent(),
-            window->mPopupContextMenu, window->mPopupAnchored,
-            gtk_widget_is_visible(window->mShell), window->mPopupUseMoveToRect);
+            window->WaylandPopupIsPermanent(), window->mPopupContextMenu,
+            window->mPopupAnchored, gtk_widget_is_visible(window->mShell),
+            window->mPopupUseMoveToRect);
       } else {
         LOG("%s null window\n", indentString.get());
       }
@@ -7037,17 +7050,10 @@ void nsWindow::UpdateOpaqueRegionInternal() {
     return;
   }
 
-  if (!IsTopLevelWidget()) {
-    // We need to clear target buffer alpha values of popup windows as
-    // SW-WR paints with alpha blending (see Bug 1674473).
-    return;
-  }
-
   GdkWindow* window = GetToplevelGdkWindow();
   if (!window) {
     return;
   }
-  MOZ_ASSERT(gdk_window_get_window_type(window) == GDK_WINDOW_TOPLEVEL);
 
   {
     AutoReadLock lock(mOpaqueRegionLock);

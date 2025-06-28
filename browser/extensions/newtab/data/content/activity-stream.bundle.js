@@ -3109,7 +3109,9 @@ function FeatureHighlight({
   message,
   icon,
   toggle,
+  arrowPosition = "",
   position = "top-left",
+  verticalPosition = "",
   title,
   ariaLabel,
   feature = "FEATURE_HIGHLIGHT_DEFAULT",
@@ -3161,7 +3163,7 @@ function FeatureHighlight({
   const openedClassname = opened ? `opened` : `closed`;
   return /*#__PURE__*/external_React_default().createElement("div", {
     ref: ref,
-    className: "feature-highlight"
+    className: `feature-highlight ${verticalPosition}`
   }, /*#__PURE__*/external_React_default().createElement("button", {
     title: title,
     "aria-haspopup": "true",
@@ -3169,7 +3171,7 @@ function FeatureHighlight({
     className: `toggle-button ${hideButtonClass}`,
     onClick: onToggleClick
   }, toggle), /*#__PURE__*/external_React_default().createElement("div", {
-    className: `feature-highlight-modal ${position} ${openedClassname}`
+    className: `feature-highlight-modal ${position} ${arrowPosition} ${openedClassname}`
   }, /*#__PURE__*/external_React_default().createElement("div", {
     className: "message-icon"
   }, icon), /*#__PURE__*/external_React_default().createElement("p", {
@@ -5011,7 +5013,7 @@ function TrendingSearches() {
       className: "trending-searches-icon icon icon-arrow-trending"
     }), /*#__PURE__*/external_React_default().createElement("h2", {
       className: "trending-searches-title",
-      "data-l10n-id": "newtab-trending-searches-trending-on-google"
+      "data-l10n-id": "newtab-trending-searches-title"
     }), /*#__PURE__*/external_React_default().createElement("div", {
       className: "close-open-trending-searches"
     }, /*#__PURE__*/external_React_default().createElement("moz-button", {
@@ -5044,7 +5046,7 @@ function TrendingSearches() {
     }, /*#__PURE__*/external_React_default().createElement("div", {
       className: "trending-searches-list-view-header"
     }, /*#__PURE__*/external_React_default().createElement("h3", {
-      "data-l10n-id": "newtab-trending-searches-trending-on-google"
+      "data-l10n-id": "newtab-trending-searches-title"
     }), /*#__PURE__*/external_React_default().createElement("div", {
       className: "trending-searches-context-menu-wrapper"
     }, /*#__PURE__*/external_React_default().createElement("div", {
@@ -11329,6 +11331,77 @@ const PersonalizedCard = ({
     }
   }, messageData.content.linkText)));
 };
+;// CONCATENATED MODULE: ./content-src/components/DiscoveryStreamComponents/FeatureHighlight/FollowSectionButtonHighlight.jsx
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+
+
+
+const FEATURE_ID = "FEATURE_FOLLOW_SECTION_BUTTON";
+function FollowSectionButtonHighlight({
+  arrowPosition,
+  position,
+  verticalPosition,
+  dispatch,
+  handleDismiss,
+  handleBlock,
+  isIntersecting
+}) {
+  const onDismiss = (0,external_React_namespaceObject.useCallback)(() => {
+    // This event is emitted manually because the feature may be triggered outside the OMC flow,
+    // and may not be captured by the messaging-system’s automatic reporting.
+    dispatch(actionCreators.DiscoveryStreamUserEvent({
+      event: "FEATURE_HIGHLIGHT_DISMISS",
+      source: "FEATURE_HIGHLIGHT",
+      value: FEATURE_ID
+    }));
+    handleDismiss();
+    handleBlock();
+  }, [dispatch, handleDismiss, handleBlock]);
+  (0,external_React_namespaceObject.useEffect)(() => {
+    if (isIntersecting) {
+      // This event is emitted manually because the feature may be triggered outside the OMC flow,
+      // and may not be captured by the messaging-system’s automatic reporting.
+      dispatch(actionCreators.DiscoveryStreamUserEvent({
+        event: "FEATURE_HIGHLIGHT_IMPRESSION",
+        source: "FEATURE_HIGHLIGHT",
+        value: FEATURE_ID
+      }));
+    }
+  }, [dispatch, isIntersecting]);
+  return /*#__PURE__*/external_React_default().createElement("div", {
+    className: "follow-section-button-highlight"
+  }, /*#__PURE__*/external_React_default().createElement(FeatureHighlight, {
+    position: position,
+    arrowPosition: arrowPosition,
+    verticalPosition: verticalPosition,
+    feature: FEATURE_ID,
+    dispatch: dispatch,
+    message: /*#__PURE__*/external_React_default().createElement("div", {
+      className: "follow-section-button-highlight-content"
+    }, /*#__PURE__*/external_React_default().createElement("img", {
+      src: "chrome://browser/content/asrouter/assets/smiling-fox-icon.svg",
+      "data-l10n-id": "newtab-download-mobile-highlight-image",
+      width: "24",
+      height: "24",
+      alt: ""
+    }), /*#__PURE__*/external_React_default().createElement("div", {
+      className: "follow-section-button-highlight-copy"
+    }, /*#__PURE__*/external_React_default().createElement("p", {
+      className: "title",
+      "data-l10n-id": "newtab-section-follow-highlight-title"
+    }), /*#__PURE__*/external_React_default().createElement("p", {
+      className: "subtitle",
+      "data-l10n-id": "newtab-section-follow-highlight-subtitle"
+    }))),
+    openedOverride: true,
+    showButtonIcon: false,
+    dismissCallback: onDismiss,
+    outsideClickCallback: handleDismiss
+  }));
+}
 ;// CONCATENATED MODULE: ./content-src/components/MessageWrapper/MessageWrapper.jsx
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
@@ -11463,6 +11536,8 @@ function MessageWrapper({
 
 
 
+
+
 // Prefs
 const CardSections_PREF_SECTIONS_CARDS_ENABLED = "discoverystream.sections.cards.enabled";
 const PREF_SECTIONS_CARDS_THUMBS_UP_DOWN_ENABLED = "discoverystream.sections.cards.thumbsUpDown.enabled";
@@ -11479,7 +11554,11 @@ const CardSections_PREF_LEADERBOARD_POSITION = "newtabAdSize.leaderboard.positio
 const CardSections_PREF_BILLBOARD_POSITION = "newtabAdSize.billboard.position";
 const PREF_REFINED_CARDS_ENABLED = "discoverystream.refinedCardsLayout.enabled";
 const PREF_INFERRED_PERSONALIZATION_USER = "discoverystream.sections.personalization.inferred.user.enabled";
-function getLayoutData(responsiveLayouts, index, refinedCardsLayout) {
+const CardSections_PREF_TRENDING_SEARCH = "trendingSearch.enabled";
+const CardSections_PREF_TRENDING_SEARCH_SYSTEM = "system.trendingSearch.enabled";
+const CardSections_PREF_SEARCH_ENGINE = "trendingSearch.defaultSearchEngine";
+const CardSections_PREF_TRENDING_SEARCH_VARIANT = "trendingSearch.variant";
+function getLayoutData(responsiveLayouts, index, refinedCardsLayout, sectionKey) {
   let layoutData = {
     classNames: [],
     imageSizes: {}
@@ -11487,9 +11566,19 @@ function getLayoutData(responsiveLayouts, index, refinedCardsLayout) {
   responsiveLayouts.forEach(layout => {
     layout.tiles.forEach((tile, tileIndex) => {
       if (tile.position === index) {
-        layoutData.classNames.push(`col-${layout.columnCount}-${tile.size}`);
-        layoutData.classNames.push(`col-${layout.columnCount}-position-${tileIndex}`);
-        layoutData.imageSizes[layout.columnCount] = tile.size;
+        // When trending searches should be placed in the `top_stories_section`,
+        // we update the layout so that the first item is always a medium card to make
+        // room for the trending search widget
+        if (sectionKey === "top_stories_section" && tileIndex === 0) {
+          //do something
+          layoutData.classNames.push(`col-${layout.columnCount}-medium`);
+          layoutData.classNames.push(`col-${layout.columnCount}-position-${tileIndex}`);
+          layoutData.imageSizes[layout.columnCount] = "medium";
+        } else {
+          layoutData.classNames.push(`col-${layout.columnCount}-${tile.size}`);
+          layoutData.classNames.push(`col-${layout.columnCount}-position-${tileIndex}`);
+          layoutData.imageSizes[layout.columnCount] = tile.size;
+        }
 
         // The API tells us whether the tile should show the excerpt or not.
         // Apply extra styles accordingly.
@@ -11532,6 +11621,12 @@ function getMaxTiles(responsiveLayouts) {
 const prefToArray = (pref = "") => {
   return pref.split(",").map(item => item.trim()).filter(item => item);
 };
+function shouldShowOMCHighlight(messageData, componentId) {
+  if (!messageData || Object.keys(messageData).length === 0) {
+    return false;
+  }
+  return messageData?.content?.messageType === componentId;
+}
 function CardSection({
   sectionPosition,
   section,
@@ -11541,9 +11636,13 @@ function CardSection({
   is_collection,
   spocMessageVariant,
   ctaButtonVariant,
-  ctaButtonSponsors
+  ctaButtonSponsors,
+  anySectionsFollowed
 }) {
   const prefs = (0,external_ReactRedux_namespaceObject.useSelector)(state => state.Prefs.values);
+  const {
+    messageData
+  } = (0,external_ReactRedux_namespaceObject.useSelector)(state => state.Messages);
   const {
     sectionPersonalization
   } = (0,external_ReactRedux_namespaceObject.useSelector)(state => state.DiscoveryStream);
@@ -11554,6 +11653,9 @@ function CardSection({
   const selectedTopics = prefs[CardSections_PREF_TOPICS_SELECTED];
   const availableTopics = prefs[CardSections_PREF_TOPICS_AVAILABLE];
   const refinedCardsLayout = prefs[PREF_REFINED_CARDS_ENABLED];
+  const trendingEnabled = prefs[CardSections_PREF_TRENDING_SEARCH] && prefs[CardSections_PREF_TRENDING_SEARCH_SYSTEM] && prefs[CardSections_PREF_SEARCH_ENGINE]?.toLowerCase() === "google";
+  const trendingVariant = prefs[CardSections_PREF_TRENDING_SEARCH_VARIANT];
+  const shouldShowTrendingSearch = trendingEnabled && trendingVariant === "b";
   const {
     saveToPocketCard
   } = (0,external_ReactRedux_namespaceObject.useSelector)(state => state.DiscoveryStream);
@@ -11639,7 +11741,13 @@ function CardSection({
     className: "section-context-wrapper"
   }, /*#__PURE__*/external_React_default().createElement("div", {
     className: following ? "section-follow following" : "section-follow"
-  }, /*#__PURE__*/external_React_default().createElement("moz-button", {
+  }, !anySectionsFollowed && sectionPosition === 1 && shouldShowOMCHighlight(messageData, "FollowSectionButtonHighlight") && /*#__PURE__*/external_React_default().createElement(MessageWrapper, {
+    dispatch: dispatch
+  }, /*#__PURE__*/external_React_default().createElement(FollowSectionButtonHighlight, {
+    verticalPosition: "inset-block-center",
+    position: "arrow-inline-start",
+    dispatch: dispatch
+  })), /*#__PURE__*/external_React_default().createElement("moz-button", {
     onClick: following ? onUnfollowClick : onFollowClick,
     type: "default",
     index: sectionPosition,
@@ -11679,16 +11787,17 @@ function CardSection({
   }, subtitle)), mayHaveSectionsPersonalization ? sectionContextWrapper : null), /*#__PURE__*/external_React_default().createElement("div", {
     className: `ds-section-grid ds-card-grid`
   }, section.data.slice(0, maxTile).map((rec, index) => {
+    const layoutData = getLayoutData(responsiveLayouts, index, refinedCardsLayout, shouldShowTrendingSearch && sectionKey);
     const {
       classNames,
       imageSizes
-    } = getLayoutData(responsiveLayouts, index, refinedCardsLayout);
+    } = layoutData;
     if (!rec || rec.placeholder) {
       return /*#__PURE__*/external_React_default().createElement(PlaceholderDSCard, {
         key: `dscard-${index}`
       });
     }
-    return /*#__PURE__*/external_React_default().createElement(DSCard, {
+    const card = /*#__PURE__*/external_React_default().createElement(DSCard, {
       key: `dscard-${rec.id}`,
       pos: rec.pos,
       flightId: rec.flight_id,
@@ -11740,6 +11849,9 @@ function CardSection({
       sectionFollowed: following,
       isTimeSensitive: rec.isTimeSensitive
     });
+    return index === 0 && shouldShowTrendingSearch && sectionKey === "top_stories_section" ? [card, /*#__PURE__*/external_React_default().createElement(TrendingSearches, {
+      key: "trending"
+    })] : [card];
   })));
 }
 function CardSections({
@@ -11772,6 +11884,9 @@ function CardSections({
   const {
     interestPicker
   } = data;
+
+  // Used to determine if we should show FollowSectionButtonHighlight
+  const anySectionsFollowed = sectionPersonalization && Object.values(sectionPersonalization).some(section => section?.isFollowed);
   let filteredSections = data.sections.filter(section => !sectionPersonalization[section.sectionKey]?.isBlocked);
   if (interestPickerEnabled && visibleSections.length) {
     filteredSections = visibleSections.reduce((acc, visibleSection) => {
@@ -11794,7 +11909,8 @@ function CardSections({
     is_collection: is_collection,
     spocMessageVariant: spocMessageVariant,
     ctaButtonVariant: ctaButtonVariant,
-    ctaButtonSponsors: ctaButtonSponsors
+    ctaButtonSponsors: ctaButtonSponsors,
+    anySectionsFollowed: anySectionsFollowed
   }));
 
   // Add a billboard/leaderboard IAB ad to the sectionsToRender array (if enabled/possible).
@@ -11836,7 +11952,7 @@ function CardSections({
   }
   function displayP13nCard() {
     if (messageData && Object.keys(messageData).length >= 1) {
-      if (messageData?.content?.messageType === "PersonalizedCard" && prefs[PREF_INFERRED_PERSONALIZATION_USER]) {
+      if (shouldShowOMCHighlight(messageData, "PersonalizedCard") && prefs[PREF_INFERRED_PERSONALIZATION_USER]) {
         const row = messageData.content.position;
         sectionsToRender.splice(row, 0, /*#__PURE__*/external_React_default().createElement(MessageWrapper, {
           dispatch: dispatch,
@@ -14361,7 +14477,7 @@ function TopicSelection({
 const PREF_MOBILE_DOWNLOAD_HIGHLIGHT_VARIANT_A = "mobileDownloadModal.variant-a";
 const PREF_MOBILE_DOWNLOAD_HIGHLIGHT_VARIANT_B = "mobileDownloadModal.variant-b";
 const PREF_MOBILE_DOWNLOAD_HIGHLIGHT_VARIANT_C = "mobileDownloadModal.variant-c";
-const FEATURE_ID = "FEATURE_DOWNLOAD_MOBILE_PROMO";
+const DownloadMobilePromoHighlight_FEATURE_ID = "FEATURE_DOWNLOAD_MOBILE_PROMO";
 function DownloadMobilePromoHighlight({
   position,
   dispatch,
@@ -14375,7 +14491,9 @@ function DownloadMobilePromoHighlight({
     dispatch(actionCreators.DiscoveryStreamUserEvent({
       event: "FEATURE_HIGHLIGHT_DISMISS",
       source: "FEATURE_HIGHLIGHT",
-      value: FEATURE_ID
+      value: {
+        feature: DownloadMobilePromoHighlight_FEATURE_ID
+      }
     }));
     handleDismiss();
     handleBlock();
@@ -14387,7 +14505,9 @@ function DownloadMobilePromoHighlight({
       dispatch(actionCreators.DiscoveryStreamUserEvent({
         event: "FEATURE_HIGHLIGHT_IMPRESSION",
         source: "FEATURE_HIGHLIGHT",
-        value: FEATURE_ID
+        value: {
+          feature: DownloadMobilePromoHighlight_FEATURE_ID
+        }
       }));
     }
   }, [dispatch, isIntersecting]);
@@ -14437,7 +14557,7 @@ function DownloadMobilePromoHighlight({
     className: "download-firefox-feature-highlight"
   }, /*#__PURE__*/external_React_default().createElement(FeatureHighlight, {
     position: position,
-    feature: FEATURE_ID,
+    feature: DownloadMobilePromoHighlight_FEATURE_ID,
     dispatch: dispatch,
     message: /*#__PURE__*/external_React_default().createElement("div", {
       className: "download-firefox-feature-highlight-content"
@@ -14933,7 +15053,9 @@ class BaseContent extends (external_React_default()).PureComponent {
         this.props.dispatch(actionCreators.DiscoveryStreamUserEvent({
           event: "FEATURE_HIGHLIGHT_OPEN",
           source: "FEATURE_HIGHLIGHT",
-          value: "FEATURE_DOWNLOAD_MOBILE_PROMO"
+          value: {
+            feature: "FEATURE_DOWNLOAD_MOBILE_PROMO"
+          }
         }));
       }
       return {
