@@ -11,9 +11,9 @@
   -->
   <string name="content_description_menu">अधिक विकल्प</string>
   <!-- Content description (not visible, for screen readers etc.): "Private Browsing" menu button. -->
-  <string name="content_description_private_browsing_button">निजी ब्राउज़िंग सक्षम करें</string>
+  <string name="content_description_private_browsing_button" moz:removedIn="142" tools:ignore="UnusedResources">निजी ब्राउज़िंग सक्षम करें</string>
   <!-- Content description (not visible, for screen readers etc.): "Private Browsing" menu button. -->
-  <string name="content_description_disable_private_browsing_button">निजी ब्राउज़िंग अक्षम करें</string>
+  <string name="content_description_disable_private_browsing_button" moz:removedIn="142" tools:ignore="UnusedResources">निजी ब्राउज़िंग अक्षम करें</string>
   <!-- Content description (not visible, for screen readers etc.): "Private Browsing" menu button. -->
   <string name="content_description_private_browsing">निजी ब्राउज़िंग</string>
   <!-- Placeholder text shown in the search bar before a user enters text for the default engine -->
@@ -253,7 +253,7 @@
   <!-- Preference for language -->
   <string name="preferences_language">भाषा</string>
   <!-- Preference for data choices -->
-  <string name="preferences_data_choices">डेटा विकल्प</string>
+  <string name="preferences_data_choices" tools:ignore="UnusedResources" moz:removedIn="141">डेटा विकल्प</string>
   <!-- Preference for data collection -->
   <string name="preferences_data_collection">डेटा संग्रहण</string>
   <!-- Preference for developers -->

@@ -70,6 +70,7 @@ import org.mozilla.fenix.perf.StartupActivityLog
 import org.mozilla.fenix.perf.StartupStateProvider
 import org.mozilla.fenix.perf.StrictModeManager
 import org.mozilla.fenix.perf.lazyMonitored
+import org.mozilla.fenix.reviewprompt.ReviewPromptMiddleware
 import org.mozilla.fenix.utils.Settings
 import org.mozilla.fenix.utils.isLargeScreenSize
 import org.mozilla.fenix.wifi.WifiConnectionMonitor
@@ -204,7 +205,7 @@ class Components(private val context: Context) {
             browserStore = core.store,
             storage = DefaultPrivateBrowsingLockStorage(
                 preferences = settings.preferences,
-                privateBrowsingLockPrefKey = context.getString(R.string.pref_key_private_browsing_locked_enabled),
+                privateBrowsingLockPrefKey = context.getString(R.string.pref_key_private_browsing_locked),
             ),
         )
     }
@@ -285,6 +286,7 @@ class Components(private val context: Context) {
                 HomeTelemetryMiddleware(),
                 SetupChecklistPreferencesMiddleware(DefaultSetupChecklistRepository(context)),
                 SetupChecklistTelemetryMiddleware(),
+                ReviewPromptMiddleware(settings),
             ),
         ).also {
             it.dispatch(AppAction.SetupChecklistAction.Init)

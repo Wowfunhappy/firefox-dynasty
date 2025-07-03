@@ -50,6 +50,7 @@ features:
             "pocket": true,
             "pocket-sponsored-stories": true,
             "synced-tabs": true,
+            "collections": true,
           }
     defaults:
       - channel: nightly
@@ -61,6 +62,7 @@ features:
             "recent-explorations": true,
             "pocket": true,
             "synced-tabs": true,
+            "collections": true,
           }
         }
   nimbus-validation:
@@ -101,7 +103,6 @@ features:
         type: Map<MR2022Section, Boolean>
         default:
           {
-            "sync-cfr": true,
             "wallpapers-selection-tool": true,
             "tcp-cfr": true,
             "tcp-feature": true,
@@ -110,7 +111,6 @@ features:
       - channel: developer
         value: {
           "sections-enabled": {
-            "sync-cfr": true,
             "wallpapers-selection-tool": true,
           }
         }
@@ -609,7 +609,14 @@ features:
         description: If true, report site issue menu item and preview is available.
         type: Boolean
         default: true
+      menu-banner:
+        description: If true, the menu banner is visible.
+        type: Boolean
+        default: true
     defaults:
+      - channel: release
+        value:
+          enabled: false
       - channel: release
         value:
           report-site-issue: false
@@ -639,6 +646,14 @@ features:
         value:
           enabled: true
 
+  override-user-specified-homepage-sections:
+    description: Whether to ignore the user-specified homepage section visibility settings and hide the options in the settings.
+    variables:
+      enabled:
+        description: >
+          When true, ignore the user-specified homepage section visibility settings, and hide the toggle options in the settings.
+        type: Boolean
+        default: false
   microsurveys:
     description: Feature for microsurveys.
     variables:
@@ -922,12 +937,12 @@ types:
           description: Subsection of the Pocket homescreen section which shows sponsored stories.
         synced-tabs:
           description: The synced tabs section of the homepage.
+        collections:
+          description: The collections section of the homepage.
 
     MR2022Section:
       description: The identifiers for the sections of the MR 2022.
       variants:
-        sync-cfr:
-          description: CFR for the first time you see a synced tab on the home screen.
         wallpapers-selection-tool:
           description: Wallpapers selection dialog tool for the home screen.
         tcp-cfr:

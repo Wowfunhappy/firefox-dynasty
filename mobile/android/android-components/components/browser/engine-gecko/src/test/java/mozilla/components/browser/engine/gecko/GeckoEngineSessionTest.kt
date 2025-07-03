@@ -315,10 +315,6 @@ class GeckoEngineSessionTest {
                 override fun onCookieBannerChange(status: CookieBannerHandlingStatus) {
                     cookieBanner = status
                 }
-                override fun onProductUrlChange(isProductUrl: Boolean) {
-                    displaysProduct = isProductUrl
-                }
-
                 override fun onTranslatePageChange() {
                     translationsProcessing = false
                 }
@@ -3758,7 +3754,7 @@ class GeckoEngineSessionTest {
     }
 
     @Test
-    fun `onLoadRequest will notify onLaunchIntent observers if request on non-direct navigation was intercepted with app intent`() {
+    fun `onLoadRequest will notify onLaunchIntent observers if request was intercepted with app intent`() {
         val engineSession = GeckoEngineSession(
             mock(),
             geckoSessionProvider = geckoSessionProvider,
@@ -3843,10 +3839,10 @@ class GeckoEngineSessionTest {
             mockLoadRequest("sample:isDirectNavigation", triggeredByRedirect = false, isDirectNavigation = true),
         )
 
-        assertNull(observer.observedIntent)
-        assertNull(observer.observedUrl)
-        assertNull(observer.observedFallbackUrl)
-        assertNull(observer.observedAppName)
+        assertNotNull(observer.observedIntent)
+        assertEquals("result3", observer.observedUrl)
+        assertEquals("fallback3", observer.observedFallbackUrl)
+        assertEquals("app3", observer.observedAppName)
     }
 
     @Test

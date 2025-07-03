@@ -11,9 +11,9 @@
   -->
   <string name="content_description_menu">Më tepër mundësi</string>
   <!-- Content description (not visible, for screen readers etc.): "Private Browsing" menu button. -->
-  <string name="content_description_private_browsing_button">Aktivizo shfletim privat</string>
+  <string name="content_description_private_browsing_button" moz:removedIn="142" tools:ignore="UnusedResources">Aktivizo shfletim privat</string>
   <!-- Content description (not visible, for screen readers etc.): "Private Browsing" menu button. -->
-  <string name="content_description_disable_private_browsing_button">Çaktivizo shfletim privat</string>
+  <string name="content_description_disable_private_browsing_button" moz:removedIn="142" tools:ignore="UnusedResources">Çaktivizo shfletim privat</string>
   <!-- Content description (not visible, for screen readers etc.): "Private Browsing" menu button. -->
   <string name="content_description_private_browsing">Shfletim privat</string>
   <!-- Placeholder text shown in the search bar before a user enters text for the default engine -->
@@ -497,7 +497,7 @@
   <!-- Text for the button to skip the onboarding on the home onboarding dialog. -->
   <string name="onboarding_home_skip_button" moz:removedIn="141" tools:ignore="UnusedResources">Anashkaloje</string>
   <!-- Onboarding home screen sync popup dialog message, shown on top of Recent Synced Tabs in the Jump back in section. -->
-  <string name="sync_cfr_message">Skedat tuaja po njëkohësohen! Vazhdojeni punën ku e latë në pajisjen tuaj tjetër.</string>
+  <string name="sync_cfr_message" moz:removedIn="142" tools:ignore="UnusedResources">Skedat tuaja po njëkohësohen! Vazhdojeni punën ku e latë në pajisjen tuaj tjetër.</string>
   <!-- Content description (not visible, for screen readers etc.): Close button for the home onboarding dialog -->
   <string name="onboarding_home_content_description_close_button">Mbylle</string>
   <!--
@@ -857,7 +857,7 @@
   <!-- Preference for translations -->
   <string name="preferences_translations">Përkthime</string>
   <!-- Preference for data choices -->
-  <string name="preferences_data_choices">Zgjedhje për të dhënat</string>
+  <string name="preferences_data_choices" tools:ignore="UnusedResources" moz:removedIn="141">Zgjedhje për të dhënat</string>
   <!-- Preference for data collection -->
   <string name="preferences_data_collection">Grumbullim të dhënash</string>
   <!-- Preference for developers -->
@@ -1178,9 +1178,17 @@
   <!-- Preference switch for usage and technical data collection -->
   <string name="preference_usage_data_2">Dërgo të dhëna teknike dhe ndërveprimesh</string>
   <!-- Preference switch for usage and technical learn more link -->
-  <string name="preference_usage_data_learn_more">Mësoni më tepër</string>
+  <string name="preference_usage_data_learn_more" tools:ignore="UnusedResources" moz:removedIn="141">Mësoni më tepër</string>
   <!-- Preference description for marketing data collection. Note: The words "Firefox" should NOT be translated -->
   <string name="preferences_usage_data_description_1" tools:ignore="BrandUsage">Të dhënat rreth pajisjes tuaj, formësimit “hardware” dhe përdorimit na ndihmojnë të përmirësohen veçori, funksionimi dhe qëndrueshmëria e Firefox-it.</string>
+  <!-- Preference switch for daily usage ping data collection -->
+  <string name="preferences_daily_usage_ping_title">Ping i përditshëm përdorimi</string>
+  <string name="preferences_daily_usage_ping_description">Kjo e ndihmon Mozilla-n të hamendësojë numrin e përdoruesve aktivë.</string>
+  <string name="preferences_daily_usage_ping_learn_more">Mësoni më tepër ping të përditshëm përdorimi</string>
+  <!-- Preference switch title for automatically submitting crash reports -->
+  <string name="preferences_automatically_send_crashes_title">Dërgo vetvetiu njoftime vithisjesh</string>
+  <!-- Preference switch description for automatically submitting crash reports -->
+  <string name="preferences_automatically_send_crashes_description">Kjo na ndihmon të diagnostikojmë dhe ndreqim probleme me shfletuesin. Raportet mund të përfshijnë të dhëna personale, ose rezervat.</string>
   <!-- Preference switch for campaign measurement data (marketing data) collection -->
   <string name="preferences_marketing_data_2">Të dhëna matjesh fushatash</string>
   <!--
@@ -1190,14 +1198,6 @@
   <string name="preferences_marketing_data_description_4" tools:ignore="BrandUsage">Ndani me partnerë teknologjish marketingu të Mozilla-s se si e zbuluat Firefox-in dhe se e përdorni.</string>
   <!-- Learn more link for marketing data preference -->
   <string name="preferences_marketing_data_learn_more">Mësoni më tepër rreth të dhënash marketingu</string>
-  <!-- Preference switch for daily usage ping data collection -->
-  <string name="preferences_daily_usage_ping_title">Ping i përditshëm përdorimi</string>
-  <string name="preferences_daily_usage_ping_description">Kjo e ndihmon Mozilla-n të hamendësojë numrin e përdoruesve aktivë.</string>
-  <string name="preferences_daily_usage_ping_learn_more">Mësoni më tepër ping të përditshëm përdorimi</string>
-  <!-- Preference switch title for automatically submitting crash reports -->
-  <string name="preferences_automatically_send_crashes_title">Dërgo vetvetiu njoftime vithisjesh</string>
-  <!-- Preference switch description for automatically submitting crash reports -->
-  <string name="preferences_automatically_send_crashes_description">Kjo na ndihmon të diagnostikojmë dhe ndreqim probleme me shfletuesin. Raportet mund të përfshijnë të dhëna personale, ose rezervat.</string>
   <!-- Learn more link for crash reporting preference -->
   <string name="onboarding_preferences_dialog_crash_reporting_learn_more">Mësoni më tepër rreth njoftimesh vithisjesh</string>
   <!-- Title for studies preferences -->

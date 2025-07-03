@@ -120,7 +120,6 @@ class TabsTrayFragmentTest {
             content = ContentState(
                 url = "https://mozilla.org",
                 private = false,
-                isProductUrl = false,
             ),
         )
         val tab2 = TabSessionState(
@@ -128,7 +127,6 @@ class TabsTrayFragmentTest {
             content = ContentState(
                 url = "https://mozilla.org",
                 private = false,
-                isProductUrl = false,
             ),
         )
         val tab3 = TabSessionState(
@@ -136,7 +134,6 @@ class TabsTrayFragmentTest {
             content = ContentState(
                 url = "https://mozilla.org",
                 private = false,
-                isProductUrl = false,
             ),
         )
         val tabsList = listOf(
@@ -331,7 +328,6 @@ private fun buildTestInteractor(
     override fun onMediaClicked(tab: TabSessionState) {}
     override fun onTabLongClicked(tab: TabSessionState): Boolean { return false }
     override fun onBackPressed(): Boolean { return false }
-    override fun onTabUnselected(tab: TabSessionState) {}
     override fun onSyncedTabClicked(tab: Tab) {}
     override fun onSyncedTabClosed(deviceId: String, tab: Tab) {}
     override fun onTabSelected(tab: TabSessionState, source: String?) {}

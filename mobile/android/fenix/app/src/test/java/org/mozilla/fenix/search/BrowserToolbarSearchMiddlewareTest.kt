@@ -4,7 +4,8 @@
 
 package org.mozilla.fenix.search
 
-import android.content.res.Resources
+import android.os.Handler
+import android.os.Looper
 import androidx.lifecycle.Lifecycle.State.RESUMED
 import androidx.lifecycle.LifecycleOwner
 import androidx.navigation.NavController
@@ -14,16 +15,22 @@ import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
 import io.mockk.verify
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.android.asCoroutineDispatcher
+import kotlinx.coroutines.test.setMain
 import mozilla.components.browser.state.action.AwesomeBarAction
+import mozilla.components.browser.state.action.SearchAction.ApplicationSearchEnginesLoaded
 import mozilla.components.browser.state.search.RegionState
 import mozilla.components.browser.state.search.SearchEngine
 import mozilla.components.browser.state.state.SearchState
 import mozilla.components.browser.state.state.selectedOrDefaultSearchEngine
 import mozilla.components.browser.state.store.BrowserStore
 import mozilla.components.compose.browser.toolbar.concept.Action.SearchSelectorAction
-import mozilla.components.compose.browser.toolbar.store.BrowserEditToolbarAction.UpdateEditText
+import mozilla.components.compose.browser.toolbar.store.BrowserEditToolbarAction.SearchQueryUpdated
 import mozilla.components.compose.browser.toolbar.store.BrowserToolbarAction.ToggleEditMode
 import mozilla.components.compose.browser.toolbar.store.BrowserToolbarStore
+import mozilla.components.compose.browser.toolbar.store.EnvironmentCleared
+import mozilla.components.compose.browser.toolbar.store.EnvironmentRehydrated
 import mozilla.components.concept.toolbar.AutocompleteProvider
 import mozilla.components.support.test.ext.joinBlocking
 import mozilla.components.support.test.middleware.CaptureActionsMiddleware
@@ -33,6 +40,7 @@ import mozilla.telemetry.glean.testing.GleanTestRule
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -48,7 +56,7 @@ import org.mozilla.fenix.components.search.BOOKMARKS_SEARCH_ENGINE_ID
 import org.mozilla.fenix.components.search.HISTORY_SEARCH_ENGINE_ID
 import org.mozilla.fenix.components.search.TABS_SEARCH_ENGINE_ID
 import org.mozilla.fenix.helpers.lifecycle.TestLifecycleOwner
-import org.mozilla.fenix.search.BrowserToolbarSearchMiddleware.LifecycleDependencies
+import org.mozilla.fenix.home.toolbar.HomeToolbarEnvironment
 import org.mozilla.fenix.search.SearchSelectorEvents.SearchSelectorClicked
 import org.mozilla.fenix.search.SearchSelectorEvents.SearchSelectorItemClicked
 import org.mozilla.fenix.search.SearchSelectorEvents.SearchSettingsItemClicked
@@ -57,6 +65,7 @@ import org.mozilla.fenix.search.fixtures.assertSearchSelectorEquals
 import org.mozilla.fenix.search.fixtures.buildExpectedSearchSelector
 import org.mozilla.fenix.utils.Settings
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.Shadows.shadowOf
 
 @RunWith(RobolectricTestRunner::class)
 class BrowserToolbarSearchMiddlewareTest {
@@ -73,7 +82,18 @@ class BrowserToolbarSearchMiddlewareTest {
     val navController: NavController = mockk {
         every { navigate(any<NavDirections>()) } just Runs
     }
-    val resources: Resources = testContext.resources
+
+    @Test
+    fun `GIVEN an environment was already set WHEN it is cleared THEN reset it to null`() {
+        val (middleware, store) = buildMiddlewareAndAddToStore()
+
+        assertNotNull(middleware.environment)
+
+        store.dispatch(EnvironmentCleared)
+
+        assertNull(middleware.environment)
+        assertEquals(emptyList<AutocompleteProvider>(), store.state.editState.autocompleteProviders)
+    }
 
     @Test
     fun `WHEN the toolbar enters in edit mode THEN a new search selector button is added`() {
@@ -102,14 +122,14 @@ class BrowserToolbarSearchMiddlewareTest {
         val appStore = AppStore(middlewares = listOf(captorMiddleware))
         val (_, store) = buildMiddlewareAndAddToStore(appStore = appStore)
         store.dispatch(ToggleEditMode(true))
-        store.dispatch(UpdateEditText("test"))
+        store.dispatch(SearchQueryUpdated("test"))
         assertTrue(store.state.isEditMode())
-        assertEquals("test", store.state.editState.editText)
+        assertEquals("test", store.state.editState.query)
 
         store.dispatch(SearchSettingsItemClicked)
 
         assertFalse(store.state.isEditMode())
-        assertEquals("", store.state.editState.editText)
+        assertEquals("", store.state.editState.query)
         captorMiddleware.assertLastAction(UpdateSearchBeingActiveState::class) {
             assertFalse(it.isSearchActive)
         }
@@ -306,6 +326,24 @@ class BrowserToolbarSearchMiddlewareTest {
         )
     }
 
+    @Test
+    fun `WHEN the search engines are updated in BrowserStore THEN update the search selector and search providers`() {
+        Dispatchers.setMain(Handler(Looper.getMainLooper()).asCoroutineDispatcher())
+
+        val browserStore = BrowserStore()
+        val (_, store) = buildMiddlewareAndAddToStore(browserStore = browserStore)
+        store.dispatch(ToggleEditMode(true))
+        val newSearchEngines = fakeSearchState().applicationSearchEngines
+
+        browserStore.dispatch(ApplicationSearchEnginesLoaded(newSearchEngines)).joinBlocking()
+        shadowOf(Looper.getMainLooper()).idle() // wait for observing and processing the search engines update
+
+        assertSearchSelectorEquals(
+            expectedSearchSelector(newSearchEngines[0], newSearchEngines),
+            store.state.editState.editActionsStart[0] as SearchSelectorAction,
+        )
+    }
+
     private fun expectedSearchSelector(
         defaultOrSelectedSearchEngine: SearchEngine = fakeSearchState().selectedOrDefaultSearchEngine!!,
         searchEngineShortcuts: List<SearchEngine> = fakeSearchState().searchEngineShortcuts,
@@ -322,12 +360,19 @@ class BrowserToolbarSearchMiddlewareTest {
         settings: Settings = this.settings,
         lifecycleOwner: LifecycleOwner = this.lifecycleOwner,
         navController: NavController = this.navController,
-        resources: Resources = this.resources,
     ): Pair<BrowserToolbarSearchMiddleware, BrowserToolbarStore> {
-        val middleware = buildMiddleware(
-            appStore, browserStore, components, settings, lifecycleOwner, navController, resources,
-        )
-        val store = BrowserToolbarStore(middleware = listOf(middleware))
+        val middleware = buildMiddleware(appStore, browserStore, components, settings)
+        val store = BrowserToolbarStore(
+            middleware = listOf(middleware),
+        ).also {
+            it.dispatch(
+                EnvironmentRehydrated(
+                    HomeToolbarEnvironment(
+                        testContext, lifecycleOwner, navController, mockk(),
+                    ),
+                ),
+            )
+        }
 
         return middleware to store
     }
@@ -337,16 +382,7 @@ class BrowserToolbarSearchMiddlewareTest {
         browserStore: BrowserStore = this.browserStore,
         components: Components = this.components,
         settings: Settings = this.settings,
-        lifecycleOwner: LifecycleOwner = this.lifecycleOwner,
-        navController: NavController = this.navController,
-        resources: Resources = this.resources,
-    ) = BrowserToolbarSearchMiddleware(appStore, browserStore, components, settings).apply {
-        updateLifecycleDependencies(
-            LifecycleDependencies(
-                lifecycleOwner, navController, resources,
-            ),
-        )
-    }
+    ) = BrowserToolbarSearchMiddleware(appStore, browserStore, components, settings)
 
     private fun configureAutocompleteProvidersInComponents() {
         every { components.core.historyStorage } returns mockk()

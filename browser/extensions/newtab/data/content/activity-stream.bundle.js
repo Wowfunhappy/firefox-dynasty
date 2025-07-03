@@ -9202,7 +9202,9 @@ class TopSiteLink extends (external_React_default()).PureComponent {
         actionType: actionTypes.TOP_SITES_ORGANIC_IMPRESSION_STATS,
         tile: {
           position: this.props.index,
-          source: NEWTAB_SOURCE
+          source: NEWTAB_SOURCE,
+          isPinned: this.props.link.isPinned,
+          guid: this.props.link.guid
         }
         // For testing.
         ,
@@ -9397,7 +9399,9 @@ class TopSite extends (external_React_default()).PureComponent {
           data: {
             type: "click",
             position: this.props.index,
-            source: NEWTAB_SOURCE
+            source: NEWTAB_SOURCE,
+            isPinned: this.props.link.isPinned,
+            guid: this.props.link.guid
           }
         }));
       }
@@ -11318,7 +11322,9 @@ const PersonalizedCard = ({
   }, /*#__PURE__*/external_React_default().createElement("img", {
     src: wavingFox,
     alt: ""
-  }), /*#__PURE__*/external_React_default().createElement("h2", null, messageData.content.cardTitle), /*#__PURE__*/external_React_default().createElement("p", null, messageData.content.cardMessage), /*#__PURE__*/external_React_default().createElement("moz-button", {
+  }), /*#__PURE__*/external_React_default().createElement("h2", null, messageData.content.cardTitle), /*#__PURE__*/external_React_default().createElement("p", null, messageData.content.cardMessage), /*#__PURE__*/external_React_default().createElement("div", {
+    className: "personalized-card-cta-wrapper"
+  }, /*#__PURE__*/external_React_default().createElement("moz-button", {
     type: "primary",
     class: "personalized-card-cta",
     onClick: () => onToggleClick("open-personalization-panel")
@@ -11329,7 +11335,7 @@ const PersonalizedCard = ({
     onLinkClick: () => {
       handleClick("link-click");
     }
-  }, messageData.content.linkText)));
+  }, messageData.content.linkText))));
 };
 ;// CONCATENATED MODULE: ./content-src/components/DiscoveryStreamComponents/FeatureHighlight/FollowSectionButtonHighlight.jsx
 /* This Source Code Form is subject to the terms of the Mozilla Public
@@ -14991,6 +14997,13 @@ class BaseContent extends (external_React_default()).PureComponent {
         const uploadedWallpaperUrl = URL.createObjectURL(uploadedWallpaper);
         __webpack_require__.g.document?.body.style.setProperty("--newtab-wallpaper", `url(${uploadedWallpaperUrl})`);
         __webpack_require__.g.document?.body.style.setProperty("--newtab-wallpaper-color", "transparent");
+
+        // Based on the current colorMode, add the corresponding dark/light CSS classes
+        if (this.state.colorMode) {
+          this.setState(prevState => ({
+            wallpaperTheme: prevState.colorMode
+          }));
+        }
       } catch (e) {}
       return;
     }

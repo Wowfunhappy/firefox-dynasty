@@ -1332,6 +1332,12 @@ void GetJarPrefix(bool aInIsolatedMozBrowser, nsACString& aJarPrefix) {
 // This method computes and returns our best guess for the temporary storage
 // limit (in bytes), based on disk capacity.
 Result<uint64_t, nsresult> GetTemporaryStorageLimit(nsIFile& aStorageDir) {
+  if (nsContentUtils::ShouldResistFingerprinting(
+          "The storage limit is set only once and not webpage specific.",
+          RFPTarget::DiskStorageLimit)) {
+    return nsRFPService::GetSpoofedStorageLimit();
+  }
+
   // The fixed limit pref can be used to override temporary storage limit
   // calculation.
   if (StaticPrefs::dom_quotaManager_temporaryStorage_fixedLimit() >= 0) {
@@ -3975,6 +3981,15 @@ nsresult QuotaManager::InitializeRepository(PersistenceType aPersistenceType,
                           std::forward<OriginFunc>(aOriginFunc)(metadata);
 
                           AddTemporaryOrigin(metadata);
+
+                          if (StaticPrefs::
+                                  dom_quotaManager_loadQuotaFromSecondaryCache() &&
+                              metadata.mQuotaVersion == kCurrentQuotaVersion &&
+                              !metadata.mAccessed) {
+                            InitQuotaForOrigin(metadata);
+
+                            break;
+                          }
                         }
 
                         QM_TRY(QM_OR_ELSE_WARN_IF(
@@ -4036,12 +4051,14 @@ nsresult QuotaManager::InitializeRepository(PersistenceType aPersistenceType,
       QM_TRY(
           ([&directory, &info, this, aPersistenceType,
             &aOriginFunc]() -> Result<Ok, nsresult> {
+            const auto& metadata = info.mFullOriginMetadata;
+
             const auto extraInfo =
                 ScopedLogExtraInfo{ScopedLogExtraInfo::kTagStorageOriginTainted,
-                                   info.mFullOriginMetadata.mStorageOrigin};
+                                   metadata.mStorageOrigin};
 
             const auto originDirName =
-                MakeSanitizedOriginString(info.mFullOriginMetadata.mOrigin);
+                MakeSanitizedOriginString(metadata.mOrigin);
 
             // Check if targetDirectory exist.
             QM_TRY_INSPECT(const auto& targetDirectory,
@@ -4060,14 +4077,21 @@ nsresult QuotaManager::InitializeRepository(PersistenceType aPersistenceType,
                 info.mOriginDirectory->RenameTo(nullptr, originDirName)));
 
             if (aPersistenceType != PERSISTENCE_TYPE_PERSISTENT) {
-              std::forward<OriginFunc>(aOriginFunc)(info.mFullOriginMetadata);
+              std::forward<OriginFunc>(aOriginFunc)(metadata);
 
-              AddTemporaryOrigin(info.mFullOriginMetadata);
+              AddTemporaryOrigin(metadata);
+
+              if (StaticPrefs::dom_quotaManager_loadQuotaFromSecondaryCache() &&
+                  metadata.mQuotaVersion == kCurrentQuotaVersion &&
+                  !metadata.mAccessed) {
+                InitQuotaForOrigin(metadata);
+
+                return Ok{};
+              }
             }
 
             // XXX We don't check corruption here ?
-            QM_TRY(MOZ_TO_RESULT(
-                InitializeOrigin(targetDirectory, info.mFullOriginMetadata)));
+            QM_TRY(MOZ_TO_RESULT(InitializeOrigin(targetDirectory, metadata)));
 
             return Ok{};
           }()),
@@ -7489,17 +7513,21 @@ void QuotaManager::SetThumbnailPrivateIdentityId(
   }
 }
 
-uint64_t QuotaManager::GetGroupLimit() const {
+/* static */
+uint64_t QuotaManager::GetGroupLimitForLimit(uint64_t aLimit) {
   // To avoid one group evicting all the rest, limit the amount any one group
   // can use to 20% resp. a fifth. To prevent individual sites from using
   // exorbitant amounts of storage where there is a lot of free space, cap the
   // group limit to 10GB.
-  const auto x = std::min<uint64_t>(mTemporaryStorageLimit / 5, 10 GB);
+  const auto x = std::min<uint64_t>(aLimit / 5, 10 GB);
 
   // In low-storage situations, make an exception (while not exceeding the total
   // storage limit).
-  return std::min<uint64_t>(mTemporaryStorageLimit,
-                            std::max<uint64_t>(x, 10 MB));
+  return std::min<uint64_t>(aLimit, std::max<uint64_t>(x, 10 MB));
+}
+
+uint64_t QuotaManager::GetGroupLimit() const {
+  return GetGroupLimitForLimit(mTemporaryStorageLimit);
 }
 
 Maybe<OriginStateMetadata> QuotaManager::GetOriginStateMetadata(

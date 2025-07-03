@@ -175,7 +175,8 @@ cookie.add = function (
   } else {
     newCookie.session = false;
     // Gecko expects the expiry value to be in milliseconds, WebDriver uses seconds.
-    newCookie.expiry *= 1000;
+    // The maximum allowed value is capped at 400 days.
+    newCookie.expiry = Services.cookies.maybeCapExpiry(newCookie.expiry * 1000);
   }
 
   let sameSite = [...SAMESITE_MAP].find(
@@ -274,6 +275,9 @@ cookie.remove = function (toDelete) {
  *
  * @param {string} host
  *     Hostname to retrieve cookies for.
+ * @param {BrowsingContext=} [browsingContext=undefined] browsingContext
+ *     The BrowsingContext that is reading these cookies.
+ *     Used to get the correct partitioned cookies.
  * @param {string=} [currentPath="/"] currentPath
  *     Optionally filter the cookies for ``host`` for the specific path.
  *     Defaults to ``/``, meaning all cookies for ``host`` are included.
@@ -281,7 +285,7 @@ cookie.remove = function (toDelete) {
  * @returns {Iterable.<Cookie>}
  *     Iterator.
  */
-cookie.iter = function* (host, currentPath = "/") {
+cookie.iter = function* (host, browsingContext = undefined, currentPath = "/") {
   lazy.assert.string(
     host,
     lazy.pprint`Expected "host" to be a string, got ${host}`
@@ -294,6 +298,17 @@ cookie.iter = function* (host, currentPath = "/") {
   const isForCurrentPath = path => currentPath.includes(path);
 
   let cookies = cookie.manager.getCookiesFromHost(host, {});
+  if (browsingContext) {
+    let partitionedOriginAttributes = {
+      partitionKey:
+        browsingContext.currentWindowGlobal?.cookieJarSettings?.partitionKey,
+    };
+    let cookiesPartitioned = cookie.manager.getCookiesFromHost(
+      host,
+      partitionedOriginAttributes
+    );
+    cookies.push(...cookiesPartitioned);
+  }
   for (let cookie of cookies) {
     // take the hostname and progressively shorten
     let hostname = host;

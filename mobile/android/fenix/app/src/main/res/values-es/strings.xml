@@ -11,9 +11,9 @@
   -->
   <string name="content_description_menu">Más opciones</string>
   <!-- Content description (not visible, for screen readers etc.): "Private Browsing" menu button. -->
-  <string name="content_description_private_browsing_button">Habilitar navegación privada</string>
+  <string name="content_description_private_browsing_button" moz:removedIn="142" tools:ignore="UnusedResources">Habilitar navegación privada</string>
   <!-- Content description (not visible, for screen readers etc.): "Private Browsing" menu button. -->
-  <string name="content_description_disable_private_browsing_button">Deshabilitar navegación privada</string>
+  <string name="content_description_disable_private_browsing_button" moz:removedIn="142" tools:ignore="UnusedResources">Deshabilitar navegación privada</string>
   <!-- Content description (not visible, for screen readers etc.): "Private Browsing" menu button. -->
   <string name="content_description_private_browsing">Navegación privada</string>
   <!-- Placeholder text shown in the search bar before a user enters text for the default engine -->
@@ -516,7 +516,7 @@
   <!-- Text for the button to skip the onboarding on the home onboarding dialog. -->
   <string name="onboarding_home_skip_button" moz:removedIn="141" tools:ignore="UnusedResources">Saltar</string>
   <!-- Onboarding home screen sync popup dialog message, shown on top of Recent Synced Tabs in the Jump back in section. -->
-  <string name="sync_cfr_message">¡Tus pestañas se están sincronizando! Continúa donde lo dejaste en otro dispositivo.</string>
+  <string name="sync_cfr_message" moz:removedIn="142" tools:ignore="UnusedResources">¡Tus pestañas se están sincronizando! Continúa donde lo dejaste en otro dispositivo.</string>
   <!-- Content description (not visible, for screen readers etc.): Close button for the home onboarding dialog -->
   <string name="onboarding_home_content_description_close_button">Cerrar</string>
   <!--
@@ -876,7 +876,7 @@
   <!-- Preference for translations -->
   <string name="preferences_translations">Traducciones</string>
   <!-- Preference for data choices -->
-  <string name="preferences_data_choices">Elección de datos</string>
+  <string name="preferences_data_choices" tools:ignore="UnusedResources" moz:removedIn="141">Elección de datos</string>
   <!-- Preference for data collection -->
   <string name="preferences_data_collection">Recopilación de datos</string>
   <!-- Preference for developers -->
@@ -1199,9 +1199,17 @@
   <!-- Preference switch for usage and technical data collection -->
   <string name="preference_usage_data_2">Enviar datos técnicos y de interacción</string>
   <!-- Preference switch for usage and technical learn more link -->
-  <string name="preference_usage_data_learn_more">Saber más</string>
+  <string name="preference_usage_data_learn_more" tools:ignore="UnusedResources" moz:removedIn="141">Saber más</string>
   <!-- Preference description for marketing data collection. Note: The words "Firefox" should NOT be translated -->
   <string name="preferences_usage_data_description_1" tools:ignore="BrandUsage">Datos del dispositivo, de la configuración de hardware y de uso ayudan a mejorar las características de Firefox, el rendimiento y la estabilidad.</string>
+  <!-- Preference switch for daily usage ping data collection -->
+  <string name="preferences_daily_usage_ping_title">Ping de uso diario</string>
+  <string name="preferences_daily_usage_ping_description">Esto ayuda a Mozilla a estimar los usuarios activos.</string>
+  <string name="preferences_daily_usage_ping_learn_more">Saber más sobre el ping de uso diario</string>
+  <!-- Preference switch title for automatically submitting crash reports -->
+  <string name="preferences_automatically_send_crashes_title">Enviar automáticamente informes de fallos</string>
+  <!-- Preference switch description for automatically submitting crash reports -->
+  <string name="preferences_automatically_send_crashes_description">Esto nos ayuda a diagnosticar y solucionar problemas con el navegador. Los informes pueden incluir datos personales o confidenciales.</string>
   <!-- Preference switch for campaign measurement data (marketing data) collection -->
   <string name="preferences_marketing_data_2">Datos de medición de campañas</string>
   <!--
@@ -1211,14 +1219,6 @@
   <string name="preferences_marketing_data_description_4" tools:ignore="BrandUsage">Comparte cómo descubriste Firefox y cómo lo utilizas con los socios tecnológicos de marketing de Mozilla.</string>
   <!-- Learn more link for marketing data preference -->
   <string name="preferences_marketing_data_learn_more">Saber más sobre los datos de marketing</string>
-  <!-- Preference switch for daily usage ping data collection -->
-  <string name="preferences_daily_usage_ping_title">Ping de uso diario</string>
-  <string name="preferences_daily_usage_ping_description">Esto ayuda a Mozilla a estimar los usuarios activos.</string>
-  <string name="preferences_daily_usage_ping_learn_more">Saber más sobre el ping de uso diario</string>
-  <!-- Preference switch title for automatically submitting crash reports -->
-  <string name="preferences_automatically_send_crashes_title">Enviar automáticamente informes de fallos</string>
-  <!-- Preference switch description for automatically submitting crash reports -->
-  <string name="preferences_automatically_send_crashes_description">Esto nos ayuda a diagnosticar y solucionar problemas con el navegador. Los informes pueden incluir datos personales o confidenciales.</string>
   <!-- Learn more link for crash reporting preference -->
   <string name="onboarding_preferences_dialog_crash_reporting_learn_more">Saber más sobre los informes de fallos</string>
   <!-- Title for studies preferences -->
@@ -1615,7 +1615,7 @@
   -->
   <string name="download_item_in_progress_description_2">%1$s / %2$s • en %3$s.</string>
   <!--
-    Description of an in progress download item, displayed in the downloads list when the download time remaining is unknown.
+    Description of an in progress download item, displayed in the downloads list when the estimated download time remaining is still being calculated.
     %1$s is the current file size that has been downloaded.
     %2$s is the total size of the downloaded file.
   -->

@@ -200,7 +200,6 @@
 #include "mozilla/dom/HTMLObjectElement.h"
 #include "mozilla/dom/HTMLSharedElement.h"
 #include "mozilla/dom/HTMLTextAreaElement.h"
-#include "mozilla/dom/ImageTracker.h"
 #include "mozilla/dom/InspectorUtils.h"
 #include "mozilla/dom/InteractiveWidget.h"
 #include "mozilla/dom/Link.h"
@@ -259,6 +258,7 @@
 #include "mozilla/dom/ViewTransition.h"
 #include "mozilla/dom/WakeLockJS.h"
 #include "mozilla/dom/WakeLockSentinel.h"
+#include "mozilla/dom/WebIdentityHandler.h"
 #include "mozilla/dom/WindowBinding.h"
 #include "mozilla/dom/WindowContext.h"
 #include "mozilla/dom/WindowGlobalChild.h"
@@ -1441,6 +1441,8 @@ Document::Document(const char* aContentType)
       mValidMinScale(false),
       mValidMaxScale(false),
       mWidthStrEmpty(false),
+      mLockingImages(false),
+      mAnimatingImages(true),
       mParserAborted(false),
       mReportedDocumentUseCounters(false),
       mHasReportedShadowDOMUsage(false),
@@ -2510,6 +2512,9 @@ Document::~Document() {
     mPermissionDelegateHandler->DropDocumentReference();
   }
 
+  SetLockingImages(false);
+  SetImageAnimationState(false);
+
   mHeaderData = nullptr;
 
   mPendingTitleChangeEvent.Revoke();
@@ -3008,7 +3013,7 @@ void Document::DisconnectNodeTree() {
 
     while (nsCOMPtr<nsIContent> content = GetLastChild()) {
       nsMutationGuard::DidMutate();
-      MutationObservers::NotifyContentWillBeRemoved(this, content, nullptr);
+      MutationObservers::NotifyContentWillBeRemoved(this, content, {});
       DisconnectChild(content);
       if (content == mCachedRootElement) {
         // Immediately clear mCachedRootElement, now that it's been removed
@@ -7531,7 +7536,9 @@ void Document::DeletePresShell() {
   // When our shell goes away, request that all our images be immediately
   // discarded, so we don't carry around decoded image data for a document we
   // no longer intend to paint.
-  ImageTracker()->RequestDiscardAll();
+  for (imgIRequest* image : mTrackedImages.Keys()) {
+    image->RequestDiscard();
+  }
 
   // Now that we no longer have a shell, we need to forget about any FontFace
   // objects for @font-face rules that came from the style set. There's no need
@@ -7749,7 +7756,7 @@ void Document::RemoveChildNode(nsIContent* aKid, bool aNotify,
     // Notify early so that we can clear the cached element after notifying,
     // without having to slow down nsINode::RemoveChildNode.
     if (aNotify) {
-      MutationObservers::NotifyContentWillBeRemoved(this, aKid, aState);
+      MutationObservers::NotifyContentWillBeRemoved(this, aKid, {aState});
       aNotify = false;
     }
 
@@ -8740,7 +8747,7 @@ void Document::RemoveCustomContentContainer() {
     container->QueueDevtoolsAnonymousEvent(/* aIsRemove = */ true);
   }
   if (PresShell* ps = GetPresShell()) {
-    ps->ContentWillBeRemoved(container, nullptr);
+    ps->ContentWillBeRemoved(container, {});
   }
   container->UnbindFromTree();
 }
@@ -8787,7 +8794,7 @@ void Document::CreateCustomContentContainerIfNeeded() {
     container->QueueDevtoolsAnonymousEvent(/* aIsRemove = */ false);
   }
   if (PresShell* ps = GetPresShell()) {
-    ps->ContentAppended(container);
+    ps->ContentAppended(container, {});
   }
   for (auto& anonContent : mAnonymousContents) {
     BindAnonymousContent(*anonContent, *container);
@@ -12374,7 +12381,7 @@ void Document::OnPageShow(bool aPersisted, EventTarget* aDispatchStartTarget,
   // See Document
   if (!inFrameLoaderSwap) {
     if (aPersisted) {
-      ImageTracker()->SetAnimatingState(true);
+      SetImageAnimationState(true);
     }
 
     // Set mIsShowing before firing events, in case those event handlers
@@ -12453,7 +12460,7 @@ void Document::OnPageHide(bool aPersisted, EventTarget* aDispatchStartTarget,
     if (aPersisted) {
       // We do not stop the animations (bug 1024343) when the page is refreshing
       // while being dragged out.
-      ImageTracker()->SetAnimatingState(false);
+      SetImageAnimationState(false);
     }
 
     // Set mIsShowing before firing events, in case those event handlers
@@ -14299,11 +14306,148 @@ void Document::WarnOnceAbout(
                                   kDocumentWarnings[aWarning], aParams);
 }
 
-mozilla::dom::ImageTracker* Document::ImageTracker() {
-  if (!mImageTracker) {
-    mImageTracker = new mozilla::dom::ImageTracker;
+void Document::TrackImage(imgIRequest* aImage) {
+  MOZ_ASSERT(aImage);
+  bool newAnimation = false;
+  mTrackedImages.WithEntryHandle(aImage, [&](auto&& entry) {
+    if (entry) {
+      // The image is already in the hashtable.  Increment its count.
+      uint32_t oldCount = entry.Data();
+      MOZ_ASSERT(oldCount > 0, "Entry in the image tracker with count 0!");
+      entry.Data() = oldCount + 1;
+    } else {
+      // A new entry was inserted - set the count to 1.
+      entry.Insert(1);
+
+      // If we're locking images, lock this image too.
+      if (mLockingImages) {
+        aImage->LockImage();
+      }
+
+      // If we're animating images, request that this image be animated too.
+      if (mAnimatingImages) {
+        aImage->IncrementAnimationConsumers();
+        newAnimation = true;
+      }
+    }
+  });
+  if (newAnimation) {
+    AnimatedImageStateMaybeChanged(true);
   }
-  return mImageTracker;
+}
+
+void Document::UntrackImage(imgIRequest* aImage,
+                            RequestDiscard aRequestDiscard) {
+  MOZ_ASSERT(aImage);
+
+  // Get the old count. It should exist and be > 0.
+  auto entry = mTrackedImages.Lookup(aImage);
+  if (!entry) {
+    MOZ_ASSERT_UNREACHABLE("Removing image that wasn't in the tracker!");
+    return;
+  }
+  MOZ_ASSERT(entry.Data() > 0, "Entry in the image tracker with count 0!");
+  // If the count becomes zero, remove it from the tracker.
+  if (--entry.Data() == 0) {
+    entry.Remove();
+  } else {
+    return;
+  }
+
+  // Now that we're no longer tracking this image, unlock it if we'd
+  // previously locked it.
+  if (mLockingImages) {
+    aImage->UnlockImage();
+  }
+
+  // If we're animating images, remove our request to animate this one.
+  if (mAnimatingImages) {
+    aImage->DecrementAnimationConsumers();
+    AnimatedImageStateMaybeChanged(false);
+  }
+
+  if (aRequestDiscard == RequestDiscard::Yes) {
+    // Do this even if !mLocking, because even if we didn't just unlock
+    // this image, it might still be a candidate for discarding.
+    aImage->RequestDiscard();
+  }
+}
+
+void Document::PropagateMediaFeatureChangeToTrackedImages(
+    const MediaFeatureChange& aChange) {
+  // Inform every content image used in the document that media feature values
+  // have changed. Pull the images out into a set and iterate over them, in case
+  // the image notifications do something that ends up modifying the table.
+  nsTHashSet<nsRefPtrHashKey<imgIContainer>> images;
+  for (imgIRequest* req : mTrackedImages.Keys()) {
+    nsCOMPtr<imgIContainer> image;
+    req->GetImage(getter_AddRefs(image));
+    if (!image) {
+      continue;
+    }
+    image = image->Unwrap();
+    images.Insert(image);
+  }
+  for (imgIContainer* image : images) {
+    image->MediaFeatureValuesChangedAllDocuments(aChange);
+  }
+}
+
+void Document::SetLockingImages(bool aLocking) {
+  // If there's no change, there's nothing to do.
+  if (mLockingImages == aLocking) {
+    return;
+  }
+
+  // Otherwise, iterate over our images and perform the appropriate action.
+  for (imgIRequest* image : mTrackedImages.Keys()) {
+    if (aLocking) {
+      image->LockImage();
+    } else {
+      image->UnlockImage();
+    }
+  }
+
+  // Update state.
+  mLockingImages = aLocking;
+}
+
+void Document::SetImageAnimationState(bool aAnimating) {
+  // If there's no change, there's nothing to do.
+  if (mAnimatingImages == aAnimating) {
+    return;
+  }
+
+  // Otherwise, iterate over our images and perform the appropriate action.
+  for (imgIRequest* image : mTrackedImages.Keys()) {
+    if (aAnimating) {
+      image->IncrementAnimationConsumers();
+    } else {
+      image->DecrementAnimationConsumers();
+    }
+  }
+
+  AnimatedImageStateMaybeChanged(aAnimating);
+
+  // Update state.
+  mAnimatingImages = aAnimating;
+}
+
+void Document::AnimatedImageStateMaybeChanged(bool aAnimating) {
+  auto* ps = GetPresShell();
+  if (!ps) {
+    return;
+  }
+  auto* pc = ps->GetPresContext();
+  if (!pc) {
+    return;
+  }
+  auto* rd = pc->RefreshDriver();
+  if (aAnimating) {
+    rd->StartTimerForAnimatedImagesIfNeeded();
+  } else {
+    rd->StopTimerForAnimatedImagesIfNeeded();
+  }
 }
 
 void Document::ScheduleSVGUseElementShadowTreeUpdate(
@@ -14764,13 +14908,15 @@ void DevToolsMutationObserver::AttributeChanged(Element* aElement,
   FireEvent(aElement, u"devtoolsattrmodified"_ns);
 }
 
-void DevToolsMutationObserver::ContentAppended(nsIContent* aFirstNewContent) {
+void DevToolsMutationObserver::ContentAppended(nsIContent* aFirstNewContent,
+                                               const ContentAppendInfo& aInfo) {
   for (nsIContent* c = aFirstNewContent; c; c = c->GetNextSibling()) {
-    ContentInserted(c);
+    ContentInserted(c, aInfo);
   }
 }
 
-void DevToolsMutationObserver::ContentInserted(nsIContent* aChild) {
+void DevToolsMutationObserver::ContentInserted(nsIContent* aChild,
+                                               const ContentInsertInfo&) {
   FireEvent(aChild, u"devtoolschildinserted"_ns);
 }
 
@@ -17798,6 +17944,8 @@ void Document::SetUserHasInteracted() {
           ("Document %p has been interacted by user.", this));
 
   // We maybe need to update the user-interaction permission.
+  bool alreadyHadUserInteractionPermission =
+      ContentBlockingUserInteraction::Exists(NodePrincipal());
   MaybeStoreUserInteractionAsPermission();
 
   // For purposes of reducing irrelevant session history entries on
@@ -17836,7 +17984,9 @@ void Document::SetUserHasInteracted() {
     wgc->SendUpdateDocumentHasUserInteracted(true);
   }
 
-  MaybeAllowStorageForOpenerAfterUserInteraction();
+  if (alreadyHadUserInteractionPermission) {
+    MaybeAllowStorageForOpenerAfterUserInteraction();
+  }
 }
 
 BrowsingContext* Document::GetBrowsingContext() const {
@@ -18034,17 +18184,25 @@ void Document::MaybeAllowStorageForOpenerAfterUserInteraction() {
     }
   }
 
-  // We don't care when the asynchronous work finishes here.
-  // Without e10s or fission enabled this is run in the parent process.
-  if (XRE_IsParentProcess()) {
-    Unused << StorageAccessAPIHelper::AllowAccessForOnParentProcess(
-        NodePrincipal(), openerBC,
-        ContentBlockingNotifier::eOpenerAfterUserInteraction);
-  } else {
-    Unused << StorageAccessAPIHelper::AllowAccessForOnChildProcess(
-        NodePrincipal(), openerBC,
-        ContentBlockingNotifier::eOpenerAfterUserInteraction);
-  }
+  RefPtr<Document> self(this);
+  WebIdentityHandler* identityHandler = inner->GetOrCreateWebIdentityHandler();
+  MOZ_ASSERT(identityHandler);
+  identityHandler->IsContinuationWindow()->Then(
+      GetCurrentSerialEventTarget(), __func__,
+      [self, openerBC](const MozPromise<bool, nsresult,
+                                        true>::ResolveOrRejectValue& result) {
+        if (!result.IsResolve() || !result.ResolveValue()) {
+          if (XRE_IsParentProcess()) {
+            Unused << StorageAccessAPIHelper::AllowAccessForOnParentProcess(
+                self->NodePrincipal(), openerBC,
+                ContentBlockingNotifier::eOpenerAfterUserInteraction);
+          } else {
+            Unused << StorageAccessAPIHelper::AllowAccessForOnChildProcess(
+                self->NodePrincipal(), openerBC,
+                ContentBlockingNotifier::eOpenerAfterUserInteraction);
+          }
+        }
+      });
 }
 
 namespace {

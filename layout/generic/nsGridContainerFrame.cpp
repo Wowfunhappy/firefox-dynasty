@@ -793,26 +793,33 @@ struct nsGridContainerFrame::GridItemInfo {
     // always unset for eFirstBaseline.  In a masonry-axis, it's set for
     // baseline groups in the EndStretch set and unset for the StartStretch set.
     eEndSideBaseline = 0x20,
+
+    // Set when the grid item is in the last baseline sharing group, otherwise
+    // assume the first baseline sharing group. The baseline sharing group might
+    // differ from the specified baseline alignment due to baseline alignment
+    // rules.
+    eLastBaselineSharingGroup = 0x40,
+
     eAllBaselineBits = eIsBaselineAligned | eSelfBaseline | eContentBaseline |
-                       eEndSideBaseline,
+                       eEndSideBaseline | eLastBaselineSharingGroup,
 
     // Automatic Minimum Size is content based. If not set, automatic minimum
     // size is zero.
     // https://drafts.csswg.org/css-grid-2/#min-size-auto
     // https://drafts.csswg.org/css-grid-2/#content-based-minimum-size
-    eContentBasedAutoMinSize = 0x40,
+    eContentBasedAutoMinSize = 0x80,
     // Clamp per https://drafts.csswg.org/css-grid-2/#min-size-auto
-    eClampMarginBoxMinSize = 0x80,
-    eIsSubgrid = 0x100,
+    eClampMarginBoxMinSize = 0x100,
+    eIsSubgrid = 0x200,
     // set on subgrids and items in subgrids if they are adjacent to the grid
     // start/end edge (excluding grid-aligned abs.pos. frames)
-    eStartEdge = 0x200,
-    eEndEdge = 0x400,
+    eStartEdge = 0x400,
+    eEndEdge = 0x800,
     eEdgeBits = eStartEdge | eEndEdge,
     // Set if this item was auto-placed in this axis.
-    eAutoPlacement = 0x800,
+    eAutoPlacement = 0x1000,
     // Set if this item is the last item in its track (masonry layout only)
-    eIsLastItemInMasonryTrack = 0x1000,
+    eIsLastItemInMasonryTrack = 0x2000,
 
     // Bits set during the track sizing step.
     eTrackSizingBits =
@@ -4434,6 +4441,11 @@ static void AlignSelf(const nsGridContainerFrame::GridItemInfo& aGridItem,
     flags |= AlignJustifyFlags::SameSide;
   }
 
+  if (aGridItem.mState[LogicalAxis::Block] &
+      GridItemInfo::eLastBaselineSharingGroup) {
+    flags |= AlignJustifyFlags::LastBaselineSharingGroup;
+  }
+
   // Grid's 'align-self' axis is never parallel to the container's inline axis.
   if (aAlignSelf == StyleAlignFlags::LEFT ||
       aAlignSelf == StyleAlignFlags::RIGHT) {
@@ -4470,6 +4482,11 @@ static void JustifySelf(const nsGridContainerFrame::GridItemInfo& aGridItem,
   WritingMode childWM = aRI.GetWritingMode();
   if (aCBWM.ParallelAxisStartsOnSameSide(LogicalAxis::Inline, childWM)) {
     flags |= AlignJustifyFlags::SameSide;
+  }
+
+  if (aGridItem.mState[LogicalAxis::Inline] &
+      GridItemInfo::eLastBaselineSharingGroup) {
+    flags |= AlignJustifyFlags::LastBaselineSharingGroup;
   }
 
   if (MOZ_LIKELY(aJustifySelf == StyleAlignFlags::NORMAL)) {
@@ -5958,46 +5975,75 @@ static nscoord ContentContribution(const GridItemInfo& aGridItem,
   const bool isOrthogonal = childWM.IsOrthogonalTo(gridWM);
   auto childAxis = isOrthogonal ? GetOrthogonalAxis(aAxis) : aAxis;
   if (size == NS_INTRINSIC_ISIZE_UNKNOWN && childAxis == LogicalAxis::Block) {
-    // We need to reflow the child to find its BSize contribution.
-    // XXX this will give mostly correct results for now (until bug 1300366).
-    nscoord availISize = INFINITE_ISIZE_COORD;
-    nscoord availBSize = NS_UNCONSTRAINEDSIZE;
-    // The next two variables are MinSizeClamp values in the child's axes.
-    nscoord iMinSizeClamp = NS_MAXSIZE;
-    nscoord bMinSizeClamp = NS_MAXSIZE;
-    LogicalSize cbSize(childWM, 0, NS_UNCONSTRAINEDSIZE);
-    // Below, we try to resolve the child's grid-area size in its inline-axis
-    // to use as the CB/Available size in the MeasuringReflow that follows.
-    if (child->GetParent() != aGridRI.mFrame) {
-      // This item is a child of a subgrid descendant.
-      auto* subgridFrame =
-          static_cast<nsGridContainerFrame*>(child->GetParent());
-      MOZ_ASSERT(subgridFrame->IsGridContainerFrame());
-      auto* uts = subgridFrame->GetProperty(UsedTrackSizes::Prop());
-      if (!uts) {
-        uts = new UsedTrackSizes();
-        subgridFrame->SetProperty(UsedTrackSizes::Prop(), uts);
-      }
-      // The grid-item's inline-axis as expressed in the subgrid's WM.
-      auto subgridAxis = childWM.IsOrthogonalTo(subgridFrame->GetWritingMode())
-                             ? LogicalAxis::Block
-                             : LogicalAxis::Inline;
-      uts->ResolveTrackSizesForAxis(subgridFrame, subgridAxis, *rc);
-      if (uts->mCanResolveLineRangeSize[subgridAxis]) {
-        auto* subgrid =
-            subgridFrame->GetProperty(nsGridContainerFrame::Subgrid::Prop());
-        const GridItemInfo* originalItem = nullptr;
-        for (const auto& item : subgrid->mGridItems) {
-          if (item.mFrame == child) {
-            originalItem = &item;
-            break;
+    if (aGridRI.mIsGridIntrinsicSizing && aAxis == LogicalAxis::Block) {
+      // We may reach here while computing the grid container's min-content
+      // contribution in ComputeIntrinsicISize(), potentially during row size
+      // resolution. In this context, the main reason for computing row sizes is
+      // to transfer the child's block-size to the inline-axis via aspect-ratio,
+      // contributing to the grid container's intrinsic inline-size in a later
+      // column size resolution. Since an indefinite block-size cannot be
+      // transferred in this way, we can safely skip MeasuringReflow() and
+      // simply use zero as a dummy value because the value does not affect the
+      // result.
+      size = 0;
+    } else {
+      // We need to reflow the child to find its BSize contribution.
+      // XXX this will give mostly correct results for now (until bug 1300366).
+      nscoord availISize = INFINITE_ISIZE_COORD;
+      nscoord availBSize = NS_UNCONSTRAINEDSIZE;
+      // The next two variables are MinSizeClamp values in the child's axes.
+      nscoord iMinSizeClamp = NS_MAXSIZE;
+      nscoord bMinSizeClamp = NS_MAXSIZE;
+      LogicalSize cbSize(childWM, 0, NS_UNCONSTRAINEDSIZE);
+      // Below, we try to resolve the child's grid-area size in its inline-axis
+      // to use as the CB/Available size in the MeasuringReflow that follows.
+      if (child->GetParent() != aGridRI.mFrame) {
+        // This item is a child of a subgrid descendant.
+        auto* subgridFrame =
+            static_cast<nsGridContainerFrame*>(child->GetParent());
+        MOZ_ASSERT(subgridFrame->IsGridContainerFrame());
+        auto* uts = subgridFrame->GetProperty(UsedTrackSizes::Prop());
+        if (!uts) {
+          uts = new UsedTrackSizes();
+          subgridFrame->SetProperty(UsedTrackSizes::Prop(), uts);
+        }
+        // The grid-item's inline-axis as expressed in the subgrid's WM.
+        auto subgridAxis =
+            childWM.IsOrthogonalTo(subgridFrame->GetWritingMode())
+                ? LogicalAxis::Block
+                : LogicalAxis::Inline;
+        uts->ResolveTrackSizesForAxis(subgridFrame, subgridAxis, *rc);
+        if (uts->mCanResolveLineRangeSize[subgridAxis]) {
+          auto* subgrid =
+              subgridFrame->GetProperty(nsGridContainerFrame::Subgrid::Prop());
+          const GridItemInfo* originalItem = nullptr;
+          for (const auto& item : subgrid->mGridItems) {
+            if (item.mFrame == child) {
+              originalItem = &item;
+              break;
+            }
+          }
+          MOZ_ASSERT(originalItem, "huh?");
+          const auto& range = originalItem->mArea.LineRangeForAxis(subgridAxis);
+          nscoord pos, sz;
+          range.ToPositionAndLength(uts->mSizes[subgridAxis], &pos, &sz);
+          if (childWM.IsOrthogonalTo(subgridFrame->GetWritingMode())) {
+            availBSize = sz;
+            cbSize.BSize(childWM) = sz;
+            if (aGridItem.mState[aAxis] & ItemState::eClampMarginBoxMinSize) {
+              bMinSizeClamp = sz;
+            }
+          } else {
+            availISize = sz;
+            cbSize.ISize(childWM) = sz;
+            if (aGridItem.mState[aAxis] & ItemState::eClampMarginBoxMinSize) {
+              iMinSizeClamp = sz;
+            }
           }
         }
-        MOZ_ASSERT(originalItem, "huh?");
-        const auto& range = originalItem->mArea.LineRangeForAxis(subgridAxis);
-        nscoord pos, sz;
-        range.ToPositionAndLength(uts->mSizes[subgridAxis], &pos, &sz);
-        if (childWM.IsOrthogonalTo(subgridFrame->GetWritingMode())) {
+      } else if (aGridRI.mCols.mCanResolveLineRangeSize) {
+        nscoord sz = aGridRI.mCols.ResolveSize(aGridItem.mArea.mCols);
+        if (isOrthogonal) {
           availBSize = sz;
           cbSize.BSize(childWM) = sz;
           if (aGridItem.mState[aAxis] & ItemState::eClampMarginBoxMinSize) {
@@ -6011,30 +6057,15 @@ static nscoord ContentContribution(const GridItemInfo& aGridItem,
           }
         }
       }
-    } else if (aGridRI.mCols.mCanResolveLineRangeSize) {
-      nscoord sz = aGridRI.mCols.ResolveSize(aGridItem.mArea.mCols);
-      if (isOrthogonal) {
-        availBSize = sz;
-        cbSize.BSize(childWM) = sz;
-        if (aGridItem.mState[aAxis] & ItemState::eClampMarginBoxMinSize) {
-          bMinSizeClamp = sz;
-        }
+      if (isOrthogonal == (aAxis == LogicalAxis::Inline)) {
+        bMinSizeClamp = aMinSizeClamp;
       } else {
-        availISize = sz;
-        cbSize.ISize(childWM) = sz;
-        if (aGridItem.mState[aAxis] & ItemState::eClampMarginBoxMinSize) {
-          iMinSizeClamp = sz;
-        }
+        iMinSizeClamp = aMinSizeClamp;
       }
+      LogicalSize availableSize(childWM, availISize, availBSize);
+      size = ::MeasuringReflow(child, aGridRI.mReflowInput, rc, availableSize,
+                               cbSize, iMinSizeClamp, bMinSizeClamp);
     }
-    if (isOrthogonal == (aAxis == LogicalAxis::Inline)) {
-      bMinSizeClamp = aMinSizeClamp;
-    } else {
-      iMinSizeClamp = aMinSizeClamp;
-    }
-    LogicalSize availableSize(childWM, availISize, availBSize);
-    size = ::MeasuringReflow(child, aGridRI.mReflowInput, rc, availableSize,
-                             cbSize, iMinSizeClamp, bMinSizeClamp);
     size += child->GetLogicalUsedMargin(childWM).BStartEnd(childWM);
     nscoord overflow = size - aMinSizeClamp;
     if (MOZ_UNLIKELY(overflow > 0)) {
@@ -6534,12 +6565,8 @@ void nsGridContainerFrame::Tracks::InitializeItemBaselines(
     selfAlignment &= ~StyleAlignFlags::FLAG_BITS;
     if (selfAlignment == StyleAlignFlags::BASELINE) {
       state |= ItemState::eFirstBaseline | ItemState::eSelfBaseline;
-      const GridArea& area = gridItem.mArea;
-      baselineTrack = isInlineAxis ? area.mCols.mStart : area.mRows.mStart;
     } else if (selfAlignment == StyleAlignFlags::LAST_BASELINE) {
       state |= ItemState::eLastBaseline | ItemState::eSelfBaseline;
-      const GridArea& area = gridItem.mArea;
-      baselineTrack = (isInlineAxis ? area.mCols.mEnd : area.mRows.mEnd) - 1;
     }
 
     // https://drafts.csswg.org/css-align-3/#baseline-align-content
@@ -6602,10 +6629,27 @@ void nsGridContainerFrame::Tracks::InitializeItemBaselines(
       BaselineSharingGroup baselineAlignment = isFirstBaseline
                                                    ? BaselineSharingGroup::First
                                                    : BaselineSharingGroup::Last;
-      auto sameSide = containerWM.ParallelAxisStartsOnSameSide(mAxis, childWM);
-      BaselineSharingGroup baselineSharingGroup =
-          isFirstBaseline == sameSide ? BaselineSharingGroup::First
-                                      : BaselineSharingGroup::Last;
+      // Baseline alignment occurs along `mAxis`, but baselines are defined in
+      // the orthogonal axis (the axis of the baseline context that defines the
+      // baseline sharing group).
+      auto baselineWM = WritingMode::DetermineWritingModeForBaselineSynthesis(
+          containerWM, childWM, GetOrthogonalAxis(mAxis));
+
+      auto sameSideInBaselineWM =
+          containerWM.ParallelAxisStartsOnSameSide(mAxis, baselineWM);
+      auto baselineSharingGroup = BaselineSharingGroup::First;
+      if (sameSideInBaselineWM != isFirstBaseline) {
+        baselineSharingGroup = BaselineSharingGroup::Last;
+        state |= ItemState::eLastBaselineSharingGroup;
+
+        baselineTrack = (isInlineAxis ? gridItem.mArea.mCols.mEnd
+                                      : gridItem.mArea.mRows.mEnd) -
+                        1;
+      } else {
+        baselineTrack = isInlineAxis ? gridItem.mArea.mCols.mStart
+                                     : gridItem.mArea.mRows.mStart;
+      }
+
       // XXXmats if |child| is a descendant of a subgrid then the metrics
       // below needs to account for the accumulated MPB somehow...
 
@@ -6678,29 +6722,22 @@ void nsGridContainerFrame::Tracks::InitializeItemBaselines(
               // https://bugzilla.mozilla.org/show_bug.cgi?id=1964417
               baseline.emplace(frameSize / 2);
             } else {
-              // Account for writing modes like vertical-lr that invert the
-              // line-over/line-under direction.
-              bool isInverted =
-                  (mAxis == LogicalAxis::Block)
-                      ? containerWM.IsLineInverted()
-                      : (!containerWM.IsVertical() && containerWM.IsBidiLTR());
-
-              // Determine whether the child's line-under side matches the
-              // container's start side along the axis.
-              bool isLineUnderSameSide = sameSide && !isInverted;
-
-              // Emulate the 'baseline' measurement that
-              // `GetNaturalBOffsetBaseline()` would provide, if it supported
-              // synthesizing baselines on inline container axes.
-              // To do this, we express the baseline as an offset from the
-              // item's block-start or block-end edge, depending on whether
-              // we're aligning to the first or last baseline.
-              const bool baselineOffsetIsFrameSize =
-                  itemHasBaselineParallelToTrack
-                      ? (!childWM.IsLineInverted() == isFirstBaseline)
-                      : (isLineUnderSameSide == isFirstBaseline);
-
-              baseline.emplace(baselineOffsetIsFrameSize ? frameSize : 0);
+              // The baseline offset is measured from the block-{start,end} edge
+              // of the container, using the block axis of 'baselineWM' (which
+              // may differ from the child or container’s writing mode).
+              //
+              // If we're synthesizing a baseline from the edge nearest to the
+              // container's reference side (start for the first baseline group,
+              // end for the last), the offset is `0`. Otherwise, it's from the
+              // opposite edge, so we use `frameSize`.
+              //
+              // This logic depends on whether we're in the first or last
+              // baseline-sharing group, and whether the line is inverted (e.g.,
+              // in vertical-rl mode), which affects which edge is considered
+              // the "start" or "end".
+              baseline.emplace((isFirstBaseline == baselineWM.IsLineInverted())
+                                   ? 0
+                                   : frameSize);
             }
           }
         }
