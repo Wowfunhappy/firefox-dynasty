@@ -626,8 +626,7 @@ class nsDocShell final : public nsDocLoader,
       nsIURI* aURI, nsIURI* aOriginalURI, nsIReferrerInfo* aReferrerInfo,
       nsIPrincipal* aTriggeringPrincipal, nsIContentSecurityPolicy* aCsp,
       const nsAString& aTitle, bool aScrollRestorationIsManual,
-      nsIStructuredCloneContainer* aData, bool aURIWasModified,
-      nsIPrincipal* aPartitionedPrincipal);
+      nsIStructuredCloneContainer* aData, bool aURIWasModified);
 
   nsresult AddChildSHEntry(nsISHEntry* aCloneRef, nsISHEntry* aNewEntry,
                            int32_t aChildOffset, uint32_t aLoadType,
@@ -1013,11 +1012,14 @@ class nsDocShell final : public nsDocLoader,
                  nsIURI* aPreviousURI);
   nsPresContext* GetEldestPresContext();
   nsresult CheckLoadingPermissions();
+  MOZ_CAN_RUN_SCRIPT
+  void MaybeFireTraverseHistory(nsDocShellLoadState* aLoadState);
   nsresult LoadHistoryEntry(nsISHEntry* aEntry, uint32_t aLoadType,
                             bool aUserActivation);
   nsresult LoadHistoryEntry(
       const mozilla::dom::LoadingSessionHistoryInfo& aEntry, uint32_t aLoadType,
       bool aUserActivation);
+  MOZ_CAN_RUN_SCRIPT_BOUNDARY
   nsresult LoadHistoryEntry(nsDocShellLoadState* aLoadState, uint32_t aLoadType,
                             bool aLoadingCurrentEntry);
   nsresult GetHttpChannel(nsIChannel* aChannel, nsIHttpChannel** aReturn);
@@ -1105,10 +1107,8 @@ class nsDocShell final : public nsDocLoader,
   // aCacheKey is the channel's cache key.
   // aPreviousURI should be the URI that was previously loaded into the
   // nsDocshell
-  // aPartitionedPrincipal is the partitioned principal of the current document.
   void MoveLoadingToActiveEntry(bool aExpired, uint32_t aCacheKey,
-                                nsIURI* aPreviousURI,
-                                nsIPrincipal* aPartitionedPrincipal);
+                                nsIURI* aPreviousURI);
 
   void ActivenessMaybeChanged();
 

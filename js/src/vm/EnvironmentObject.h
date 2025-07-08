@@ -1268,18 +1268,20 @@ class MOZ_RAII EnvironmentIter {
 // corresponding to the Scope is live on the stack, it is unsound to synthesize
 // environment from that live frame.
 //
-// If the frame is missing, the nearestEnv_ field is used for distinguishing
+// If the frame is missing, the nearestEnvId_ field is used for distinguishing
 // the missing environments across multiple executions.
-// The nearestEnv_ field holds the environment object that encloses this
+// The nearestEnvId_ field holds the ID of environment object that encloses this
 // environment.
 //
 // The goal of distinguishing the environments is to avoid mixing up the
 // variables in these enclosing environments, thus using these environment
 // object pointers should be sufficient.
-// For example, if there's no enclosing local environment which has environment
-// object, nearestEnv_ will point the global environment object, and
-// all executions for the same scope will alias, but there's no need to
-// distinguish between them.
+// For example, if there's no enclosing local environment which has an
+// environment object, nearestEnvId_ will point to the global environment
+// object, and all executions for the same scope will alias, but there's no need
+// to distinguish between them.
+class DebugEnvironments;
+
 class MissingEnvironmentKey {
   friend class LiveEnvironmentVal;
 
@@ -1287,32 +1289,30 @@ class MissingEnvironmentKey {
   // This can be null for function etc.
   AbstractFramePtr frame_;
 
-  // The nearest enclosing environment object.
-  // Used only if frame_ is null, to distinguish between multiple
-  // execution on the same scope.
-  WeakHeapPtr<EnvironmentObject*> nearestEnv_;
-
   // The corresponding scope for the environment.
   // This is shared betwen all executions.
   Scope* scope_;
 
+  // The ID of the nearest enclosing environment object's DebugEnvironmentProxy
+  // if any.  Used only if frame_ is null, to distinguish between multiple
+  // execution on the same scope.
+  uint64_t nearestEnvId_;
+
  public:
-  MissingEnvironmentKey(JSContext* cx, const EnvironmentIter& ei);
+  MissingEnvironmentKey()
+      : frame_(NullFramePtr()), scope_(nullptr), nearestEnvId_(0) {}
 
   MissingEnvironmentKey(AbstractFramePtr frame, Scope* scope)
-      : frame_(frame), nearestEnv_(nullptr), scope_(scope) {
+      : frame_(frame), scope_(scope), nearestEnvId_(0) {
     MOZ_ASSERT(frame);
   }
 
+  bool initFromEnvironmentIter(JSContext* cx, const EnvironmentIter& ei);
+
   AbstractFramePtr frame() const { return frame_; }
-  WeakHeapPtr<EnvironmentObject*>& nearestEnvRaw() { return nearestEnv_; }
-  EnvironmentObject* nearestEnvUnbarriered() const {
-    return nearestEnv_.unbarrieredGet();
-  }
   Scope* scope() const { return scope_; }
 
   void updateScope(Scope* scope) { scope_ = scope; }
-  void updateNearestEnv(EnvironmentObject* env) { nearestEnv_ = env; }
   void updateFrame(AbstractFramePtr frame) { frame_ = frame; }
 
   // For use as hash policy.
@@ -1320,7 +1320,7 @@ class MissingEnvironmentKey {
   static HashNumber hash(MissingEnvironmentKey sk);
   static bool match(MissingEnvironmentKey sk1, MissingEnvironmentKey sk2);
   bool operator!=(const MissingEnvironmentKey& other) const {
-    return frame_ != other.frame_ || nearestEnv_ != other.nearestEnv_ ||
+    return frame_ != other.frame_ || nearestEnvId_ != other.nearestEnvId_ ||
            scope_ != other.scope_;
   }
   static void rekey(MissingEnvironmentKey& k,
@@ -1335,9 +1335,9 @@ class LiveEnvironmentVal {
   friend class MissingEnvironmentKey;
 
   AbstractFramePtr frame_;
-  // See LiveEnvironmentVal::staticAsserts.
-  uintptr_t padding_ = 0;
   HeapPtr<Scope*> scope_;
+  // See LiveEnvironmentVal::staticAsserts.
+  uint64_t padding_ = 0;
 
   static void staticAsserts();
 
@@ -1523,8 +1523,9 @@ class DebugEnvironments {
   static bool addDebugEnvironment(JSContext* cx, Handle<EnvironmentObject*> env,
                                   Handle<DebugEnvironmentProxy*> debugEnv);
 
-  static DebugEnvironmentProxy* hasDebugEnvironment(JSContext* cx,
-                                                    const EnvironmentIter& ei);
+  static bool getExistingDebugEnvironment(JSContext* cx,
+                                          const EnvironmentIter& ei,
+                                          DebugEnvironmentProxy** out);
   static bool addDebugEnvironment(JSContext* cx, const EnvironmentIter& ei,
                                   Handle<DebugEnvironmentProxy*> debugEnv);
 

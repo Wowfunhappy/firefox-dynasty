@@ -3699,9 +3699,10 @@ nsDocShell::DisplayLoadError(nsresult aError, nsIURI* aURI,
     errorDescriptionID = error;
   }
 
-  Telemetry::AccumulateCategoricalKeyed(
-      IsSubframe() ? "frame"_ns : "top"_ns,
-      mozilla::dom::LoadErrorToTelemetryLabel(aError));
+  glean::page::load_error
+      .Get(IsSubframe() ? "frame"_ns : "top"_ns,
+           mozilla::dom::LoadErrorToTelemetryLabel(aError))
+      .Add();
 
   // Test if the error needs to be formatted
   if (!messageStr.IsEmpty()) {
@@ -5625,16 +5626,8 @@ nsresult nsDocShell::Embed(nsIDocumentViewer* aDocumentViewer,
       }
     }
 
-    nsCOMPtr<nsIPrincipal> partitionedPrincipal;
-    RefPtr<Document> doc = GetDocument();
-    if (doc) {
-      partitionedPrincipal = doc->PartitionedPrincipal();
-    }
-
     MOZ_LOG(gSHLog, LogLevel::Debug, ("document %p Embed", this));
-
-    MoveLoadingToActiveEntry(expired, cacheKey, aPreviousURI,
-                             partitionedPrincipal);
+    MoveLoadingToActiveEntry(expired, cacheKey, aPreviousURI);
   }
 
   bool updateHistory = true;
@@ -9210,8 +9203,6 @@ nsresult nsDocShell::HandleSameDocumentNavigation(
         mActiveEntry->SetCacheKey(cacheKey);
       }
 
-      mActiveEntry->SetPartitionedPrincipalToInherit(
-          doc->PartitionedPrincipal());
       // We're passing in mCurrentURI, which could be null. SessionHistoryCommit
       // does require a non-null uri if this is for a refresh load of the same
       // URI, but in that case mCurrentURI won't be null here.
@@ -9219,7 +9210,7 @@ nsresult nsDocShell::HandleSameDocumentNavigation(
           *mLoadingEntry, mLoadType, mCurrentURI, previousActiveEntry.get(),
           true,
           /* No expiration update on the same document loads*/
-          false, cacheKey, doc->PartitionedPrincipal());
+          false, cacheKey);
       // FIXME Need to set postdata.
 
       // Set the title for the SH entry for this target url so that
@@ -9280,9 +9271,6 @@ nsresult nsDocShell::HandleSameDocumentNavigation(
       // Set the title for the SH entry for this target url so that
       // SH menus in go/back/forward buttons won't be empty for this.
       mActiveEntry->SetTitle(mTitle);
-
-      mActiveEntry->SetPartitionedPrincipalToInherit(
-          doc->PartitionedPrincipal());
 
       if (scrollRestorationIsManual.isSome()) {
         mActiveEntry->SetScrollRestorationIsManual(
@@ -11908,7 +11896,7 @@ nsresult nsDocShell::UpdateURLAndHistory(
                         /* aReferrerInfo = */ referrerInfo,
                         /* aTriggeringPrincipal = */ aDocument->NodePrincipal(),
                         csp, title, scrollRestorationIsManual, aData,
-                        uriWasModified, aDocument->PartitionedPrincipal());
+                        uriWasModified);
     } else {
       // Since we're not changing which page we have loaded, pass
       // true for aCloneChildren.
@@ -11962,7 +11950,7 @@ nsresult nsDocShell::UpdateURLAndHistory(
         /* aReferrerInfo = */ referrerInfo, aDocument->NodePrincipal(),
         aDocument->GetCsp(), title,
         mActiveEntry && mActiveEntry->GetScrollRestorationIsManual(), aData,
-        uriWasModified, aDocument->PartitionedPrincipal());
+        uriWasModified);
   } else {
     // Step 3.
     newSHEntry = mOSHE;
@@ -12415,8 +12403,7 @@ void nsDocShell::UpdateActiveEntry(
     nsIURI* aOriginalURI, nsIReferrerInfo* aReferrerInfo,
     nsIPrincipal* aTriggeringPrincipal, nsIContentSecurityPolicy* aCsp,
     const nsAString& aTitle, bool aScrollRestorationIsManual,
-    nsIStructuredCloneContainer* aData, bool aURIWasModified,
-    nsIPrincipal* aPartitionedPrincipal) {
+    nsIStructuredCloneContainer* aData, bool aURIWasModified) {
   MOZ_ASSERT(mozilla::SessionHistoryInParent());
   MOZ_ASSERT(aURI, "uri is null");
   MOZ_ASSERT(mLoadType == LOAD_PUSHSTATE,
@@ -12452,7 +12439,6 @@ void nsDocShell::UpdateActiveEntry(
   mActiveEntry->SetStateData(static_cast<nsStructuredCloneContainer*>(aData));
   mActiveEntry->SetURIWasModified(aURIWasModified);
   mActiveEntry->SetScrollRestorationIsManual(aScrollRestorationIsManual);
-  mActiveEntry->SetPartitionedPrincipalToInherit(aPartitionedPrincipal);
 
   if (replace) {
     mBrowsingContext->ReplaceActiveSessionHistoryEntry(mActiveEntry.get());
@@ -12505,6 +12491,58 @@ nsresult nsDocShell::LoadHistoryEntry(const LoadingSessionHistoryInfo& aEntry,
   return LoadHistoryEntry(loadState, aLoadType, aEntry.mLoadingCurrentEntry);
 }
 
+void nsDocShell::MaybeFireTraverseHistory(nsDocShellLoadState* aLoadState) {
+  if (!Navigation::IsAPIEnabled()) {
+    return;
+  }
+
+  BrowsingContext* browsingContext = GetBrowsingContext();
+  if (!browsingContext || !browsingContext->IsTop()) {
+    return;
+  }
+  if (!mActiveEntry) {
+    return;
+  }
+
+  if (aLoadState->GetLoadingSessionHistoryInfo()->mInfo.SharedId() ==
+      mActiveEntry->SharedId()) {
+    return;
+  }
+
+  nsCOMPtr<nsIPrincipal> oldPrincipal =
+      aLoadState->GetLoadingSessionHistoryInfo()->mInfo.GetResultPrincipalURI()
+          ? BasePrincipal::CreateContentPrincipal(
+                aLoadState->GetLoadingSessionHistoryInfo()
+                    ->mInfo.GetResultPrincipalURI(),
+                OriginAttributes{})
+          : nullptr;
+
+  nsCOMPtr<nsIPrincipal> currentPrincipal =
+      mActiveEntry->GetResultPrincipalURI()
+          ? BasePrincipal::CreateContentPrincipal(
+                mActiveEntry->GetResultPrincipalURI(), OriginAttributes{})
+          : nullptr;
+  if (!oldPrincipal || !currentPrincipal) {
+    // TODO it's not clear why these can be null https://bugzil.la/1976017
+    return;
+  }
+
+  if (!oldPrincipal->Equals(currentPrincipal)) {
+    return;
+  }
+
+  if (RefPtr window = GetActiveWindow()) {
+    if (RefPtr navigation = window->Navigation()) {
+      if (AutoJSAPI jsapi; jsapi.Init(window)) {
+        // This should send the correct user involvment. See bug 1903552.
+        navigation->FireTraverseNavigateEvent(
+            jsapi.cx(), aLoadState->GetLoadingSessionHistoryInfo()->mInfo,
+            Nothing());
+      }
+    }
+  }
+}
+
 nsresult nsDocShell::LoadHistoryEntry(nsDocShellLoadState* aLoadState,
                                       uint32_t aLoadType,
                                       bool aLoadingCurrentEntry) {
@@ -12515,6 +12553,8 @@ nsresult nsDocShell::LoadHistoryEntry(nsDocShellLoadState* aLoadState,
   // We are setting load type afterwards so we don't have to
   // send it in an IPC message
   aLoadState->SetLoadType(aLoadType);
+
+  SetOngoingNavigation(Some(OngoingNavigation::Traversal));
 
   nsresult rv;
   if (aLoadState->URI()->SchemeIs("javascript")) {
@@ -12570,6 +12610,8 @@ nsresult nsDocShell::LoadHistoryEntry(nsDocShellLoadState* aLoadState,
   if (!aLoadState->TriggeringPrincipal()) {
     return NS_ERROR_FAILURE;
   }
+
+  MaybeFireTraverseHistory(aLoadState);
 
   return InternalLoad(aLoadState);  // No nsIRequest
 }
@@ -14162,8 +14204,7 @@ void nsDocShell::SetLoadingSessionHistoryInfo(
 }
 
 void nsDocShell::MoveLoadingToActiveEntry(bool aExpired, uint32_t aCacheKey,
-                                          nsIURI* aPreviousURI,
-                                          nsIPrincipal* aPartitionedPrincipal) {
+                                          nsIURI* aPreviousURI) {
   MOZ_ASSERT(mozilla::SessionHistoryInParent());
 
   MOZ_LOG(gSHLog, LogLevel::Debug,
@@ -14178,8 +14219,6 @@ void nsDocShell::MoveLoadingToActiveEntry(bool aExpired, uint32_t aCacheKey,
             ("Moving the loading entry to the active entry on nsDocShell %p "
              "to %s",
              this, mLoadingEntry->mInfo.GetURI()->GetSpecOrDefault().get()));
-    mLoadingEntry->mInfo.SetPartitionedPrincipalToInherit(
-        aPartitionedPrincipal);
     mActiveEntry = MakeUnique<SessionHistoryInfo>(mLoadingEntry->mInfo);
     mLoadingEntry.swap(loadingEntry);
     if (!mActiveEntryIsLoadingFromSessionHistory) {
@@ -14202,7 +14241,6 @@ void nsDocShell::MoveLoadingToActiveEntry(bool aExpired, uint32_t aCacheKey,
       mActiveEntry->SetCacheKey(aCacheKey);
     }
 
-    mActiveEntry->SetPartitionedPrincipalToInherit(aPartitionedPrincipal);
     MOZ_ASSERT(loadingEntry);
     uint32_t loadType =
         mLoadType == LOAD_ERROR_PAGE ? mFailedLoadType : mLoadType;
@@ -14213,7 +14251,7 @@ void nsDocShell::MoveLoadingToActiveEntry(bool aExpired, uint32_t aCacheKey,
       // URI, but in that case mCurrentURI won't be null here.
       mBrowsingContext->SessionHistoryCommit(
           *loadingEntry, loadType, aPreviousURI, previousActiveEntry.get(),
-          false, aExpired, aCacheKey, aPartitionedPrincipal);
+          false, aExpired, aCacheKey);
     }
 
     // Only update navigation if the new entry will be persisted (i.e., is not

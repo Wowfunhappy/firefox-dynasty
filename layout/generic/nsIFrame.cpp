@@ -3639,7 +3639,7 @@ void nsIFrame::BuildDisplayListForStackingContext(
   // The nsDisplayBlendContainer must be added to the list first, so it does not
   // isolate the containing element blending as well.
   if (aBuilder->ContainsBlendMode()) {
-    resultList.AppendToTop(nsDisplayBlendContainer::Create(
+    resultList.AppendToTop(nsDisplayBlendContainer::CreateForMixBlendMode(
         aBuilder, this, &resultList, containerItemASR));
     createdContainer = true;
     addBackdropRoot = false;
@@ -3934,9 +3934,10 @@ void nsIFrame::BuildDisplayListForStackingContext(
     }
   }
 
-  if (addBackdropRoot && aBuilder->ContainsBackdropFilter()) {
-    resultList.AppendToTop(nsDisplayBlendContainer::Create(
-        aBuilder, this, &resultList, containerItemASR));
+  if (addBackdropRoot) {
+    resultList.AppendToTop(nsDisplayBlendContainer::CreateForBackdropRoot(
+        aBuilder, this, &resultList, containerItemASR,
+        /* aNeedsBackdropRoot = */ aBuilder->ContainsBackdropFilter()));
     createdContainer = true;
   }
 
@@ -9342,7 +9343,10 @@ static nsresult GetNextPrevLineFromBlockFrame(PeekOffsetStruct* aPos,
         // must reach the editing host boundary.
         return NS_ERROR_FAILURE;
       }
-      nsIFrame::GetLastLeaf(&lastFrame);
+      // Don't enter into native anonymous subtrees.
+      if (!lastFrame->ContentIsRootOfNativeAnonymousSubtree()) {
+        nsIFrame::GetLastLeaf(&lastFrame);
+      }
 
       if (aPos->mDirection == eDirNext) {
         nearStoppingFrame = firstFrame;
@@ -11425,10 +11429,7 @@ ComputedStyle* nsIFrame::DoGetParentComputedStyle(
 }
 
 void nsIFrame::GetLastLeaf(nsIFrame** aFrame) {
-  if (!aFrame || !*aFrame ||
-      // Don't enter into native anoymous subtree from the root like <input> or
-      // <textarea>.
-      (*aFrame)->ContentIsRootOfNativeAnonymousSubtree()) {
+  if (!aFrame || !*aFrame) {
     return;
   }
   for (nsIFrame* maybeLastLeaf = (*aFrame)->PrincipalChildList().LastChild();

@@ -64,6 +64,8 @@ import org.mozilla.fenix.home.mars.MARSUseCases
 import org.mozilla.fenix.messaging.MessageController
 import org.mozilla.fenix.onboarding.WallpaperOnboardingDialogFragment.Companion.THUMBNAILS_SELECTION_COUNT
 import org.mozilla.fenix.settings.SupportUtils
+import org.mozilla.fenix.tabstray.DefaultTabManagementFeatureHelper
+import org.mozilla.fenix.tabstray.TabManagementFeatureHelper
 import org.mozilla.fenix.utils.Settings
 import org.mozilla.fenix.utils.maybeShowAddSearchWidgetPrompt
 import org.mozilla.fenix.wallpapers.Wallpaper
@@ -214,6 +216,7 @@ class DefaultSessionControlController(
     private val appStore: AppStore,
     private val navController: NavController,
     private val viewLifecycleScope: CoroutineScope,
+    private val tabManagementFeatureHelper: TabManagementFeatureHelper = DefaultTabManagementFeatureHelper,
     private val registerCollectionStorageObserver: () -> Unit,
     private val removeCollectionWithUndo: (tabCollection: TabCollection) -> Unit,
     private val showUndoSnackbarForTopSite: (topSite: TopSite) -> Unit,
@@ -419,9 +422,7 @@ class DefaultSessionControlController(
             is TopSite.Frecent -> TopSites.openFrecency.record(NoExtras())
             is TopSite.Pinned -> TopSites.openPinned.record(NoExtras())
             is TopSite.Provided -> {
-                if (settings.marsAPIEnabled) {
-                    sendMarsTopSiteCallback(topSite.clickUrl)
-                }
+                sendMarsTopSiteCallback(topSite.clickUrl)
 
                 TopSites.openContileTopSite.record(NoExtras()).also {
                     recordTopSitesClickTelemetry(topSite, position)
@@ -490,17 +491,11 @@ class DefaultSessionControlController(
         topSite.id?.let { TopSites.contileTileId.set(it) }
         topSite.title?.let { TopSites.contileAdvertiser.set(it.lowercase()) }
 
-        if (!settings.marsAPIEnabled) {
-            TopSites.contileReportingUrl.set(topSite.clickUrl)
-        }
-
         Pings.topsitesImpression.submit()
     }
 
     override fun handleTopSiteImpression(topSite: TopSite.Provided, position: Int) {
-        if (settings.marsAPIEnabled) {
-            sendMarsTopSiteCallback(topSite.impressionUrl)
-        }
+        sendMarsTopSiteCallback(topSite.impressionUrl)
 
         TopSites.contileImpression.record(
             TopSites.ContileImpressionExtra(
@@ -511,10 +506,6 @@ class DefaultSessionControlController(
 
         topSite.id?.let { TopSites.contileTileId.set(it) }
         topSite.title?.let { TopSites.contileAdvertiser.set(it.lowercase()) }
-
-        if (!settings.marsAPIEnabled) {
-            TopSites.contileReportingUrl.set(topSite.impressionUrl)
-        }
 
         Pings.topsitesImpression.submit()
     }
@@ -592,9 +583,15 @@ class DefaultSessionControlController(
     }
 
     private fun showTabTrayCollectionCreation() {
-        val directions = HomeFragmentDirections.actionGlobalTabsTrayFragment(
-            enterMultiselect = true,
-        )
+        val directions = if (tabManagementFeatureHelper.enhancementsEnabled) {
+            HomeFragmentDirections.actionGlobalTabManagementFragment(
+                enterMultiselect = true,
+            )
+        } else {
+            HomeFragmentDirections.actionGlobalTabsTrayFragment(
+                enterMultiselect = true,
+            )
+        }
         navController.nav(R.id.homeFragment, directions)
     }
 

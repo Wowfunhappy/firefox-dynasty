@@ -185,6 +185,25 @@ enum ChannelDisposition {
   kHttpsNetLateFail = 12
 };
 
+static nsLiteralCString CacheDispositionToTelemetryLabel(
+    CacheDisposition hitOrMiss) {
+  switch (hitOrMiss) {
+    case kCacheUnresolved:
+      return "Unresolved"_ns;
+    case kCacheHit:
+      return "Hit"_ns;
+    case kCacheHitViaReval:
+      return "HitViaReval"_ns;
+    case kCacheMissedViaReval:
+      return "MissedViaReval"_ns;
+    case kCacheMissed:
+      return "Missed"_ns;
+    case kCacheUnknown:
+      return "Unknown"_ns;
+  }
+  return "Unresolved"_ns;
+}
+
 void AccumulateCacheHitTelemetry(CacheDisposition hitOrMiss,
                                  nsIChannel* aChannel) {
   nsCString key("UNKNOWN");
@@ -214,31 +233,9 @@ void AccumulateCacheHitTelemetry(CacheDisposition hitOrMiss,
     }
   }
 
-  Telemetry::LABELS_HTTP_CACHE_DISPOSITION_3 label =
-      Telemetry::LABELS_HTTP_CACHE_DISPOSITION_3::Unresolved;
-  switch (hitOrMiss) {
-    case kCacheUnresolved:
-      label = Telemetry::LABELS_HTTP_CACHE_DISPOSITION_3::Unresolved;
-      break;
-    case kCacheHit:
-      label = Telemetry::LABELS_HTTP_CACHE_DISPOSITION_3::Hit;
-      break;
-    case kCacheHitViaReval:
-      label = Telemetry::LABELS_HTTP_CACHE_DISPOSITION_3::HitViaReval;
-      break;
-    case kCacheMissedViaReval:
-      label = Telemetry::LABELS_HTTP_CACHE_DISPOSITION_3::MissedViaReval;
-      break;
-    case kCacheMissed:
-      label = Telemetry::LABELS_HTTP_CACHE_DISPOSITION_3::Missed;
-      break;
-    case kCacheUnknown:
-      label = Telemetry::LABELS_HTTP_CACHE_DISPOSITION_3::Unknown;
-      break;
-  }
-
-  Telemetry::AccumulateCategoricalKeyed(key, label);
-  Telemetry::AccumulateCategoricalKeyed("ALL"_ns, label);
+  nsLiteralCString label = CacheDispositionToTelemetryLabel(hitOrMiss);
+  glean::http::cache_disposition.Get(key, label).Add();
+  glean::http::cache_disposition.Get("ALL"_ns, label).Add();
 }
 
 // Computes and returns a SHA1 hash of the input buffer. The input buffer
@@ -1857,10 +1854,12 @@ nsresult nsHttpChannel::InitTransaction() {
   // So we pretend that the permission for these has already been denied
   // in order to avoid prompting.
   uint32_t flags = 0;
+  using CF = nsIClassifiedChannel::ClassificationFlags;
   if (StaticPrefs::network_lna_block_trackers() &&
       NS_SUCCEEDED(
           mLoadInfo->GetTriggeringThirdPartyClassificationFlags(&flags)) &&
-      flags != 0) {
+      (flags & (CF::CLASSIFIED_ANY_BASIC_TRACKING |
+                CF::CLASSIFIED_ANY_SOCIAL_TRACKING)) != 0) {
     perms.mLocalHostPermission = LNAPermission::Denied;
     perms.mLocalNetworkPermission = LNAPermission::Denied;
 
@@ -1874,12 +1873,23 @@ nsresult nsHttpChannel::InitTransaction() {
     }
   }
 
+  RefPtr<mozilla::dom::BrowsingContext> bc;
+  mLoadInfo->GetBrowsingContext(getter_AddRefs(bc));
+
+  nsILoadInfo::IPAddressSpace parentAddressSpace =
+      nsILoadInfo::IPAddressSpace::Unknown;
+  if (!bc) {
+    parentAddressSpace = mLoadInfo->GetParentIpAddressSpace();
+  } else {
+    parentAddressSpace = bc->GetCurrentIPAddressSpace();
+  }
+
   rv = mTransaction->Init(
       mCaps, mConnectionInfo, &mRequestHead, mUploadStream, mReqContentLength,
       LoadUploadStreamHasHeaders(), GetCurrentSerialEventTarget(), callbacks,
       this, mBrowserId, category, mRequestContext, mClassOfService,
       mInitialRwin, LoadResponseTimeoutEnabled(), mChannelId,
-      std::move(observer), mLoadInfo->GetParentIpAddressSpace(), perms);
+      std::move(observer), parentAddressSpace, perms);
   if (NS_FAILED(rv)) {
     mTransaction = nullptr;
     return rv;
@@ -7849,10 +7859,10 @@ void nsHttpChannel::RecordOnStartTelemetry(nsresult aStatus,
       .Add(1);
 
   if (mTransaction) {
-    Telemetry::Accumulate(
-        Telemetry::HTTP3_CHANNEL_ONSTART_SUCCESS,
-        (mTransaction->IsHttp3Used()) ? "http3"_ns : "no_http3"_ns,
-        NS_SUCCEEDED(aStatus));
+    glean::networking::http3_channel_onstart_success
+        .Get((mTransaction->IsHttp3Used()) ? "http3"_ns : "no_http3"_ns,
+             NS_SUCCEEDED(aStatus) ? "true"_ns : "false"_ns)
+        .Add();
   }
 
   enum class HttpOnStartState : uint32_t {
@@ -8110,10 +8120,15 @@ nsHttpChannel::OnStartRequest(nsIRequest* request) {
     mTransaction->GetNetworkAddresses(mSelfAddr, mPeerAddr, isTrr,
                                       mEffectiveTRRMode, mTRRSkipReason,
                                       echConfigUsed);
-    // update IP AddressSpace for non-proxy connections
-    if (!mProxyInfo) {
+    // update IP AddressSpace for non-proxy connections and tests
+    // We need to update the browsing context for tests as browser tests
+    // uses local proxy to connect to
+    // external domains
+    if (!mProxyInfo || xpc::IsInAutomation()) {
       // If this is main document load or iframe store the IP Address space in
       // the browsing context
+      nsAutoCString addrPort;
+      mPeerAddr.ToAddrPortString(addrPort);
       nsILoadInfo::IPAddressSpace docAddressSpace =
           mPeerAddr.GetIpAddressSpace();
       ExtContentPolicyType type = mLoadInfo->GetExternalContentPolicyType();
@@ -9066,7 +9081,9 @@ nsresult nsHttpChannel::ContinueOnStopRequest(nsresult aStatus, bool aIsFromNet,
     upgradeKey = "disabledWont"_ns;
   }
 
-  Telemetry::AccumulateCategoricalKeyed(upgradeKey, upgradeChanDisposition);
+  glean::networking::http_channel_disposition_upgrade
+      .Get(upgradeKey, upgradeChanDispositionLabel)
+      .Add();
 
   LOG(("  nsHttpChannel::OnStopRequest ChannelDisposition %d\n",
        chanDisposition));

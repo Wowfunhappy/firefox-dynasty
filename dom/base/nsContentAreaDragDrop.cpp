@@ -158,47 +158,6 @@ nsresult nsContentAreaDragDropDataProvider::SaveURIToFile(
                           inContentPolicyType, isPrivate);
 }
 
-/*
- * Check if the provided filename extension is valid for the MIME type and
- * return the MIME type's primary extension.
- *
- * @param aExtension           [in]  the extension to check
- * @param aMimeType            [in]  the MIME type to check the extension with
- * @param aIsValidExtension    [out] true if |aExtension| is valid for
- *                                   |aMimeType|
- * @param aPrimaryExtension    [out] the primary extension for the MIME type
- *                                   to potentially be used as a replacement
- *                                   for |aExtension|
- */
-nsresult CheckAndGetExtensionForMime(const nsCString& aExtension,
-                                     const nsCString& aMimeType,
-                                     bool* aIsValidExtension,
-                                     nsACString* aPrimaryExtension) {
-  nsresult rv;
-
-  nsCOMPtr<nsIMIMEService> mimeService = do_GetService("@mozilla.org/mime;1");
-  if (NS_WARN_IF(!mimeService)) {
-    return NS_ERROR_FAILURE;
-  }
-
-  nsCOMPtr<nsIMIMEInfo> mimeInfo;
-  rv = mimeService->GetFromTypeAndExtension(aMimeType, ""_ns,
-                                            getter_AddRefs(mimeInfo));
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  mimeInfo->GetPrimaryExtension(*aPrimaryExtension);
-
-  if (aExtension.IsEmpty()) {
-    *aIsValidExtension = false;
-    return NS_OK;
-  }
-
-  rv = mimeInfo->ExtensionExists(aExtension, aIsValidExtension);
-  NS_ENSURE_SUCCESS(rv, rv);
-
-  return NS_OK;
-}
-
 // This is our nsIFlavorDataProvider callback. There are several
 // assumptions here that make this work:
 //
@@ -380,45 +339,48 @@ void DragDataProducer::CreateLinkText(const nsAString& inURL,
 
 nsresult DragDataProducer::GetImageData(imgIContainer* aImage,
                                         imgIRequest* aRequest) {
+  MOZ_ASSERT(aImage);
+  MOZ_ASSERT(aRequest);
+
   nsCOMPtr<nsIURI> imgUri = aRequest->GetURI();
+  if (!imgUri) {
+    return NS_ERROR_FAILURE;
+  }
 
-  nsCOMPtr<nsIURL> imgUrl(do_QueryInterface(imgUri));
-  if (imgUrl) {
-    nsAutoCString spec;
-    nsresult rv = imgUrl->GetSpec(spec);
-    NS_ENSURE_SUCCESS(rv, rv);
+  nsAutoCString spec;
+  nsresult rv = imgUri->GetSpec(spec);
+  NS_ENSURE_SUCCESS(rv, rv);
 
-    // pass out the image source string
-    CopyUTF8toUTF16(spec, mImageSourceString);
+  // pass out the image source string
+  CopyUTF8toUTF16(spec, mImageSourceString);
 
-    nsCString mimeType;
-    aRequest->GetMimeType(getter_Copies(mimeType));
+  nsCString mimeType;
+  aRequest->GetMimeType(getter_Copies(mimeType));
 
-    nsAutoCString fileName;
-    aRequest->GetFileName(fileName);
+  nsAutoCString fileName;
+  aRequest->GetFileName(fileName);
 
 #if defined(XP_MACOSX)
-    // Save the MIME type so we can make sure the extension
-    // is compatible (and replace it if it isn't) when the
-    // image is dropped. On Mac, we need to get the OS MIME
-    // handler information in the parent due to sandboxing.
-    CopyUTF8toUTF16(mimeType, mImageRequestMime);
-    CopyUTF8toUTF16(fileName, mImageDestFileName);
+  // Save the MIME type so we can make sure the extension
+  // is compatible (and replace it if it isn't) when the
+  // image is dropped. On Mac, we need to get the OS MIME
+  // handler information in the parent due to sandboxing.
+  CopyUTF8toUTF16(mimeType, mImageRequestMime);
+  CopyUTF8toUTF16(fileName, mImageDestFileName);
 #else
-    nsCOMPtr<nsIMIMEService> mimeService = do_GetService("@mozilla.org/mime;1");
-    if (NS_WARN_IF(!mimeService)) {
-      return NS_ERROR_FAILURE;
-    }
+  nsCOMPtr<nsIMIMEService> mimeService = do_GetService("@mozilla.org/mime;1");
+  if (NS_WARN_IF(!mimeService)) {
+    return NS_ERROR_FAILURE;
+  }
 
-    CopyUTF8toUTF16(fileName, mImageDestFileName);
-    mimeService->ValidateFileNameForSaving(mImageDestFileName, mimeType,
-                                           nsIMIMEService::VALIDATE_DEFAULT,
-                                           mImageDestFileName);
+  CopyUTF8toUTF16(fileName, mImageDestFileName);
+  mimeService->ValidateFileNameForSaving(mImageDestFileName, mimeType,
+                                         nsIMIMEService::VALIDATE_DEFAULT,
+                                         mImageDestFileName);
 #endif
 
-    // and the image object
-    mImage = aImage;
-  }
+  // and the image object
+  mImage = aImage;
 
   return NS_OK;
 }

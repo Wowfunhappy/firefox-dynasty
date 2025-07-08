@@ -1676,12 +1676,11 @@ void MacroAssemblerRiscv64Compat::loadInt32OrDouble(const Address& src,
   // If it's an int, convert it to double.
   UseScratchRegisterScope temps(this);
   Register ScratchRegister = temps.Acquire();
-  Register SecondScratchReg = temps.Acquire();
   loadPtr(Address(src.base, src.offset), ScratchRegister);
-  srli(SecondScratchReg, ScratchRegister, JSVAL_TAG_SHIFT);
-  asMasm().branchTestInt32(Assembler::NotEqual, SecondScratchReg, &notInt32);
-  loadPtr(Address(src.base, src.offset), SecondScratchReg);
-  convertInt32ToDouble(SecondScratchReg, dest);
+  srli(ScratchRegister, ScratchRegister, JSVAL_TAG_SHIFT);
+  asMasm().branchTestInt32(Assembler::NotEqual, ScratchRegister, &notInt32);
+  loadPtr(Address(src.base, src.offset), ScratchRegister);
+  convertInt32ToDouble(ScratchRegister, dest);
   ma_branch(&end);
 
   // Not an int, just load as double.
@@ -1696,25 +1695,24 @@ void MacroAssemblerRiscv64Compat::loadInt32OrDouble(const BaseIndex& addr,
 
   UseScratchRegisterScope temps(this);
   Register ScratchRegister = temps.Acquire();
-  Register SecondScratchReg = temps.Acquire();
   // If it's an int, convert it to double.
-  computeScaledAddress(addr, SecondScratchReg);
+  computeScaledAddress(addr, ScratchRegister);
   // Since we only have one scratch, we need to stomp over it with the tag.
-  loadPtr(Address(SecondScratchReg, 0), ScratchRegister);
-  srli(SecondScratchReg, ScratchRegister, JSVAL_TAG_SHIFT);
-  asMasm().branchTestInt32(Assembler::NotEqual, SecondScratchReg, &notInt32);
+  loadPtr(Address(ScratchRegister, 0), ScratchRegister);
+  srli(ScratchRegister, ScratchRegister, JSVAL_TAG_SHIFT);
+  asMasm().branchTestInt32(Assembler::NotEqual, ScratchRegister, &notInt32);
 
-  computeScaledAddress(addr, SecondScratchReg);
-  loadPtr(Address(SecondScratchReg, 0), SecondScratchReg);
-  convertInt32ToDouble(SecondScratchReg, dest);
+  computeScaledAddress(addr, ScratchRegister);
+  loadPtr(Address(ScratchRegister, 0), ScratchRegister);
+  convertInt32ToDouble(ScratchRegister, dest);
   ma_branch(&end);
 
   // Not an int, just load as double.
   bind(&notInt32);
   // First, recompute the offset that had been stored in the scratch register
   // since the scratch register was overwritten loading in the type.
-  computeScaledAddress(addr, SecondScratchReg);
-  unboxDouble(Address(SecondScratchReg, 0), dest);
+  computeScaledAddress(addr, ScratchRegister);
+  unboxDouble(Address(ScratchRegister, 0), dest);
   bind(&end);
 }
 
@@ -3135,11 +3133,27 @@ void MacroAssembler::enterFakeExitFrameForWasm(Register cxreg, Register scratch,
 }
 CodeOffset MacroAssembler::sub32FromMemAndBranchIfNegativeWithPatch(
     Address address, Label* label) {
-  MOZ_CRASH("needs to be implemented on this platform");
+  ScratchRegisterScope scratch(asMasm());
+  MOZ_ASSERT(scratch != address.base);
+  ma_load(scratch, address);
+  addiw(scratch, scratch, 128);
+  CodeOffset patchPoint = CodeOffset(currentOffset());
+  ma_store(scratch, address);
+  ma_b(scratch, scratch, label, Assembler::Signed);
+  return patchPoint;
 }
 void MacroAssembler::patchSub32FromMemAndBranchIfNegative(CodeOffset offset,
                                                           Imm32 imm) {
-  MOZ_CRASH("needs to be implemented on this platform");
+  int32_t val = imm.value;
+  MOZ_RELEASE_ASSERT(val >= 1 && val <= 127);
+  auto* inst = m_buffer.getInst(BufferOffset(offset.offset() - 4));
+  inst->InstructionOpcodeType();
+  MOZ_ASSERT(IsAddiw(inst->InstructionBits()));
+  /*
+   * | imm[11:0] | rs1 | 000 | rd | 0011011 |
+   */
+  inst->SetInstructionBits(((uint32_t)inst->InstructionBits() & ~kImm12Mask) |
+                           (((uint32_t)(-val) & 0xfff) << kImm12Shift));
 }
 void MacroAssembler::flexibleDivMod32(Register rhs, Register srcDest,
                                       Register remOutput, bool isUnsigned,

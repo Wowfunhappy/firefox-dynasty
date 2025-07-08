@@ -37,6 +37,7 @@
 #include "mozilla/dom/NavigationUtils.h"
 #include "mozilla/dom/SessionHistoryEntry.h"
 #include "mozilla/dom/WindowContext.h"
+#include "mozilla/dom/WindowGlobalChild.h"
 
 mozilla::LazyLogModule gNavigationLog("Navigation");
 
@@ -70,6 +71,7 @@ struct NavigationAPIMethodTracker final : public nsISupports {
 
   // https://html.spec.whatwg.org/#notify-about-the-committed-to-entry
   void NotifyAboutCommittedToEntry(NavigationHistoryEntry* aNHE) {
+    MOZ_DIAGNOSTIC_ASSERT(mCommittedPromise);
     // Step 1
     mCommittedToEntry = aNHE;
     if (mSerializedState) {
@@ -85,6 +87,7 @@ struct NavigationAPIMethodTracker final : public nsISupports {
 
   // https://html.spec.whatwg.org/#resolve-the-finished-promise
   void ResolveFinishedPromise() {
+    MOZ_DIAGNOSTIC_ASSERT(mFinishedPromise);
     // Step 1
     MOZ_DIAGNOSTIC_ASSERT(mCommittedToEntry);
     // Step 2
@@ -95,6 +98,8 @@ struct NavigationAPIMethodTracker final : public nsISupports {
 
   // https://html.spec.whatwg.org/#reject-the-finished-promise
   void RejectFinishedPromise(JS::Handle<JS::Value> aException) {
+    MOZ_DIAGNOSTIC_ASSERT(mFinishedPromise);
+    MOZ_DIAGNOSTIC_ASSERT(mCommittedPromise);
     // Step 1
     mCommittedPromise->MaybeReject(aException);
     // Step 2
@@ -147,6 +152,26 @@ Navigation::Navigation(nsPIDOMWindowInner* aWindow)
 JSObject* Navigation::WrapObject(JSContext* aCx,
                                  JS::Handle<JSObject*> aGivenProto) {
   return Navigation_Binding::Wrap(aCx, this, aGivenProto);
+}
+
+void Navigation::EventListenerAdded(nsAtom* aType) {
+  if (nsPIDOMWindowInner* window = GetOwnerWindow()) {
+    if (WindowGlobalChild* windowGlobal = window->GetWindowGlobalChild()) {
+      windowGlobal->NavigateAdded();
+    }
+  }
+
+  EventTarget::EventListenerAdded(aType);
+}
+
+void Navigation::EventListenerRemoved(nsAtom* aType) {
+  if (nsPIDOMWindowInner* window = GetOwnerWindow()) {
+    if (WindowGlobalChild* windowGlobal = window->GetWindowGlobalChild()) {
+      windowGlobal->NavigateRemoved();
+    }
+  }
+
+  EventTarget::EventListenerRemoved(aType);
 }
 
 /* static */
@@ -386,9 +411,11 @@ static void CreateResultFromAPIMethodTracker(
   //    "finished" → apiMethodTracker's finished promise ]».
   MOZ_ASSERT(aApiMethodTracker);
   aResult.mCommitted.Reset();
-  aResult.mCommitted.Construct(aApiMethodTracker->mCommittedPromise.forget());
+  aResult.mCommitted.Construct(
+      OwningNonNull<Promise>(*aApiMethodTracker->mCommittedPromise));
   aResult.mFinished.Reset();
-  aResult.mFinished.Construct(aApiMethodTracker->mFinishedPromise.forget());
+  aResult.mFinished.Construct(
+      OwningNonNull<Promise>(*aApiMethodTracker->mFinishedPromise));
 }
 
 bool Navigation::CheckIfDocumentIsFullyActiveAndMaybeSetEarlyErrorResult(
@@ -534,7 +561,7 @@ void LogEntry(NavigationHistoryEntry* aEntry, uint64_t aIndex, uint64_t aTotal,
 
 // https://html.spec.whatwg.org/#fire-a-traverse-navigate-event
 bool Navigation::FireTraverseNavigateEvent(
-    JSContext* aCx, SessionHistoryInfo* aDestinationSessionHistoryInfo,
+    JSContext* aCx, const SessionHistoryInfo& aDestinationSessionHistoryInfo,
     Maybe<UserNavigationInvolvement> aUserInvolvement) {
   // aDestinationSessionHistoryInfo corresponds to
   // https://html.spec.whatwg.org/#fire-navigate-traverse-destinationshe
@@ -556,18 +583,18 @@ bool Navigation::FireTraverseNavigateEvent(
       ToMaybeRef(
           nsDocShell::Cast(nsContentUtils::GetDocShellForEventTarget(this)))
           .andThen([](auto& aDocShell) {
-            return ToMaybeRef(aDocShell.GetLoadingSessionHistoryInfo());
+            return ToMaybeRef(aDocShell.GetActiveSessionHistoryInfo());
           })
           .map([aDestinationSessionHistoryInfo](auto& aSessionHistoryInfo) {
-            return aDestinationSessionHistoryInfo->SharesDocumentWith(
-                aSessionHistoryInfo.mInfo);
+            return aDestinationSessionHistoryInfo.SharesDocumentWith(
+                aSessionHistoryInfo);
           })
           .valueOr(false);
 
   // Step 3, step 4, step 6.1, and step 7.1.
   RefPtr<NavigationDestination> destination =
       MakeAndAddRef<NavigationDestination>(
-          GetOwnerGlobal(), aDestinationSessionHistoryInfo->GetURI(),
+          GetOwnerGlobal(), aDestinationSessionHistoryInfo.GetURI(),
           destinationNHE, state, isSameDocument);
 
   // Step 9
@@ -791,7 +818,7 @@ bool Navigation::InnerFireNavigateEvent(
   }
 
   // Step 4
-  MOZ_DIAGNOSTIC_ASSERT(!destinationKey || destinationKey->Equals(nsID{}));
+  MOZ_DIAGNOSTIC_ASSERT(!destinationKey || !destinationKey->Equals(nsID{}));
 
   // Step 5
   PromoteUpcomingAPIMethodTrackerToOngoing(std::move(destinationKey));
@@ -1096,10 +1123,8 @@ bool Navigation::InnerFireNavigateEvent(
               self->mTransition = nullptr;
             },
         scope);
-  }
-
-  // Step 35
-  if (apiMethodTracker) {
+  } else if (apiMethodTracker) {
+    // Step 35
     apiMethodTracker->CleanUp();
   }
 
@@ -1108,9 +1133,9 @@ bool Navigation::InnerFireNavigateEvent(
 }
 
 NavigationHistoryEntry* Navigation::FindNavigationHistoryEntry(
-    SessionHistoryInfo* aSessionHistoryInfo) const {
+    const SessionHistoryInfo& aSessionHistoryInfo) const {
   for (const auto& navigationHistoryEntry : mEntries) {
-    if (navigationHistoryEntry->IsSameEntry(aSessionHistoryInfo)) {
+    if (navigationHistoryEntry->IsSameEntry(&aSessionHistoryInfo)) {
       return navigationHistoryEntry;
     }
   }

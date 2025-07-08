@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<issues format="6" by="lint 8.10.1" type="baseline" client="gradle" dependencies="false" name="AGP (8.10.1)" variant="all" version="8.10.1">
+<issues format="6" by="lint 8.11.0" type="baseline" client="gradle" dependencies="false" name="AGP (8.11.0)" variant="all" version="8.11.0">
 
     <issue
         id="NoStaticMocking"
@@ -1434,61 +1434,6 @@
     <issue
         id="NoStaticMocking"
         message="Usage of MockK&apos;s &apos;mockkStatic&apos; for static mocking is discouraged. Refactor to use dependency injection."
-        errorLine1="        mockkStatic(NotificationManagerCompat::class)"
-        errorLine2="        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/test/java/org/mozilla/fenix/settings/SettingsFragmentTest.kt"
-            line="195"
-            column="9"/>
-    </issue>
-
-    <issue
-        id="NoStaticMocking"
-        message="Usage of MockK&apos;s &apos;unmockkStatic&apos; for static mocking is discouraged. Refactor to use dependency injection."
-        errorLine1="        unmockkStatic(NotificationManagerCompat::class)"
-        errorLine2="        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/test/java/org/mozilla/fenix/settings/SettingsFragmentTest.kt"
-            line="202"
-            column="9"/>
-    </issue>
-
-    <issue
-        id="NoStaticMocking"
-        message="Usage of MockK&apos;s &apos;mockkStatic&apos; for static mocking is discouraged. Refactor to use dependency injection."
-        errorLine1="        mockkStatic(NotificationManagerCompat::class)"
-        errorLine2="        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/test/java/org/mozilla/fenix/settings/SettingsFragmentTest.kt"
-            line="211"
-            column="9"/>
-    </issue>
-
-    <issue
-        id="NoStaticMocking"
-        message="Usage of MockK&apos;s &apos;unmockkStatic&apos; for static mocking is discouraged. Refactor to use dependency injection."
-        errorLine1="        unmockkStatic(NotificationManagerCompat::class)"
-        errorLine2="        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/test/java/org/mozilla/fenix/settings/SettingsFragmentTest.kt"
-            line="218"
-            column="9"/>
-    </issue>
-
-    <issue
-        id="NoStaticMocking"
-        message="Usage of MockK&apos;s &apos;mockkStatic&apos; for static mocking is discouraged. Refactor to use dependency injection."
-        errorLine1="        mockkStatic(&quot;mozilla.components.browser.state.state.SearchStateKt&quot;)"
-        errorLine2="        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/test/java/org/mozilla/fenix/settings/SettingsFragmentTest.kt"
-            line="276"
-            column="9"/>
-    </issue>
-
-    <issue
-        id="NoStaticMocking"
-        message="Usage of MockK&apos;s &apos;mockkStatic&apos; for static mocking is discouraged. Refactor to use dependency injection."
         errorLine1="        mockkStatic(&quot;org.mozilla.fenix.ext.ContextKt&quot;) {"
         errorLine2="        ^">
         <location
@@ -2100,28 +2045,6 @@
             file="src/main/java/org/mozilla/fenix/ext/Context.kt"
             line="81"
             column="9"/>
-    </issue>
-
-    <issue
-        id="InflateParams"
-        message="Avoid passing `null` as the view root (needed to resolve layout parameters on the inflated layout&apos;s root element)"
-        errorLine1="                .inflate(R.layout.crash_extension_dialog, null, false)"
-        errorLine2="                                                          ~~~~">
-        <location
-            file="src/main/java/org/mozilla/fenix/addons/ExtensionsProcessDisabledForegroundController.kt"
-            line="80"
-            column="59"/>
-    </issue>
-
-    <issue
-        id="InflateParams"
-        message="Avoid passing `null` as the view root (needed to resolve layout parameters on the inflated layout&apos;s root element)"
-        errorLine1="                val layout = getLayoutInflater().inflate(R.layout.delete_history_time_range_dialog, null)"
-        errorLine2="                                                                                                    ~~~~">
-        <location
-            file="src/main/java/org/mozilla/fenix/library/history/HistoryFragment.kt"
-            line="527"
-            column="101"/>
     </issue>
 
     <issue
@@ -4107,17 +4030,6 @@
     <issue
         id="NoObjectMocking"
         message="Usage of MockK&apos;s &apos;mockkObject&apos; for object/singleton mocking is discouraged. Consider providing dependencies explicitly."
-        errorLine1="        mockkObject(Snackbar)"
-        errorLine2="        ~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/test/java/org/mozilla/fenix/nimbus/NimbusBranchesControllerTest.kt"
-            line="58"
-            column="9"/>
-    </issue>
-
-    <issue
-        id="NoObjectMocking"
-        message="Usage of MockK&apos;s &apos;mockkObject&apos; for object/singleton mocking is discouraged. Consider providing dependencies explicitly."
         errorLine1="        mockkObject(MetricsUtils)"
         errorLine2="        ~~~~~~~~~~~~~~~~~~~~~~~~~">
         <location
@@ -4156,39 +4068,6 @@
         <location
             file="src/test/java/org/mozilla/fenix/search/awesomebar/SearchSuggestionsProvidersBuilderTest.kt"
             line="95"
-            column="9"/>
-    </issue>
-
-    <issue
-        id="NoObjectMocking"
-        message="Usage of MockK&apos;s &apos;mockkObject&apos; for object/singleton mocking is discouraged. Consider providing dependencies explicitly."
-        errorLine1="        mockkObject(FeatureFlags)"
-        errorLine2="        ~~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/test/java/org/mozilla/fenix/settings/SettingsFragmentTest.kt"
-            line="66"
-            column="9"/>
-    </issue>
-
-    <issue
-        id="NoObjectMocking"
-        message="Usage of MockK&apos;s &apos;unmockkObject&apos; for object/singleton mocking is discouraged. Consider providing dependencies explicitly."
-        errorLine1="        unmockkObject(Config)"
-        errorLine2="        ~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/test/java/org/mozilla/fenix/settings/SettingsFragmentTest.kt"
-            line="125"
-            column="9"/>
-    </issue>
-
-    <issue
-        id="NoObjectMocking"
-        message="Usage of MockK&apos;s &apos;unmockkObject&apos; for object/singleton mocking is discouraged. Consider providing dependencies explicitly."
-        errorLine1="        unmockkObject(FeatureFlags)"
-        errorLine2="        ~~~~~~~~~~~~~~~~~~~~~~~~~~~">
-        <location
-            file="src/test/java/org/mozilla/fenix/settings/SettingsFragmentTest.kt"
-            line="421"
             column="9"/>
     </issue>
 
