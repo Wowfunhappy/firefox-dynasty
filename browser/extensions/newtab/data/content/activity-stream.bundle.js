@@ -181,6 +181,7 @@ for (const type of [
   "MESSAGE_CLICK",
   "MESSAGE_DISMISS",
   "MESSAGE_IMPRESSION",
+  "MESSAGE_NOTIFY_VISIBILITY",
   "MESSAGE_SET",
   "MESSAGE_TOGGLE_VISIBILITY",
   "NEW_TAB_INIT",
@@ -644,6 +645,9 @@ const PREF_CONTEXTUAL_CONTENT_FEEDS = "discoverystream.contextualContent.feeds";
 const PREF_SECTIONS_ENABLED = "discoverystream.sections.enabled";
 const PREF_SPOC_PLACEMENTS = "discoverystream.placements.spocs";
 const PREF_SPOC_COUNTS = "discoverystream.placements.spocs.counts";
+const PREF_CONTEXTUAL_ADS_ENABLED = "discoverystream.sections.contextualAds.enabled";
+const PREF_CONTEXTUAL_BANNER_PLACEMENTS = "discoverystream.placements.contextualBanners";
+const PREF_CONTEXTUAL_BANNER_COUNTS = "discoverystream.placements.contextualBanners.counts";
 const Row = props => /*#__PURE__*/external_React_default().createElement("tr", _extends({
   className: "message-item"
 }, props), props.children);
@@ -887,6 +891,22 @@ class DiscoveryStreamAdminUI extends (external_React_default()).PureComponent {
     // Update prefs with new values
     this.props.dispatch(actionCreators.SetPref(PREF_SPOC_PLACEMENTS, placements));
     this.props.dispatch(actionCreators.SetPref(PREF_SPOC_COUNTS, counts));
+
+    // If contextual ads, sections, and one of the banners are enabled
+    // update the contextualBanner prefs to include the banner value and count
+    // Else, clear the prefs
+    if (PREF_CONTEXTUAL_ADS_ENABLED && PREF_SECTIONS_ENABLED) {
+      if (PREF_AD_SIZE_BILLBOARD && placements.includes("newtab_billboard")) {
+        this.props.dispatch(actionCreators.SetPref(PREF_CONTEXTUAL_BANNER_PLACEMENTS, "newtab_billboard"));
+        this.props.dispatch(actionCreators.SetPref(PREF_CONTEXTUAL_BANNER_COUNTS, "1"));
+      } else if (PREF_AD_SIZE_LEADERBOARD && placements.includes("newtab_leaderboard")) {
+        this.props.dispatch(actionCreators.SetPref(PREF_CONTEXTUAL_BANNER_PLACEMENTS, "newtab_leaderboard"));
+        this.props.dispatch(actionCreators.SetPref(PREF_CONTEXTUAL_BANNER_COUNTS, "1"));
+      } else {
+        this.props.dispatch(actionCreators.SetPref(PREF_CONTEXTUAL_BANNER_PLACEMENTS, ""));
+        this.props.dispatch(actionCreators.SetPref(PREF_CONTEXTUAL_BANNER_COUNTS, ""));
+      }
+    }
   }
   handleSectionsToggle(e) {
     const {
@@ -7709,7 +7729,7 @@ const INITIAL_STATE = {
   // Messages received from ASRouter to render in newtab
   Messages: {
     // messages received from ASRouter are initially visible
-    isHidden: false,
+    isVisible: true,
     // portID for that tab that was sent the message
     portID: "",
     // READONLY Message data received from ASRouter
@@ -8160,7 +8180,7 @@ function Messages(prevState = INITIAL_STATE.Messages, action) {
         portID: action.data.portID || "",
       };
     case actionTypes.MESSAGE_TOGGLE_VISIBILITY:
-      return { ...prevState, isHidden: action.data };
+      return { ...prevState, isVisible: action.data };
     default:
       return prevState;
   }
@@ -9153,8 +9173,11 @@ class TopSiteLink extends (external_React_default()).PureComponent {
       imageClassName,
       selectedColor
     } = this.calculateStyle();
-    let addButtonl10n = {
+    const addButtonLabell10n = {
       "data-l10n-id": "newtab-topsites-add-shortcut-label"
+    };
+    const addButtonTitlel10n = {
+      "data-l10n-id": "newtab-topsites-add-shortcut-title"
     };
     let draggableProps = {};
     if (isDraggable) {
@@ -9222,7 +9245,7 @@ class TopSiteLink extends (external_React_default()).PureComponent {
       ref: this.props.setRef
     }, draggableProps), /*#__PURE__*/external_React_default().createElement("div", {
       className: "top-site-inner"
-    }, /*#__PURE__*/external_React_default().createElement("a", {
+    }, /*#__PURE__*/external_React_default().createElement("a", TopSite_extends({
       className: "top-site-button",
       href: link.searchTopSite ? undefined : link.url,
       tabIndex: this.props.tabIndex,
@@ -9232,7 +9255,9 @@ class TopSiteLink extends (external_React_default()).PureComponent {
       "data-is-sponsored-link": !!link.sponsored_tile_id,
       title: title,
       onFocus: this.props.onFocus
-    }, shortcutsRefresh && link.isPinned && /*#__PURE__*/external_React_default().createElement("div", {
+    }, isAddButton && {
+      ...addButtonTitlel10n
+    }), shortcutsRefresh && link.isPinned && /*#__PURE__*/external_React_default().createElement("div", {
       className: "icon icon-pin-small"
     }), /*#__PURE__*/external_React_default().createElement("div", {
       className: "tile",
@@ -9258,7 +9283,7 @@ class TopSiteLink extends (external_React_default()).PureComponent {
       className: "title-label",
       dir: "auto"
     }, isAddButton && {
-      ...addButtonl10n
+      ...addButtonLabell10n
     }), !shortcutsRefresh && link.isPinned && /*#__PURE__*/external_React_default().createElement("div", {
       className: "icon icon-pin-small"
     }), shortcutsRefresh && link.searchTopSite && /*#__PURE__*/external_React_default().createElement("div", {
@@ -9481,7 +9506,7 @@ TopSite.defaultProps = {
   link: {},
   onActivate() {}
 };
-class TopSitePlaceholder extends (external_React_default()).PureComponent {
+class TopSiteAddButton extends (external_React_default()).PureComponent {
   constructor(props) {
     super(props);
     this.onEditButtonClick = this.onEditButtonClick.bind(this);
@@ -9495,20 +9520,21 @@ class TopSitePlaceholder extends (external_React_default()).PureComponent {
     });
   }
   render() {
-    let addButtonProps = {};
-    if (this.props.isAddButton) {
-      addButtonProps = {
-        title: "newtab-topsites-add-shortcut-label",
-        onClick: this.onEditButtonClick
-      };
-    }
-    return /*#__PURE__*/external_React_default().createElement(TopSiteLink, TopSite_extends({}, this.props, this.props.isAddButton ? {
-      ...addButtonProps
-    } : {}, {
-      className: `placeholder ${this.props.className || ""} ${this.props.isAddButton ? "add-button" : ""}`,
+    return /*#__PURE__*/external_React_default().createElement(TopSiteLink, TopSite_extends({}, this.props, {
+      isAddButton: true,
+      className: `add-button ${this.props.className || ""}`,
+      onClick: this.onEditButtonClick,
       setPref: this.props.setPref,
       isDraggable: false,
       tabIndex: this.props.tabIndex
+    }));
+  }
+}
+class TopSitePlaceholder extends (external_React_default()).PureComponent {
+  render() {
+    return /*#__PURE__*/external_React_default().createElement(TopSiteLink, TopSite_extends({}, this.props, {
+      className: `placeholder ${this.props.className || ""}`,
+      isDraggable: false
     }));
   }
 }
@@ -9736,19 +9762,20 @@ class _TopSiteList extends (external_React_default()).PureComponent {
       let topSiteLink;
       // Use a placeholder if the link is empty or it's rendering a sponsored
       // tile for the about:home startup cache.
-      if (!link || props.App.isForStartupCache.TopSites && isSponsored(link) || topSites[i]?.isAddButton) {
+      if (!link || props.App.isForStartupCache.TopSites && isSponsored(link)) {
         if (link) {
-          topSiteLink = /*#__PURE__*/external_React_default().createElement(TopSitePlaceholder, TopSite_extends({}, slotProps, commonProps, {
-            isAddButton: topSites[i] && topSites[i].isAddButton,
-            setRef: i === this.state.focusedIndex ? el => {
-              this.focusedRef = el;
-            } : () => {},
-            tabIndex: i === this.state.focusedIndex ? 0 : -1,
-            onFocus: () => {
-              this.onTopsiteFocus(i);
-            }
-          }));
+          topSiteLink = /*#__PURE__*/external_React_default().createElement(TopSitePlaceholder, TopSite_extends({}, slotProps, commonProps));
         }
+      } else if (topSites[i]?.isAddButton) {
+        topSiteLink = /*#__PURE__*/external_React_default().createElement(TopSiteAddButton, TopSite_extends({}, slotProps, commonProps, {
+          setRef: i === this.state.focusedIndex ? el => {
+            this.focusedRef = el;
+          } : () => {},
+          tabIndex: i === this.state.focusedIndex ? 0 : -1,
+          onFocus: () => {
+            this.onTopsiteFocus(i);
+          }
+        }));
       } else {
         topSiteLink = /*#__PURE__*/external_React_default().createElement(TopSite, TopSite_extends({
           link: link,
@@ -11430,41 +11457,52 @@ function MessageWrapper({
 }) {
   const message = (0,external_ReactRedux_namespaceObject.useSelector)(state => state.Messages);
   const [isIntersecting, setIsIntersecting] = (0,external_React_namespaceObject.useState)(false);
+  const [tabIsVisible, setTabIsVisible] = (0,external_React_namespaceObject.useState)(() => typeof document !== "undefined" && document.visibilityState === "visible");
   const [hasRun, setHasRun] = (0,external_React_namespaceObject.useState)();
   const handleIntersection = (0,external_React_namespaceObject.useCallback)(() => {
     setIsIntersecting(true);
-    const isVisible = document?.visibilityState && document.visibilityState === "visible";
     // only send impression if messageId is defined and tab is visible
-    if (isVisible && message.messageData.id) {
+    if (tabIsVisible && message.messageData.id && !hasRun) {
       setHasRun(true);
       dispatch(actionCreators.AlsoToMain({
         type: actionTypes.MESSAGE_IMPRESSION,
         data: message.messageData
       }));
     }
-  }, [dispatch, message]);
+  }, [dispatch, message, tabIsVisible, hasRun]);
+  (0,external_React_namespaceObject.useEffect)(() => {
+    // we dont want to dispatch this action unless the current tab is open and visible
+    if (message.isVisible && tabIsVisible) {
+      dispatch(actionCreators.AlsoToMain({
+        type: actionTypes.MESSAGE_NOTIFY_VISIBILITY,
+        data: true
+      }));
+    }
+  }, [message, dispatch, tabIsVisible]);
   (0,external_React_namespaceObject.useEffect)(() => {
     const handleVisibilityChange = () => {
-      if (document.visibilityState === "visible" && !hasRun) {
-        handleIntersection();
-      }
+      setTabIsVisible(document.visibilityState === "visible");
     };
     document.addEventListener("visibilitychange", handleVisibilityChange);
     return () => {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [handleIntersection, hasRun]);
+  }, []);
   const ref = useIntersectionObserver(handleIntersection);
   const handleClose = (0,external_React_namespaceObject.useCallback)(() => {
     const action = {
       type: actionTypes.MESSAGE_TOGGLE_VISIBILITY,
-      data: true
+      data: false //isVisible
     };
     if (message.portID) {
       dispatch(actionCreators.OnlyToOneContent(action, message.portID));
     } else {
       dispatch(actionCreators.AlsoToMain(action));
     }
+    dispatch(actionCreators.AlsoToMain({
+      type: actionTypes.MESSAGE_NOTIFY_VISIBILITY,
+      data: false
+    }));
     onDismiss?.();
   }, [dispatch, message, onDismiss]);
   function handleDismiss() {
@@ -11506,11 +11544,11 @@ function MessageWrapper({
       }));
     }
   }
-  if (!message || !hiddenOverride && message.isHidden) {
+  if (!message || !hiddenOverride && !message.isVisible) {
     return null;
   }
 
-  // only display the message if `isHidden` is false
+  // only display the message if `isVisible` is true
   return /*#__PURE__*/external_React_default().createElement("div", {
     ref: el => {
       ref.current = [el];
@@ -14594,6 +14632,7 @@ function DownloadMobilePromoHighlight({
 
 
 
+
 function WallpaperFeatureHighlight({
   position,
   dispatch,
@@ -14615,12 +14654,17 @@ function WallpaperFeatureHighlight({
     handleClick(elementId);
     onDismiss();
   }, [dispatch, onDismiss, handleClick]);
+
+  // Extract the strings and feature ID from OMC
+  const {
+    messageData
+  } = (0,external_ReactRedux_namespaceObject.useSelector)(state => state.Messages);
   return /*#__PURE__*/external_React_default().createElement("div", {
     className: "wallpaper-feature-highlight"
   }, /*#__PURE__*/external_React_default().createElement(FeatureHighlight, {
     position: position,
     "data-l10n-id": "feature-highlight-wallpaper",
-    feature: "FEATURE_HIGHLIGHT_WALLPAPER",
+    feature: messageData.content.feature,
     dispatch: dispatch,
     message: /*#__PURE__*/external_React_default().createElement("div", {
       className: "wallpaper-feature-highlight-content"
@@ -14631,16 +14675,16 @@ function WallpaperFeatureHighlight({
       height: "195"
     }), /*#__PURE__*/external_React_default().createElement("p", {
       className: "title",
-      "data-l10n-id": "newtab-custom-wallpaper-title"
+      "data-l10n-id": messageData.content.title
     }), /*#__PURE__*/external_React_default().createElement("p", {
       className: "subtitle",
-      "data-l10n-id": "newtab-custom-wallpaper-subtitle"
+      "data-l10n-id": messageData.content.subtitle
     }), /*#__PURE__*/external_React_default().createElement("span", {
       className: "button-wrapper"
     }, /*#__PURE__*/external_React_default().createElement("moz-button", {
       type: "default",
       onClick: () => onToggleClick("open-customize-menu"),
-      "data-l10n-id": "newtab-custom-wallpaper-cta"
+      "data-l10n-id": messageData.content.cta
     }))),
     toggle: /*#__PURE__*/external_React_default().createElement("div", {
       className: "icon icon-help"

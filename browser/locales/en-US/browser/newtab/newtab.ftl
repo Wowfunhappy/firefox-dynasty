@@ -46,6 +46,9 @@ newtab-topsites-add-search-engine-header = Add Search Engine
 newtab-topsites-add-shortcut-header = New Shortcut
 newtab-topsites-edit-shortcut-header = Edit Shortcut
 newtab-topsites-add-shortcut-label = Add Shortcut
+newtab-topsites-add-shortcut-title =
+    .title = Add Shortcut
+    .aria-label = Add Shortcut
 newtab-topsites-title-label = Title
 newtab-topsites-title-input =
     .placeholder = Enter a title
@@ -489,6 +492,12 @@ newtab-custom-wallpaper-title = Custom wallpapers are here
 # 'Make firefox yours" means to customize or personalize
 newtab-custom-wallpaper-subtitle = Upload your own wallpaper or pick a custom color to make { -brand-product-name } yours.
 newtab-custom-wallpaper-cta = Try it
+
+## Alternative strings for custom wallpaper highlight
+
+newtab-custom-wallpaper-alt-title = Your browser. Your wallpaper
+newtab-custom-wallpaper-alt-subtitle = Pick a wallpaper or color to match your mood.
+newtab-custom-wallpaper-alt-cta = Try it now
 
 ## Strings for download mobile highlight
 

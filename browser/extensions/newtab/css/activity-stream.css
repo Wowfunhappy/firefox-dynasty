@@ -978,10 +978,12 @@ main section {
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
   cursor: default;
 }
-.top-site-outer.placeholder.add-button .tile {
+.top-site-outer.add-button .tile {
   background-color: var(--button-background-color);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+  cursor: default;
 }
-.top-site-outer.placeholder.add-button .tile .icon-wrapper {
+.top-site-outer.add-button .tile .icon-wrapper {
   background-image: url("chrome://global/skin/icons/plus-20.svg");
   background-size: cover;
   background-repeat: no-repeat;
@@ -1043,13 +1045,13 @@ main section {
 .shortcuts-refresh .top-site-outer .top-site-button:focus + div .context-menu-button {
   opacity: 1;
 }
+.shortcuts-refresh .top-site-outer .icon-wrapper {
+  width: 40px;
+  height: 40px;
+}
 .shortcuts-refresh .top-site-outer .tile {
   background: var(--newtab-background-card);
   border-radius: var(--border-radius-large);
-}
-.shortcuts-refresh .top-site-outer .tile .icon-wrapper {
-  width: 40px;
-  height: 40px;
 }
 .shortcuts-refresh .top-site-outer .tile .top-site-icon {
   background-color: transparent;
@@ -2037,20 +2039,7 @@ main section {
   z-index: 5;
   position: fixed;
   inset-block-end: var(--space-xlarge);
-}
-@media (height < 700px) {
-  .personalizeButtonWrapper {
-    position: absolute;
-    inset-block-end: var(--space-xlarge);
-    inset-inline-end: var(--space-xlarge);
-  }
-}
-@media (height >= 700px) {
-  .personalizeButtonWrapper {
-    position: fixed;
-    inset-block-end: var(--space-xlarge);
-    inset-inline-end: var(--space-xlarge);
-  }
+  inset-inline-end: var(--space-xlarge);
 }
 
 .personalize-button {
@@ -2072,14 +2061,19 @@ main section {
   min-width: var(--button-collapsed-width);
   transition: all 0.5s ease-in-out;
 }
-.lightWallpaper .personalize-button:not(:hover, :active) {
-  color-scheme: light;
+.lightWallpaper .personalize-button, .darkWallpaper .personalize-button {
+  background-color: var(--newtab-weather-background-color);
 }
-.darkWallpaper .personalize-button:not(:hover, :active) {
-  color-scheme: dark;
+@media (prefers-contrast) {
+  .lightWallpaper .personalize-button, .darkWallpaper .personalize-button {
+    background-color: var(--background-color-box);
+  }
 }
 .personalize-button:hover {
   background-color: var(--newtab-element-hover-color);
+}
+.personalize-button:focus {
+  background-color: var(--newtab-element-active-color);
 }
 .personalize-button:active {
   background-color: var(--newtab-element-active-color);
@@ -8222,10 +8216,10 @@ main section {
 }
 .wallpaper-feature-highlight .feature-highlight .feature-highlight-modal .title {
   font-weight: var(--font-weight-bold);
-  margin-block: var(--space-xsmall);
+  margin-block: var(--space-medium);
 }
 .wallpaper-feature-highlight .feature-highlight .feature-highlight-modal .subtitle {
-  margin-block: 0 var(--space-xsmall);
+  margin-block: 0 var(--space-medium);
 }
 .wallpaper-feature-highlight .feature-highlight .feature-highlight-modal .button-wrapper {
   display: block;
