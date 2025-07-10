@@ -8760,7 +8760,7 @@ void CodeGenerator::visitWasmStoreStackResult(LWasmStoreStackResult* ins) {
       masm.storeUnalignedSimd128(ToFloatRegister(value), addr);
       break;
 #endif
-    case MIRType::WasmAnyRef:
+    case MIRType::RefOrNull:
       masm.storePtr(ToRegister(value), addr);
       break;
     default:
