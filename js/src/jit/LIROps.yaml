@@ -2972,6 +2972,21 @@
     offset: size_t
     maybeTrap: MaybeTrapSiteInfo
 
+- name: WasmStoreStackResult
+  operands:
+    value: WordSized
+    stackResultsArea: WordSized
+  arguments:
+    offset: size_t
+    type: MIRType
+
+- name: WasmStoreStackResultI64
+  operands:
+    value: Int64
+    stackResultsArea: WordSized
+  arguments:
+    offset: size_t
+
 - name: WasmLoadTableElement
   result_type: WordSized
   operands:
