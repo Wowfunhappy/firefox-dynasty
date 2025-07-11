@@ -5586,7 +5586,6 @@ void LIRGenerator::visitWasmStoreStackResult(MWasmStoreStackResult* ins) {
         LWasmStoreStackResultI64(useInt64Register(value), useRegister(stackResultArea),
                           offs);
   } else {
-    MOZ_ASSERT(value->type() != MIRType::RefOrNull);
     lir = new (alloc())
         LWasmStoreStackResult(useRegister(value), useRegister(stackResultArea), offs,
                        value->type());
