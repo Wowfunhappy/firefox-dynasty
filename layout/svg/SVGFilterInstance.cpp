@@ -8,6 +8,9 @@
 #include "SVGFilterInstance.h"
 
 // Keep others in (case-insensitive) order:
+#include "FilterSupport.h"
+#include "SVGFilterFrame.h"
+#include "gfx2DGlue.h"
 #include "gfxPlatform.h"
 #include "gfxUtils.h"
 #include "mozilla/ISVGDisplayableFrame.h"
@@ -15,18 +18,17 @@
 #include "mozilla/SVGObserverUtils.h"
 #include "mozilla/SVGUtils.h"
 #include "mozilla/dom/HTMLCanvasElement.h"
+#include "mozilla/dom/SVGFilterElement.h"
 #include "mozilla/dom/SVGLengthBinding.h"
 #include "mozilla/dom/SVGUnitTypesBinding.h"
-#include "mozilla/dom/SVGFilterElement.h"
-#include "SVGFilterFrame.h"
-#include "FilterSupport.h"
-#include "gfx2DGlue.h"
 
 using namespace mozilla::dom;
 using namespace mozilla::dom::SVGUnitTypes_Binding;
 using namespace mozilla::gfx;
 
 namespace mozilla {
+
+static const uint32_t MAX_PRIMITIVES_PER_FILTER = 256;
 
 SVGFilterInstance::SVGFilterInstance(
     const StyleFilter& aFilter, SVGFilterFrame* aFilterFrame,
@@ -338,6 +340,10 @@ nsresult SVGFilterInstance::BuildPrimitives(
     if (auto* primitive = SVGFilterPrimitiveElement::FromNode(child)) {
       primitives.AppendElement(primitive);
     }
+  }
+
+  if (primitives.Length() > MAX_PRIMITIVES_PER_FILTER) {
+    return NS_ERROR_FAILURE;
   }
 
   // Maps source image name to source index.

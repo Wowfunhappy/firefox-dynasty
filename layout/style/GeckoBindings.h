@@ -11,15 +11,15 @@
 
 #include <stdint.h>
 
-#include "mozilla/ServoTypes.h"
+#include "COLRFonts.h"
+#include "mozilla/EffectCompositor.h"
+#include "mozilla/PreferenceSheet.h"
 #include "mozilla/ServoBindingTypes.h"
+#include "mozilla/ServoTypes.h"
 #include "mozilla/css/DocumentMatchingFunction.h"
 #include "mozilla/css/SheetLoadData.h"
 #include "mozilla/dom/Document.h"
-#include "mozilla/EffectCompositor.h"
-#include "mozilla/PreferenceSheet.h"
 #include "nsStyleStruct.h"
-#include "COLRFonts.h"
 
 class nsAtom;
 class nsIURI;
@@ -79,14 +79,8 @@ bool Gecko_IsSignificantChild(const nsINode*, bool whitespace_is_significant);
 
 const nsINode* Gecko_GetLastChild(const nsINode*);
 const nsINode* Gecko_GetFlattenedTreeParentNode(const nsINode*);
-const mozilla::dom::Element* Gecko_GetBeforeOrAfterPseudo(
-    const mozilla::dom::Element*, bool is_before);
-const mozilla::dom::Element* Gecko_GetMarkerPseudo(
-    const mozilla::dom::Element*);
-
-nsTArray<nsIContent*>* Gecko_GetAnonymousContentForElement(
-    const mozilla::dom::Element*);
-void Gecko_DestroyAnonymousContentList(nsTArray<nsIContent*>* anon_content);
+void Gecko_GetAnonymousContentForElement(const mozilla::dom::Element*,
+                                         nsTArray<nsIContent*>*);
 
 const nsTArray<RefPtr<nsINode>>* Gecko_GetAssignedNodes(
     const mozilla::dom::Element*);

@@ -93,6 +93,14 @@ nimbusStore:
       setPref:
         branch: user
         pref: nimbus.profilesdatastoreservice.read.enabled
+    dbSyncEnabled:
+      type: boolean
+      description: >
+        If enabled, the RemoteSettingsExperimentLoader will trigger
+        unenrollments for experiments that are unenrolled in other profiles.
+      setPref:
+        branch: user
+        pref: nimbus.profilesdatastoreservice.sync.enabled
 
 search:
   description: Search service related features.
@@ -313,6 +321,16 @@ urlbar:
       description: >-
         The Merino endpoint URL, not including parameters. An empty string will
         cause Firefox not to fetch from Merino.
+    merinoOhttpConfigURL:
+      type: string
+      fallbackPref: browser.urlbar.merino.ohttpConfigURL
+      description: >-
+        OHTTP config URL for Merino requests.
+    merinoOhttpRelayURL:
+      type: string
+      fallbackPref: browser.urlbar.merino.ohttpRelayURL
+      description: >-
+        OHTTP relay URL for Merino requests.
     merinoProviders:
       type: string
       fallbackPref: browser.urlbar.merino.providers
@@ -813,16 +831,20 @@ preonboarding:
       fallbackPref: browser.preonboarding.requireAction
       description: >-
         When showModal is enabled, should action be required to proceed (show as a window modal with dismiss using the ESC key disabled)?
-    currentPolicyVersion:
+    currentVersion:
       type: int
-      fallbackPref: datareporting.policy.currentPolicyVersion
+      fallbackPref: termsofuse.currentVersion
       description: >-
         The current policy version displayed by this preonboarding modal.
-    minimumPolicyVersion:
+    minimumVersion:
       type: int
-      fallbackPref: datareporting.policy.minimumPolicyVersion
+      fallbackPref: termsofuse.minimumVersion
       description: >-
-        The minimum policy version which the user must have accepted to not see the preonboarding modal.
+        The minimum policy version which the user must have accepted to not see
+        the preonboarding modal. In some cases, the minimum version could be
+        lower than the current version if the newer version(s) is not
+        substantially different enough to warrant asking users to accept the TOU
+        again.
     firstRunURL:
       type: string
       fallbackPref: datareporting.policy.firstRunURL
@@ -2777,7 +2799,7 @@ networkingSendOnDataFinished:
       setPref:
         branch: default
         pref: "network.send_OnDataFinished"
-    sendOnDataFinshedFromInputStreamPump:
+    sendOnDataFinishedFromInputStreamPump:
       description: Whether we can send OnDataFinished to the content process from InputStreamPump
       type: boolean
       setPref:

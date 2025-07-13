@@ -36,7 +36,6 @@ import org.mozilla.fenix.GleanMetrics.AddressToolbar
 import org.mozilla.fenix.GleanMetrics.ReaderMode
 import org.mozilla.fenix.R
 import org.mozilla.fenix.browser.store.BrowserScreenAction.ReaderModeStatusUpdated
-import org.mozilla.fenix.browser.tabstrip.isTabStripEnabled
 import org.mozilla.fenix.components.TabCollectionStorage
 import org.mozilla.fenix.components.appstate.AppAction.SnackbarAction
 import org.mozilla.fenix.components.toolbar.BrowserToolbarComposable
@@ -86,7 +85,7 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
         val context = requireContext()
         val components = context.components
 
-        if (!context.isTabStripEnabled() && context.settings().isSwipeToolbarToSwitchTabsEnabled) {
+        if (!context.settings().isTabStripEnabled && context.settings().isSwipeToolbarToSwitchTabsEnabled) {
             binding.gestureLayout.addGestureListener(
                 ToolbarGestureHandler(
                     activity = requireActivity(),
@@ -160,7 +159,7 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
 
     private fun initSharePageAction(context: Context) {
         // Only adding share page action if tab strip is disabled.
-        if (!context.isTabStripEnabled() && isLargeWindow()) {
+        if (!context.settings().isTabStripEnabled && isLargeWindow()) {
             val sharePageAction = BrowserToolbar.createShareBrowserAction(
                 context = context,
             ) {
@@ -173,31 +172,34 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
     }
 
     private fun initTranslationsAction(context: Context, view: View) {
-        // Do not add translation page action if device doesn't have large window
-        if (!isLargeWindow()) {
-            return
-        }
-
         if (
             !FxNimbus.features.translations.value().mainFlowToolbarEnabled
         ) {
             return
         }
 
-        val translationsAction = Toolbar.ActionButton(
-            AppCompatResources.getDrawable(
-                context,
-                R.drawable.mozac_ic_translate_24,
-            ),
-            contentDescription = context.getString(R.string.browser_toolbar_translate),
-            iconTintColorResource = ThemeManager.resolveAttribute(R.attr.textPrimary, context),
-            visible = { translationsAvailable },
-            weight = { TRANSLATIONS_WEIGHT },
-            listener = {
-                browserToolbarInteractor.onTranslationsButtonClicked()
-            },
-        )
-        (browserToolbarView as BrowserToolbarView).toolbar.addPageAction(translationsAction)
+        // Do not add translation page action if device doesn't have large window
+        val translationsAction = if (isLargeWindow()) {
+            Toolbar.ActionButton(
+                AppCompatResources.getDrawable(
+                    context,
+                    R.drawable.mozac_ic_translate_24,
+                ),
+                contentDescription = context.getString(R.string.browser_toolbar_translate),
+                iconTintColorResource = ThemeManager.resolveAttribute(R.attr.textPrimary, context),
+                visible = { translationsAvailable },
+                weight = { TRANSLATIONS_WEIGHT },
+                listener = {
+                    browserToolbarInteractor.onTranslationsButtonClicked()
+                },
+            )
+        } else {
+            null
+        }
+
+        translationsAction?.let {
+            (browserToolbarView as BrowserToolbarView).toolbar.addPageAction(it)
+        }
 
         translationsBinding.set(
             feature = TranslationsBinding(
@@ -205,24 +207,26 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
                 onTranslationStatusUpdate = {
                     translationsAvailable = it.isTranslationPossible
 
-                    translationsAction.updateView(
-                        tintColorResource = if (it.isTranslated) {
-                            R.color.fx_mobile_icon_color_accent_violet
-                        } else {
-                            ThemeManager.resolveAttribute(R.attr.textPrimary, context)
-                        },
-                        contentDescription = if (it.isTranslated) {
-                            context.getString(
-                                R.string.browser_toolbar_translated_successfully,
-                                it.fromSelectedLanguage?.localizedDisplayName,
-                                it.toSelectedLanguage?.localizedDisplayName,
-                            )
-                        } else {
-                            context.getString(R.string.browser_toolbar_translate)
-                        },
-                    )
+                    translationsAction?.let { action ->
+                        action.updateView(
+                            tintColorResource = if (it.isTranslated) {
+                                R.color.fx_mobile_icon_color_accent_violet
+                            } else {
+                                ThemeManager.resolveAttribute(R.attr.textPrimary, context)
+                            },
+                            contentDescription = if (it.isTranslated) {
+                                context.getString(
+                                    R.string.browser_toolbar_translated_successfully,
+                                    it.fromSelectedLanguage?.localizedDisplayName,
+                                    it.toSelectedLanguage?.localizedDisplayName,
+                                )
+                            } else {
+                                context.getString(R.string.browser_toolbar_translate)
+                            },
+                        )
 
-                    safeInvalidateBrowserToolbarView()
+                        safeInvalidateBrowserToolbarView()
+                    }
 
                     if (!it.isTranslateProcessing) {
                         requireComponents.appStore.dispatch(SnackbarAction.SnackbarDismissed)
@@ -255,11 +259,6 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
     }
 
     private fun initTranslationsUpdates(context: Context, view: View) {
-        // Do not add translation page action if device doesn't have large window
-        if (!isLargeWindow()) {
-            return
-        }
-
         if (!FxNimbus.features.translations.value().mainFlowToolbarEnabled) return
 
         translationsBinding.set(
@@ -267,6 +266,14 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
                 browserStore = context.components.core.store,
                 browserScreenStore = browserScreenStore,
                 appStore = context.components.appStore,
+                onTranslationStatusUpdate = {
+                    translationsAvailable = it.isTranslationPossible
+
+                    if (!it.isTranslateProcessing) {
+                        requireComponents.appStore.dispatch(SnackbarAction.SnackbarDismissed)
+                    }
+                },
+                onShowTranslationsDialog = browserToolbarInteractor::onTranslationsButtonClicked,
                 navController = findNavController(),
             ),
             owner = this,

@@ -1559,6 +1559,10 @@ JS_PUBLIC_API void JS_SetNativeStackQuota(
   SetNativeStackSize(cx, JS::StackForTrustedScript, trustedScriptStackSize);
   SetNativeStackSize(cx, JS::StackForUntrustedScript, untrustedScriptStackSize);
 
+  if (cx->runtime()->isMainRuntime()) {
+    js::gc::MapStack(systemCodeStackSize);
+  }
+
   cx->initJitStackLimit();
 }
 
@@ -4723,7 +4727,7 @@ void AutoFilename::setUnowned(const char* filename) {
 
 void AutoFilename::setOwned(UniqueChars&& filename) {
   MOZ_ASSERT(!get());
-  filename_ = AsVariant(std::move(filename));
+  filename_ = mozilla::AsVariant(std::move(filename));
 }
 
 const char* AutoFilename::get() const {

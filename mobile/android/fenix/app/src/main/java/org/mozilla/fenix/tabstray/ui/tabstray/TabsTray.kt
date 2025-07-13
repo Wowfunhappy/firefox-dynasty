@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
@@ -34,7 +33,6 @@ import mozilla.components.browser.state.state.ContentState
 import mozilla.components.browser.state.state.TabSessionState
 import mozilla.components.browser.state.state.createTab
 import mozilla.components.browser.storage.sync.TabEntry
-import mozilla.components.compose.base.Divider
 import mozilla.components.lib.state.ext.observeAsState
 import org.mozilla.fenix.tabstray.Page
 import org.mozilla.fenix.tabstray.TabsTrayAction
@@ -182,11 +180,6 @@ fun TabsTray(
             .background(FirefoxTheme.colors.layer1)
             .testTag(TabsTrayTestTag.TABS_TRAY),
     ) {
-        Text(
-            text = "I'm a temporary text to indicate you're on the new Tab Fragment",
-            style = FirefoxTheme.typography.headline5,
-        )
-
         Box(modifier = Modifier.nestedScroll(rememberNestedScrollInteropConnection())) {
             TabsTrayBanner(
                 selectedPage = tabsTrayState.selectedPage,
@@ -222,8 +215,6 @@ fun TabsTray(
                 },
             )
         }
-
-        Divider()
 
         Box(modifier = Modifier.fillMaxSize()) {
             HorizontalPager(

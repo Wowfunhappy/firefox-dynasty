@@ -26,6 +26,7 @@ import mozilla.components.feature.sitepermissions.SitePermissionsRules.AutoplayA
 import mozilla.components.lib.crash.store.CrashReportOption
 import mozilla.components.support.ktx.android.content.PreferencesHolder
 import mozilla.components.support.ktx.android.content.booleanPreference
+import mozilla.components.support.ktx.android.content.doesDeviceHaveHinge
 import mozilla.components.support.ktx.android.content.floatPreference
 import mozilla.components.support.ktx.android.content.intPreference
 import mozilla.components.support.ktx.android.content.longPreference
@@ -39,7 +40,6 @@ import org.mozilla.fenix.FeatureFlags
 import org.mozilla.fenix.GleanMetrics.TopSites
 import org.mozilla.fenix.R
 import org.mozilla.fenix.browser.browsingmode.BrowsingMode
-import org.mozilla.fenix.browser.tabstrip.isTabStripEnabled
 import org.mozilla.fenix.components.settings.counterPreference
 import org.mozilla.fenix.components.settings.featureFlagPreference
 import org.mozilla.fenix.components.settings.lazyFeatureFlagPreference
@@ -1012,6 +1012,26 @@ class Settings(private val appContext: Context) : PreferencesHolder {
         false,
     )
 
+    var strictAllowListBaselineTrackingProtection by booleanPreference(
+        appContext.getPreferenceKey(R.string.pref_key_tracking_protection_strict_allow_list_baseline),
+        true,
+    )
+
+    var strictAllowListConvenienceTrackingProtection by booleanPreference(
+        appContext.getPreferenceKey(R.string.pref_key_tracking_protection_strict_allow_list_convenience),
+        false,
+    )
+
+    var customAllowListBaselineTrackingProtection by booleanPreference(
+        appContext.getPreferenceKey(R.string.pref_key_tracking_protection_custom_allow_list_baseline),
+        true,
+    )
+
+    var customAllowListConvenienceTrackingProtection by booleanPreference(
+        appContext.getPreferenceKey(R.string.pref_key_tracking_protection_custom_allow_list_convenience),
+        false,
+    )
+
     @VisibleForTesting(otherwise = PRIVATE)
     fun setStrictETP() {
         preferences.edit {
@@ -1210,7 +1230,7 @@ class Settings(private val appContext: Context) : PreferencesHolder {
     )
 
     val toolbarPosition: ToolbarPosition
-        get() = if (appContext.isTabStripEnabled()) {
+        get() = if (isTabStripEnabled) {
             ToolbarPosition.TOP
         } else if (shouldUseBottomToolbar) {
             ToolbarPosition.BOTTOM
@@ -1756,6 +1776,12 @@ class Settings(private val appContext: Context) : PreferencesHolder {
         default = true,
     )
 
+    var isTabStripEnabled by booleanPreference(
+        appContext.getPreferenceKey(R.string.pref_key_tab_strip_show),
+        default = FxNimbus.features.tabStrip.value().enabled &&
+                (isTabStripEligible(appContext) || FxNimbus.features.tabStrip.value().allowOnAllDevices),
+    )
+
     var isDynamicToolbarEnabled by booleanPreference(
         appContext.getPreferenceKey(R.string.pref_key_dynamic_toolbar),
         default = true,
@@ -1766,11 +1792,32 @@ class Settings(private val appContext: Context) : PreferencesHolder {
         default = true,
     )
 
+    /**
+     * Address Sync feature.
+     */
+    var isAddressSyncEnabled by featureFlagPreference(
+        key = appContext.getPreferenceKey(R.string.pref_key_enable_address_sync),
+        default = FxNimbus.features.addressSync.value().enabled,
+        featureFlag = isAddressFeatureEnabled(appContext),
+    )
+
     var addressFeature by featureFlagPreference(
         appContext.getPreferenceKey(R.string.pref_key_show_address_feature),
         default = true,
         featureFlag = isAddressFeatureEnabled(appContext),
     )
+
+    /**
+     * Returns true if the the device has the prerequisites to enable the tab strip.
+     */
+    private fun isTabStripEligible(context: Context): Boolean {
+        // Tab Strip is currently disabled on foldable devices, while we work on improving the
+        // Homescreen / Toolbar / Browser screen to better support the feature. There is also
+        // an emulator bug that causes the doesDeviceHaveHinge check to return true on emulators,
+        // causing it to be disabled on emulator tablets for API 34 and below.
+        // https://issuetracker.google.com/issues/296162661
+        return context.isLargeScreenSize() && !context.doesDeviceHaveHinge()
+    }
 
     /**
      * Show the Addresses autofill feature.

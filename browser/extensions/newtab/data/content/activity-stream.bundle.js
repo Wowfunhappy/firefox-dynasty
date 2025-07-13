@@ -4950,7 +4950,8 @@ function TrendingSearches() {
   } = TrendingSearch;
   const variant = prefs[PREF_TRENDING_VARIANT];
   let resultRef = (0,external_React_namespaceObject.useRef)([]);
-  const TRENDING_SEARCH_CONTEXT_MENU_OPTIONS = ["TrendingSearchLearnMore", "TrendingSearchDismiss"];
+  let contextMenuHost = (0,external_React_namespaceObject.useRef)(null);
+  const TRENDING_SEARCH_CONTEXT_MENU_OPTIONS = ["TrendingSearchDismiss", "TrendingSearchLearnMore"];
   function onArrowClick() {
     dispatch(actionCreators.AlsoToMain({
       type: actionTypes.TRENDING_SEARCH_TOGGLE_COLLAPSE,
@@ -4968,9 +4969,36 @@ function TrendingSearches() {
       }
     }));
   }
+
+  // If the window is small, the context menu in variant B will move closer to the card
+  // so that it doesn't cut off
+  const handleContextMenuShow = () => {
+    const host = contextMenuHost.current;
+    const isRTL = document.dir === "rtl"; // returns true if page language is right-to-left
+    const checkRect = host.getBoundingClientRect();
+    const maxBounds = 200;
+
+    // Adds the class of "last-item" if the card is near the edge of the window
+    const checkBounds = isRTL ? checkRect.left <= maxBounds : window.innerWidth - checkRect.right <= maxBounds;
+    if (checkBounds) {
+      host.classList.add("last-item");
+    }
+  };
+  const handleContextMenuUpdate = () => {
+    const host = contextMenuHost.current;
+    if (!host) {
+      return;
+    }
+    host.classList.remove("last-item");
+  };
   const toggleContextMenu = isKeyBoard => {
     setShowContextMenu(!showContextMenu);
     setIsKeyboardAccess(isKeyBoard);
+    if (!showContextMenu) {
+      handleContextMenuShow();
+    } else {
+      handleContextMenuUpdate();
+    }
   };
   function onContextMenuClick(e) {
     e.preventDefault();
@@ -5041,7 +5069,7 @@ function TrendingSearches() {
       onClick: onArrowClick,
       className: `icon icon-arrowhead-up`,
       type: "icon ghost",
-      "data-l10n-id": `newtab-trending-searches-${collapsed ? "hide" : "show"}-trending`
+      "data-l10n-id": `newtab-trending-searches-${collapsed ? "show" : "hide"}-trending`
     }))), !collapsed && /*#__PURE__*/external_React_default().createElement("ul", {
       className: "trending-searches-list"
     }, suggestions.map((result, index) => {
@@ -5061,6 +5089,7 @@ function TrendingSearches() {
     return /*#__PURE__*/external_React_default().createElement("div", {
       ref: el => {
         ref.current = [el];
+        contextMenuHost.current = el;
       },
       className: "trending-searches-list-view"
     }, /*#__PURE__*/external_React_default().createElement("div", {
@@ -11371,8 +11400,6 @@ const PersonalizedCard = ({
 
 
 
-
-const FEATURE_ID = "FEATURE_FOLLOW_SECTION_BUTTON";
 function FollowSectionButtonHighlight({
   arrowPosition,
   position,
@@ -11380,37 +11407,19 @@ function FollowSectionButtonHighlight({
   dispatch,
   handleDismiss,
   handleBlock,
-  isIntersecting
+  feature
 }) {
   const onDismiss = (0,external_React_namespaceObject.useCallback)(() => {
-    // This event is emitted manually because the feature may be triggered outside the OMC flow,
-    // and may not be captured by the messaging-system’s automatic reporting.
-    dispatch(actionCreators.DiscoveryStreamUserEvent({
-      event: "FEATURE_HIGHLIGHT_DISMISS",
-      source: "FEATURE_HIGHLIGHT",
-      value: FEATURE_ID
-    }));
     handleDismiss();
     handleBlock();
-  }, [dispatch, handleDismiss, handleBlock]);
-  (0,external_React_namespaceObject.useEffect)(() => {
-    if (isIntersecting) {
-      // This event is emitted manually because the feature may be triggered outside the OMC flow,
-      // and may not be captured by the messaging-system’s automatic reporting.
-      dispatch(actionCreators.DiscoveryStreamUserEvent({
-        event: "FEATURE_HIGHLIGHT_IMPRESSION",
-        source: "FEATURE_HIGHLIGHT",
-        value: FEATURE_ID
-      }));
-    }
-  }, [dispatch, isIntersecting]);
+  }, [handleDismiss, handleBlock]);
   return /*#__PURE__*/external_React_default().createElement("div", {
     className: "follow-section-button-highlight"
   }, /*#__PURE__*/external_React_default().createElement(FeatureHighlight, {
     position: position,
     arrowPosition: arrowPosition,
     verticalPosition: verticalPosition,
-    feature: FEATURE_ID,
+    feature: feature,
     dispatch: dispatch,
     message: /*#__PURE__*/external_React_default().createElement("div", {
       className: "follow-section-button-highlight-content"
@@ -11790,7 +11799,15 @@ function CardSection({
   }, /*#__PURE__*/external_React_default().createElement(FollowSectionButtonHighlight, {
     verticalPosition: "inset-block-center",
     position: "arrow-inline-start",
+    dispatch: dispatch,
+    feature: "FEATURE_FOLLOW_SECTION_BUTTON"
+  })), !anySectionsFollowed && sectionPosition === 1 && shouldShowOMCHighlight(messageData, "FollowSectionButtonAltHighlight") && /*#__PURE__*/external_React_default().createElement(MessageWrapper, {
     dispatch: dispatch
+  }, /*#__PURE__*/external_React_default().createElement(FollowSectionButtonHighlight, {
+    verticalPosition: "inset-block-center",
+    position: "arrow-inline-start",
+    dispatch: dispatch,
+    feature: "FEATURE_ALT_FOLLOW_SECTION_BUTTON"
   })), /*#__PURE__*/external_React_default().createElement("moz-button", {
     onClick: following ? onUnfollowClick : onFollowClick,
     type: "default",
@@ -12743,7 +12760,7 @@ class _WallpaperCategories extends (external_React_default()).PureComponent {
     if (getIndex === -1) {
       return; // prevents errors if wallpaper index isn't found when navigating with arrow keys
     }
-    const isRTL = document.dir === "rtl"; // returns true is page language is right-to-left
+    const isRTL = document.dir === "rtl"; // returns true if page language is right-to-left
     let eventKey = event.key;
     if (eventKey === "ArrowRight" || eventKey === "ArrowLeft") {
       if (isRTL) {
@@ -13644,17 +13661,10 @@ class _Search extends (external_React_default()).PureComponent {
       // (See github ticket #2348 for more details)
       const healthReportKey = IS_NEWTAB ? "newtab" : "abouthome";
 
-      // The "searchSource" needs to be "newtab" or "homepage" and is sent with
-      // the search data and acts as context for the search request (See
-      // nsISearchEngine.getSubmission). It is necessary so that search engine
-      // plugins can correctly atribute referrals. (See github ticket #3321 for
-      // more details)
-      const searchSource = IS_NEWTAB ? "newtab" : "homepage";
-
       // gContentSearchController needs to exist as a global so that tests for
       // the existing about:home can find it; and so it allows these tests to pass.
       // In the future, when activity stream is default about:home, this can be renamed
-      window.gContentSearchController = new ContentSearchUIController(input, input.parentNode, healthReportKey, searchSource);
+      window.gContentSearchController = new ContentSearchUIController(input, input.parentNode, healthReportKey);
       addEventListener("ContentSearchClient", this);
     } else {
       window.gContentSearchController = null;
@@ -14521,7 +14531,7 @@ function TopicSelection({
 const PREF_MOBILE_DOWNLOAD_HIGHLIGHT_VARIANT_A = "mobileDownloadModal.variant-a";
 const PREF_MOBILE_DOWNLOAD_HIGHLIGHT_VARIANT_B = "mobileDownloadModal.variant-b";
 const PREF_MOBILE_DOWNLOAD_HIGHLIGHT_VARIANT_C = "mobileDownloadModal.variant-c";
-const DownloadMobilePromoHighlight_FEATURE_ID = "FEATURE_DOWNLOAD_MOBILE_PROMO";
+const FEATURE_ID = "FEATURE_DOWNLOAD_MOBILE_PROMO";
 function DownloadMobilePromoHighlight({
   position,
   dispatch,
@@ -14536,7 +14546,7 @@ function DownloadMobilePromoHighlight({
       event: "FEATURE_HIGHLIGHT_DISMISS",
       source: "FEATURE_HIGHLIGHT",
       value: {
-        feature: DownloadMobilePromoHighlight_FEATURE_ID
+        feature: FEATURE_ID
       }
     }));
     handleDismiss();
@@ -14550,7 +14560,7 @@ function DownloadMobilePromoHighlight({
         event: "FEATURE_HIGHLIGHT_IMPRESSION",
         source: "FEATURE_HIGHLIGHT",
         value: {
-          feature: DownloadMobilePromoHighlight_FEATURE_ID
+          feature: FEATURE_ID
         }
       }));
     }
@@ -14601,7 +14611,7 @@ function DownloadMobilePromoHighlight({
     className: "download-firefox-feature-highlight"
   }, /*#__PURE__*/external_React_default().createElement(FeatureHighlight, {
     position: position,
-    feature: DownloadMobilePromoHighlight_FEATURE_ID,
+    feature: FEATURE_ID,
     dispatch: dispatch,
     message: /*#__PURE__*/external_React_default().createElement("div", {
       className: "download-firefox-feature-highlight-content"

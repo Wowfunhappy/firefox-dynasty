@@ -46,6 +46,7 @@ import kotlinx.coroutines.Dispatchers.IO
 import kotlinx.coroutines.Dispatchers.Main
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.map
@@ -74,6 +75,7 @@ import mozilla.components.lib.state.ext.flow
 import mozilla.components.support.base.feature.ViewBoundFeatureWrapper
 import mozilla.telemetry.glean.private.NoExtras
 import org.mozilla.fenix.BrowserDirection
+import org.mozilla.fenix.FeatureFlags
 import org.mozilla.fenix.GleanMetrics.HomeScreen
 import org.mozilla.fenix.GleanMetrics.Homepage
 import org.mozilla.fenix.HomeActivity
@@ -85,13 +87,15 @@ import org.mozilla.fenix.biometricauthentication.BiometricAuthenticationManager
 import org.mozilla.fenix.biometricauthentication.NavigationOrigin
 import org.mozilla.fenix.browser.browsingmode.BrowsingMode
 import org.mozilla.fenix.browser.tabstrip.TabStrip
-import org.mozilla.fenix.browser.tabstrip.isTabStripEnabled
 import org.mozilla.fenix.components.Components
 import org.mozilla.fenix.components.TabCollectionStorage
 import org.mozilla.fenix.components.appstate.AppAction
 import org.mozilla.fenix.components.appstate.AppAction.ContentRecommendationsAction
 import org.mozilla.fenix.components.appstate.AppAction.MessagingAction
 import org.mozilla.fenix.components.appstate.AppAction.MessagingAction.MicrosurveyAction
+import org.mozilla.fenix.components.appstate.AppAction.ReviewPromptAction.CheckIfEligibleForReviewPrompt
+import org.mozilla.fenix.components.appstate.AppAction.ReviewPromptAction.ReviewPromptShown
+import org.mozilla.fenix.components.appstate.AppState
 import org.mozilla.fenix.components.components
 import org.mozilla.fenix.components.toolbar.BottomToolbarContainerView
 import org.mozilla.fenix.compose.snackbar.Snackbar
@@ -120,6 +124,8 @@ import org.mozilla.fenix.home.recentvisits.RecentVisitsFeature
 import org.mozilla.fenix.home.recentvisits.controller.DefaultRecentVisitsController
 import org.mozilla.fenix.home.search.DefaultHomeSearchController
 import org.mozilla.fenix.home.sessioncontrol.DefaultSessionControlController
+import org.mozilla.fenix.home.sessioncontrol.SessionControlController
+import org.mozilla.fenix.home.sessioncontrol.SessionControlControllerCallback
 import org.mozilla.fenix.home.sessioncontrol.SessionControlInteractor
 import org.mozilla.fenix.home.sessioncontrol.SessionControlView
 import org.mozilla.fenix.home.sessioncontrol.viewholders.CollectionHeaderViewHolder
@@ -149,6 +155,8 @@ import org.mozilla.fenix.nimbus.FxNimbus
 import org.mozilla.fenix.onboarding.HomeScreenPopupManager
 import org.mozilla.fenix.perf.MarkersFragmentLifecycleCallbacks
 import org.mozilla.fenix.perf.StartupTimeline
+import org.mozilla.fenix.reviewprompt.ReviewPromptState
+import org.mozilla.fenix.reviewprompt.ReviewPromptState.Eligible.Type
 import org.mozilla.fenix.search.SearchDialogFragment
 import org.mozilla.fenix.search.awesomebar.AwesomeBarComposable
 import org.mozilla.fenix.search.toolbar.DefaultSearchSelectorController
@@ -161,6 +169,7 @@ import org.mozilla.fenix.tabstray.TabsTrayAccessPoint
 import org.mozilla.fenix.theme.FirefoxTheme
 import org.mozilla.fenix.utils.allowUndo
 import org.mozilla.fenix.wallpapers.Wallpaper
+import java.lang.ref.WeakReference
 import org.mozilla.fenix.GleanMetrics.TabStrip as TabStripMetrics
 
 @Suppress("TooManyFunctions", "LargeClass")
@@ -230,6 +239,10 @@ class HomeFragment : Fragment() {
 
     private val store: BrowserStore
         get() = requireComponents.core.store
+
+    private var _sessionControlController: SessionControlController? = null
+    private val sessionControlController: SessionControlController
+        get() = _sessionControlController!!
 
     private var _sessionControlInteractor: SessionControlInteractor? = null
     private val sessionControlInteractor: SessionControlInteractor
@@ -454,32 +467,50 @@ class HomeFragment : Fragment() {
             view = binding.root,
         )
 
-        _sessionControlInteractor = SessionControlInteractor(
-            controller = DefaultSessionControlController(
-                activity = activity,
-                settings = components.settings,
-                engine = components.core.engine,
-                messageController = DefaultMessageController(
-                    appStore = components.appStore,
-                    messagingController = components.nimbus.messaging,
-                    homeActivity = activity,
-                ),
-                store = store,
-                tabCollectionStorage = components.core.tabCollectionStorage,
-                addTabUseCase = components.useCases.tabsUseCases.addTab,
-                restoreUseCase = components.useCases.tabsUseCases.restore,
-                selectTabUseCase = components.useCases.tabsUseCases.selectTab,
-                reloadUrlUseCase = components.useCases.sessionUseCases.reload,
-                topSitesUseCases = components.useCases.topSitesUseCase,
-                marsUseCases = components.useCases.marsUseCases,
+        _sessionControlController = DefaultSessionControlController(
+            activityRef = WeakReference(activity),
+            settings = components.settings,
+            engine = components.core.engine,
+            messageController = DefaultMessageController(
                 appStore = components.appStore,
-                navController = findNavController(),
-                viewLifecycleScope = viewLifecycleOwner.lifecycleScope,
-                registerCollectionStorageObserver = ::registerCollectionStorageObserver,
-                removeCollectionWithUndo = ::removeCollectionWithUndo,
-                showUndoSnackbarForTopSite = ::showUndoSnackbarForTopSite,
-                showTabTray = ::openTabsTray,
+                messagingController = components.nimbus.messaging,
+                homeActivityRef = WeakReference(activity),
             ),
+            store = store,
+            tabCollectionStorage = components.core.tabCollectionStorage,
+            addTabUseCase = components.useCases.tabsUseCases.addTab,
+            restoreUseCase = components.useCases.tabsUseCases.restore,
+            selectTabUseCase = components.useCases.tabsUseCases.selectTab,
+            reloadUrlUseCase = components.useCases.sessionUseCases.reload,
+            topSitesUseCases = components.useCases.topSitesUseCase,
+            marsUseCases = components.useCases.marsUseCases,
+            appStore = components.appStore,
+            navControllerRef = WeakReference(findNavController()),
+            viewLifecycleScope = viewLifecycleOwner.lifecycleScope,
+        ).apply {
+            registerCallback(
+                object : SessionControlControllerCallback {
+                    override fun registerCollectionStorageObserver() {
+                        this@HomeFragment.registerCollectionStorageObserver()
+                    }
+
+                    override fun removeCollectionWithUndo(tabCollection: TabCollection) {
+                        this@HomeFragment.removeCollectionWithUndo(tabCollection)
+                    }
+
+                    override fun showUndoSnackbarForTopSite(topSite: TopSite) {
+                        this@HomeFragment.showUndoSnackbarForTopSite(topSite)
+                    }
+
+                    override fun showTabTray() {
+                        this@HomeFragment.openTabsTray()
+                    }
+                },
+            )
+        }
+
+        _sessionControlInteractor = SessionControlInteractor(
+            controller = sessionControlController,
             recentTabController = DefaultRecentTabsController(
                 selectTabUseCase = components.useCases.tabsUseCases.selectTab,
                 navController = findNavController(),
@@ -512,7 +543,7 @@ class HomeFragment : Fragment() {
                 store = components.core.store,
             ),
             pocketStoriesController = DefaultPocketStoriesController(
-                navController = findNavController(),
+                navControllerRef = WeakReference(findNavController()),
                 appStore = components.appStore,
                 settings = components.settings,
                 fenixBrowserUseCases = requireComponents.useCases.fenixBrowserUseCases,
@@ -872,7 +903,7 @@ class HomeFragment : Fragment() {
         )
 
         toolbarView.build(requireComponents.core.store.state)
-        if (requireContext().isTabStripEnabled()) {
+        if (requireContext().settings().isTabStripEnabled) {
             initTabStrip()
         }
 
@@ -963,6 +994,8 @@ class HomeFragment : Fragment() {
                 }
             }
         }
+
+        observeReviewPromptState()
 
         // DO NOT MOVE ANYTHING BELOW THIS addMarker CALL!
         requireComponents.core.engine.profiler?.addMarker(
@@ -1109,6 +1142,9 @@ class HomeFragment : Fragment() {
 
         nullableToolbarView = null
 
+        _sessionControlController?.unregisterCallback()
+        _sessionControlController = null
+
         _sessionControlInteractor = null
         sessionControlView = null
         _bottomToolbarContainerView = null
@@ -1154,8 +1190,12 @@ class HomeFragment : Fragment() {
         // We only want this observer live just before we navigate away to the collection creation screen
         requireComponents.core.tabCollectionStorage.unregister(collectionStorageObserver)
 
-        lifecycleScope.launch(IO) {
-            requireComponents.reviewPromptController.promptReview(requireActivity())
+        if (FeatureFlags.CUSTOM_REVIEW_PROMPT_ENABLED) {
+            requireComponents.appStore.dispatch(CheckIfEligibleForReviewPrompt)
+        } else {
+            lifecycleScope.launch(IO) {
+                requireComponents.reviewPromptController.promptReview(requireActivity())
+            }
         }
     }
 
@@ -1370,6 +1410,49 @@ class HomeFragment : Fragment() {
         ).also {
             awesomeBarComposable = it
         }
+    }
+
+    private fun observeReviewPromptState() {
+        consumeFlow(requireComponents.appStore) { appStates ->
+            observeReviewPromptState(
+                appStates = appStates,
+                dispatchAction = requireComponents.appStore::dispatch,
+                tryShowPlayStorePrompt = {
+                    requireComponents.playStoreReviewPromptController
+                        .tryPromptReview(requireActivity())
+                },
+                showCustomPrompt = {
+                    findNavController().navigate(
+                        NavGraphDirections.actionGlobalCustomReviewPromptDialogFragment(),
+                    )
+                },
+            )
+        }
+    }
+
+    @VisibleForTesting
+    internal suspend fun observeReviewPromptState(
+        appStates: Flow<AppState>,
+        dispatchAction: (AppAction) -> Unit,
+        tryShowPlayStorePrompt: suspend () -> Unit,
+        showCustomPrompt: () -> Unit,
+    ) {
+        appStates
+            .map { it.reviewPrompt }
+            .distinctUntilChanged()
+            .collect {
+                when (it) {
+                    ReviewPromptState.Unknown, ReviewPromptState.NotEligible -> {}
+
+                    is ReviewPromptState.Eligible -> {
+                        when (it.type) {
+                            Type.PlayStore -> tryShowPlayStorePrompt()
+                            Type.Custom -> showCustomPrompt()
+                        }
+                        dispatchAction(ReviewPromptShown)
+                    }
+                }
+            }
     }
 
     companion object {

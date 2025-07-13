@@ -13,6 +13,10 @@ class FakeIPProtectionPanelElement {
     this.isConnected = false;
   }
 
+  requestUpdate() {
+    /* NOOP */
+  }
+
   closest() {
     return {
       state: "open",
@@ -27,6 +31,8 @@ add_task(async function test_setState() {
   let ipProtectionPanel = new IPProtectionPanel();
   let fakeElement = new FakeIPProtectionPanelElement();
   ipProtectionPanel.panel = fakeElement;
+
+  ipProtectionPanel.state = {};
 
   ipProtectionPanel.setState({
     foo: "bar",
@@ -61,6 +67,8 @@ add_task(async function test_setState() {
     { foo: "bar", isFoo: true },
     "The state should be set on the fake element"
   );
+
+  ipProtectionPanel.state = {};
 });
 
 /**
@@ -70,6 +78,8 @@ add_task(async function test_updateState() {
   let ipProtectionPanel = new IPProtectionPanel();
   let fakeElement = new FakeIPProtectionPanelElement();
   ipProtectionPanel.panel = fakeElement;
+
+  ipProtectionPanel.state = {};
 
   ipProtectionPanel.setState({
     foo: "bar",
@@ -89,4 +99,6 @@ add_task(async function test_updateState() {
     { foo: "bar" },
     "The state should be set on the fake element"
   );
+
+  ipProtectionPanel.state = {};
 });

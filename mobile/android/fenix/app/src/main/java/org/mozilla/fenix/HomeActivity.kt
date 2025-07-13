@@ -199,6 +199,7 @@ open class HomeActivity : LocaleAwareAppCompatActivity(), NavHostActivity {
             store = components.core.store,
             context = this@HomeActivity,
             fragmentManager = supportFragmentManager,
+            navController = navHost.navController,
             onLinkClicked = { url, shouldOpenInBrowser ->
                 if (shouldOpenInBrowser) {
                     openToBrowserAndLoad(
@@ -526,7 +527,7 @@ open class HomeActivity : LocaleAwareAppCompatActivity(), NavHostActivity {
         components.core.requestInterceptor.setNavigationController(navHost.navController)
 
         supportFragmentManager.registerFragmentLifecycleCallbacks(
-            StatusBarColorManager(themeManager, this),
+            StatusBarColorManager(themeManager, this, settings().isTabStripEnabled),
             true,
         )
 

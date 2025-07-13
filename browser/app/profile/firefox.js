@@ -666,6 +666,12 @@ pref("browser.urlbar.merino.providers", "");
 // Comma-separated list of client variants to send to Merino
 pref("browser.urlbar.merino.clientVariants", "");
 
+// OHTTP config URL for Merino requests
+pref("browser.urlbar.merino.ohttpConfigURL", "");
+
+// OHTTP relay URL for Merino requests
+pref("browser.urlbar.merino.ohttpRelayURL", "");
+
 // Enable site specific search result.
 pref("browser.urlbar.contextualSearch.enabled", true);
 
@@ -921,6 +927,9 @@ pref("browser.link.open_newwindow.restriction", 2);
 #else
   pref("browser.link.open_newwindow.disabled_in_fullscreen", false);
 #endif
+
+// If true, opening javscript: URLs using middle-click, CTRL+click etc. are blocked.
+pref("browser.link.alternative_click.block_javascript", true);
 
 // Tabbed browser
 pref("browser.tabs.closeTabByDblclick", false);
@@ -1750,6 +1759,27 @@ pref("browser.newtab.preload", true);
   pref("browser.preonboarding.enabled", false);
 #endif
 
+// For further detail on the TOU prefs below, see the `preonboarding` feature in
+// FeatureManifest.yaml
+// Version of the TOU that the user last accepted
+pref("termsofuse.acceptedVersion", 0);
+// Stringified timestamp of when the user last accepted the TOU
+pref("termsofuse.acceptedDate", "0");
+// The most up-to-date version of the TOU, we set the minimum and current
+// version as 4 to distinguish it from version numbers used in previous TOU
+// experiments and rollouts
+pref("termsofuse.currentVersion", 4);
+// The minimum version fo the TOU that a user must have accepted to not be
+// presented with the TOU modal
+pref("termsofuse.minimumVersion", 4);
+// Should we bypass the TOU modal notification completely, currently only true
+// for local/non-official builds
+#ifdef MOZILLA_OFFICIAL
+  pref("termsofuse.bypassNotification", false);
+#else
+  pref("termsofuse.bypassNotification", true);
+#endif
+
 // Show "Download Firefox for mobile" QR code modal on newtab
 pref("browser.newtabpage.activity-stream.mobileDownloadModal.enabled", false);
 pref("browser.newtabpage.activity-stream.mobileDownloadModal.variant-a", false);
@@ -2052,6 +2082,14 @@ pref("nimbus.profilesdatastoreservice.enabled", true);
 pref("nimbus.profilesdatastoreservice.read.enabled", true);
 #else
 pref("nimbus.profilesdatastoreservice.read.enabled", false);
+#endif
+
+// Should Nimbus sync experiment unenrollments from other profiles?
+// TODO(bug 1956087): Enable this behaviour by default and remove this pref.
+#if defined(NIGHTLY_BUILD)
+pref("nimbus.profilesdatastoreservice.sync.enabled", true);
+#else
+pref("nimbus.profilesdatastoreservice.sync.enabled", false);
 #endif
 
 // Enable the targeting context telemetry by default, but allow it to be

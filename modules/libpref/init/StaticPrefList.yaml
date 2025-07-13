@@ -3912,7 +3912,7 @@
 # See bug 1953860 for background and additional details.
 - name: dom.quotaManager.loadQuotaFromSecondaryCache
   type: RelaxedAtomicBool
-#if defined(NIGHTLY_BUILD) && defined(XP_LINUX) && !defined(ANDROID)
+#if defined(NIGHTLY_BUILD) && !defined(ANDROID)
   value: true
 #else
   value: false
@@ -4051,7 +4051,7 @@
 # L2 cache to all users on all platforms in the release channel.
 - name: dom.quotaManager.originInitialization.updateOriginMetadata
   type: RelaxedAtomicBool
-#if defined(NIGHTLY_BUILD) && defined(XP_LINUX) && !defined(ANDROID)
+#if defined(NIGHTLY_BUILD) && !defined(ANDROID)
   value: true
 #else
   value: false
@@ -4721,11 +4721,6 @@
 - name: dom.workers.throttling.enabled
   type: bool
   value: @IS_NIGHTLY_BUILD@
-  mirror: once
-
-- name: dom.workers.timeoutmanager
-  type: bool
-  value: true
   mirror: once
 
 - name: dom.workers.serialized-sab-access
@@ -5475,7 +5470,7 @@
 # This is based on https://github.com/mfreed7/shadow-dom-selection
 - name: dom.shadowdom.selection_across_boundary.enabled
   type: bool
-  value: @IS_NIGHTLY_BUILD@
+  value: true
   mirror: always
 
 # Mimic Chrome's window.getSelection().toString() behaviour
@@ -5788,6 +5783,12 @@
 - name: dom.document.name_getter_follow_spec.enabled
   type: bool
   value: true
+  mirror: always
+
+# Whether to block the shadowing of known document properties.
+- name: dom.document.name_getter_prevent_shadowing.enabled
+  type: bool
+  value: @IS_NIGHTLY_BUILD@
   mirror: always
 
 #---------------------------------------------------------------------------
@@ -7619,14 +7620,10 @@
 #endif
   mirror: once
 
-#ifdef NIGHTLY_BUILD
-  # Keep this pref hidden on non-nightly builds to avoid people accidentally
-  # turning it on.
 - name: gfx.webrender.layer-compositor
   type: bool
   value: false
   mirror: once
-#endif
 
 #ifdef XP_WIN
 - name: gfx.webrender.layer-compositor-force-composition-surface
@@ -9142,11 +9139,7 @@
 # both unrolling and peeling.
 - name: javascript.options.wasm_unroll_loops
   type: bool
-#ifdef NIGHTLY_BUILD
   value: true
-#else
-  value: false
-#endif
   mirror: always
   set_spidermonkey_pref: always
 
@@ -10786,6 +10779,18 @@
   value: false
 #endif
   mirror: always
+
+# Is support for CSS Typed Object Model API enabled?
+#
+# Note that this feature is experimental and under active development.
+# Enabling this pref will only expose some interfaces that are already
+# implemented and is intended solely to enable WPT coverage during
+# incremental development.
+- name: layout.css.typed-om.enabled
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
+  rust: true
 
 # Whether frame visibility tracking is enabled globally.
 - name: layout.framevisibility.enabled
