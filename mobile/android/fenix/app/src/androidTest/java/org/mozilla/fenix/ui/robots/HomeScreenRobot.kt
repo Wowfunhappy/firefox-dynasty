@@ -34,8 +34,8 @@ import androidx.compose.ui.test.performTouchInput
 import androidx.test.espresso.Espresso.onView
 import androidx.test.espresso.action.ViewActions
 import androidx.test.espresso.action.ViewActions.click
-import androidx.test.espresso.assertion.PositionAssertions.isCompletelyAbove
 import androidx.test.espresso.assertion.PositionAssertions.isPartiallyBelow
+import androidx.test.espresso.assertion.PositionAssertions.isTopAlignedWith
 import androidx.test.espresso.assertion.ViewAssertions.matches
 import androidx.test.espresso.matcher.RootMatchers
 import androidx.test.espresso.matcher.ViewMatchers
@@ -495,7 +495,7 @@ class HomeScreenRobot {
                 if (bottomPosition) {
                     isPartiallyBelow(withId(R.id.homepageView))
                 } else {
-                    isCompletelyAbove(withId(R.id.homeAppBar))
+                    isTopAlignedWith(withId(R.id.homeLayout))
                 },
             )
         Log.i(TAG, "verifyAddressBarPosition: Verified toolbar position is set to top: $bottomPosition")
@@ -832,6 +832,9 @@ class HomeScreenRobot {
             Log.i(TAG, "expandCollection: Trying to click collection with title: $title")
             composeTestRule.onNodeWithText(title).performClick()
             Log.i(TAG, "expandCollection: Clicked collection with title: $title")
+            Log.i(TAG, "expandCollection: Waiting for compose test rule to be idle")
+            composeTestRule.waitForIdle()
+            Log.i(TAG, "expandCollection: Waited for compose test rule to be idle")
 
             CollectionRobot().interact()
             return CollectionRobot.Transition()
