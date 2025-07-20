@@ -2201,14 +2201,14 @@ LogicalSize nsContainerFrame::ComputeSizeWithIntrinsicDimensions(
   const auto styleISize =
       aSizeOverrides.mStyleISize
           ? AnchorResolvedSizeHelper::Overridden(*aSizeOverrides.mStyleISize)
-          : stylePos->ISize(aWM, anchorResolutionParams.mPosition);
+          : stylePos->ISize(aWM, anchorResolutionParams);
 
   // TODO(dholbert): if styleBSize is 'stretch' here, we should probably
   // resolve it like we do in nsIFrame::ComputeSize. See bug 1937275.
   const auto styleBSize =
       aSizeOverrides.mStyleBSize
           ? AnchorResolvedSizeHelper::Overridden(*aSizeOverrides.mStyleBSize)
-          : stylePos->BSize(aWM, anchorResolutionParams.mPosition);
+          : stylePos->BSize(aWM, anchorResolutionParams);
   const auto& aspectRatio =
       aSizeOverrides.mAspectRatio ? *aSizeOverrides.mAspectRatio : aAspectRatio;
 
@@ -2291,7 +2291,8 @@ LogicalSize nsContainerFrame::ComputeSizeWithIntrinsicDimensions(
     // 'auto' inline-size for grid-level box - apply 'stretch' as needed:
     auto cbSize = aCBSize.ISize(aWM);
     if (cbSize != NS_UNCONSTRAINEDSIZE) {
-      if (!StyleMargin()->HasInlineAxisAuto(aWM, StyleDisplay()->mPosition)) {
+      if (!StyleMargin()->HasInlineAxisAuto(
+              aWM, AnchorPosResolutionParams::From(this))) {
         auto inlineAxisAlignment =
             isOrthogonal ? stylePos->UsedAlignSelf(GetParent()->Style())._0
                          : stylePos->UsedJustifySelf(GetParent()->Style())._0;
@@ -2315,8 +2316,7 @@ LogicalSize nsContainerFrame::ComputeSizeWithIntrinsicDimensions(
   // algorithm.)
   const bool isFlexItemInlineAxisMainAxis =
       flexItemMainAxis && *flexItemMainAxis == LogicalAxis::Inline;
-  const auto maxISizeCoord =
-      stylePos->MaxISize(aWM, anchorResolutionParams.mPosition);
+  const auto maxISizeCoord = stylePos->MaxISize(aWM, anchorResolutionParams);
   if (!maxISizeCoord->IsNone() && !isFlexItemInlineAxisMainAxis) {
     maxISize =
         ComputeISizeValue(aRenderingContext, aWM, aCBSize, boxSizingAdjust,
@@ -2327,8 +2327,7 @@ LogicalSize nsContainerFrame::ComputeSizeWithIntrinsicDimensions(
     maxISize = nscoord_MAX;
   }
 
-  const auto minISizeCoord =
-      stylePos->MinISize(aWM, anchorResolutionParams.mPosition);
+  const auto minISizeCoord = stylePos->MinISize(aWM, anchorResolutionParams);
   if (!minISizeCoord->IsAuto() && !isFlexItemInlineAxisMainAxis) {
     minISize =
         ComputeISizeValue(aRenderingContext, aWM, aCBSize, boxSizingAdjust,
@@ -2355,7 +2354,8 @@ LogicalSize nsContainerFrame::ComputeSizeWithIntrinsicDimensions(
     // 'auto' block-size for grid-level box - apply 'stretch' as needed:
     auto cbSize = aCBSize.BSize(aWM);
     if (cbSize != NS_UNCONSTRAINEDSIZE) {
-      if (!StyleMargin()->HasBlockAxisAuto(aWM, StyleDisplay()->mPosition)) {
+      if (!StyleMargin()->HasBlockAxisAuto(
+              aWM, AnchorPosResolutionParams::From(this))) {
         auto blockAxisAlignment =
             !isOrthogonal ? stylePos->UsedAlignSelf(GetParent()->Style())._0
                           : stylePos->UsedJustifySelf(GetParent()->Style())._0;
@@ -2379,8 +2379,7 @@ LogicalSize nsContainerFrame::ComputeSizeWithIntrinsicDimensions(
   // algorithm.)
   const bool isFlexItemBlockAxisMainAxis =
       flexItemMainAxis && *flexItemMainAxis == LogicalAxis::Block;
-  const auto maxBSizeCoord =
-      stylePos->MaxBSize(aWM, anchorResolutionParams.mPosition);
+  const auto maxBSizeCoord = stylePos->MaxBSize(aWM, anchorResolutionParams);
   if (!nsLayoutUtils::IsAutoBSize(*maxBSizeCoord, aCBSize.BSize(aWM)) &&
       !isFlexItemBlockAxisMainAxis) {
     maxBSize = nsLayoutUtils::ComputeBSizeValueHandlingStretch(
@@ -2390,8 +2389,7 @@ LogicalSize nsContainerFrame::ComputeSizeWithIntrinsicDimensions(
     maxBSize = nscoord_MAX;
   }
 
-  const auto minBSizeCoord =
-      stylePos->MinBSize(aWM, anchorResolutionParams.mPosition);
+  const auto minBSizeCoord = stylePos->MinBSize(aWM, anchorResolutionParams);
   if (!nsLayoutUtils::IsAutoBSize(*minBSizeCoord, aCBSize.BSize(aWM)) &&
       !isFlexItemBlockAxisMainAxis) {
     minBSize = nsLayoutUtils::ComputeBSizeValueHandlingStretch(
@@ -2430,7 +2428,7 @@ LogicalSize nsContainerFrame::ComputeSizeWithIntrinsicDimensions(
             LogicalAxis::Inline, aWM, intrinsicBSize, boxSizingAdjust);
       } else if (aspectRatio) {
         tentISize =
-            aCBSize.ISize(aWM) - boxSizingToMarginEdgeISize;  // XXX scrollbar?
+            aCBSize.ISize(aWM) - aBorderPadding.ISize(aWM) - aMargin.ISize(aWM);
         if (tentISize < 0) {
           tentISize = 0;
         }

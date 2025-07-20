@@ -230,6 +230,9 @@ tags = "vertical-tabs"
 
 ["browser_multiselect_tabs_move_to_another_window_drag.js"]
 tags = "vertical-tabs"
+skip-if = [
+  "os == 'mac' && os_version == '15.00' && arch == 'aarch64'", # Bug 1940606
+]
 
 ["browser_multiselect_tabs_move_to_new_window_contextmenu.js"]
 https_first_disabled = true
@@ -440,6 +443,7 @@ tags = "vertical-tabs"
 skip-if = [
   "os == 'mac' && vertical_tab", # Bug 1932997
 ]
+fail-if = ["vertical_tab"] # Bug 1976110, fails in the "vertical-tabs" variant
 
 ["browser_tabCloseSpacer.js"]
 skip-if = ["true"] # Bug 1616418 Bug 1549985
@@ -461,6 +465,7 @@ skip-if = [
   "os == 'mac' && os_version == '11.20' && arch == 'aarch64' && vertical_tab", # Bug 1928146
   "os == 'mac' && os_version == '15.30' && arch == 'aarch64' && vertical_tab", # Bug 1928146
 ]
+fail-if = ["vertical_tab"] # Bug 1976110, fails in the "vertical-tabs" variant
 
 ["browser_tabReorder_vertical.js"]
 tags = "vertical-tabs"
@@ -518,7 +523,11 @@ tags = "vertical-tabs"
 skip-if = ["os == 'linux' && os_version == '24.04' && processor == 'x86_64' && display == 'x11' && opt"] # Bug 1947600
 
 ["browser_tab_groups_tab_interactions_telemetry.js"]
-skip-if = ["os == 'linux' && os_version == '24.04' && processor == 'x86_64' && display == 'x11' && opt && swgl"] # Bug 1968371
+skip-if = [
+  "os == 'linux' && os_version == '24.04' && processor == 'x86_64' && display == 'x11' && opt && swgl", # Bug 1968371
+  "os == 'mac' && os_version == '15.00' && arch == 'aarch64'", # Bug 1968371
+  "os == 'win' && os_version == '11.26100' && processor == 'x86_64' && ccov", # Bug 1968371
+]
 
 ["browser_tab_groups_telemetry.js"]
 skip-if = [
@@ -578,9 +587,7 @@ tags = "vertical-tabs"
 skip-if = [
   "os == 'linux'&& os_version == '24.04' && processor == 'x86_64' && display == 'x11' && tsan", # Bug 1775653
   "os == 'linux'&& os_version == '18.04' && processor == 'x86_64' && tsan", # Bug 1775653
-  "os == 'mac' && os_version == '10.15' && processor == 'x86_64' && vertical_tab", # Bug 1928146
-  "os == 'mac' && os_version == '11.20' && arch == 'aarch64' && vertical_tab", # Bug 1928146
-  "os == 'mac' && os_version == '15.30' && arch == 'aarch64' && vertical_tab", # Bug 1928146
+  "vertical_tab", # Bug 1976110, fails in the "vertical-tabs" variant
 ]
 
 ["browser_tabfocus.js"]
@@ -645,3 +652,4 @@ skip-if = [
   "os == 'mac' && os_version == '11.20' && arch == 'aarch64' && vertical_tab", # Bug 1928146
   "os == 'mac' && os_version == '15.30' && arch == 'aarch64' && vertical_tab", # Bug 1928146
 ]
+fail-if = ["vertical_tab"] # Bug 1976110, fails in the "vertical-tabs" variant

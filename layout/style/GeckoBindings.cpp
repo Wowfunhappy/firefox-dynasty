@@ -134,24 +134,40 @@ const nsINode* Gecko_GetFlattenedTreeParentNode(const nsINode* aNode) {
 }
 
 void Gecko_GetAnonymousContentForElement(const Element* aElement,
-                                         nsTArray<nsIContent*>* aArray) {
+                                         nsIContent** aStackBuffer,
+                                         size_t aStackBufferCap,
+                                         size_t* aStackBufferLen,
+                                         nsTArray<nsIContent*>* aExcessArray) {
   MOZ_ASSERT(aElement->MayHaveAnonymousChildren());
-  const bool hasProps = aElement->HasProperties();
-  if (hasProps) {
+  MOZ_ASSERT(*aStackBufferLen == 0);
+  MOZ_ASSERT(aStackBufferCap > 2, "We do unchecked appends for common pseudos");
+  if (aElement->HasProperties()) {
     if (auto* marker = nsLayoutUtils::GetMarkerPseudo(aElement)) {
-      aArray->AppendElement(marker);
+      aStackBuffer[(*aStackBufferLen)++] = marker;
     }
     if (auto* before = nsLayoutUtils::GetBeforePseudo(aElement)) {
-      aArray->AppendElement(before);
+      aStackBuffer[(*aStackBufferLen)++] = before;
     }
-  }
-  nsContentUtils::AppendNativeAnonymousChildren(
-      aElement, *aArray, nsIContent::eSkipDocumentLevelNativeAnonymousContent);
-  if (hasProps) {
     if (auto* after = nsLayoutUtils::GetAfterPseudo(aElement)) {
-      aArray->AppendElement(after);
+      aStackBuffer[(*aStackBufferLen)++] = after;
     }
   }
+  AutoTArray<nsIContent*, 5> elements;
+  nsContentUtils::AppendNativeAnonymousChildren(
+      aElement, elements, nsIContent::eSkipDocumentLevelNativeAnonymousContent);
+  size_t nacChildren = elements.Length();
+  if (!nacChildren) {
+    return;  // Nothing else to do.
+  }
+
+  // If we fit in the stack buffer, copy there, otherwise use aExcessArray.
+  if (nacChildren <= aStackBufferCap - *aStackBufferLen) {
+    PodCopy(aStackBuffer + *aStackBufferLen, elements.Elements(), nacChildren);
+    *aStackBufferLen += nacChildren;
+  } else {
+    aExcessArray->SwapElements(elements);
+  }
+  MOZ_DIAGNOSTIC_ASSERT(*aStackBufferLen <= aStackBufferCap);
 }
 
 void Gecko_DestroyAnonymousContentList(nsTArray<nsIContent*>* aAnonContent) {
@@ -1873,12 +1889,8 @@ struct AnchorPosInfo {
   const nsIFrame* mContainingBlock;
 };
 
-static Maybe<AnchorPosInfo> GetAnchorPosRect(const nsIFrame* aPositioned,
-                                             const nsAtom* aAnchorName,
-                                             bool aCBRectIsvalid) {
-  if (!aPositioned) {
-    return Nothing{};
-  }
+static nsIFrame* GetAnchorOf(const nsIFrame* aPositioned,
+                             const nsAtom* aAnchorName) {
   const auto* presShell = aPositioned->PresShell();
   MOZ_ASSERT(presShell, "No PresShell for frame?");
 
@@ -1888,11 +1900,21 @@ static Maybe<AnchorPosInfo> GetAnchorPosRect(const nsIFrame* aPositioned,
     if (!stylePos->mPositionAnchor.IsIdent()) {
       // No valid anchor specified, bail.
       // TODO(dshin): Implicit anchor should be looked at here.
-      return Nothing{};
+      return nullptr;
     }
     anchorName = stylePos->mPositionAnchor.AsIdent().AsAtom();
   }
-  const auto* anchor = presShell->GetAnchorPosAnchor(anchorName, aPositioned);
+  return presShell->GetAnchorPosAnchor(anchorName, aPositioned);
+}
+
+static Maybe<AnchorPosInfo> GetAnchorPosRect(const nsIFrame* aPositioned,
+                                             const nsAtom* aAnchorName,
+                                             bool aCBRectIsvalid) {
+  if (!aPositioned) {
+    return Nothing{};
+  }
+
+  const auto* anchor = GetAnchorOf(aPositioned, aAnchorName);
   if (!anchor) {
     return Nothing{};
   }
@@ -2022,10 +2044,47 @@ bool Gecko_GetAnchorPosOffset(
   return true;
 }
 
-bool Gecko_GetAnchorPosSize(
-    const AnchorPosResolutionParams* /*aParams*/, const nsAtom* /*aAnchorName*/,
-    mozilla::StylePhysicalAxis /*aPropAxis*/,
-    mozilla::StyleAnchorSizeKeyword /*aAnchorSizeKeyword*/,
-    mozilla::Length* /*aOut*/) {
-  return false;
+bool Gecko_GetAnchorPosSize(const AnchorPosResolutionParams* aParams,
+                            const nsAtom* aAnchorName,
+                            mozilla::StylePhysicalAxis aPropAxis,
+                            mozilla::StyleAnchorSizeKeyword aAnchorSizeKeyword,
+                            mozilla::Length* aOut) {
+  if (!aParams || !aParams->mFrame) {
+    return false;
+  }
+  const auto* positioned = aParams->mFrame;
+  const auto* anchor = GetAnchorOf(positioned, aAnchorName);
+  if (!anchor) {
+    return false;
+  }
+  const auto* containingBlock = positioned->GetParent();
+  const auto l = [&]() {
+    switch (aAnchorSizeKeyword) {
+      case mozilla::StyleAnchorSizeKeyword::None:
+        switch (aPropAxis) {
+          case mozilla::StylePhysicalAxis::Horizontal:
+            return anchor->GetSize().Width();
+          case mozilla::StylePhysicalAxis::Vertical:
+            return anchor->GetSize().Height();
+        }
+        MOZ_ASSERT_UNREACHABLE("Unexpected physical axis.");
+        return anchor->GetSize().Width();
+      case mozilla::StyleAnchorSizeKeyword::Width:
+        return anchor->GetSize().Width();
+      case mozilla::StyleAnchorSizeKeyword::Height:
+        return anchor->GetSize().Height();
+      case mozilla::StyleAnchorSizeKeyword::Inline:
+        return anchor->ISize(containingBlock->GetWritingMode());
+      case mozilla::StyleAnchorSizeKeyword::Block:
+        return anchor->BSize(containingBlock->GetWritingMode());
+      case mozilla::StyleAnchorSizeKeyword::SelfInline:
+        return anchor->ISize(positioned->GetWritingMode());
+      case mozilla::StyleAnchorSizeKeyword::SelfBlock:
+        return anchor->BSize(positioned->GetWritingMode());
+    }
+    MOZ_ASSERT_UNREACHABLE("Unhandled anchor size keyword.");
+    return anchor->GetSize().Width();
+  }();
+  *aOut = Length::FromPixels(CSSPixel::FromAppUnits(l));
+  return true;
 }

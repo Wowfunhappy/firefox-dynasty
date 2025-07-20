@@ -301,6 +301,14 @@ for (const type of [
   "WEATHER_UPDATE",
   "WEBEXT_CLICK",
   "WEBEXT_DISMISS",
+  "WIDGETS_LISTS_CHANGE_SELECTED",
+  "WIDGETS_LISTS_SET",
+  "WIDGETS_LISTS_UPDATE",
+  "WIDGETS_TIMER_END",
+  "WIDGETS_TIMER_PAUSE",
+  "WIDGETS_TIMER_RESET",
+  "WIDGETS_TIMER_SET_DURATION",
+  "WIDGETS_TIMER_START",
 ]) {
   actionTypes[type] = type;
 }
@@ -2266,9 +2274,6 @@ const LinkMenuOptions = {
         data: {
           card_type: site.card_type,
           corpus_item_id: site.corpus_item_id,
-          is_section_followed: site.is_section_followed,
-          received_rank: site.received_rank,
-          recommended_at: site.recommended_at,
           scheduled_corpus_item_id: site.scheduled_corpus_item_id,
           section_position: site.section_position,
           section: site.section,
@@ -3196,10 +3201,13 @@ function FeatureHighlight({
     className: "message-icon"
   }, icon), /*#__PURE__*/external_React_default().createElement("p", {
     className: "content-wrapper"
-  }, message), /*#__PURE__*/external_React_default().createElement("button", {
+  }, message), /*#__PURE__*/external_React_default().createElement("moz-button", {
+    type: "icon ghost",
+    size: "small",
     "data-l10n-id": "feature-highlight-dismiss-button",
-    className: "icon icon-dismiss",
-    onClick: onDismissClick
+    iconsrc: "chrome://global/skin/icons/close.svg",
+    onClick: onDismissClick,
+    onKeyDown: onDismissClick
   })));
 }
 ;// CONCATENATED MODULE: ./content-src/components/DiscoveryStreamComponents/FeatureHighlight/SponsoredContentHighlight.jsx
@@ -4693,7 +4701,8 @@ function AdBannerContextMenu({
   spoc,
   position,
   type,
-  showAdReporting
+  showAdReporting,
+  toggleActive = () => {}
 }) {
   const ADBANNER_CONTEXT_MENU_OPTIONS = ["BlockAdUrl", ...(showAdReporting ? ["ReportAd"] : []), "ManageSponsoredContent", "OurSponsorsAndYourPrivacy"];
   const [showContextMenu, setShowContextMenu] = (0,external_React_namespaceObject.useState)(false);
@@ -4726,6 +4735,7 @@ function AdBannerContextMenu({
    */
   const toggleContextMenu = isKeyBoard => {
     toggleContextMenuStyleSwitch(!showContextMenu);
+    toggleActive(!showContextMenu);
     setShowContextMenu(!showContextMenu);
     setIsKeyboardAccess(isKeyBoard);
   };
@@ -4741,6 +4751,7 @@ function AdBannerContextMenu({
   };
   const onUpdate = () => {
     toggleContextMenuStyleSwitch(!showContextMenu);
+    toggleActive(!showContextMenu);
     setShowContextMenu(!showContextMenu);
   };
   return /*#__PURE__*/external_React_default().createElement("div", {
@@ -4841,6 +4852,8 @@ const AdBanner = ({
   };
   const sectionsEnabled = prefs["discoverystream.sections.enabled"];
   const showAdReporting = prefs["discoverystream.reportAds.enabled"];
+  const [menuActive, setMenuActive] = (0,external_React_namespaceObject.useState)(false);
+  const adBannerWrapperClassName = `ad-banner-wrapper ${menuActive ? "active" : ""}`;
   const {
     width: imgWidth,
     height: imgHeight
@@ -4867,24 +4880,21 @@ const AdBanner = ({
       }
     }));
   };
+  const toggleActive = active => {
+    setMenuActive(active);
+  };
 
   // in the default card grid 1 would come before the 1st row of cards and 9 comes after the last row
   // using clamp to make sure its between valid values (1-9)
   const clampedRow = Math.max(1, Math.min(9, row));
   return /*#__PURE__*/external_React_default().createElement("aside", {
-    className: "ad-banner-wrapper",
+    className: adBannerWrapperClassName,
     style: {
       gridRow: clampedRow
     }
   }, /*#__PURE__*/external_React_default().createElement("div", {
     className: `ad-banner-inner ${spoc.format}`
-  }, /*#__PURE__*/external_React_default().createElement(AdBannerContextMenu, {
-    dispatch: dispatch,
-    spoc: spoc,
-    position: row,
-    type: type,
-    showAdReporting: showAdReporting
-  }), /*#__PURE__*/external_React_default().createElement(SafeAnchor, {
+  }, /*#__PURE__*/external_React_default().createElement(SafeAnchor, {
     className: "ad-banner-link",
     url: spoc.url,
     title: spoc.title || spoc.sponsor || spoc.alt_text,
@@ -4913,11 +4923,20 @@ const AdBanner = ({
     loading: "eager",
     width: imgWidth,
     height: imgHeight
-  }))), /*#__PURE__*/external_React_default().createElement("div", {
+  })), /*#__PURE__*/external_React_default().createElement("div", {
     className: "ad-banner-sponsored"
   }, /*#__PURE__*/external_React_default().createElement("span", {
     className: "ad-banner-sponsored-label",
     "data-l10n-id": "newtab-label-sponsored-fixed"
+  }))), /*#__PURE__*/external_React_default().createElement("div", {
+    className: "ad-banner-hover-background"
+  }, /*#__PURE__*/external_React_default().createElement(AdBannerContextMenu, {
+    dispatch: dispatch,
+    spoc: spoc,
+    position: row,
+    type: type,
+    showAdReporting: showAdReporting,
+    toggleActive: toggleActive
   }))));
 };
 ;// CONCATENATED MODULE: ./content-src/components/DiscoveryStreamComponents/TrendingSearches/TrendingSearches.jsx
@@ -6270,10 +6289,7 @@ const ReportContent = spocs => {
     const {
       card_type,
       corpus_item_id,
-      is_section_followed,
       position,
-      received_rank,
-      recommended_at,
       reporting_url,
       scheduled_corpus_item_id,
       section_position,
@@ -6288,9 +6304,6 @@ const ReportContent = spocs => {
         data: {
           card_type,
           corpus_item_id,
-          is_section_followed,
-          received_rank,
-          recommended_at,
           report_reason: selectedReason,
           scheduled_corpus_item_id,
           section_position,
@@ -7817,6 +7830,33 @@ const INITIAL_STATE = {
     suggestions: [],
     collapsed: false,
   },
+  // Widgets
+  ListsWidget: {
+    // value pointing to last selectled list
+    selected: "taskList",
+    // Default state of an empty task list
+    lists: {
+      taskList: {
+        label: "Task List",
+        tasks: [],
+      },
+    },
+    // Keeping this separate from `lists` so that it isnt rendered
+    // in the same way
+    completed: {
+      label: "Completed",
+      tasks: [],
+    },
+  },
+  TimerWidget: {
+    // Timer duration set by user
+    duration: 0,
+    // Time that the timer was started
+    startTime: null,
+    // Calculated when a user pauses the timer
+    remaining: 0,
+    isRunning: false,
+  },
 };
 
 function App(prevState = INITIAL_STATE.App, action) {
@@ -8565,9 +8605,6 @@ function DiscoveryStream(prevState = INITIAL_STATE.DiscoveryStream, action) {
           ...prevState.report,
           card_type: action.data?.card_type,
           corpus_item_id: action.data?.corpus_item_id,
-          is_section_followed: action.data?.is_section_followed,
-          received_rank: action.data?.received_rank,
-          recommended_at: action.data?.recommended_at,
           scheduled_corpus_item_id: action.data?.scheduled_corpus_item_id,
           section_position: action.data?.section_position,
           section: action.data?.section,
@@ -8715,6 +8752,52 @@ function TrendingSearch(prevState = INITIAL_STATE.TrendingSearch, action) {
   }
 }
 
+function TimerWidget(prevState = INITIAL_STATE.TimerWidget, action) {
+  switch (action.type) {
+    case actionTypes.WIDGETS_TIMER_SET:
+      return { ...action.data };
+    case actionTypes.WIDGETS_TIMER_SET_DURATION:
+      return {
+        ...prevState,
+        duration: action.data,
+        remaining: action.data,
+      };
+    case actionTypes.WIDGETS_TIMER_START:
+      return { ...prevState, startTime: Date.now(), isRunning: true };
+    case actionTypes.WIDGETS_TIMER_PAUSE:
+      if (prevState.isRunning) {
+        const elapsed = Date.now() - prevState.startTime;
+        return {
+          ...prevState,
+          remaining: prevState.duration - elapsed,
+          isRunning: false,
+          startTime: null,
+        };
+      }
+      break;
+    case actionTypes.WIDGETS_TIMER_RESET:
+      return {
+        ...prevState,
+        isRunning: false,
+        startTime: null,
+        remaining: prevState.duration,
+      };
+    default:
+      return prevState;
+  }
+}
+
+function ListsWidget(prevState = INITIAL_STATE.ListsWidget, action) {
+  switch (action.type) {
+    case actionTypes.WIDGETS_LISTS_SET:
+      return { ...prevState, lists: action.data };
+    case actionTypes.WIDGETS_LISTS_CHANGE_SELECTED:
+      return { ...prevState, selected: action.data };
+    default:
+      return prevState;
+  }
+}
+
 const reducers = {
   TopSites,
   App,
@@ -8729,6 +8812,8 @@ const reducers = {
   InferredPersonalization,
   DiscoveryStream,
   Search,
+  TimerWidget,
+  ListsWidget,
   TrendingSearch,
   Wallpapers,
   Weather,
@@ -8955,11 +9040,187 @@ TopSiteImpressionWrapper.defaultProps = {
   actionType: null,
   tile: null
 };
+;// CONCATENATED MODULE: ./content-src/components/MessageWrapper/MessageWrapper.jsx
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+
+
+
+
+
+// Note: MessageWrapper emits events via submitGleanPingForPing() in the OMC messaging-system.
+// If a feature is triggered outside of this flow (e.g., the Mobile Download QR Promo),
+// it should emit New Tab-specific Glean events independently.
+
+function MessageWrapper({
+  children,
+  dispatch,
+  hiddenOverride,
+  onDismiss
+}) {
+  const message = (0,external_ReactRedux_namespaceObject.useSelector)(state => state.Messages);
+  const [isIntersecting, setIsIntersecting] = (0,external_React_namespaceObject.useState)(false);
+  const [tabIsVisible, setTabIsVisible] = (0,external_React_namespaceObject.useState)(() => typeof document !== "undefined" && document.visibilityState === "visible");
+  const [hasRun, setHasRun] = (0,external_React_namespaceObject.useState)();
+  const handleIntersection = (0,external_React_namespaceObject.useCallback)(() => {
+    setIsIntersecting(true);
+    // only send impression if messageId is defined and tab is visible
+    if (tabIsVisible && message.messageData.id && !hasRun) {
+      setHasRun(true);
+      dispatch(actionCreators.AlsoToMain({
+        type: actionTypes.MESSAGE_IMPRESSION,
+        data: message.messageData
+      }));
+    }
+  }, [dispatch, message, tabIsVisible, hasRun]);
+  (0,external_React_namespaceObject.useEffect)(() => {
+    // we dont want to dispatch this action unless the current tab is open and visible
+    if (message.isVisible && tabIsVisible) {
+      dispatch(actionCreators.AlsoToMain({
+        type: actionTypes.MESSAGE_NOTIFY_VISIBILITY,
+        data: true
+      }));
+    }
+  }, [message, dispatch, tabIsVisible]);
+  (0,external_React_namespaceObject.useEffect)(() => {
+    const handleVisibilityChange = () => {
+      setTabIsVisible(document.visibilityState === "visible");
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, []);
+  const ref = useIntersectionObserver(handleIntersection);
+  const handleClose = (0,external_React_namespaceObject.useCallback)(() => {
+    const action = {
+      type: actionTypes.MESSAGE_TOGGLE_VISIBILITY,
+      data: false //isVisible
+    };
+    if (message.portID) {
+      dispatch(actionCreators.OnlyToOneContent(action, message.portID));
+    } else {
+      dispatch(actionCreators.AlsoToMain(action));
+    }
+    dispatch(actionCreators.AlsoToMain({
+      type: actionTypes.MESSAGE_NOTIFY_VISIBILITY,
+      data: false
+    }));
+    onDismiss?.();
+  }, [dispatch, message, onDismiss]);
+  function handleDismiss() {
+    const {
+      id
+    } = message.messageData;
+    if (id) {
+      dispatch(actionCreators.OnlyToMain({
+        type: actionTypes.MESSAGE_DISMISS,
+        data: {
+          message: message.messageData
+        }
+      }));
+    }
+    handleClose();
+  }
+  function handleBlock() {
+    const {
+      id
+    } = message.messageData;
+    if (id) {
+      dispatch(actionCreators.OnlyToMain({
+        type: actionTypes.MESSAGE_BLOCK,
+        data: id
+      }));
+    }
+  }
+  function handleClick(elementId) {
+    const {
+      id
+    } = message.messageData;
+    if (id) {
+      dispatch(actionCreators.OnlyToMain({
+        type: actionTypes.MESSAGE_CLICK,
+        data: {
+          message: message.messageData,
+          source: elementId || ""
+        }
+      }));
+    }
+  }
+  if (!message || !hiddenOverride && !message.isVisible) {
+    return null;
+  }
+
+  // only display the message if `isVisible` is true
+  return /*#__PURE__*/external_React_default().createElement("div", {
+    ref: el => {
+      ref.current = [el];
+    },
+    className: "message-wrapper"
+  }, /*#__PURE__*/external_React_default().cloneElement(children, {
+    isIntersecting,
+    handleDismiss,
+    handleClick,
+    handleBlock,
+    handleClose
+  }));
+}
+
+;// CONCATENATED MODULE: ./content-src/components/DiscoveryStreamComponents/FeatureHighlight/ShortcutFeatureHighlight.jsx
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+
+
+function ShortcutFeatureHighlight({
+  position,
+  dispatch,
+  handleDismiss,
+  handleBlock,
+  feature
+}) {
+  const onDismiss = (0,external_React_namespaceObject.useCallback)(() => {
+    handleDismiss();
+    handleBlock();
+  }, [handleDismiss, handleBlock]);
+  return /*#__PURE__*/external_React_default().createElement("div", {
+    className: "shortcut-feature-highlight"
+  }, /*#__PURE__*/external_React_default().createElement(FeatureHighlight, {
+    position: position,
+    feature: feature,
+    dispatch: dispatch,
+    message: /*#__PURE__*/external_React_default().createElement("div", {
+      className: "shortcut-feature-highlight-content"
+    }, /*#__PURE__*/external_React_default().createElement("img", {
+      src: "chrome://global/skin/icons/open-in-new.svg",
+      width: "24",
+      height: "24",
+      alt: ""
+    }), /*#__PURE__*/external_React_default().createElement("div", {
+      className: "shortcut-feature-highlight-copy"
+    }, /*#__PURE__*/external_React_default().createElement("p", {
+      className: "title",
+      "data-l10n-id": "newtab-shortcuts-highlight-title"
+    }), /*#__PURE__*/external_React_default().createElement("p", {
+      className: "subtitle",
+      "data-l10n-id": "newtab-shortcuts-highlight-subtitle"
+    }))),
+    openedOverride: true,
+    showButtonIcon: false,
+    dismissCallback: onDismiss,
+    outsideClickCallback: handleDismiss
+  }));
+}
 ;// CONCATENATED MODULE: ./content-src/components/TopSites/TopSite.jsx
 function TopSite_extends() { return TopSite_extends = Object.assign ? Object.assign.bind() : function (n) { for (var e = 1; e < arguments.length; e++) { var t = arguments[e]; for (var r in t) ({}).hasOwnProperty.call(t, r) && (n[r] = t[r]); } return n; }, TopSite_extends.apply(null, arguments); }
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+
 
 
 
@@ -8990,6 +9251,7 @@ class TopSiteLink extends (external_React_default()).PureComponent {
     };
     this.onDragEvent = this.onDragEvent.bind(this);
     this.onKeyPress = this.onKeyPress.bind(this);
+    this.shouldShowOMCHighlight = this.shouldShowOMCHighlight.bind(this);
   }
 
   /*
@@ -9182,6 +9444,13 @@ class TopSiteLink extends (external_React_default()).PureComponent {
       selectedColor
     };
   }
+  shouldShowOMCHighlight(componentId) {
+    const messageData = this.props.Messages?.messageData;
+    if (!messageData || Object.keys(messageData).length === 0) {
+      return false;
+    }
+    return messageData?.content?.messageType === componentId;
+  }
   render() {
     const {
       children,
@@ -9282,10 +9551,11 @@ class TopSiteLink extends (external_React_default()).PureComponent {
       onClick: onClick,
       draggable: true,
       "data-is-sponsored-link": !!link.sponsored_tile_id,
-      title: title,
       onFocus: this.props.onFocus
     }, isAddButton && {
       ...addButtonTitlel10n
+    }, !isAddButton && {
+      title
     }), shortcutsRefresh && link.isPinned && /*#__PURE__*/external_React_default().createElement("div", {
       className: "icon icon-pin-small"
     }), /*#__PURE__*/external_React_default().createElement("div", {
@@ -9320,7 +9590,14 @@ class TopSiteLink extends (external_React_default()).PureComponent {
     }), title || /*#__PURE__*/external_React_default().createElement("br", null)), /*#__PURE__*/external_React_default().createElement("span", {
       className: "sponsored-label",
       "data-l10n-id": "newtab-topsite-sponsored"
-    }))), children, impressionStats));
+    }))), isAddButton && this.shouldShowOMCHighlight("ShortcutHighlight") && /*#__PURE__*/external_React_default().createElement(MessageWrapper, {
+      dispatch: this.props.dispatch,
+      onClick: e => e.stopPropagation()
+    }, /*#__PURE__*/external_React_default().createElement(ShortcutFeatureHighlight, {
+      dispatch: this.props.dispatch,
+      feature: "FEATURE_SHORTCUT_HIGHLIGHT",
+      position: "inset-block-end inset-inline-start"
+    })), children, impressionStats));
   }
 }
 TopSiteLink.defaultProps = {
@@ -9803,7 +10080,8 @@ class _TopSiteList extends (external_React_default()).PureComponent {
           tabIndex: i === this.state.focusedIndex ? 0 : -1,
           onFocus: () => {
             this.onTopsiteFocus(i);
-          }
+          },
+          Messages: this.props.Messages
         }));
       } else {
         topSiteLink = /*#__PURE__*/external_React_default().createElement(TopSite, TopSite_extends({
@@ -9840,6 +10118,7 @@ class _TopSiteList extends (external_React_default()).PureComponent {
 }
 const TopSiteList = (0,external_ReactRedux_namespaceObject.connect)(state => ({
   App: state.App,
+  Messages: state.Messages,
   Prefs: state.Prefs
 }))(_TopSiteList);
 ;// CONCATENATED MODULE: ./content-src/components/TopSites/TopSiteForm.jsx
@@ -10833,6 +11112,7 @@ const selectLayoutRender = ({ state = {}, prefs = {} }) => {
     "SectionTitle",
     "Signup",
     "Navigation",
+    "Widgets",
     "CardGrid",
     "CollectionCardGrid",
     "HorizontalRule",
@@ -11444,134 +11724,6 @@ function FollowSectionButtonHighlight({
     outsideClickCallback: handleDismiss
   }));
 }
-;// CONCATENATED MODULE: ./content-src/components/MessageWrapper/MessageWrapper.jsx
-/* This Source Code Form is subject to the terms of the Mozilla Public
- * License, v. 2.0. If a copy of the MPL was not distributed with this file,
- * You can obtain one at http://mozilla.org/MPL/2.0/. */
-
-
-
-
-
-
-// Note: MessageWrapper emits events via submitGleanPingForPing() in the OMC messaging-system.
-// If a feature is triggered outside of this flow (e.g., the Mobile Download QR Promo),
-// it should emit New Tab-specific Glean events independently.
-
-function MessageWrapper({
-  children,
-  dispatch,
-  hiddenOverride,
-  onDismiss
-}) {
-  const message = (0,external_ReactRedux_namespaceObject.useSelector)(state => state.Messages);
-  const [isIntersecting, setIsIntersecting] = (0,external_React_namespaceObject.useState)(false);
-  const [tabIsVisible, setTabIsVisible] = (0,external_React_namespaceObject.useState)(() => typeof document !== "undefined" && document.visibilityState === "visible");
-  const [hasRun, setHasRun] = (0,external_React_namespaceObject.useState)();
-  const handleIntersection = (0,external_React_namespaceObject.useCallback)(() => {
-    setIsIntersecting(true);
-    // only send impression if messageId is defined and tab is visible
-    if (tabIsVisible && message.messageData.id && !hasRun) {
-      setHasRun(true);
-      dispatch(actionCreators.AlsoToMain({
-        type: actionTypes.MESSAGE_IMPRESSION,
-        data: message.messageData
-      }));
-    }
-  }, [dispatch, message, tabIsVisible, hasRun]);
-  (0,external_React_namespaceObject.useEffect)(() => {
-    // we dont want to dispatch this action unless the current tab is open and visible
-    if (message.isVisible && tabIsVisible) {
-      dispatch(actionCreators.AlsoToMain({
-        type: actionTypes.MESSAGE_NOTIFY_VISIBILITY,
-        data: true
-      }));
-    }
-  }, [message, dispatch, tabIsVisible]);
-  (0,external_React_namespaceObject.useEffect)(() => {
-    const handleVisibilityChange = () => {
-      setTabIsVisible(document.visibilityState === "visible");
-    };
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-    return () => {
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
-    };
-  }, []);
-  const ref = useIntersectionObserver(handleIntersection);
-  const handleClose = (0,external_React_namespaceObject.useCallback)(() => {
-    const action = {
-      type: actionTypes.MESSAGE_TOGGLE_VISIBILITY,
-      data: false //isVisible
-    };
-    if (message.portID) {
-      dispatch(actionCreators.OnlyToOneContent(action, message.portID));
-    } else {
-      dispatch(actionCreators.AlsoToMain(action));
-    }
-    dispatch(actionCreators.AlsoToMain({
-      type: actionTypes.MESSAGE_NOTIFY_VISIBILITY,
-      data: false
-    }));
-    onDismiss?.();
-  }, [dispatch, message, onDismiss]);
-  function handleDismiss() {
-    const {
-      id
-    } = message.messageData;
-    if (id) {
-      dispatch(actionCreators.OnlyToMain({
-        type: actionTypes.MESSAGE_DISMISS,
-        data: {
-          message: message.messageData
-        }
-      }));
-    }
-    handleClose();
-  }
-  function handleBlock() {
-    const {
-      id
-    } = message.messageData;
-    if (id) {
-      dispatch(actionCreators.OnlyToMain({
-        type: actionTypes.MESSAGE_BLOCK,
-        data: id
-      }));
-    }
-  }
-  function handleClick(elementId) {
-    const {
-      id
-    } = message.messageData;
-    if (id) {
-      dispatch(actionCreators.OnlyToMain({
-        type: actionTypes.MESSAGE_CLICK,
-        data: {
-          message: message.messageData,
-          source: elementId || ""
-        }
-      }));
-    }
-  }
-  if (!message || !hiddenOverride && !message.isVisible) {
-    return null;
-  }
-
-  // only display the message if `isVisible` is true
-  return /*#__PURE__*/external_React_default().createElement("div", {
-    ref: el => {
-      ref.current = [el];
-    },
-    className: "message-wrapper"
-  }, /*#__PURE__*/external_React_default().cloneElement(children, {
-    isIntersecting,
-    handleDismiss,
-    handleClick,
-    handleBlock,
-    handleClose
-  }));
-}
-
 ;// CONCATENATED MODULE: ./content-src/components/DiscoveryStreamComponents/CardSections/CardSections.jsx
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -11623,10 +11775,10 @@ function getLayoutData(responsiveLayouts, index, refinedCardsLayout, sectionKey)
         // we update the layout so that the first item is always a medium card to make
         // room for the trending search widget
         if (sectionKey === "top_stories_section" && tileIndex === 0) {
-          //do something
           layoutData.classNames.push(`col-${layout.columnCount}-medium`);
           layoutData.classNames.push(`col-${layout.columnCount}-position-${tileIndex}`);
           layoutData.imageSizes[layout.columnCount] = "medium";
+          layoutData.classNames.push(`col-${layout.columnCount}-hide-excerpt`);
         } else {
           layoutData.classNames.push(`col-${layout.columnCount}-${tile.size}`);
           layoutData.classNames.push(`col-${layout.columnCount}-position-${tileIndex}`);
@@ -12039,10 +12191,226 @@ function CardSections({
   }, sectionsToRender);
 }
 
+;// CONCATENATED MODULE: ./content-src/components/Widgets/Lists/Lists.jsx
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
+
+
+
+
+function Lists({
+  dispatch
+}) {
+  const listsData = (0,external_ReactRedux_namespaceObject.useSelector)(state => state.ListsWidget);
+  const {
+    selected,
+    lists
+  } = listsData;
+  const [newTask, setNewTask] = (0,external_React_namespaceObject.useState)("");
+  const inputRef = (0,external_React_namespaceObject.useRef)(null);
+  function saveTask() {
+    const trimmedTask = newTask.trimEnd();
+    // only add new task if it has a length, to avoid creating empty tasks
+    if (trimmedTask) {
+      const taskObject = {
+        value: trimmedTask,
+        completed: false,
+        created: Date.now(),
+        id: crypto.randomUUID()
+      };
+      const updatedLists = {
+        ...lists,
+        [selected]: {
+          ...lists[selected],
+          tasks: [...lists[selected].tasks, taskObject]
+        }
+      };
+      dispatch(actionCreators.AlsoToMain({
+        type: actionTypes.WIDGETS_LISTS_UPDATE,
+        data: updatedLists
+      }));
+      setNewTask("");
+    }
+  }
+  function updateTask(e, selectedTask) {
+    const selectedTasks = lists[selected].tasks;
+    const updatedTask = {
+      ...selectedTask,
+      completed: e.target.checked
+    };
+    // find selected task and update completed property
+    const updatedTasks = selectedTasks.map(task => task.id === updatedTask.id ? updatedTask : task);
+    const updatedLists = {
+      ...lists,
+      [selected]: {
+        ...lists[selected],
+        tasks: updatedTasks
+      }
+    };
+    dispatch(actionCreators.AlsoToMain({
+      type: actionTypes.WIDGETS_LISTS_UPDATE,
+      data: updatedLists
+    }));
+  }
+
+  // useEffect to manage a click outside of the input
+  (0,external_React_namespaceObject.useEffect)(() => {
+    function handleOutsideClick(e) {
+      if (inputRef.current && !inputRef.current.contains(e.target)) {
+        saveTask();
+      }
+    }
+    document.addEventListener("mousedown", handleOutsideClick);
+    return () => {
+      document.removeEventListener("mousedown", handleOutsideClick);
+    };
+  });
+  function handleKeyDown(e) {
+    if (e.key === "Enter" && document.activeElement === inputRef.current) {
+      saveTask();
+    } else if (e.key === "Escape" && document.activeElement === inputRef.current) {
+      // Clear out the input when esc is pressed
+      setNewTask("");
+    }
+  }
+  return lists ? /*#__PURE__*/external_React_default().createElement("article", {
+    className: "lists"
+  }, /*#__PURE__*/external_React_default().createElement("moz-select", {
+    value: selected
+  }, Object.entries(lists).map(([key, list]) => /*#__PURE__*/external_React_default().createElement("moz-option", {
+    key: key,
+    value: key,
+    label: list.label
+  }))), /*#__PURE__*/external_React_default().createElement("div", {
+    className: "add-task-container"
+  }, /*#__PURE__*/external_React_default().createElement("input", {
+    ref: inputRef,
+    onChange: e => setNewTask(e.target.value),
+    value: newTask,
+    placeholder: "Enter task",
+    onKeyDown: handleKeyDown
+  })), lists[selected]?.tasks.length >= 1 ? /*#__PURE__*/external_React_default().createElement("moz-reorderable-list", {
+    itemSelector: "fieldset .task-item"
+  }, /*#__PURE__*/external_React_default().createElement("fieldset", null, lists[selected].tasks.map((task, idx) => {
+    return /*#__PURE__*/external_React_default().createElement("label", {
+      key: idx,
+      className: "task-item"
+    }, /*#__PURE__*/external_React_default().createElement("input", {
+      type: "checkbox",
+      onChange: e => updateTask(e, task),
+      checked: task.completed
+    }), /*#__PURE__*/external_React_default().createElement("span", null, task.value));
+  }))) : /*#__PURE__*/external_React_default().createElement("div", null, /*#__PURE__*/external_React_default().createElement("p", null, "The list is empty. For now \uD83E\uDD8A"))) : null;
+}
+
+;// CONCATENATED MODULE: ./content-src/components/Widgets/FocusTimer/FocusTimer.jsx
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
+
+
+function FocusTimer() {
+  const [timer, setTimer] = (0,external_React_namespaceObject.useState)(0);
+  const [isRunning, setIsRunning] = (0,external_React_namespaceObject.useState)(false);
+  const inputRef = (0,external_React_namespaceObject.useRef)(null);
+  (0,external_React_namespaceObject.useEffect)(() => {
+    let interval;
+    if (isRunning && timer > 0) {
+      interval = setInterval(() => {
+        setTimer(previousValue => {
+          if (previousValue <= 1) {
+            clearInterval(interval);
+            setIsRunning(false);
+            return 0;
+          }
+          return previousValue - 1;
+        });
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [isRunning, timer]);
+
+  // set timer function
+  const setTimerMinutes = e => {
+    e.preventDefault();
+    const minutes = inputRef.current.value;
+    const minutesInt = parseInt(minutes, 10);
+    if (minutesInt > 0) {
+      setTimer(minutesInt * 60); // change set minutes to seconds
+    }
+  };
+
+  // Pause timer function
+  const toggleTimer = () => {
+    if (timer > 0) {
+      setIsRunning(previousValue => !previousValue); // using an updater function for an accurate state update
+    }
+  };
+
+  // reset timer function
+  const resetTimer = () => {
+    setIsRunning(false);
+    setTimer(0);
+  };
+  const formatTime = seconds => {
+    const minutes = Math.floor(seconds / 60).toString().padStart(2, "0");
+    const secs = (seconds % 60).toString().padStart(2, "0");
+    return `${minutes}:${secs}`;
+  };
+  return /*#__PURE__*/external_React_default().createElement("article", {
+    className: "focus-timer-wrapper"
+  }, /*#__PURE__*/external_React_default().createElement("p", null, "Focus timer widget"), /*#__PURE__*/external_React_default().createElement("form", {
+    onSubmit: setTimerMinutes
+  }, /*#__PURE__*/external_React_default().createElement("label", {
+    htmlFor: "countdown"
+  }), /*#__PURE__*/external_React_default().createElement("input", {
+    type: "number",
+    id: "countdown",
+    ref: inputRef
+  }), /*#__PURE__*/external_React_default().createElement("button", {
+    type: "submit"
+  }, "Set minutes")), /*#__PURE__*/external_React_default().createElement("div", {
+    className: "timer-buttons"
+  }, /*#__PURE__*/external_React_default().createElement("button", {
+    onClick: toggleTimer
+  }, isRunning ? "Pause" : "Play"), /*#__PURE__*/external_React_default().createElement("button", {
+    onClick: resetTimer
+  }, "Reset")), "Time left: ", formatTime(timer));
+}
+
+;// CONCATENATED MODULE: ./content-src/components/Widgets/Widgets.jsx
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+
+
+
+
+const PREF_WIDGETS_LISTS_ENABLED = "widgets.lists.enabled";
+const PREF_WIDGETS_SYSTEM_LISTS_ENABLED = "widgets.system.lists.enabled";
+const PREF_WIDGETS_TIMER_ENABLED = "widgets.focusTimer.enabled";
+const PREF_WIDGETS_SYSTEM_TIMER_ENABLED = "widgets.system.focusTimer.enabled";
+function Widgets() {
+  const prefs = (0,external_ReactRedux_namespaceObject.useSelector)(state => state.Prefs.values);
+  const dispatch = (0,external_ReactRedux_namespaceObject.useDispatch)();
+  const nimbusListsEnabled = prefs.widgetsConfig?.listsEnabled;
+  const nimbusTimerEnabled = prefs.widgetsConfig?.timerEnabled;
+  const listsEnabled = (nimbusListsEnabled || prefs[PREF_WIDGETS_SYSTEM_LISTS_ENABLED]) && prefs[PREF_WIDGETS_LISTS_ENABLED];
+  const timerEnabled = (nimbusTimerEnabled || prefs[PREF_WIDGETS_SYSTEM_TIMER_ENABLED]) && prefs[PREF_WIDGETS_TIMER_ENABLED];
+  return /*#__PURE__*/external_React_default().createElement("div", {
+    className: "widgets-container"
+  }, listsEnabled && /*#__PURE__*/external_React_default().createElement(Lists, {
+    dispatch: dispatch
+  }), timerEnabled && /*#__PURE__*/external_React_default().createElement(FocusTimer, null));
+}
+
 ;// CONCATENATED MODULE: ./content-src/components/DiscoveryStreamBase/DiscoveryStreamBase.jsx
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
+
 
 
 
@@ -12243,6 +12611,8 @@ class _DiscoveryStreamBase extends (external_React_default()).PureComponent {
         return /*#__PURE__*/external_React_default().createElement(PrivacyLink, {
           properties: component.properties
         });
+      case "Widgets":
+        return /*#__PURE__*/external_React_default().createElement(Widgets, null);
       default:
         return /*#__PURE__*/external_React_default().createElement("div", null, component.type);
     }
@@ -12309,6 +12679,7 @@ class _DiscoveryStreamBase extends (external_React_default()).PureComponent {
 
     // Extract TopSites to render before the rest and Message to use for header
     const topSites = extractComponent("TopSites");
+    const widgets = extractComponent("Widgets");
     const sponsoredCollection = extractComponent("CollectionCardGrid");
     const message = extractComponent("Message") || {
       header: {
@@ -12349,6 +12720,10 @@ class _DiscoveryStreamBase extends (external_React_default()).PureComponent {
       width: 12,
       components: [topSites],
       sectionType: "topsites"
+    }]), widgets && this.renderLayout([{
+      width: 12,
+      components: [widgets],
+      sectionType: "widgets"
     }]), sponsoredCollection && this.renderLayout([{
       width: 12,
       components: [sponsoredCollection]
@@ -12382,9 +12757,9 @@ class _DiscoveryStreamBase extends (external_React_default()).PureComponent {
     const styles = [];
     let [data] = layoutRender;
     // Add helper class for topsites
-    const topsitesClass = data.sectionType ? "ds-layout-topsites" : "";
+    const sectionClass = data.sectionType ? `ds-layout-${data.sectionType}` : "";
     return /*#__PURE__*/external_React_default().createElement("div", {
-      className: `discovery-stream ds-layout ${topsitesClass}`
+      className: `discovery-stream ds-layout ${sectionClass}`
     }, layoutRender.map((row, rowIndex) => /*#__PURE__*/external_React_default().createElement("div", {
       key: `row-${rowIndex}`,
       className: `ds-column ds-column-${row.width}`

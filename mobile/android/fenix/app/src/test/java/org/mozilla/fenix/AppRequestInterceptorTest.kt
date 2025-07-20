@@ -5,6 +5,7 @@
 package org.mozilla.fenix
 
 import androidx.navigation.NavController
+import androidx.navigation.NavDestination
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.spyk
@@ -12,6 +13,7 @@ import io.mockk.verify
 import mozilla.components.browser.errorpages.ErrorPages
 import mozilla.components.browser.errorpages.ErrorType
 import mozilla.components.concept.engine.request.RequestInterceptor
+import mozilla.components.concept.engine.utils.ABOUT_HOME_URL
 import mozilla.components.support.test.robolectric.testContext
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -22,7 +24,6 @@ import org.junit.runner.RunWith
 import org.mozilla.fenix.AppRequestInterceptor.Companion.HIGH_RISK_ERROR_PAGES
 import org.mozilla.fenix.AppRequestInterceptor.Companion.LOW_AND_MEDIUM_RISK_ERROR_PAGES
 import org.mozilla.fenix.GleanMetrics.ErrorPage
-import org.mozilla.fenix.components.usecases.FenixBrowserUseCases.Companion.ABOUT_HOME
 import org.mozilla.fenix.ext.settings
 import org.mozilla.fenix.helpers.FenixGleanTestRule
 import org.robolectric.RobolectricTestRunner
@@ -54,8 +55,8 @@ class AppRequestInterceptorTest {
     fun `GIVEN request to ABOUT_HOME WHEN request is intercepted THEN return a null interception response and navigate to the homepage`() {
         val result = interceptor.onLoadRequest(
             engineSession = mockk(),
-            uri = ABOUT_HOME,
-            lastUri = ABOUT_HOME,
+            uri = ABOUT_HOME_URL,
+            lastUri = ABOUT_HOME_URL,
             hasUserGesture = true,
             isSameDomain = true,
             isDirectNavigation = false,
@@ -66,6 +67,30 @@ class AppRequestInterceptorTest {
         assertNull(result)
 
         verify {
+            navigationController.navigate(NavGraphDirections.actionGlobalHome())
+        }
+    }
+
+    @Test
+    fun `GIVEN homepage is currently shown and a request to ABOUT_HOME WHEN request is intercepted THEN return a null interception response and do not navigate to the homepage`() {
+        val mockDestination: NavDestination = mockk(relaxed = true)
+        every { mockDestination.id } returns R.id.homeFragment
+        every { navigationController.currentDestination } returns mockDestination
+
+        val result = interceptor.onLoadRequest(
+            engineSession = mockk(),
+            uri = ABOUT_HOME_URL,
+            lastUri = ABOUT_HOME_URL,
+            hasUserGesture = true,
+            isSameDomain = true,
+            isDirectNavigation = false,
+            isRedirect = false,
+            isSubframeRequest = false,
+        )
+
+        assertNull(result)
+
+        verify(exactly = 0) {
             navigationController.navigate(NavGraphDirections.actionGlobalHome())
         }
     }
