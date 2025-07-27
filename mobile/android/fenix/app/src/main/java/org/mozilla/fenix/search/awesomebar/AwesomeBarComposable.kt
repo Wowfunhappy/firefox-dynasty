@@ -38,20 +38,22 @@ import mozilla.components.compose.browser.toolbar.store.BrowserToolbarStore
 import mozilla.components.lib.state.ext.observeAsComposableState
 import mozilla.components.support.ktx.android.view.hideKeyboard
 import org.mozilla.fenix.HomeActivity
+import org.mozilla.fenix.R
 import org.mozilla.fenix.components.AppStore
 import org.mozilla.fenix.components.Components
 import org.mozilla.fenix.components.StoreProvider
-import org.mozilla.fenix.components.appstate.AppAction.SearchAction.SearchEnded
+import org.mozilla.fenix.components.appstate.AppAction
 import org.mozilla.fenix.components.metrics.MetricsUtils
+import org.mozilla.fenix.ext.settings
 import org.mozilla.fenix.search.BrowserStoreToFenixSearchMapperMiddleware
 import org.mozilla.fenix.search.BrowserToolbarToFenixSearchMapperMiddleware
 import org.mozilla.fenix.search.FenixSearchMiddleware
 import org.mozilla.fenix.search.SearchFragmentAction
-import org.mozilla.fenix.search.SearchFragmentAction.SearchSuggestionsVisibilityUpdated
 import org.mozilla.fenix.search.SearchFragmentAction.SuggestionClicked
 import org.mozilla.fenix.search.SearchFragmentAction.SuggestionSelected
 import org.mozilla.fenix.search.SearchFragmentStore
 import org.mozilla.fenix.search.createInitialSearchFragmentState
+import org.mozilla.fenix.settings.SupportUtils
 import org.mozilla.fenix.theme.FirefoxTheme
 
 /**
@@ -126,12 +128,6 @@ class AwesomeBarComposable(
             }
         }
 
-        BackHandler {
-            searchStore.dispatch(SearchSuggestionsVisibilityUpdated(false))
-            appStore.dispatch(SearchEnded)
-            browserStore.dispatch(AwesomeBarAction.EngagementFinished(abandoned = true))
-        }
-
         if (isSearchActive && shouldShowClipboardBar) {
             val url = components.clipboardHandler.extractURL()
 
@@ -145,6 +141,52 @@ class AwesomeBarComposable(
                     }
                 },
             )
+        } else if (isSearchActive && state.showSearchSuggestionsHint) {
+            Box(
+                modifier = modifier
+                    .fillMaxSize()
+                    .background(FirefoxTheme.colors.layer1)
+                    .pointerInput(WindowInsets.isImeVisible) {
+                        detectTapGestures(
+                            // Hide the keyboard for any touches in the empty area of the awesomebar
+                            onPress = { keyboardController?.hide() },
+                        )
+                    },
+            ) {
+                PrivateSuggestionsCard(
+                    onSearchSuggestionsInPrivateModeAllowed = {
+                        activity.settings().shouldShowSearchSuggestionsInPrivate = true
+                        activity.settings().showSearchSuggestionsInPrivateOnboardingFinished = true
+                        searchStore.dispatch(
+                            SearchFragmentAction.AllowSearchSuggestionsInPrivateModePrompt(
+                                false,
+                            ),
+                        )
+                        searchStore.dispatch(
+                            SearchFragmentAction.PrivateSuggestionsCardAccepted,
+                        )
+                    },
+                    onSearchSuggestionsInPrivateModeBlocked = {
+                        activity.settings().shouldShowSearchSuggestionsInPrivate = false
+                        activity.settings().showSearchSuggestionsInPrivateOnboardingFinished = true
+                        searchStore.dispatch(
+                            SearchFragmentAction.AllowSearchSuggestionsInPrivateModePrompt(
+                                false,
+                            ),
+                        )
+                    },
+                    onLearnMoreClick = {
+                        components.useCases.fenixBrowserUseCases.loadUrlOrSearch(
+                            searchTermOrURL = SupportUtils.getGenericSumoURLForTopic(
+                                SupportUtils.SumoTopic.SEARCH_SUGGESTION,
+                            ),
+                            newTab = appStore.state.searchState.sourceTabId == null,
+                            private = true,
+                        )
+                        navController.navigate(R.id.browserFragment)
+                    },
+                )
+            }
         } else if (isSearchActive && state.shouldShowSearchSuggestions) {
             Box(
                 modifier = modifier

@@ -49,6 +49,7 @@ import org.mozilla.fenix.ext.components
 import org.mozilla.fenix.ext.getPreferenceKey
 import org.mozilla.fenix.home.pocket.ContentRecommendationsFeatureHelper
 import org.mozilla.fenix.home.topsites.TopSitesConfigConstants.TOP_SITES_MAX_COUNT
+import org.mozilla.fenix.iconpicker.AppIcon
 import org.mozilla.fenix.nimbus.CookieBannersSection
 import org.mozilla.fenix.nimbus.FxNimbus
 import org.mozilla.fenix.nimbus.HomeScreenSection
@@ -2282,7 +2283,7 @@ class Settings(private val appContext: Context) : PreferencesHolder {
         }
 
         val toolbarHeight = if (isToolbarAtBottom) {
-            appContext.resources.getDimensionPixelSize(R.dimen.browser_toolbar_height)
+            browserToolbarHeight
         } else {
             0
         }
@@ -2303,7 +2304,7 @@ class Settings(private val appContext: Context) : PreferencesHolder {
      */
     fun getTopToolbarHeight(includeTabStrip: Boolean): Int {
         val isToolbarAtTop = toolbarPosition == ToolbarPosition.TOP
-        val toolbarHeight = appContext.resources.getDimensionPixelSize(R.dimen.browser_toolbar_height)
+        val toolbarHeight = browserToolbarHeight
 
         return if (isToolbarAtTop && includeTabStrip) {
             toolbarHeight + appContext.resources.getDimensionPixelSize(R.dimen.tab_strip_height)
@@ -2313,6 +2314,17 @@ class Settings(private val appContext: Context) : PreferencesHolder {
             0
         }
     }
+
+    /**
+     * Returns the height of the browser toolbar height.
+     */
+    val browserToolbarHeight: Int
+        get() = appContext.resources.getDimensionPixelSize(
+            when (shouldUseComposableToolbar) {
+                true -> R.dimen.composable_browser_toolbar_height
+                false -> R.dimen.browser_toolbar_height
+            },
+        )
 
     /**
      * Returns the height of the bottom toolbar container.
@@ -2600,6 +2612,14 @@ class Settings(private val appContext: Context) : PreferencesHolder {
     var distributionId by stringPreference(
         key = appContext.getPreferenceKey(R.string.pref_key_distribution_id),
         default = "",
+    )
+
+    /**
+     * Suffix of the currently selected app icon (launcher alias).
+     */
+    var selectedAppIcon by stringPreference(
+        key = appContext.getPreferenceKey(R.string.pref_key_selected_app_icon),
+        default = AppIcon.AppDefault.aliasSuffix,
     )
 
     /**

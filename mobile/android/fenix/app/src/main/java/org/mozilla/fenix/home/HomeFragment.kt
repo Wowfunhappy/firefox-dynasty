@@ -7,13 +7,17 @@ package org.mozilla.fenix.home
 import android.annotation.SuppressLint
 import android.appwidget.AppWidgetManager
 import android.content.Context
+import android.content.Intent
 import android.content.res.Configuration
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import androidx.activity.result.ActivityResultLauncher
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.DrawableRes
 import androidx.annotation.VisibleForTesting
+import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.foundation.layout.Column
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -52,6 +56,7 @@ import mozilla.components.compose.base.Divider
 import mozilla.components.compose.browser.toolbar.store.BrowserToolbarStore
 import mozilla.components.compose.cfr.CFRPopup
 import mozilla.components.compose.cfr.CFRPopupProperties
+import mozilla.components.concept.engine.utils.ABOUT_HOME_URL
 import mozilla.components.concept.sync.AccountObserver
 import mozilla.components.concept.sync.AuthType
 import mozilla.components.concept.sync.OAuthAccount
@@ -78,6 +83,7 @@ import org.mozilla.fenix.browser.tabstrip.TabStrip
 import org.mozilla.fenix.components.Components
 import org.mozilla.fenix.components.HomepageThumbnailIntegration
 import org.mozilla.fenix.components.TabCollectionStorage
+import org.mozilla.fenix.components.VoiceSearchFeature
 import org.mozilla.fenix.components.appstate.AppAction
 import org.mozilla.fenix.components.appstate.AppAction.ContentRecommendationsAction
 import org.mozilla.fenix.components.appstate.AppAction.MessagingAction
@@ -85,6 +91,8 @@ import org.mozilla.fenix.components.appstate.AppAction.MessagingAction.Microsurv
 import org.mozilla.fenix.components.appstate.AppAction.ReviewPromptAction.CheckIfEligibleForReviewPrompt
 import org.mozilla.fenix.components.appstate.AppAction.ReviewPromptAction.ReviewPromptShown
 import org.mozilla.fenix.components.appstate.AppState
+import org.mozilla.fenix.components.appstate.qrScanner.QrScannerBinding
+import org.mozilla.fenix.components.appstate.qrScanner.QrScannerDelegate
 import org.mozilla.fenix.components.components
 import org.mozilla.fenix.components.toolbar.BottomToolbarContainerView
 import org.mozilla.fenix.compose.snackbar.Snackbar
@@ -116,6 +124,7 @@ import org.mozilla.fenix.home.sessioncontrol.DefaultSessionControlController
 import org.mozilla.fenix.home.sessioncontrol.SessionControlController
 import org.mozilla.fenix.home.sessioncontrol.SessionControlControllerCallback
 import org.mozilla.fenix.home.sessioncontrol.SessionControlInteractor
+import org.mozilla.fenix.home.store.HomeToolbarStoreBuilder
 import org.mozilla.fenix.home.store.HomepageState
 import org.mozilla.fenix.home.toolbar.DefaultToolbarController
 import org.mozilla.fenix.home.toolbar.FenixHomeToolbar
@@ -173,6 +182,7 @@ class HomeFragment : Fragment() {
     internal var _binding: FragmentHomeBinding? = null
     internal val binding get() = _binding!!
     private val snackbarBinding = ViewBoundFeatureWrapper<SnackbarBinding>()
+    private val qrScannerBinding = ViewBoundFeatureWrapper<QrScannerBinding>()
 
     private val homeViewModel: HomeScreenViewModel by activityViewModels()
 
@@ -247,6 +257,15 @@ class HomeFragment : Fragment() {
     private val homeScreenPopupManager = ViewBoundFeatureWrapper<HomeScreenPopupManager>()
     private val thumbnailsFeature = ViewBoundFeatureWrapper<HomepageThumbnailIntegration>()
 
+    private val voiceSearchFeature by lazy(LazyThreadSafetyMode.NONE) {
+        ViewBoundFeatureWrapper<VoiceSearchFeature>()
+    }
+
+    private val voiceSearchLauncher: ActivityResultLauncher<Intent> =
+        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+            voiceSearchFeature.get()?.handleVoiceSearchResult(result.resultCode, result.data)
+        }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         // DO NOT ADD ANYTHING ABOVE THIS getProfilerTime CALL!
         val profilerStartTime = requireComponents.core.engine.profiler?.getProfilerTime()
@@ -309,21 +328,12 @@ class HomeFragment : Fragment() {
             }
         }
 
-        homeNavigationBar = HomeNavigationBar(
-            context = requireContext(),
-            lifecycleOwner = this,
-            container = binding.navigationBarContainer,
-            appStore = components.appStore,
-            browserStore = store,
-            hideWhenKeyboardShown = true,
-        )
-
         if (requireContext().settings().isExperimentationEnabled) {
             messagingFeatureHomescreen.set(
                 feature = MessagingFeature(
                     appStore = requireComponents.appStore,
                     surface = FenixMessageSurfaceId.HOMESCREEN,
-                    runWhenReadyQueue = requireComponents.performance.visualCompletenessQueue.queue,
+                    runWhenReadyQueue = requireComponents.performance.visualCompletenessQueue,
                 ),
                 owner = viewLifecycleOwner,
                 view = binding.root,
@@ -447,6 +457,20 @@ class HomeFragment : Fragment() {
             view = binding.root,
         )
 
+        qrScannerBinding.set(
+            feature = QrScannerBinding(
+                appStore = requireContext().components.appStore,
+                qrScannerDelegate = QrScannerDelegate(
+                    activity = requireActivity() as AppCompatActivity,
+                    browserStore = requireContext().components.core.store,
+                    appStore = requireContext().components.appStore,
+                    settings = requireContext().settings(),
+                ),
+            ),
+            owner = this,
+            view = binding.root,
+        )
+
         _sessionControlController = DefaultSessionControlController(
             activityRef = WeakReference(activity),
             settings = components.settings,
@@ -478,10 +502,6 @@ class HomeFragment : Fragment() {
 
                     override fun removeCollectionWithUndo(tabCollection: TabCollection) {
                         this@HomeFragment.removeCollectionWithUndo(tabCollection)
-                    }
-
-                    override fun showUndoSnackbarForTopSite(topSite: TopSite) {
-                        this@HomeFragment.showUndoSnackbarForTopSite(topSite)
                     }
 
                     override fun showTabTray() {
@@ -576,30 +596,51 @@ class HomeFragment : Fragment() {
         return binding.root
     }
 
-    private fun buildToolbar(activity: HomeActivity) =
-        when (requireContext().settings().shouldUseComposableToolbar) {
-            true -> HomeToolbarComposable(
-                context = activity,
-                lifecycleOwner = this,
-                navController = findNavController(),
-                homeBinding = binding,
-                appStore = activity.components.appStore,
-                browserStore = activity.components.core.store,
-                browsingModeManager = activity.browsingModeManager,
-                settings = activity.settings(),
-                directToSearchConfig = DirectToSearchConfig(
-                    startSearch = bundleArgs.getBoolean(FOCUS_ON_ADDRESS_BAR) ||
-                            FxNimbus.features.oneClickSearch.value().enabled,
-                    sessionId = args.sessionToStartSearchFor,
-                    source = args.searchAccessPoint,
-                ),
-                tabStripContent = { TabStrip() },
-                searchSuggestionsContent = { toolbarStore, modifier ->
-                    (awesomeBarComposable ?: initializeAwesomeBarComposable(toolbarStore, modifier))
-                        ?.SearchSuggestions()
-                },
-                navigationBarContent = homeNavigationBar?.asComposable(),
-            )
+    private fun buildToolbar(activity: HomeActivity): FenixHomeToolbar =
+        when (activity.settings().shouldUseComposableToolbar) {
+            true -> {
+                val toolbarStore = buildToolbarStore(activity)
+
+                homeNavigationBar = HomeNavigationBar(
+                    context = activity,
+                    container = binding.navigationBarContainer,
+                    toolbarStore = toolbarStore,
+                    settings = activity.settings(),
+                    hideWhenKeyboardShown = true,
+                )
+
+                voiceSearchFeature.set(
+                    feature = VoiceSearchFeature(
+                        context = activity,
+                        appStore = activity.components.appStore,
+                        voiceSearchLauncher = voiceSearchLauncher,
+                    ),
+                    owner = viewLifecycleOwner,
+                    view = binding.root,
+                )
+
+                HomeToolbarComposable(
+                    context = activity,
+                    homeBinding = binding,
+                    navController = findNavController(),
+                    toolbarStore = toolbarStore,
+                    appStore = activity.components.appStore,
+                    browserStore = activity.components.core.store,
+                    settings = activity.settings(),
+                    directToSearchConfig = DirectToSearchConfig(
+                        startSearch = bundleArgs.getBoolean(FOCUS_ON_ADDRESS_BAR) ||
+                                FxNimbus.features.oneClickSearch.value().enabled,
+                        sessionId = args.sessionToStartSearchFor,
+                        source = args.searchAccessPoint,
+                    ),
+                    tabStripContent = { TabStrip() },
+                    searchSuggestionsContent = { modifier ->
+                        (awesomeBarComposable ?: initializeAwesomeBarComposable(toolbarStore, modifier))
+                            ?.SearchSuggestions()
+                    },
+                    navigationBarContent = homeNavigationBar?.asComposable(),
+                )
+            }
 
             false -> HomeToolbarView(
                 homeBinding = binding,
@@ -608,6 +649,15 @@ class HomeFragment : Fragment() {
                 homeActivity = activity,
             )
         }
+
+    private fun buildToolbarStore(activity: HomeActivity) = HomeToolbarStoreBuilder.build(
+        context = activity,
+        lifecycleOwner = this,
+        navController = findNavController(),
+        appStore = requireContext().components.appStore,
+        browserStore = requireContext().components.core.store,
+        browsingModeManager = activity.browsingModeManager,
+    )
 
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
@@ -669,7 +719,7 @@ class HomeFragment : Fragment() {
                 feature = MessagingFeature(
                     appStore = requireComponents.appStore,
                     surface = FenixMessageSurfaceId.MICROSURVEY,
-                    runWhenReadyQueue = requireComponents.performance.visualCompletenessQueue.queue,
+                    runWhenReadyQueue = requireComponents.performance.visualCompletenessQueue,
                 ),
                 owner = viewLifecycleOwner,
                 view = binding.root,
@@ -781,23 +831,6 @@ class HomeFragment : Fragment() {
 
     private fun shouldShowMicrosurveyPrompt(context: Context) =
         context.components.settings.shouldShowMicrosurveyPrompt
-
-    @VisibleForTesting
-    internal fun showUndoSnackbarForTopSite(topSite: TopSite) {
-        lifecycleScope.allowUndo(
-            view = binding.dynamicSnackbarContainer,
-            message = getString(R.string.snackbar_top_site_removed),
-            undoActionTitle = getString(R.string.snackbar_deleted_undo),
-            onCancel = {
-                requireComponents.useCases.topSitesUseCase.addPinnedSites(
-                    topSite.title.toString(),
-                    topSite.url,
-                )
-            },
-            operation = { },
-            elevation = TOAST_ELEVATION,
-        )
-    }
 
     private fun disableAppBarDragging() {
         if (binding.homeAppBar.layoutParams != null) {
@@ -1008,21 +1041,31 @@ class HomeFragment : Fragment() {
 
     @Composable
     private fun TabStrip() {
+        // Tabs will not be shown as selected on the homepage when Homepage as a New Tab is not
+        // enabled.
+        val isSelectDisabled = !requireContext().settings().enableHomepageAsNewTab
+
         FirefoxTheme {
             TabStrip(
-                onHome = true,
+                isSelectDisabled = isSelectDisabled,
+                showActionButtons = context?.settings()?.shouldUseExpandedToolbar != true,
                 onAddTabClick = {
-                    sessionControlInteractor.onNavigateSearch()
-                    TabStripMetrics.newTabTapped.record()
+                    if (requireContext().settings().enableHomepageAsNewTab) {
+                        requireComponents.useCases.fenixBrowserUseCases.addNewHomepageTab(
+                            private = (requireActivity() as HomeActivity).browsingModeManager.mode.isPrivate,
+                        )
+                    } else {
+                        sessionControlInteractor.onNavigateSearch()
+                    }
                 },
-                onSelectedTabClick = {
-                    (requireActivity() as HomeActivity).openToBrowser(BrowserDirection.FromHome)
-                    TabStripMetrics.selectTab.record()
+                onSelectedTabClick = { url ->
+                    if (url != ABOUT_HOME_URL) {
+                        (requireActivity() as HomeActivity).openToBrowser(BrowserDirection.FromHome)
+                    }
                 },
                 onLastTabClose = {},
                 onCloseTabClick = { isPrivate ->
                     showUndoSnackbar(requireContext().tabClosedUndoMessage(isPrivate))
-                    TabStripMetrics.closeTab.record()
                 },
                 onTabCounterClick = { openTabsTray() },
             )

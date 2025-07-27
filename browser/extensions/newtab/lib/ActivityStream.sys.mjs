@@ -604,13 +604,6 @@ export const PREFS_CONFIG = new Map([
     },
   ],
   [
-    "newtabShortcuts.refresh",
-    {
-      title: "Boolean flag to change sizes and spacing of new tab shortcuts",
-      value: false,
-    },
-  ],
-  [
     "discoverystream.sections.enabled",
     {
       title: "Boolean flag to enable section layout UI in recommended stories",
@@ -891,6 +884,13 @@ export const PREFS_CONFIG = new Map([
     "widgets.system.focusTimer.enabled",
     {
       title: "Enables the focus timer widget experiment in Nimbus",
+      value: false,
+    },
+  ],
+  [
+    "widgets.focusTimer.showSystemNotifications",
+    {
+      title: "Enables the focus timer widget to show system notifications",
       value: false,
     },
   ],

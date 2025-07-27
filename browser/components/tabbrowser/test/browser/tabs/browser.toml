@@ -438,6 +438,8 @@ tags = "vertical-tabs"
 ["browser_switch_by_scrolling.js"]
 tags = "vertical-tabs"
 
+["browser_switchtab_when_minimized.js"]
+
 ["browser_tabCloseProbes.js"]
 tags = "vertical-tabs"
 skip-if = [
@@ -505,6 +507,9 @@ tags = "vertical-tabs"
 ["browser_tab_group_menu.js"]
 tags = "vertical-tabs"
 
+["browser_tab_group_preview.js"]
+skip-if = ["os == 'win' && os_version == '11.26100'"] # Bug 1978618
+
 ["browser_tab_groups.js"]
 support-files = ["file_new_tab_page.html"]
 tags = "vertical-tabs"
@@ -530,15 +535,6 @@ skip-if = [
 ]
 
 ["browser_tab_groups_telemetry.js"]
-skip-if = [
-  "os == 'linux' && os_version == '18.04' && processor == 'x86_64' && debug", # Bug 1961033
-  "os == 'linux' && os_version == '18.04' && processor == 'x86_64' && opt", # Bug 1961033
-  "os == 'linux' && os_version == '18.04' && processor == 'x86_64' && tsan && swgl", # Bug 1961033
-  "os == 'linux' && os_version == '24.04' && processor == 'x86_64' && display == 'x11' && opt", # Bug 1961033
-  "os == 'mac' && os_version == '10.15' && processor == 'x86_64' && opt", # Bug 1961033
-  "os == 'mac' && os_version == '15.00' && processor == 'aarch64'", # Bug 1961033
-  "os == 'win' && os_version == '11.26100' && processor == 'x86_64' && opt", # Bug 1961033
-]
 
 ["browser_tab_label_during_reload.js"]
 tags = "vertical-tabs"
@@ -562,7 +558,7 @@ skip-if = [
   "os == 'linux' && os_version == '18.04' && processor == 'x86_64' && vertical_tab && opt", # Bug 1903733
 ]
 
-["browser_tab_manger_synced_tabs.js"]
+["browser_tab_manager_synced_tabs.js"]
 tags = "vertical-tabs"
 
 ["browser_tab_move_active_tab.js"]

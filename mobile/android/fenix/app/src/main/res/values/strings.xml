@@ -370,7 +370,9 @@
 %1$s is the name of the app (for example "Firefox"). -->
     <string name="browser_menu_default_banner_title">Make %1$s your default</string>
     <!-- Label text within the set as default banner  -->
-    <string name="browser_menu_default_banner_subtitle">Takes seconds. Change anytime.</string>
+    <string name="browser_menu_default_banner_subtitle" moz:removedIn="143" tools:ignore="UnusedResources">Takes seconds. Change anytime.</string>
+    <!-- Label text within the set as default banner  -->
+    <string name="browser_menu_default_banner_subtitle_2">Fast, private, and made for you.</string>
     <!-- Content description for the button that dismisses the set as default banner in the menu -->
     <string name="browser_menu_default_banner_dismiss" moz:removedIn="142" tools:ignore="UnusedResources">Dismiss</string>
     <!-- Content description (not visible, for screen readers etc.) for the button that dismisses the set as default banner in the menu -->
@@ -547,7 +549,9 @@
     <!-- Marketing onboarding page body. 'Firefox' is intentionally hardcoded. -->
     <string name="onboarding_marketing_body" tools:ignore="BrandUsage,UnusedResources">When you share how you discovered Firefox and that you use it, you help us introduce our browser to more people.</string>
     <!-- Marketing onboarding page opt-in checkbox. 'Mozilla' is intentionally hardcoded. -->
-    <string name="onboarding_marketing_opt_in_checkbox" tools:ignore="UnusedResources">Share minimal data with Mozilla’s marketing technology partners. This data is never sold or used to show you ads.</string>
+    <string name="onboarding_marketing_opt_in_checkbox" moz:removedIn="143" tools:ignore="UnusedResources">Share minimal data with Mozilla’s marketing technology partners. This data is never sold or used to show you ads.</string>
+    <!-- Marketing onboarding page opt-out checkbox. Unchecking the box does not increase data collection. Our data practices remain the same. 'Mozilla' is intentionally hardcoded. -->
+    <string name="onboarding_marketing_opt_out_checkbox">Share data with Mozilla’s marketing technology partners. This data is never sold or used to show you ads.</string>
     <!-- Marketing onboarding page clickable link text to "learn more" on how data is used. -->
     <string name="onboarding_marketing_learn_more" tools:ignore="UnusedResources">How we use the data</string>
     <!-- Marketing onboarding page button label. Button to confirm choice and start browsing. -->
@@ -983,6 +987,14 @@
     <string name="alternative_app_icon_group_gradients">Gradients</string>
     <!-- Title for the "Other" group of alternative app icon variants in the icon picker screen. This group includes retro, pixel art, themed, and artist-created icons. -->
     <string name="alternative_app_icon_group_other">Other</string>
+    <!-- Title to show in alert when user selects an alternative app icon-->
+    <string name="restart_warning_dialog_title">Change app icon?</string>
+    <!-- Message to warn users that applying an alternative app icon requires an app restart-->
+    <string name="restart_warning_dialog_body">Changing the icon requires the app to restart.</string>
+    <!-- Dialog button text for confirming the app restart to apply the selected icon-->
+    <string name="restart_warning_dialog_button_positive">Restart now</string>
+    <!-- Dialog button text for cancelling app icon change-->
+    <string name="restart_warning_dialog_button_negative">Cancel</string>
 
     <!-- Add-ons general availability nimbus message-->
     <!-- Title of the Nimbus message for extension general availability-->
@@ -1087,6 +1099,9 @@
     <string name="preferences_daily_usage_ping_learn_more">Learn more about daily usage ping</string>
     <!-- Preference switch title for automatically submitting crash reports -->
     <string name="preferences_automatically_send_crashes_title" tools:ignore="UnusedResources" moz:removedIn="142">Automatically send crash reports</string>
+
+    <!-- Title for the crash reporting option in the privacy preferences dialog shown during onboarding. -->
+    <string name="crash_reporting_snack_bar_message">Report sent</string>
 
     <!-- Preference switch description for automatically submitting crash reports -->
     <string name="preferences_automatically_send_crashes_description" tools:ignore="UnusedResources" moz:removedIn="142">This helps us diagnose and fix issues with the browser. Reports may include personal or sensitive data.</string>
@@ -1583,7 +1598,9 @@
     <!-- Restore tab button text on the tab crash page -->
     <string name="tab_crash_restore">Restore tab</string>
     <!-- Unsubmitted crash dialog title, %s is the name of the app (for example "Firefox").  -->
-    <string name="unsubmitted_crash_dialog_title">%s had to restart</string>
+    <string name="unsubmitted_crash_dialog_title" moz:removedIn="142" tools:ignore="UnusedResources">%s had to restart</string>
+    <!-- Unsubmitted crash dialog title, %s is the name of the app (for example "Firefox").  -->
+    <string name="unsubmitted_crash_dialog_title_2">%s crashed. Send a report?</string>
     <!-- Single unsubmitted crash matching remote settings. %1$s is the name of the app (for example "Firefox"). -->
     <string name="unsubmitted_crash_requested_by_devs_dialog_title">You have an unsent crash report related to crashes being investigated. Sending it will help us improve %1$s. Closing this notification will ignore this report.</string>
     <!-- Multiple unsubmitted crashes matching remote settings. %1$d is the number of unsent crash reports, %2$s is the name of the app (for example "Firefox"). -->
@@ -1592,10 +1609,20 @@
     <string name="unsubmitted_crash_dialog_checkbox_label">Automatically send crash reports</string>
     <!-- Unsubmitted crash dialog negative button to dismiss the dialog -->
     <string name="unsubmitted_crash_dialog_negative_button">Close</string>
+    <!-- Unsubmitted crash dialog negative button to dismiss the dialog -->
+    <string name="unsubmitted_crash_dialog_negative_button_2">CLOSE</string>
+
     <!-- Unsubmitted crash dialog negative button to never be asked for the submission -->
     <string name="unsubmitted_crash_requested_by_devs_dialog_never_button">Never show again</string>
     <!-- Unsubmitted crash dialog positive button to submit crash report -->
+    <string name="unsubmitted_crash_dialog_positive_button_2">SEND</string>
+    <!-- Unsubmitted crash dialog positive button to submit crash report -->
     <string name="unsubmitted_crash_dialog_positive_button">Send crash report</string>
+
+    <!-- Body text for crash report dialog. %s is the link text in the annotated string (ie. "Learn More") -->
+    <string name="unsubmitted_crash_dialog_body">Crash reports help us to diagnose and fix issues with the browser. Reports may include personal or sensitive data. %s</string>
+
+    <string name="unsubmitted_crash_dialog_learn_more">Learn more</string>
     <!-- Unsubmitted crash dialog button to open a web page with more details on the feature and privacy policy -->
     <string name="unsubmitted_crash_requested_by_devs_learn_more">Learn More</string>
 

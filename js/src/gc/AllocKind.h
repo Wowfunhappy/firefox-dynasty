@@ -90,7 +90,7 @@ namespace gc {
     D(SCRIPT,              Script,       js::BaseScript,        js::BaseScript,        Foreground, false,  true) \
     D(SHAPE,               Shape,        js::Shape,             js::SizedShape,        Background, false,  true) \
     D(BASE_SHAPE,          BaseShape,    js::BaseShape,         js::BaseShape,         None,       false,  true) \
-    D(GETTER_SETTER,       GetterSetter, js::GetterSetter,      js::GetterSetter,      None,       false,  true) \
+    D(GETTER_SETTER,       GetterSetter, js::GetterSetter,      js::GetterSetter,      None,       true,   true) \
     D(COMPACT_PROP_MAP,    PropMap,      js::CompactPropMap,    js::CompactPropMap,    Background, false,  true) \
     D(NORMAL_PROP_MAP,     PropMap,      js::NormalPropMap,     js::NormalPropMap,     Background, false,  true) \
     D(DICT_PROP_MAP,       PropMap,      js::DictionaryPropMap, js::DictionaryPropMap, Background, false,  true) \
@@ -104,7 +104,7 @@ namespace gc {
 
 #define FOR_EACH_NONOBJECT_NURSERY_ALLOCKIND(D) \
  /* AllocKind              TraceKind     TypeName               SizedType              Finalize    Nursery Compact */ \
-    D(BIGINT,              BigInt,       JS::BigInt,            JS::BigInt,            Background, true,   true)
+    D(BIGINT,              BigInt,       JS::BigInt,            JS::BigInt,            None,       true,   true)
 
 #define FOR_EACH_NURSERY_STRING_ALLOCKIND(D) \
  /* AllocKind              TraceKind     TypeName               SizedType              Finalize    Nursery Compact */ \

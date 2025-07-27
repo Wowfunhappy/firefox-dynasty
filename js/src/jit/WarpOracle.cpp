@@ -80,6 +80,9 @@ class MOZ_STACK_CLASS WarpScriptOracle {
   bool maybeReplaceNurseryPointer(const CacheIRStubInfo* stubInfo,
                                   uint8_t* stubDataCopy, JSObject* obj,
                                   size_t offset);
+  bool maybeReplaceNurseryPointer(const CacheIRStubInfo* stubInfo,
+                                  uint8_t* stubDataCopy, Value v,
+                                  size_t offset);
 
  public:
   WarpScriptOracle(JSContext* cx, WarpOracle* oracle, HandleScript script,
@@ -176,6 +179,9 @@ AbortReasonOr<WarpSnapshot*> WarpOracle::createSnapshot() {
   }
 
   if (!snapshot->nurseryObjects().appendAll(nurseryObjects_)) {
+    return abort(outerScript_, AbortReason::Alloc);
+  }
+  if (!snapshot->nurseryValues().appendAll(nurseryValues_)) {
     return abort(outerScript_, AbortReason::Alloc);
   }
 
@@ -801,14 +807,17 @@ struct RealmFuseDependency final : public CompilationDependency {
         .addFuseDependency(cx, ionScript);
   }
 
-  virtual UniquePtr<CompilationDependency> clone() const override {
-    return MakeUnique<RealmFuseDependency<FuseMember, DepType>>();
+  virtual CompilationDependency* clone(TempAllocator& alloc) const override {
+    return new (alloc.fallible()) RealmFuseDependency<FuseMember, DepType>();
   }
 
   virtual bool checkDependency(JSContext* cx) const override {
     return (cx->realm()->realmFuses.*FuseMember).intact();
   }
 
+  virtual HashNumber hash() const override {
+    return mozilla::HashGeneric(type);
+  }
   virtual bool operator==(const CompilationDependency& dep) const override {
     return dep.type == type;
   }
@@ -822,7 +831,7 @@ bool WarpOracle::addFuseDependency(RealmFuses::FuseIndex fuseIndex,
       return true;
     }
     *stillValid = true;
-    return mirGen().tracker.addDependency(dep);
+    return mirGen().tracker.addDependency(alloc_, dep);
   };
 
   // Register a compilation dependency for all invalidating fuses that are still
@@ -1368,13 +1377,6 @@ bool WarpScriptOracle::replaceNurseryAndAllocSitePointers(
         stubInfo->getStubField<StubField::Type::WeakShape>(stub, offset).get();
         break;
       }
-      case StubField::Type::WeakGetterSetter: {
-        static_assert(std::is_convertible_v<GetterSetter*, gc::TenuredCell*>,
-                      "Code assumes GetterSetters are tenured");
-        stubInfo->getStubField<StubField::Type::WeakGetterSetter>(stub, offset)
-            .get();
-        break;
-      }
       case StubField::Type::Symbol:
         static_assert(std::is_convertible_v<JS::Symbol*, gc::TenuredCell*>,
                       "Code assumes symbols are tenured");
@@ -1429,10 +1431,17 @@ bool WarpScriptOracle::replaceNurseryAndAllocSitePointers(
 #endif
         break;
       }
-      case StubField::Type::Value: {
-        Value v =
-            stubInfo->getStubField<StubField::Type::Value>(stub, offset).get();
-        MOZ_ASSERT_IF(v.isGCThing(), !IsInsideNursery(v.toGCThing()));
+      case StubField::Type::Value:
+      case StubField::Type::WeakValue: {
+        Value v;
+        if (fieldType == StubField::Type::Value) {
+          v = stubInfo->getStubField<StubField::Type::Value>(stub, offset)
+                  .get();
+        } else {
+          MOZ_ASSERT(fieldType == StubField::Type::WeakValue);
+          v = stubInfo->getStubField<StubField::Type::WeakValue>(stub, offset)
+                  .get();
+        }
         if (v.isString()) {
           Value newVal;
           JSAtom* atom = AtomizeString(cx_, v.toString());
@@ -1442,6 +1451,10 @@ bool WarpScriptOracle::replaceNurseryAndAllocSitePointers(
           newVal.setString(atom);
           stubInfo->replaceStubRawValueBits(stubDataCopy, offset, v.asRawBits(),
                                             newVal.asRawBits());
+        } else {
+          if (!maybeReplaceNurseryPointer(stubInfo, stubDataCopy, v, offset)) {
+            return false;
+          }
         }
         break;
       }
@@ -1479,6 +1492,28 @@ bool WarpScriptOracle::maybeReplaceNurseryPointer(
   return true;
 }
 
+bool WarpScriptOracle::maybeReplaceNurseryPointer(
+    const CacheIRStubInfo* stubInfo, uint8_t* stubDataCopy, Value v,
+    size_t offset) {
+  // ValueOrNurseryValueIndex uses MagicValueUint32 to encode nursery indexes.
+  // Assert this doesn't conflict with |v|.
+  MOZ_ASSERT(ValueOrNurseryValueIndex::fromValue(v).isValue());
+
+  if (!v.isGCThing() || !IsInsideNursery(v.toGCThing())) {
+    return true;
+  }
+
+  uint32_t nurseryIndex;
+  if (!oracle_->registerNurseryValue(v, &nurseryIndex)) {
+    return false;
+  }
+
+  auto newValue = ValueOrNurseryValueIndex::fromNurseryIndex(nurseryIndex);
+  stubInfo->replaceStubRawValueBits(stubDataCopy, offset, v.asRawBits(),
+                                    newValue.asRawBits());
+  return true;
+}
+
 bool WarpOracle::registerNurseryObject(JSObject* obj, uint32_t* nurseryIndex) {
   MOZ_ASSERT(IsInsideNursery(obj));
 
@@ -1493,4 +1528,21 @@ bool WarpOracle::registerNurseryObject(JSObject* obj, uint32_t* nurseryIndex) {
   }
   *nurseryIndex = nurseryObjects_.length() - 1;
   return nurseryObjectsMap_.add(p, obj, *nurseryIndex);
+}
+
+bool WarpOracle::registerNurseryValue(Value v, uint32_t* nurseryIndex) {
+  gc::Cell* cell = v.toGCThing();
+  MOZ_ASSERT(IsInsideNursery(cell));
+
+  auto p = nurseryValuesMap_.lookupForAdd(cell);
+  if (p) {
+    *nurseryIndex = p->value();
+    return true;
+  }
+
+  if (!nurseryValues_.append(v)) {
+    return false;
+  }
+  *nurseryIndex = nurseryValues_.length() - 1;
+  return nurseryValuesMap_.add(p, cell, *nurseryIndex);
 }

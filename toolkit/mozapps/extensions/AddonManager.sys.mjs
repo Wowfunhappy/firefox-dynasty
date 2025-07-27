@@ -596,6 +596,9 @@ var AddonManagerInternal = {
       }
 
       this.recordTimestamp("AMI_startup_begin");
+      Glean.addonsManager.startupTimeline.AMI_startup_begin.set(
+        Services.telemetry.msSinceProcessStart()
+      );
 
       // Enable the AMRemoteSettings client.
       AMRemoteSettings.init();
@@ -765,6 +768,9 @@ var AddonManagerInternal = {
       gStartupComplete = true;
       gStartedPromise.resolve();
       this.recordTimestamp("AMI_startup_end");
+      Glean.addonsManager.startupTimeline.AMI_startup_end.set(
+        Services.telemetry.msSinceProcessStart()
+      );
     } catch (e) {
       logger.error("startup failed", e);
       AddonManagerPrivate.recordException("AMI", "startup failed", e);
@@ -1250,11 +1256,21 @@ var AddonManagerInternal = {
     let newPerms = info.addon.userPermissions;
     let difference = lazy.Extension.comparePermissions(oldPerms, newPerms);
 
+    // When an update for an existing add-on includes data collection
+    // permissions, which the add-ons didn't have so far, and the manifest
+    // contains a flag to indicate that there was a previous consent, then we
+    // allow the update to just proceed, unless there are other new required
+    // permissions.
+    const updateIsMigratingToDataCollectionPerms =
+      !info.existingAddon.hasDataCollectionPermissions &&
+      info.install.addonHasPreviousConsent;
+
     // If there are no new permissions, just go ahead with the update
     if (
       !difference.origins.length &&
       !difference.permissions.length &&
-      !difference.data_collection.length
+      (updateIsMigratingToDataCollectionPerms ||
+        !difference.data_collection.length)
     ) {
       return Promise.resolve();
     }
@@ -3881,6 +3897,7 @@ export var AddonManagerPrivate = {
       }
     }
 
+    Glean.addonsManager.exception.set(report);
     this._simpleMeasures.exception = report;
   },
 

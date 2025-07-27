@@ -13,7 +13,7 @@ const mockState = {
     lists: {
       "test-list": {
         label: "test",
-        tasks: [{ value: "task", completed: false }],
+        tasks: [{ value: "task", completed: false, isUrl: false }],
       },
     },
   },
@@ -95,5 +95,49 @@ describe("<Lists>", () => {
     input.simulate("keyDown", { key: "Enter" });
 
     assert.ok(dispatch.notCalled);
+  });
+
+  it("should remove task when deleteTask is run from task item panel menu", () => {
+    // confirm that there is a task available to delete
+    const initialTasks = mockState.ListsWidget.lists["test-list"].tasks;
+    assert.equal(initialTasks.length, 1);
+
+    const deleteButton = wrapper.find("panel-item.delete-item").at(0);
+    deleteButton.props().onClick();
+
+    assert.ok(dispatch.calledOnce);
+    const [action] = dispatch.getCall(0).args;
+    assert.equal(action.type, at.WIDGETS_LISTS_UPDATE);
+
+    // Check that the task list is now empty
+    const updatedTasks = action.data["test-list"].tasks;
+    assert.equal(updatedTasks.length, 0, "Expected task to be removed");
+  });
+
+  it("should add a task with a valid URL and render it as a link", () => {
+    const input = wrapper.find("input").at(0);
+    const testUrl = "https://www.example.com";
+
+    input.simulate("change", { target: { value: testUrl } });
+
+    // Set activeElement for Enter key detection
+    Object.defineProperty(document, "activeElement", {
+      value: input.getDOMNode(),
+      configurable: true,
+    });
+
+    input.simulate("keyDown", { key: "Enter" });
+
+    assert.ok(dispatch.calledOnce, "Expected dispatch to be called");
+
+    const [action] = dispatch.getCall(0).args;
+    assert.equal(action.type, at.WIDGETS_LISTS_UPDATE);
+
+    const newHyperlinkedTask = action.data["test-list"].tasks.find(
+      t => t.value === testUrl
+    );
+
+    assert.ok(newHyperlinkedTask, "Task with URL should be added");
+    assert.ok(newHyperlinkedTask.isUrl, "Task should be marked as a URL");
   });
 });

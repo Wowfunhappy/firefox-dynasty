@@ -393,8 +393,108 @@ function setupRedirect(aSettings) {
   req.send(null);
 }
 
-var TESTS = [
-  async function test_disabledInstall() {
+async function installAddonWithPrivateBrowsingAccess(xpiUrl, addonId) {
+  // Note: this used to be effective, but changed in bug 1974419. Since then,
+  // the private browsing permission is only read from the database if an
+  // add-on was already installed at the time of prompting.
+  await ExtensionPermissions.add(addonId, {
+    permissions: ["internal:privateBrowsingAllowed"],
+    origins: [],
+  });
+
+  let progressPromise = waitForProgressNotification();
+  let dialogPromise = waitForInstallDialog();
+
+  gBrowser.selectedTab = BrowserTestUtils.addTab(gBrowser, "about:blank");
+  await BrowserTestUtils.browserLoaded(gBrowser.selectedBrowser);
+  gURLBar.value = xpiUrl;
+  gURLBar.focus();
+  EventUtils.synthesizeKey("KEY_Enter");
+
+  await progressPromise;
+  let installDialog = await dialogPromise;
+
+  testInstallDialogIncognitoCheckbox(installDialog, {
+    incognitoHidden: false,
+    // Note: before the change in bug 1974419, this expectation was true.
+    incognitoChecked: false,
+    toggleIncognito: true,
+  });
+  let notificationPromise = acceptAppMenuNotificationWhenShown(
+    "addon-installed",
+    addonId
+  );
+  let readyPromise = AddonTestUtils.promiseWebExtensionStartup(addonId);
+  installDialog.button.click();
+  await notificationPromise;
+  let installs = await AddonManager.getAllInstalls();
+  is(installs.length, 0, "Should be no pending installs");
+
+  await readyPromise;
+
+  let policy = WebExtensionPolicy.getByID(addonId);
+  ok(policy.privateBrowsingAllowed, "private browsing permission granted");
+
+  await removeTabAndWaitForNotificationClose();
+}
+
+add_setup(async function () {
+  requestLongerTimeout(4);
+
+  await SpecialPowers.pushPrefEnv({
+    set: [
+      ["extensions.logging.enabled", true],
+      ["extensions.strictCompatibility", true],
+      ["extensions.install.requireSecureOrigin", false],
+      ["security.dialog_enable_delay", 0],
+      // These tests currently depends on InstallTrigger.install.
+      ["extensions.InstallTrigger.enabled", true],
+      ["extensions.InstallTriggerImpl.enabled", true],
+      // Relax the user input requirements while running this test.
+      ["xpinstall.userActivation.required", false],
+      // Bug 721336 - Use sync XHR system requests
+      ["network.xhr.block_sync_system_requests", false],
+    ],
+  });
+
+  const XPInstallObserver = {
+    observe(aSubject, aTopic) {
+      let installInfo = aSubject.wrappedJSObject;
+      info(`Observed ${aTopic} for ${installInfo.installs.length} installs`);
+      installInfo.installs.forEach(aInstall =>
+        info(
+          `Install of ${aInstall.sourceURI.spec} was in state ${aInstall.state}`
+        )
+      );
+    },
+  };
+
+  Services.obs.addObserver(XPInstallObserver, "addon-install-started");
+  Services.obs.addObserver(XPInstallObserver, "addon-install-blocked");
+  Services.obs.addObserver(XPInstallObserver, "addon-install-failed");
+
+  registerCleanupFunction(async function () {
+    let aInstalls = await AddonManager.getAllInstalls();
+    aInstalls.forEach(function (aInstall) {
+      aInstall.cancel();
+    });
+
+    Services.obs.removeObserver(XPInstallObserver, "addon-install-started");
+    Services.obs.removeObserver(XPInstallObserver, "addon-install-blocked");
+    Services.obs.removeObserver(XPInstallObserver, "addon-install-failed");
+  });
+});
+
+describe("Add-on installation doorhangers", function () {
+  async function beforeAndAfterEach() {
+    ok(!PopupNotifications.isPanelOpen, "Notification should be closed");
+    let installs = await AddonManager.getAllInstalls();
+    is(installs.length, 0, "Should be no active installs");
+  }
+  beforeEach(beforeAndAfterEach);
+  afterEach(beforeAndAfterEach);
+
+  it("should show an 'install disabled' notification when xpinstall.enabled=false that lets the user enable installation", async function test_disabledInstall() {
     await SpecialPowers.pushPrefEnv({
       set: [["xpinstall.enabled", false]],
     });
@@ -440,9 +540,9 @@ var TESTS = [
     let installs = await AddonManager.getAllInstalls();
     is(installs.length, 0, "Shouldn't be any pending installs");
     await SpecialPowers.popPrefEnv();
-  },
+  });
 
-  async function test_blockedInstall() {
+  it("should show addon-install-blocked for 3rd party installs and proceed to installation after being allowed by the user", async function test_blockedInstall() {
     await SpecialPowers.pushPrefEnv({
       set: [["extensions.postDownloadThirdPartyPrompt", false]],
     });
@@ -515,9 +615,9 @@ var TESTS = [
 
     await BrowserTestUtils.removeTab(gBrowser.selectedTab);
     await SpecialPowers.popPrefEnv();
-  },
+  });
 
-  async function test_blockedPostDownload() {
+  it("should show the 3rd party install panel when installing add-ons from websites", async function test_blockedPostDownload() {
     await SpecialPowers.pushPrefEnv({
       set: [["extensions.postDownloadThirdPartyPrompt", true]],
     });
@@ -573,9 +673,9 @@ var TESTS = [
 
     await BrowserTestUtils.removeTab(gBrowser.selectedTab);
     await SpecialPowers.popPrefEnv();
-  },
+  });
 
-  async function test_recommendedPostDownload() {
+  it("should not show the 3rd party install panel when installing recommended add-ons", async function test_recommendedPostDownload() {
     await SpecialPowers.pushPrefEnv({
       set: [["extensions.postDownloadThirdPartyPrompt", true]],
     });
@@ -610,9 +710,9 @@ var TESTS = [
 
     await BrowserTestUtils.removeTab(gBrowser.selectedTab);
     await SpecialPowers.popPrefEnv();
-  },
+  });
 
-  async function test_priviledgedNo3rdPartyPrompt() {
+  it("should not show the 3rd party install panel when installing privileged add-ons", async function test_priviledgedNo3rdPartyPrompt() {
     await SpecialPowers.pushPrefEnv({
       set: [["extensions.postDownloadThirdPartyPrompt", true]],
     });
@@ -667,9 +767,9 @@ var TESTS = [
 
     await SpecialPowers.popPrefEnv();
     AddonManager.checkUpdateSecurity = true;
-  },
+  });
 
-  async function test_permaBlockInstall() {
+  it("should permanently block installations from a site when the user chooses 'Never Allow'", async function test_permaBlockInstall() {
     let notificationPromise = waitForNotification("addon-install-blocked");
     let triggers = encodeURIComponent(
       JSON.stringify({
@@ -705,9 +805,9 @@ var TESTS = [
     await BrowserTestUtils.removeTab(gBrowser.selectedTab);
 
     PermissionTestUtils.remove(target, "install");
-  },
+  });
 
-  async function test_permaBlockedInstallNoPrompt() {
+  it("should not show any installation prompt for a site that is permanently blocked", async function test_permaBlockedInstallNoPrompt() {
     let triggers = encodeURIComponent(
       JSON.stringify({
         XPI: "amosigned.xpi",
@@ -736,9 +836,9 @@ var TESTS = [
     await BrowserTestUtils.removeTab(gBrowser.selectedTab);
 
     PermissionTestUtils.remove(target, "install");
-  },
+  });
 
-  async function test_whitelistedInstall() {
+  it("should proceed directly to the install dialog for a site that already has permission to install add-ons", async function test_allowedInstall() {
     let originalTab = gBrowser.selectedTab;
     let tab;
     gBrowser.selectedTab = originalTab;
@@ -777,6 +877,9 @@ var TESTS = [
       "amosigned-xpi@tests.mozilla.org",
       { dismiss: true }
     );
+    let readyPromise = AddonTestUtils.promiseWebExtensionStartup(
+      "amosigned-xpi@tests.mozilla.org"
+    );
     acceptInstallDialog(installDialog);
 
     await notificationPromise;
@@ -788,9 +891,15 @@ var TESTS = [
       "amosigned-xpi@tests.mozilla.org"
     );
 
+    await readyPromise;
+    let readyPromise2 = AddonTestUtils.promiseWebExtensionStartup(
+      "amosigned-xpi@tests.mozilla.org"
+    );
+
     // Test that the addon does not have permission. Reload it to ensure it would
     // have been set if possible.
     await addon.reload();
+    await readyPromise2;
     let policy = WebExtensionPolicy.getByID(addon.id);
     ok(
       !policy.privateBrowsingAllowed,
@@ -802,9 +911,9 @@ var TESTS = [
     PermissionTestUtils.remove("http://example.com/", "install");
 
     await removeTabAndWaitForNotificationClose();
-  },
+  });
 
-  async function test_failedDownload() {
+  it("should show a connection failure notification when the add-on download fails", async function test_failedDownload() {
     PermissionTestUtils.add(
       "http://example.com/",
       "install",
@@ -834,9 +943,9 @@ var TESTS = [
 
     PermissionTestUtils.remove("http://example.com/", "install");
     await removeTabAndWaitForNotificationClose();
-  },
+  });
 
-  async function test_corruptFile() {
+  it("should show a 'corrupt file' notification when the downloaded add-on is corrupt", async function test_corruptFile() {
     PermissionTestUtils.add(
       "http://example.com/",
       "install",
@@ -867,9 +976,9 @@ var TESTS = [
 
     PermissionTestUtils.remove("http://example.com/", "install");
     await removeTabAndWaitForNotificationClose();
-  },
+  });
 
-  async function test_incompatible() {
+  it("should show an incompatibility notification when the add-on is not compatible with the Firefox version", async function test_incompatible() {
     PermissionTestUtils.add(
       "http://example.com/",
       "install",
@@ -904,9 +1013,9 @@ var TESTS = [
 
     PermissionTestUtils.remove("http://example.com/", "install");
     await removeTabAndWaitForNotificationClose();
-  },
+  });
 
-  async function test_blocklisted() {
+  it("should show the appropriate blocklist notification for hard-blocked and soft-blocked add-ons", async function test_blocklisted() {
     let addonName = "XPI Test";
     let id = "amosigned-xpi@tests.mozilla.org";
     let version = "2.2";
@@ -1040,9 +1149,9 @@ var TESTS = [
       BrowserTestUtils.removeTab(gBrowser.selectedTab);
       await closePromise;
     }
-  },
+  });
 
-  async function test_localFile() {
+  it("should show a 'corrupt file' failure notification when installing a local corrupt file", async function test_localFile() {
     let cr = Cc["@mozilla.org/chrome/chrome-registry;1"].getService(
       Ci.nsIChromeRegistry
     );
@@ -1080,9 +1189,9 @@ var TESTS = [
     );
 
     await removeTabAndWaitForNotificationClose();
-  },
+  });
 
-  async function test_urlBar() {
+  it("should handle add-on installation initiated from the address bar", async function test_urlBar() {
     let progressPromise = waitForProgressNotification();
     let dialogPromise = waitForInstallDialog();
 
@@ -1126,9 +1235,9 @@ var TESTS = [
     await addon.uninstall();
 
     await removeTabAndWaitForNotificationClose();
-  },
+  });
 
-  async function test_wrongHost() {
+  it("should show addon-install-failed when failing to install on a navigation that is triggered by the system principal", async function test_wrongHost() {
     let requestedUrl = TESTROOT2 + "enabled.html";
     gBrowser.selectedTab = BrowserTestUtils.addTab(gBrowser);
 
@@ -1158,9 +1267,9 @@ var TESTS = [
     );
 
     await removeTabAndWaitForNotificationClose();
-  },
+  });
 
-  async function test_renotifyBlocked() {
+  it("should re-notify the user about blocked install if they dismiss the panel then trigger it again", async function test_renotifyBlocked() {
     let notificationPromise = waitForNotification("addon-install-blocked");
     let triggers = encodeURIComponent(
       JSON.stringify({
@@ -1196,9 +1305,9 @@ var TESTS = [
 
     installs = await AddonManager.getAllInstalls();
     is(installs.length, 0, "Should have cancelled the installs");
-  },
+  });
 
-  async function test_cancel() {
+  it("should cancel the installation when the user clicks cancel on the download progress notification", async function test_cancel() {
     PermissionTestUtils.add(
       "http://example.com/",
       "install",
@@ -1252,9 +1361,9 @@ var TESTS = [
 
     PermissionTestUtils.remove("http://example.com/", "install");
     BrowserTestUtils.removeTab(gBrowser.selectedTab);
-  },
+  });
 
-  async function test_failedSecurity() {
+  it("should fail the installation for an https redirect to an insecure http URL without a fallback hash", async function test_failedSecurity() {
     await SpecialPowers.pushPrefEnv({
       set: [
         [PREF_INSTALL_REQUIREBUILTINCERTS, false],
@@ -1321,19 +1430,18 @@ var TESTS = [
 
     await removeTabAndWaitForNotificationClose();
     await SpecialPowers.popPrefEnv();
-  },
+  });
 
-  async function test_incognito_checkbox() {
+  // Verifies that incognito checkbox is checked if add-on was already
+  // installed before, with private access. Regression test for bug 1581852.
+  it("should revoke incognito permission when users uncheck the checkbox on re-installing add-on with granted incognito permission", async function test_incognito_checkbox() {
     // Grant permission up front.
-    const permissionName = "internal:privateBrowsingAllowed";
-    let incognitoPermission = {
-      permissions: [permissionName],
-      origins: [],
-    };
-    await ExtensionPermissions.add(
-      "amosigned-xpi@tests.mozilla.org",
-      incognitoPermission
+    await installAddonWithPrivateBrowsingAccess(
+      TESTROOT + "amosigned.xpi",
+      "amosigned-xpi@tests.mozilla.org"
     );
+    // ^ the above add-on will be overwritten by the install below, and removed
+    // at the end of this task.
 
     let progressPromise = waitForProgressNotification();
     let dialogPromise = waitForInstallDialog();
@@ -1357,6 +1465,9 @@ var TESTS = [
       "addon-installed",
       "amosigned-xpi@tests.mozilla.org"
     );
+    let readyPromise = AddonTestUtils.promiseWebExtensionStartup(
+      "amosigned-xpi@tests.mozilla.org"
+    );
     installDialog.button.click();
     await notificationPromise;
 
@@ -1367,6 +1478,8 @@ var TESTS = [
       "amosigned-xpi@tests.mozilla.org"
     );
 
+    await readyPromise;
+
     // This addon should no longer have private browsing permission.
     let policy = WebExtensionPolicy.getByID(addon.id);
     ok(!policy.privateBrowsingAllowed, "private browsing permission removed");
@@ -1374,21 +1487,19 @@ var TESTS = [
     await addon.uninstall();
 
     await removeTabAndWaitForNotificationClose();
-  },
+  });
 
-  async function test_incognito_checkbox_new_window() {
+  it("should correctly handle the incognito checkbox toggle during re-install in a new window", async function test_incognito_checkbox_new_window() {
+    // Grant permission up front.
+    await installAddonWithPrivateBrowsingAccess(
+      TESTROOT + "amosigned.xpi",
+      "amosigned-xpi@tests.mozilla.org"
+    );
+    // ^ the above add-on will be overwritten by the install below, and removed
+    // at the end of this task.
+
     let win = await BrowserTestUtils.openNewBrowserWindow();
     await SimpleTest.promiseFocus(win);
-    // Grant permission up front.
-    const permissionName = "internal:privateBrowsingAllowed";
-    let incognitoPermission = {
-      permissions: [permissionName],
-      origins: [],
-    };
-    await ExtensionPermissions.add(
-      "amosigned-xpi@tests.mozilla.org",
-      incognitoPermission
-    );
 
     let panelEventPromise = new Promise(resolve => {
       win.PopupNotifications.panel.addEventListener(
@@ -1447,6 +1558,9 @@ var TESTS = [
       "amosigned-xpi@tests.mozilla.org",
       { global: win }
     );
+    let readyPromise = AddonTestUtils.promiseWebExtensionStartup(
+      "amosigned-xpi@tests.mozilla.org"
+    );
     acceptInstallDialog(installDialog);
     await notificationPromise;
 
@@ -1457,6 +1571,8 @@ var TESTS = [
       "amosigned-xpi@tests.mozilla.org"
     );
 
+    await readyPromise;
+
     // This addon should no longer have private browsing permission.
     let policy = WebExtensionPolicy.getByID(addon.id);
     ok(!policy.privateBrowsingAllowed, "private browsing permission removed");
@@ -1464,9 +1580,9 @@ var TESTS = [
     await addon.uninstall();
 
     await BrowserTestUtils.closeWindow(win);
-  },
+  });
 
-  async function test_mv3_installOrigins_disallowed_with_unified_extensions() {
+  it("should fail to install an MV3 add-on without matching install_origins when extensions.install_origins.enabled=true", async function test_mv3_installOrigins_disallowed_with_unified_extensions() {
     await SpecialPowers.pushPrefEnv({
       set: [
         // Disable signature check because we load an unsigned MV3 extension.
@@ -1498,9 +1614,9 @@ var TESTS = [
 
     await BrowserTestUtils.closeWindow(win);
     await SpecialPowers.popPrefEnv();
-  },
+  });
 
-  async function test_mv3_installOrigins_allowed_with_unified_extensions() {
+  it("should allow installing an MV3 add-on without matching install_origins when extensions.install_origins.enabled=false", async function test_mv3_installOrigins_allowed_with_unified_extensions() {
     await SpecialPowers.pushPrefEnv({
       set: [
         // Disable signature check because we load an unsigned MV3 extension.
@@ -1538,81 +1654,5 @@ var TESTS = [
 
     await BrowserTestUtils.closeWindow(win);
     await SpecialPowers.popPrefEnv();
-  },
-];
-
-var gTestStart = null;
-
-var XPInstallObserver = {
-  observe(aSubject, aTopic) {
-    var installInfo = aSubject.wrappedJSObject;
-    info(
-      "Observed " + aTopic + " for " + installInfo.installs.length + " installs"
-    );
-    installInfo.installs.forEach(function (aInstall) {
-      info(
-        "Install of " +
-          aInstall.sourceURI.spec +
-          " was in state " +
-          aInstall.state
-      );
-    });
-  },
-};
-
-add_setup(async function () {
-  requestLongerTimeout(4);
-
-  await SpecialPowers.pushPrefEnv({
-    set: [
-      ["extensions.logging.enabled", true],
-      ["extensions.strictCompatibility", true],
-      ["extensions.install.requireSecureOrigin", false],
-      ["security.dialog_enable_delay", 0],
-      // These tests currently depends on InstallTrigger.install.
-      ["extensions.InstallTrigger.enabled", true],
-      ["extensions.InstallTriggerImpl.enabled", true],
-      // Relax the user input requirements while running this test.
-      ["xpinstall.userActivation.required", false],
-      // Bug 721336 - Use sync XHR system requests
-      ["network.xhr.block_sync_system_requests", false],
-    ],
   });
-
-  Services.obs.addObserver(XPInstallObserver, "addon-install-started");
-  Services.obs.addObserver(XPInstallObserver, "addon-install-blocked");
-  Services.obs.addObserver(XPInstallObserver, "addon-install-failed");
-
-  registerCleanupFunction(async function () {
-    // Make sure no more test parts run in case we were timed out
-    TESTS = [];
-
-    let aInstalls = await AddonManager.getAllInstalls();
-    aInstalls.forEach(function (aInstall) {
-      aInstall.cancel();
-    });
-
-    Services.obs.removeObserver(XPInstallObserver, "addon-install-started");
-    Services.obs.removeObserver(XPInstallObserver, "addon-install-blocked");
-    Services.obs.removeObserver(XPInstallObserver, "addon-install-failed");
-  });
-});
-
-// Run all test cases with the private browsing checkbox available in the first
-// install dialog, before the addon has been already installed.
-add_task(async function testBasic() {
-  for (let i = 0; i < TESTS.length; ++i) {
-    if (gTestStart) {
-      info("Test part took " + (Date.now() - gTestStart) + "ms");
-    }
-
-    ok(!PopupNotifications.isPanelOpen, "Notification should be closed");
-
-    let installs = await AddonManager.getAllInstalls();
-
-    is(installs.length, 0, "Should be no active installs");
-    info("===== Running test case: " + TESTS[i].name);
-    gTestStart = Date.now();
-    await TESTS[i]();
-  }
 });

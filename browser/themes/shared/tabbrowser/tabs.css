@@ -943,6 +943,90 @@
   }
 }
 
+#pinned-drop-indicator-icon,
+#pinned-drop-indicator-text {
+  display: none;
+}
+
+#pinned-drop-indicator {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-accent-primary);
+
+  &[visible] {
+    display: flex;
+    border-radius: var(--border-radius-small);
+    background: color-mix(in srgb, currentColor 12%, transparent);
+
+    #pinned-drop-indicator-icon {
+      width: var(--size-item-small);
+      height: var(--size-item-small);
+      -moz-context-properties: fill;
+      fill: currentColor;
+      display: inline;
+    }
+  }
+
+  &[interactive] {
+    outline: 1px solid var(--focus-outline-color);
+  }
+}
+
+#tabbrowser-tabs[orient="vertical"] > #pinned-drop-indicator {
+  /* We need to explicitly set height to 0 to ensure the animation runs*/
+  height: 0;
+
+  @media not (prefers-reduced-motion) {
+    transition: height 0.25s ease-in-out;
+  }
+
+  &[visible] {
+    height: 70px;
+    width: calc(100% - 2 * var(--tab-inner-inline-margin));
+    gap: var(--space-small);
+    margin: var(--space-small) var(--tab-inner-inline-margin);
+
+    > #pinned-drop-indicator-text {
+      display: inline;
+      text-align: center;
+    }
+
+    #tabbrowser-tabs:not([expanded]) > & {
+      width: var(--tab-collapsed-background-width);
+      height: var(--size-item-large);
+
+      /* stylelint-disable max-nesting-depth */
+      > #pinned-drop-indicator-text {
+        display: none;
+      }
+    }
+  }
+}
+
+#tabbrowser-tabs[orient="horizontal"] > #pinned-drop-indicator {
+  /* We need to explicitly set width to 0 to ensure the animation runs*/
+  width: 0;
+
+  @media not (prefers-reduced-motion) {
+    transition: width 0.25s ease-in-out;
+  }
+
+  &[visible] {
+    margin-inline: var(--space-small);
+    align-self: center;
+    align-items: flex-start;
+    width: calc(2 * var(--size-item-large));
+    height: var(--tab-min-height);
+    padding-inline-start: var(--space-small);
+
+    > #pinned-drop-indicator-text {
+      display: none;
+    }
+  }
+}
+
 /* Tab Groups */
 
 /*
@@ -1132,8 +1216,6 @@ tab-group {
     margin-inline-end: 3px;
   }
   #tabbrowser-tabs[orient="vertical"] & {
-    padding-block-start: var(--space-small);
-
     #tabbrowser-tabs[expanded] & {
       margin-inline-start: var(--space-medium);
     }
@@ -1166,6 +1248,10 @@ tab-group {
   color: var(--tab-group-line-color);
   margin: 0;
   padding: var(--space-small);
+
+  #tabbrowser-tabs[orient="vertical"] & {
+    margin-inline-start: var(--tab-inner-inline-margin);
+  }
 }
 
 .tab-group-label {
@@ -1236,7 +1322,7 @@ tab-group {
 .tab-group-editor-panel {
   --panel-width: 22em;
   --panel-padding: var(--space-large);
-  --panel-separator-margin: var(--panel-separator-margin-vertical) 0;
+  --panel-separator-padding: var(--space-medium) 0;
   font: menu;
 
   .panel-header {
@@ -1244,10 +1330,6 @@ tab-group {
     > h1 {
       margin-top: 0;
     }
-  }
-
-  toolbarseparator {
-    margin-block: var(--space-medium);
   }
 
   .panel-body {

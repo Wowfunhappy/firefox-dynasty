@@ -308,6 +308,7 @@ for (const type of [
   "WIDGETS_TIMER_PAUSE",
   "WIDGETS_TIMER_PLAY",
   "WIDGETS_TIMER_RESET",
+  "WIDGETS_TIMER_SET",
   "WIDGETS_TIMER_SET_DURATION",
 ]) {
   actionTypes[type] = type;
@@ -7841,7 +7842,7 @@ const INITIAL_STATE = {
         tasks: [],
       },
     },
-    // Keeping this separate from `lists` so that it isnt rendered
+    // Keeping this separate from `lists` so that it isn't rendered
     // in the same way
     completed: {
       label: "Completed",
@@ -7849,8 +7850,10 @@ const INITIAL_STATE = {
     },
   },
   TimerWidget: {
-    // Timer duration set by user
+    // Timer duration set by user; will be updated if user pauses the timer
     duration: 0,
+    // Initial duration - also set by the user; does not update until timer ends or user resets timer
+    initialDuration: 0,
     // the Date.now() value when a user starts/resumes a timer
     startTime: null,
     // Boolean indicating if timer is currently running
@@ -8761,6 +8764,7 @@ function TimerWidget(prevState = INITIAL_STATE.TimerWidget, action) {
     case actionTypes.WIDGETS_TIMER_SET_DURATION:
       return {
         duration: action.data,
+        initialDuration: action.data,
         startTime: null,
         isRunning: false,
       };
@@ -8785,6 +8789,7 @@ function TimerWidget(prevState = INITIAL_STATE.TimerWidget, action) {
     case actionTypes.WIDGETS_TIMER_RESET:
       return {
         duration: 0,
+        initialDuration: 0,
         startTime: null,
         isRunning: false,
       };
@@ -8792,6 +8797,7 @@ function TimerWidget(prevState = INITIAL_STATE.TimerWidget, action) {
       return {
         ...prevState,
         duration: 0,
+        initialDuration: 0,
         startTime: null,
         isRunning: false,
       };
@@ -9472,8 +9478,7 @@ class TopSiteLink extends (external_React_default()).PureComponent {
       link,
       onClick,
       title,
-      isAddButton,
-      shortcutsRefresh
+      isAddButton
     } = this.props;
     const topSiteOuterClassName = `top-site-outer${className ? ` ${className}` : ""}${link.isDragged ? " dragged" : ""}${link.searchTopSite ? " search-shortcut" : ""}`;
     const [letterFallback] = title;
@@ -9489,6 +9494,12 @@ class TopSiteLink extends (external_React_default()).PureComponent {
     };
     const addButtonTitlel10n = {
       "data-l10n-id": "newtab-topsites-add-shortcut-title"
+    };
+    const addPinnedTitlel10n = {
+      "data-l10n-id": "topsite-label-pinned",
+      "data-l10n-args": JSON.stringify({
+        title
+      })
     };
     let draggableProps = {};
     if (isDraggable) {
@@ -9564,12 +9575,19 @@ class TopSiteLink extends (external_React_default()).PureComponent {
       onClick: onClick,
       draggable: true,
       "data-is-sponsored-link": !!link.sponsored_tile_id,
-      onFocus: this.props.onFocus
+      onFocus: this.props.onFocus,
+      "aria-label": link.isPinned ? undefined : title
     }, isAddButton && {
       ...addButtonTitlel10n
     }, !isAddButton && {
       title
-    }), shortcutsRefresh && link.isPinned && /*#__PURE__*/external_React_default().createElement("div", {
+    }, link.isPinned && {
+      ...addPinnedTitlel10n
+    }, {
+      "data-l10n-args": JSON.stringify({
+        title
+      })
+    }), link.isPinned && /*#__PURE__*/external_React_default().createElement("div", {
       className: "icon icon-pin-small"
     }), /*#__PURE__*/external_React_default().createElement("div", {
       className: "tile",
@@ -9587,18 +9605,14 @@ class TopSiteLink extends (external_React_default()).PureComponent {
       className: "top-site-icon default-icon",
       "data-fallback": smallFaviconStyle ? "" : letterFallback,
       style: smallFaviconStyle
-    })), !shortcutsRefresh && link.searchTopSite && /*#__PURE__*/external_React_default().createElement("div", {
-      className: "top-site-icon search-topsite"
-    })), /*#__PURE__*/external_React_default().createElement("div", {
+    }))), /*#__PURE__*/external_React_default().createElement("div", {
       className: `title${link.isPinned ? " has-icon pinned" : ""}${link.type === SPOC_TYPE || link.show_sponsored_label ? " sponsored" : ""}`
     }, /*#__PURE__*/external_React_default().createElement("span", TopSite_extends({
       className: "title-label",
       dir: "auto"
     }, isAddButton && {
       ...addButtonLabell10n
-    }), !shortcutsRefresh && link.isPinned && /*#__PURE__*/external_React_default().createElement("div", {
-      className: "icon icon-pin-small"
-    }), shortcutsRefresh && link.searchTopSite && /*#__PURE__*/external_React_default().createElement("div", {
+    }), link.searchTopSite && /*#__PURE__*/external_React_default().createElement("div", {
       className: "top-site-icon search-topsite"
     }), title || /*#__PURE__*/external_React_default().createElement("br", null)), /*#__PURE__*/external_React_default().createElement("span", {
       className: "sponsored-label",
@@ -10050,8 +10064,6 @@ class _TopSiteList extends (external_React_default()).PureComponent {
     const {
       props
     } = this;
-    const prefs = props.Prefs.values;
-    const shortcutsRefresh = prefs["newtabShortcuts.refresh"];
     const topSites = this.state.topSitesPreview || this._getTopSites();
     const topSitesUI = [];
     const commonProps = {
@@ -10103,7 +10115,6 @@ class _TopSiteList extends (external_React_default()).PureComponent {
           onActivate: this.onActivate
         }, slotProps, commonProps, {
           colors: props.colors,
-          shortcutsRefresh: shortcutsRefresh,
           setRef: i === this.state.focusedIndex ? el => {
             this.focusedRef = el;
           } : () => {},
@@ -11718,7 +11729,6 @@ function FollowSectionButtonHighlight({
       className: "follow-section-button-highlight-content"
     }, /*#__PURE__*/external_React_default().createElement("img", {
       src: "chrome://browser/content/asrouter/assets/smiling-fox-icon.svg",
-      "data-l10n-id": "newtab-download-mobile-highlight-image",
       width: "24",
       height: "24",
       alt: ""
@@ -12222,6 +12232,9 @@ function Lists({
   } = listsData;
   const [newTask, setNewTask] = (0,external_React_namespaceObject.useState)("");
   const inputRef = (0,external_React_namespaceObject.useRef)(null);
+  function isValidUrl(string) {
+    return URL.canParse(string);
+  }
   function saveTask() {
     const trimmedTask = newTask.trimEnd();
     // only add new task if it has a length, to avoid creating empty tasks
@@ -12230,7 +12243,8 @@ function Lists({
         value: trimmedTask,
         completed: false,
         created: Date.now(),
-        id: crypto.randomUUID()
+        id: crypto.randomUUID(),
+        isUrl: isValidUrl(trimmedTask)
       };
       const updatedLists = {
         ...lists,
@@ -12246,14 +12260,27 @@ function Lists({
       setNewTask("");
     }
   }
-  function updateTask(e, selectedTask) {
+  function updateTask(updatedTask) {
     const selectedTasks = lists[selected].tasks;
-    const updatedTask = {
-      ...selectedTask,
-      completed: e.target.checked
-    };
     // find selected task and update completed property
     const updatedTasks = selectedTasks.map(task => task.id === updatedTask.id ? updatedTask : task);
+    const updatedLists = {
+      ...lists,
+      [selected]: {
+        ...lists[selected],
+        tasks: updatedTasks
+      }
+    };
+    dispatch(actionCreators.AlsoToMain({
+      type: actionTypes.WIDGETS_LISTS_UPDATE,
+      data: updatedLists
+    }));
+  }
+  function deleteTask(task) {
+    const selectedTasks = lists[selected].tasks;
+    const updatedTasks = selectedTasks.filter(({
+      id
+    }) => id !== task.id);
     const updatedLists = {
       ...lists,
       [selected]: {
@@ -12289,32 +12316,93 @@ function Lists({
   }
   return lists ? /*#__PURE__*/external_React_default().createElement("article", {
     className: "lists"
+  }, /*#__PURE__*/external_React_default().createElement("div", {
+    className: "select-wrapper"
   }, /*#__PURE__*/external_React_default().createElement("moz-select", {
     value: selected
   }, Object.entries(lists).map(([key, list]) => /*#__PURE__*/external_React_default().createElement("moz-option", {
     key: key,
     value: key,
     label: list.label
-  }))), /*#__PURE__*/external_React_default().createElement("div", {
+  }))), /*#__PURE__*/external_React_default().createElement("moz-button", {
+    className: "lists-panel-button",
+    iconSrc: "chrome://global/skin/icons/more.svg",
+    menuId: "lists-panel",
+    type: "ghost"
+  }), /*#__PURE__*/external_React_default().createElement("panel-list", {
+    id: "lists-panel"
+  }, /*#__PURE__*/external_React_default().createElement("panel-item", null, "Edit name"), /*#__PURE__*/external_React_default().createElement("panel-item", null, "Create a new list"), /*#__PURE__*/external_React_default().createElement("panel-item", null, "Hide To Do list"), /*#__PURE__*/external_React_default().createElement("panel-item", null, "Learn more"), /*#__PURE__*/external_React_default().createElement("panel-item", null, "Copy to clipboard"))), /*#__PURE__*/external_React_default().createElement("div", {
     className: "add-task-container"
-  }, /*#__PURE__*/external_React_default().createElement("input", {
+  }, /*#__PURE__*/external_React_default().createElement("span", {
+    className: "icon icon-add"
+  }), /*#__PURE__*/external_React_default().createElement("input", {
     ref: inputRef,
     onChange: e => setNewTask(e.target.value),
     value: newTask,
-    placeholder: "Enter task",
-    onKeyDown: handleKeyDown
-  })), lists[selected]?.tasks.length >= 1 ? /*#__PURE__*/external_React_default().createElement("moz-reorderable-list", {
+    placeholder: "Add a task",
+    className: "add-task-input",
+    onKeyDown: handleKeyDown,
+    type: "text",
+    maxLength: 100
+  })), /*#__PURE__*/external_React_default().createElement("div", {
+    className: "task-list-wrapper"
+  }, lists[selected]?.tasks.length >= 1 ? /*#__PURE__*/external_React_default().createElement("moz-reorderable-list", {
     itemSelector: "fieldset .task-item"
-  }, /*#__PURE__*/external_React_default().createElement("fieldset", null, lists[selected].tasks.map((task, idx) => {
-    return /*#__PURE__*/external_React_default().createElement("label", {
-      key: idx,
-      className: "task-item"
-    }, /*#__PURE__*/external_React_default().createElement("input", {
-      type: "checkbox",
-      onChange: e => updateTask(e, task),
-      checked: task.completed
-    }), /*#__PURE__*/external_React_default().createElement("span", null, task.value));
-  }))) : /*#__PURE__*/external_React_default().createElement("div", null, /*#__PURE__*/external_React_default().createElement("p", null, "The list is empty. For now \uD83E\uDD8A"))) : null;
+  }, /*#__PURE__*/external_React_default().createElement("fieldset", null, lists[selected].tasks.map(task => /*#__PURE__*/external_React_default().createElement(ListItem, {
+    task: task,
+    key: task.id,
+    updateTask: updateTask,
+    deleteTask: deleteTask
+  })))) : /*#__PURE__*/external_React_default().createElement("p", {
+    className: "empty-list-text"
+  }, "The list is empty. For now \uD83E\uDD8A"))) : null;
+}
+function ListItem({
+  task,
+  updateTask,
+  deleteTask
+}) {
+  const [shouldAnimate, setShouldAnimate] = (0,external_React_namespaceObject.useState)(false);
+  function handleCheckboxChange(e) {
+    const {
+      checked
+    } = e.target;
+    const updatedTask = {
+      ...task,
+      completed: e.target.checked
+    };
+    updateTask(updatedTask);
+    setShouldAnimate(checked);
+  }
+  return /*#__PURE__*/external_React_default().createElement("div", {
+    className: "task-item"
+  }, /*#__PURE__*/external_React_default().createElement("div", {
+    className: "checkbox-wrapper"
+  }, /*#__PURE__*/external_React_default().createElement("input", {
+    type: "checkbox",
+    onChange: handleCheckboxChange,
+    checked: task.completed
+  }), task.isUrl ? /*#__PURE__*/external_React_default().createElement("a", {
+    href: task.value,
+    rel: "noopener noreferrer",
+    target: "_blank",
+    className: `task-label ${task.completed && shouldAnimate ? "animate-strike" : ""}`,
+    title: task.value
+  }, task.value) : /*#__PURE__*/external_React_default().createElement("span", {
+    className: `task-label ${task.completed && shouldAnimate ? "animate-strike" : ""}`,
+    title: task.value
+  }, task.value)), /*#__PURE__*/external_React_default().createElement("moz-button", {
+    iconSrc: "chrome://global/skin/icons/more.svg",
+    menuId: `panel-task-${task.id}`,
+    type: "ghost"
+  }), /*#__PURE__*/external_React_default().createElement("panel-list", {
+    id: `panel-task-${task.id}`
+  }, task.isUrl && /*#__PURE__*/external_React_default().createElement("panel-item", {
+    onClick: () => window.open(task.value, "_blank", "noopener")
+  }, "Open link"), /*#__PURE__*/external_React_default().createElement("panel-item", null, "Move up"), /*#__PURE__*/external_React_default().createElement("panel-item", null, "Move down"), /*#__PURE__*/external_React_default().createElement("panel-item", null, "Edit"), /*#__PURE__*/external_React_default().createElement("panel-item", {
+    className: "delete-item",
+    onClick: () => deleteTask(task)
+  }, "Delete item")));
 }
 
 ;// CONCATENATED MODULE: ./content-src/components/Widgets/FocusTimer/FocusTimer.jsx
@@ -12325,23 +12413,90 @@ function Lists({
 
 
 
+
+/**
+ * Calculates the remaining time (in seconds) by subtracting elapsed time from the original duration
+ *
+ * @param duration
+ * @param start
+ * @returns int
+ */
+const calculateTimeRemaining = (duration, start) => {
+  const currentTime = Math.floor(Date.now() / 1000);
+
+  // Subtract the elapsed time from initial duration to get time remaining in the timer
+  return Math.max(duration - (currentTime - start), 0);
+};
+
+/**
+ * Converts a number of seconds into a zero-padded MM:SS time string
+ *
+ * @param seconds
+ * @returns string
+ */
+const formatTime = seconds => {
+  const minutes = Math.floor(seconds / 60).toString().padStart(2, "0");
+  const secs = (seconds % 60).toString().padStart(2, "0");
+  return `${minutes}:${secs}`;
+};
+
+/**
+ * Converts a polar coordinate (angle on circle) into a percentage-based [x,y] position for clip-path
+ *
+ * @param cx
+ * @param cy
+ * @param radius
+ * @param angle
+ * @returns string
+ */
+const polarToPercent = (cx, cy, radius, angle) => {
+  const rad = (angle - 90) * Math.PI / 180;
+  const x = cx + radius * Math.cos(rad);
+  const y = cy + radius * Math.sin(rad);
+  return `${x}% ${y}%`;
+};
+
+/**
+ * Generates a clip-path polygon string that represents a pie slice from 0 degrees
+ * to the current progress angle
+ *
+ * @returns string
+ * @param progress
+ */
+const getClipPath = progress => {
+  const cx = 50;
+  const cy = 50;
+  const radius = 50;
+  // Show some progress right at the start - 6 degrees is just enough to paint a dot once the timer is ticking
+  const angle = progress > 0 ? Math.max(progress * 360, 6) : 0;
+  const points = [`50% 50%`];
+  for (let a = 0; a <= angle; a += 2) {
+    points.push(polarToPercent(cx, cy, radius, a));
+  }
+  return `polygon(${points.join(", ")})`;
+};
 function FocusTimer({
   dispatch
 }) {
   const inputRef = (0,external_React_namespaceObject.useRef)(null);
+  const arcRef = (0,external_React_namespaceObject.useRef)(null);
   const timerData = (0,external_ReactRedux_namespaceObject.useSelector)(state => state.TimerWidget);
   const {
     duration,
+    initialDuration,
     startTime,
     isRunning
   } = timerData;
   const [timeLeft, setTimeLeft] = (0,external_React_namespaceObject.useState)(0);
-  const calculateTimeRemaining = (dur, start) => {
-    const currentTime = Math.floor(Date.now() / 1000);
-
-    // Subtract the elapsed time from initial duration to get time remaining in the timer
-    return Math.max(dur - (currentTime - start), 0);
-  };
+  // calculated value for the progress circle; 1 = 100%
+  const [progress, setProgress] = (0,external_React_namespaceObject.useState)(0);
+  const resetProgressCircle = (0,external_React_namespaceObject.useCallback)(() => {
+    if (arcRef?.current) {
+      arcRef.current.style.clipPath = "polygon(50% 50%)";
+      arcRef.current.style.webkitClipPath = "polygon(50% 50%)";
+    }
+    setProgress(0);
+  }, [arcRef]);
   (0,external_React_namespaceObject.useEffect)(() => {
     let interval;
     if (isRunning && duration > 0) {
@@ -12349,13 +12504,22 @@ function FocusTimer({
         const remaining = calculateTimeRemaining(duration, startTime);
         if (remaining <= 0) {
           clearInterval(interval);
+
+          // circle is complete, this will trigger animation to a completed green circle
+          setProgress(1);
+
+          // Reset all styles to default after a delay to allow for the animation above
+          setTimeout(() => {
+            resetProgressCircle();
+          }, 1500);
           dispatch(actionCreators.AlsoToMain({
             type: actionTypes.WIDGETS_TIMER_END
           }));
         }
 
-        // using setTimeNow to trigger a re-render of the component to show live countdown each second
+        // using setTimeLeft to trigger a re-render of the component to show live countdown each second
         setTimeLeft(remaining);
+        setProgress((initialDuration - remaining) / initialDuration);
       }, 1000);
     }
 
@@ -12363,7 +12527,14 @@ function FocusTimer({
     const newTime = isRunning ? calculateTimeRemaining(duration, startTime) : duration;
     setTimeLeft(newTime);
     return () => clearInterval(interval);
-  }, [isRunning, startTime, duration, dispatch, timeLeft]);
+  }, [isRunning, startTime, duration, initialDuration, dispatch, timeLeft, resetProgressCircle]);
+
+  // Update the clip-path of the gradient circle to match the current progress value
+  (0,external_React_namespaceObject.useEffect)(() => {
+    if (arcRef?.current) {
+      arcRef.current.style.clipPath = getClipPath(progress);
+    }
+  }, [progress]);
 
   // set timer function
   const setTimerMinutes = e => {
@@ -12401,11 +12572,9 @@ function FocusTimer({
     dispatch(actionCreators.AlsoToMain({
       type: actionTypes.WIDGETS_TIMER_RESET
     }));
-  };
-  const formatTime = seconds => {
-    const minutes = Math.floor(seconds / 60).toString().padStart(2, "0");
-    const secs = (seconds % 60).toString().padStart(2, "0");
-    return `${minutes}:${secs}`;
+
+    // Reset progress value and gradient arc on the progress circle
+    resetProgressCircle();
   };
   return timerData ? /*#__PURE__*/external_React_default().createElement("article", {
     className: "focus-timer-wrapper"
@@ -12425,7 +12594,20 @@ function FocusTimer({
     onClick: toggleTimer
   }, isRunning ? "Pause" : "Play"), /*#__PURE__*/external_React_default().createElement("button", {
     onClick: resetTimer
-  }, "Reset")), "Time left: ", formatTime(timeLeft)) : null;
+  }, "Reset")), /*#__PURE__*/external_React_default().createElement("div", {
+    role: "progress",
+    className: "progress-circle-wrapper"
+  }, /*#__PURE__*/external_React_default().createElement("div", {
+    className: "progress-circle-background"
+  }), /*#__PURE__*/external_React_default().createElement("div", {
+    className: "progress-circle",
+    ref: arcRef
+  }), /*#__PURE__*/external_React_default().createElement("div", {
+    className: `progress-circle-complete ${progress === 1 ? "visible" : ""}`
+  }), /*#__PURE__*/external_React_default().createElement("div", {
+    role: "timer",
+    className: "progress-circle-label"
+  }, /*#__PURE__*/external_React_default().createElement("p", null, formatTime(timeLeft))))) : null;
 }
 
 ;// CONCATENATED MODULE: ./content-src/components/Widgets/Widgets.jsx
@@ -15606,7 +15788,6 @@ class BaseContent extends (external_React_default()).PureComponent {
       customizeMenuVisible
     } = App;
     const prefs = props.Prefs.values;
-    const shortcutsRefresh = prefs["newtabShortcuts.refresh"];
     const activeWallpaper = prefs[`newtabWallpapers.wallpaper`];
     const wallpapersEnabled = prefs["newtabWallpapers.enabled"];
     const weatherEnabled = prefs.showWeather;
@@ -15670,8 +15851,6 @@ class BaseContent extends (external_React_default()).PureComponent {
     prefs.showSearch ? "has-search" : "no-search",
     // layoutsVariantAEnabled ? "layout-variant-a" : "", // Layout experiment variant A
     // layoutsVariantBEnabled ? "layout-variant-b" : "", // Layout experiment variant B
-    shortcutsRefresh ? "shortcuts-refresh" : "",
-    // Shortcuts refresh experiment
     pocketEnabled ? "has-recommended-stories" : "no-recommended-stories", sectionsEnabled ? "has-sections-grid" : ""].filter(v => v).join(" ");
     const outerClassName = ["outer-wrapper", isDiscoveryStream && pocketEnabled && "ds-outer-wrapper-search-alignment", isDiscoveryStream && "ds-outer-wrapper-breakpoint-override", prefs.showSearch && this.state.fixedSearch && !noSectionsEnabled && "fixed-search", prefs.showSearch && noSectionsEnabled && "only-search", prefs["feeds.topsites"] && !pocketEnabled && !prefs.showSearch && "only-topsites", noSectionsEnabled && "no-sections", prefs["logowordmark.alwaysVisible"] && "visible-logo", hasThumbsUpDownLayout && hasThumbsUpDown && "thumbs-ui-compact"].filter(v => v).join(" ");
     if (wallpapersEnabled) {

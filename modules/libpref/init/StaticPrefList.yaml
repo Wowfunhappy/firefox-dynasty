@@ -3738,7 +3738,7 @@
 # information should be collected / submitted.
 - name: dom.private-attribution.submission.enabled
   type: bool
-  value: @IS_NOT_ANDROID@
+  value: false
   mirror: always
 
 # Is support for Window.paintWorklet enabled?
@@ -3918,11 +3918,7 @@
 # See bug 1953860 for background and additional details.
 - name: dom.quotaManager.loadQuotaFromSecondaryCache
   type: RelaxedAtomicBool
-#if defined(NIGHTLY_BUILD) && !defined(ANDROID)
-  value: true
-#else
-  value: false
-#endif
+  value: @IS_NIGHTLY_BUILD@
   mirror: always
 
 # Should we check build ID as part of the cache validation?
@@ -4057,11 +4053,7 @@
 # L2 cache to all users on all platforms in the release channel.
 - name: dom.quotaManager.originInitialization.updateOriginMetadata
   type: RelaxedAtomicBool
-#if defined(NIGHTLY_BUILD) && !defined(ANDROID)
-  value: true
-#else
-  value: false
-#endif
+  value: @IS_NIGHTLY_BUILD@
   mirror: always
 
 # A pref that is used to slow down origin initialization for testing purposes.
@@ -8017,6 +8009,11 @@
   type: bool
   value: false
   mirror: once
+
+- name: gfx.wayland.hdr.force-enabled
+  type: bool
+  value: false
+  mirror: once
 #endif
 
 #---------------------------------------------------------------------------
@@ -9247,6 +9244,15 @@
   mirror: always
   set_spidermonkey_pref: always
 
+
+# Whether to treat "ducktyped" error objects like `{message: "<message>", fileName: "foo", lineNumber: 1}`
+# as real Error objects during exception handling.
+- name: javascript.options.ducktyped_errors
+  type: bool
+  value: false
+  mirror: always
+  set_spidermonkey_pref: always
+
 # Whether to support parsing '//(#@) source(Mapping)?URL=' pragmas.
 - name: javascript.options.source_pragmas
   type: bool
@@ -10181,6 +10187,13 @@
   type: AtomicFloat
   value: 0.750f
   mirror: always
+
+# Whether container scroll-state queries are enabled.
+- name: layout.css.scroll-state.enabled
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
+  rust: true
 
 # Stylo thread-pool size.
 # Negative means auto, 0 disables the thread-pool (main-thread styling), other
@@ -14610,7 +14623,7 @@
 # Whether to use the connection info that is generated asynchronously.
 - name: network.trr.async_connInfo
   type: RelaxedAtomicBool
-  value: false
+  value: @IS_EARLY_BETA_OR_EARLIER@
   mirror: always
 
 # If true, a failed TRR request that contains an extended DNS error
@@ -14942,8 +14955,15 @@
 # network.http.http3.use_nspr_for_io is true.
 - name: network.http.http3.max_gso_segments
   type: RelaxedAtomicUint32
+#ifdef XP_WIN
+  # Disable GSO on Windows.
+  #
+  # See https://bugzilla.mozilla.org/show_bug.cgi?id=1979279 for details.
+  value: 1
+#else
   # Current industry standard. Likely worth tuning.
   value: 10
+#endif
   mirror: always
   rust: true
 
@@ -15062,6 +15082,14 @@
 
 # When network.http.http3.sni-slicing is set, TLS SNI slicing is enabled.
 - name: network.http.http3.sni-slicing
+  type: RelaxedAtomicBool
+  value: true
+  mirror: always
+  rust: true
+
+# Whether to enable Zlib for H3/QUIC certificate compression.
+# Has no effect unless security.tls.enable_certificate_compression_zlib is true.
+- name: network.http.http3.enable_certificate_compression_zlib
   type: RelaxedAtomicBool
   value: true
   mirror: always
@@ -15907,7 +15935,8 @@
   mirror: always
 
 # Enable the "convenience" allow-list for less severe site breakage (e.g. embeds
-# or images missing).
+# or images missing). "convenience" can only be enabled if "baseline" is
+# enabled. When "baseline" is false this pref is ignored.
 - name: privacy.trackingprotection.allow_list.convenience.enabled
   type: bool
   value: true
@@ -16542,26 +16571,8 @@
   value: false
   mirror: always
 
-# Prerequisite pref for mixed display content upgrading (images, audio, video).
+# Pref for mixed display content upgrading (images, audio, video).
 - name: security.mixed_content.upgrade_display_content
-  type: RelaxedAtomicBool
-  value: true
-  mirror: always
-
-# Upgrade images when the upgrading is enabled.
-- name: security.mixed_content.upgrade_display_content.image
-  type: RelaxedAtomicBool
-  value: true
-  mirror: always
-
-# Upgrade audio when the upgrading is enabled.
-- name: security.mixed_content.upgrade_display_content.audio
-  type: RelaxedAtomicBool
-  value: true
-  mirror: always
-
-# Upgrade videos when the upgrading is enabled.
-- name: security.mixed_content.upgrade_display_content.video
   type: RelaxedAtomicBool
   value: true
   mirror: always

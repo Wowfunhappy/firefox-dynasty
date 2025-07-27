@@ -38,20 +38,6 @@ TextDirectiveCreator::CreateTextDirectiveFromRange(
     const TimeoutWatchdog* aWatchdog) {
   MOZ_ASSERT(aInputRange);
   MOZ_ASSERT(!aInputRange->Collapsed());
-  const nsString rangeContent =
-      MOZ_TRY(TextDirectiveUtil::RangeContentAsString(aInputRange));
-  if (rangeContent.IsEmpty()) {
-    TEXT_FRAGMENT_LOG("Input range does not contain text.");
-    return VoidCString();
-  }
-  const bool rangeIsOnlyWhitespace =
-      std::all_of(rangeContent.View().cbegin(), rangeContent.View().cend(),
-                  nsContentUtils::IsHTMLWhitespaceOrNBSP);
-
-  if (rangeIsOnlyWhitespace) {
-    TEXT_FRAGMENT_LOG("Input range contains only whitespace.");
-    return VoidCString();
-  }
 
   const RefPtr<AbstractRange> extendedRange =
       MOZ_TRY(ExtendRangeToWordBoundaries(aInputRange));
@@ -115,12 +101,30 @@ TextDirectiveCreator::CreateInstance(Document* aDocument, AbstractRange* aRange,
 Result<RefPtr<AbstractRange>, ErrorResult>
 TextDirectiveCreator::ExtendRangeToWordBoundaries(AbstractRange* aRange) {
   MOZ_ASSERT(aRange && !aRange->Collapsed());
-  TEXT_FRAGMENT_LOG(
-      "Input range :\n{}",
-      NS_ConvertUTF16toUTF8(
-          TextDirectiveUtil::RangeContentAsString(aRange).unwrapOr(
-              u"<Could not be converted to string>"_ns)));
   ErrorResult rv;
+  const nsString rangeContent =
+      MOZ_TRY(TextDirectiveUtil::RangeContentAsString(aRange));
+  TEXT_FRAGMENT_LOG("Input range :\n{}", NS_ConvertUTF16toUTF8(rangeContent));
+
+  if (rangeContent.IsEmpty()) {
+    TEXT_FRAGMENT_LOG("Input range does not contain text.");
+    return {nullptr};
+  }
+
+  if (std::all_of(rangeContent.View().cbegin(), rangeContent.View().cend(),
+                  nsContentUtils::IsHTMLWhitespaceOrNBSP)) {
+    TEXT_FRAGMENT_LOG("Input range contains only whitespace.");
+    return {nullptr};
+  }
+  if (std::all_of(rangeContent.View().cbegin(), rangeContent.View().cend(),
+                  IsPunctuationForWordSelect)) {
+    RefPtr range =
+        StaticRange::Create(aRange->StartRef(), aRange->EndRef(), rv);
+    if (MOZ_UNLIKELY(rv.Failed())) {
+      return Err(std::move(rv));
+    }
+    return {range};
+  }
   RangeBoundary startPoint = TextDirectiveUtil::FindNextNonWhitespacePosition<
       TextScanDirection::Right>(aRange->StartRef());
   startPoint =
@@ -155,7 +159,7 @@ TextDirectiveCreator::ExtendRangeToWordBoundaries(AbstractRange* aRange) {
     }
   }
   TEXT_FRAGMENT_LOG("Extending to word boundaries collapsed the range.");
-  return Result<RefPtr<AbstractRange>, ErrorResult>(nullptr);
+  return {nullptr};
 }
 
 Result<bool, ErrorResult>
@@ -195,6 +199,10 @@ RangeBasedTextDirectiveCreator::CollectContextTerms() {
     MOZ_DIAGNOSTIC_ASSERT(!startRange->Collapsed());
     mStartContent =
         MOZ_TRY(TextDirectiveUtil::RangeContentAsString(startRange));
+    if (MOZ_UNLIKELY(mStartContent.IsEmpty())) {
+      TEXT_FRAGMENT_LOG("Somehow got empty start term. Aborting.");
+      return false;
+    }
     const Maybe<RangeBoundary> lastBlockBoundaryInRange =
         TextDirectiveUtil::FindBlockBoundaryInRange<TextScanDirection::Left>(
             *mRange);
@@ -209,6 +217,10 @@ RangeBasedTextDirectiveCreator::CollectContextTerms() {
     }
     MOZ_DIAGNOSTIC_ASSERT(!endRange->Collapsed());
     mEndContent = MOZ_TRY(TextDirectiveUtil::RangeContentAsString(endRange));
+    if (MOZ_UNLIKELY(mEndContent.IsEmpty())) {
+      TEXT_FRAGMENT_LOG("Somehow got empty end term. Aborting.");
+      return false;
+    }
   } else {
     TEXT_FRAGMENT_LOG(
         "Target range is too long, collecting start and end by dividing "
@@ -337,11 +349,13 @@ void RangeBasedTextDirectiveCreator::CollectContextTermWordBoundaryDistances() {
           mPrefixContent);
   TEXT_FRAGMENT_LOG("Word begin distances for prefix term: {}",
                     mPrefixWordBeginDistances);
+  MOZ_DIAGNOSTIC_ASSERT(!mStartContent.IsEmpty());
   mStartWordEndDistances =
       TextDirectiveUtil::ComputeWordBoundaryDistances<TextScanDirection::Right>(
           mStartContent);
   MOZ_DIAGNOSTIC_ASSERT(!mStartWordEndDistances.IsEmpty(),
                         "There must be at least one word in the start term.");
+  MOZ_DIAGNOSTIC_ASSERT(mStartWordEndDistances[0] > 0);
   mFirstWordOfStartContent =
       Substring(mStartContent, 0, mStartWordEndDistances[0]);
   TEXT_FRAGMENT_LOG("First word of start term: {}",
@@ -371,11 +385,13 @@ void RangeBasedTextDirectiveCreator::CollectContextTermWordBoundaryDistances() {
         mStartWordEndDistances);
   }
 
+  MOZ_DIAGNOSTIC_ASSERT(!mEndContent.IsEmpty());
   mEndWordBeginDistances =
       TextDirectiveUtil::ComputeWordBoundaryDistances<TextScanDirection::Left>(
           mEndContent);
   MOZ_DIAGNOSTIC_ASSERT(!mEndWordBeginDistances.IsEmpty(),
                         "There must be at least one word in the end term.");
+  MOZ_DIAGNOSTIC_ASSERT(mEndWordBeginDistances[0] > 0);
   mLastWordOfEndContent =
       Substring(mEndContent, mEndContent.Length() - mEndWordBeginDistances[0]);
   TEXT_FRAGMENT_LOG("Last word of end term: {}",

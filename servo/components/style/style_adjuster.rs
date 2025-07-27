@@ -465,7 +465,7 @@ impl<'a, 'b: 'a> StyleAdjuster<'a, 'b> {
         let box_style = self.style.get_box();
         let container_type = box_style.clone_container_type();
         let content_visibility = box_style.clone_content_visibility();
-        if container_type == ContainerType::Normal &&
+        if !container_type.is_size_container_type() &&
             content_visibility == ContentVisibility::Visible
         {
             debug_assert_eq!(
@@ -487,20 +487,16 @@ impl<'a, 'b: 'a> StyleAdjuster<'a, 'b> {
             ContentVisibility::Hidden => new_contain
                 .insert(Contain::LAYOUT | Contain::PAINT | Contain::SIZE | Contain::STYLE),
         }
-        match container_type {
-            ContainerType::Normal => {},
+        if container_type.intersects(ContainerType::INLINE_SIZE) {
             // https://drafts.csswg.org/css-contain-3/#valdef-container-type-inline-size:
             //     Applies layout containment, style containment, and inline-size
             //     containment to the principal box.
-            ContainerType::InlineSize => {
-                new_contain.insert(Contain::STYLE | Contain::INLINE_SIZE)
-            },
+            new_contain.insert(Contain::STYLE | Contain::INLINE_SIZE);
+        } else if container_type.intersects(ContainerType::SIZE) {
             // https://drafts.csswg.org/css-contain-3/#valdef-container-type-size:
             //     Applies layout containment, style containment, and size
             //     containment to the principal box.
-            ContainerType::Size => {
-                new_contain.insert(Contain::STYLE | Contain::SIZE)
-            },
+            new_contain.insert(Contain::STYLE | Contain::SIZE);
         }
         if new_contain == old_contain {
             debug_assert_eq!(
@@ -923,11 +919,13 @@ impl<'a, 'b: 'a> StyleAdjuster<'a, 'b> {
         E: TElement,
     {
         if cfg!(debug_assertions) {
-            if element.map_or(false, |e| e.is_pseudo_element()) {
-                // It'd be nice to assert `self.style.pseudo == Some(&pseudo)`,
-                // but we do resolve ::-moz-list pseudos on ::before / ::after
-                // content, sigh.
-                debug_assert!(self.style.pseudo.is_some(), "Someone really messed up");
+            if let Some(e) = element {
+                if let Some(p) = e.implemented_pseudo_element() {
+                    // It'd be nice to assert `self.style.pseudo == Some(&pseudo)`,
+                    // but we do resolve ::-moz-list pseudos on ::before / ::after
+                    // content, sigh.
+                    debug_assert!(self.style.pseudo.is_some(), "Someone really messed up (no pseudo style for {e:?}, {p:?})");
+                }
             }
         }
         // FIXME(emilio): The apply_declarations callsite in Servo's
