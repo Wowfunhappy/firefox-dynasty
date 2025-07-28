@@ -81,9 +81,9 @@ serialization = "1.9.0"
 detekt = "1.23.8"
 ktlint = "1.7.1"
 spotless = "7.2.1"
+google-java-format = "1.27.0"
 
 # Mozilla versions
-apilint = "0.5.4"
 mozilla-glean = "64.5.2"
 
 # Testing versions
@@ -270,11 +270,18 @@ ktlint = { group = "com.pinterest.ktlint", name = "ktlint-cli", version.ref = "k
 # Third party library versions
 adjust = { group = "com.adjust.sdk", name = "adjust-android", version.ref = "adjust" }
 
-apilint = { group = "org.mozilla.apilint", name = "apilint", version.ref = "apilint" }
 commons-exec = { group = "org.apache.commons", name = "commons-exec", version.ref = "commons-exec" }
 spotless = { group = "com.diffplug.spotless", name = "spotless-plugin-gradle", version.ref = "spotless" }
+google-java-format = { group = "com.google.googlejavaformat", name = "google-java-format", version.ref = "google-java-format" }
 tomlj = { group = "org.tomlj", name = "tomlj", version.ref = "tomlj" }
 androidx-ui-text-android = { group = "androidx.compose.ui", name = "ui-text-android", version.ref = "ui-text-android" }
+
+ksp-symbol-processing-aa = { group = "com.google.devtools.ksp", name = "symbol-processing-aa", version.ref = "ksp-plugin" }
+ksp-symbol-processing-aa-embeddable = { group = "com.google.devtools.ksp", name = "symbol-processing-aa-embeddable", version.ref = "ksp-plugin" }
+ksp-symbol-processing-api = { group = "com.google.devtools.ksp", name = "symbol-processing-api", version.ref = "ksp-plugin" }
+ksp-symbol-processing-common-deps = { group = "com.google.devtools.ksp", name = "symbol-processing-common-deps", version.ref = "ksp-plugin" }
+
+detekt-cli = { group = "io.gitlab.arturbosch.detekt", name = "detekt-cli", version.ref = "detekt" }
 
 [plugins]
 detekt = { id = "io.gitlab.arturbosch.detekt", version.ref = "detekt" }
@@ -284,3 +291,4 @@ kotlin-dsl = { id = "org.gradle.kotlin.kotlin-dsl", version.ref = "kotlin-dsl" }
 ksp = { id = "com.google.devtools.ksp", version.ref = "ksp-plugin" }
 python-envs-plugin = {id = "com.jetbrains.python.envs", version.ref = "python-envs-plugin"}
 protobuf-plugin = {id = "com.google.protobuf", version.ref = "protobuf-plugin"}
+spotless = { id = "com.diffplug.spotless", version.ref = "spotless" }

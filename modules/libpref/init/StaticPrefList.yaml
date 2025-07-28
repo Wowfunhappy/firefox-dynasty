@@ -9901,13 +9901,6 @@
   mirror: always
   rust: true
 
-# Is support for the size-adjust @font-face descriptor enabled?
-- name: layout.css.size-adjust.enabled
-  type: RelaxedAtomicBool
-  value: true
-  mirror: always
-  rust: true
-
 # Is support for the tech() function in the @font-face src descriptor enabled?
 - name: layout.css.font-tech.enabled
   type: RelaxedAtomicBool
@@ -14221,10 +14214,10 @@
   value: true
   mirror: always
 
-# This preference controls blocking requests for Local Network Access (LNA) failures.
+# This preference controls if we need to fail transactions for Local Network Access (LNA) failures.
 - name: network.lna.blocking
   type: RelaxedAtomicBool
-  value: false
+  value: @IS_NIGHTLY_BUILD@
   mirror: always
 
 # When this pref is true, loads triggered by scripts classified as trackers
@@ -17334,13 +17327,6 @@
 - name: svg.context-properties.content.enabled
   type: RelaxedAtomicBool
   value: false
-  mirror: always
-
-# This pref controls whether the `prefers-color-scheme` value of SVG images
-# reacts to the embedder `color-scheme` in content.
-- name: svg.embedder-prefers-color-scheme.content.enabled
-  type: RelaxedAtomicBool
-  value: true
   mirror: always
 
 # Enables the 'context-fill' and 'context-stroke' keywords for particular

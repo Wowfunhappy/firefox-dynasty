@@ -769,6 +769,48 @@
       </hbox>
     </hbox>
 
+     <hbox id="localHostSettingsRow" align="center" role="group" aria-labelledby="localHostPermissionsLabel">
+      <hbox flex="1">
+        <image class="localhost-icon permission-icon" />
+        <label id="localHostPermissionsLabel" data-l10n-id="permissions-localhost"/>
+      </hbox>
+      <hbox pack="end">
+        <button id="localHostSettingsButton"
+                is="highlightable-button"
+                class="accessory-button"
+                data-l10n-id="permissions-localhost-settings"
+                search-l10n-ids="
+                  permissions-remove.label,
+                  permissions-remove-all.label,
+                  permissions-site-localhost-window.title,
+                  permissions-site-localhost-desc,
+                  permissions-site-localhost-disable-label,
+                  permissions-site-localhost-disable-desc,
+                " />
+      </hbox>
+    </hbox>
+
+    <hbox id="localNetworkSettingsRow" align="center" role="group" aria-labelledby="localNetworkPermissionsLabel">
+      <hbox flex="1">
+        <image class="local-network-icon permission-icon" />
+        <label id="localNetworkPermissionsLabel" data-l10n-id="permissions-local-network"/>
+      </hbox>
+      <hbox pack="end">
+        <button id="localNetworkSettingsButton"
+                is="highlightable-button"
+                class="accessory-button"
+                data-l10n-id="permissions-local-network-settings"
+                search-l10n-ids="
+                  permissions-remove.label,
+                  permissions-remove-all.label,
+                  permissions-site-local-network-window.title,
+                  permissions-site-local-network-desc,
+                  permissions-site-local-network-disable-label,
+                  permissions-site-local-network-disable-desc,
+                " />
+      </hbox>
+    </hbox>
+
     <hbox id="microphoneSettingsRow" align="center" role="group" aria-labelledby="microphonePermissionsLabel">
       <hbox flex="1">
         <image class="microphone-icon permission-icon" />
