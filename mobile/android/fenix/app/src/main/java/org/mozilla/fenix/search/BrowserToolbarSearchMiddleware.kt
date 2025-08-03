@@ -77,8 +77,8 @@ import org.mozilla.fenix.components.metrics.MetricsUtils
 import org.mozilla.fenix.components.search.BOOKMARKS_SEARCH_ENGINE_ID
 import org.mozilla.fenix.components.search.HISTORY_SEARCH_ENGINE_ID
 import org.mozilla.fenix.components.search.TABS_SEARCH_ENGINE_ID
+import org.mozilla.fenix.components.toolbar.BrowserToolbarEnvironment
 import org.mozilla.fenix.ext.toolbarHintRes
-import org.mozilla.fenix.home.toolbar.HomeToolbarEnvironment
 import org.mozilla.fenix.search.EditPageEndActionsInteractions.ClearSearchClicked
 import org.mozilla.fenix.search.EditPageEndActionsInteractions.QrScannerClicked
 import org.mozilla.fenix.search.EditPageEndActionsInteractions.VoiceSearchButtonClicked
@@ -134,7 +134,7 @@ class BrowserToolbarSearchMiddleware(
     private val settings: Settings,
 ) : Middleware<BrowserToolbarState, BrowserToolbarAction> {
     @VisibleForTesting
-    internal var environment: HomeToolbarEnvironment? = null
+    internal var environment: BrowserToolbarEnvironment? = null
     private var syncCurrentSearchEngineJob: Job? = null
     private var syncAvailableSearchEnginesJob: Job? = null
     private var observeQRScannerInputJob: Job? = null
@@ -152,7 +152,7 @@ class BrowserToolbarSearchMiddleware(
 
         when (action) {
             is EnvironmentRehydrated -> {
-                environment = action.environment as? HomeToolbarEnvironment
+                environment = action.environment as? BrowserToolbarEnvironment
 
                 if (context.state.isEditMode()) {
                     syncCurrentSearchEngine(context)
@@ -468,16 +468,6 @@ class BrowserToolbarSearchMiddleware(
                 ),
             )
         }
-        if (isValidSearchEngine) {
-            add(
-                ActionButtonRes(
-                    drawableResId = R.drawable.mozac_ic_qr_code_24,
-                    contentDescription = R.string.mozac_feature_qr_scanner,
-                    state = ActionButton.State.DEFAULT,
-                    onClick = QrScannerClicked,
-                ),
-            )
-        }
         if (queryText.isNotEmpty()) {
             add(
                 ActionButtonRes(
@@ -485,6 +475,15 @@ class BrowserToolbarSearchMiddleware(
                     contentDescription = R.string.mozac_clear_button_description,
                     state = ActionButton.State.DEFAULT,
                     onClick = ClearSearchClicked,
+                ),
+            )
+        } else if (isValidSearchEngine) {
+            add(
+                ActionButtonRes(
+                    drawableResId = R.drawable.mozac_ic_qr_code_24,
+                    contentDescription = R.string.mozac_feature_qr_scanner,
+                    state = ActionButton.State.DEFAULT,
+                    onClick = QrScannerClicked,
                 ),
             )
         }

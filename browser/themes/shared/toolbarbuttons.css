@@ -646,8 +646,14 @@ toolbarspring {
 
 /* Keyboard navigation */
 
-toolbar[keyNav]:not([collapsed="true"], [customizing]) toolbartabstop,
+toolbar[keyNav]:not([collapsed], [customizing]) toolbartabstop,
 #tabbrowser-tabs[orient="vertical"] #tabs-newtab-button,
 #vertical-tabs-newtab-button {
   -moz-user-focus: normal;
+}
+
+/* IP Protection */
+#ipprotection-button.toolbarbutton-1 > .toolbarbutton-icon {
+  width: calc(2 * var(--toolbarbutton-inner-padding) + 35px);
+  padding-block: 0;
 }

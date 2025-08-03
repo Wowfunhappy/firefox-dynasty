@@ -285,7 +285,7 @@
   # Throws if length is negative.
   alias_set: custom
   generate_lir: true
-  lir_temps: 1
+  lir_temps: 2
 
 # Create a new TypedArray from an Array (or Array-like object) or a TypedArray.
 - name: NewTypedArrayFromArray
@@ -1858,6 +1858,45 @@
   congruent_to: if_operands_equal
   alias_set: custom
 
+# Inline TypedArray.prototype.fill
+- name: TypedArrayFill
+  gen_boilerplate: false
+
+# Inlined TypedArray.prototype.set
+- name: TypedArraySet
+  operands:
+    target: Object
+    source: Object
+    offset: IntPtr
+  arguments:
+    canUseBitwiseCopy: bool
+  alias_set: custom
+  possibly_calls: true
+  generate_lir: true
+
+- name: GuardTypedArraySetOffset
+  operands:
+    offset: IntPtr
+    targetLength: IntPtr
+    sourceLength: IntPtr
+  result_type: IntPtr
+  guard: true
+  movable: true
+  congruent_to: if_operands_equal
+  alias_set: none
+  generate_lir: true
+  lir_temps: 1
+
+# Inlined TypedArray.prototype.subarray
+- name: TypedArraySubarray
+  operands:
+    object: Object
+    start: IntPtr
+    end: IntPtr
+  result_type: Object
+  possibly_calls: true
+  generate_lir: true
+
 - name: GuardNumberToIntPtrIndex
   gen_boilerplate: false
 
@@ -3329,6 +3368,17 @@
   folds_to: custom
   alias_set: none
 
+- name: GuardIntPtrIsNonNegative
+  operands:
+    index: IntPtr
+  result_type: IntPtr
+  guard: true
+  movable: true
+  congruent_to: if_operands_equal
+  folds_to: custom
+  alias_set: none
+  generate_lir: true
+
 - name: GuardInt32Range
   operands:
     input: Int32
@@ -3736,6 +3786,39 @@
   movable: true
   congruent_to: if_operands_equal
   alias_set: custom
+  generate_lir: true
+
+# Note: for now these WeakMap/WeakSet instructions are non-movable and don't
+# override congruentTo, but it'd probably be fine to change this in the future.
+- name: WeakMapGetObject
+  operands:
+    weakMap: Object
+    object: Object
+  result_type: Value
+  alias_set: custom
+  movable: false
+  possibly_calls: true
+  generate_lir: true
+  lir_temps: 1
+
+- name: WeakMapHasObject
+  operands:
+    weakMap: Object
+    object: Object
+  result_type: Boolean
+  alias_set: custom
+  movable: false
+  possibly_calls: true
+  generate_lir: true
+
+- name: WeakSetHasObject
+  operands:
+    weakSet: Object
+    object: Object
+  result_type: Boolean
+  alias_set: custom
+  movable: false
+  possibly_calls: true
   generate_lir: true
 
 - name: DateFillLocalTimeSlots

@@ -45,6 +45,7 @@
 #include "vm/GeneratorObject.h"
 #include "vm/GetterSetter.h"
 #include "vm/Interpreter.h"
+#include "vm/TypedArrayObject.h"
 #include "vm/TypeofEqOperand.h"  // TypeofEqOperand
 #include "vm/Uint8Clamped.h"
 
@@ -2214,6 +2215,8 @@ static const JSClass* ClassFor(JSContext* cx, GuardClassKind kind) {
     case GuardClassKind::Map:
     case GuardClassKind::BoundFunction:
     case GuardClassKind::Date:
+    case GuardClassKind::WeakMap:
+    case GuardClassKind::WeakSet:
       return ClassFor(kind);
     case GuardClassKind::WindowProxy:
       return cx->runtime()->maybeWindowProxyClass();
@@ -4351,6 +4354,16 @@ bool CacheIRCompiler::emitLoadArrayBufferViewLengthDoubleResult(
   return true;
 }
 
+bool CacheIRCompiler::emitLoadArrayBufferViewLength(ObjOperandId objId,
+                                                    IntPtrOperandId resultId) {
+  JitSpew(JitSpew_Codegen, "%s", __FUNCTION__);
+  Register obj = allocator.useRegister(masm, objId);
+  Register result = allocator.defineRegister(masm, resultId);
+
+  masm.loadArrayBufferViewLengthIntPtr(obj, result);
+  return true;
+}
+
 bool CacheIRCompiler::emitLoadBoundFunctionNumArgs(ObjOperandId objId,
                                                    Int32OperandId resultId) {
   JitSpew(JitSpew_Codegen, "%s", __FUNCTION__);
@@ -5033,6 +5046,19 @@ bool CacheIRCompiler::emitGuardInt32IsNonNegative(Int32OperandId indexId) {
   }
 
   masm.branch32(Assembler::LessThan, index, Imm32(0), failure->label());
+  return true;
+}
+
+bool CacheIRCompiler::emitGuardIntPtrIsNonNegative(IntPtrOperandId indexId) {
+  JitSpew(JitSpew_Codegen, "%s", __FUNCTION__);
+  Register index = allocator.useRegister(masm, indexId);
+
+  FailurePath* failure;
+  if (!addFailurePath(&failure)) {
+    return false;
+  }
+
+  masm.branchPtr(Assembler::LessThan, index, ImmWord(0), failure->label());
   return true;
 }
 
@@ -5938,6 +5964,167 @@ bool CacheIRCompiler::emitIsTypedArrayConstructorResult(ObjOperandId objId) {
 
   masm.setIsDefinitelyTypedArrayConstructor(obj, scratch);
   masm.tagValue(JSVAL_TYPE_BOOLEAN, scratch, output.valueReg());
+  return true;
+}
+
+bool CacheIRCompiler::emitTypedArrayFillResult(ObjOperandId objId,
+                                               uint32_t fillValueId,
+                                               IntPtrOperandId startId,
+                                               IntPtrOperandId endId,
+                                               Scalar::Type elementType) {
+  JitSpew(JitSpew_Codegen, "%s", __FUNCTION__);
+
+  AutoOutputRegister output(*this);
+#ifdef JS_CODEGEN_X86
+  // Use a scratch register to avoid running out of registers.
+  Register obj = output.valueReg().typeReg();
+  allocator.copyToScratchRegister(masm, objId, obj);
+#else
+  Register obj = allocator.useRegister(masm, objId);
+#endif
+  Register start = allocator.useRegister(masm, startId);
+  Register end = allocator.useRegister(masm, endId);
+
+  AutoScratchRegisterMaybeOutput scratch(allocator, masm, output);
+  MOZ_ASSERT(scratch.get() != obj, "output.scratchReg must not be typeReg");
+
+  AutoAvailableFloatRegister floatScratch0(*this, FloatReg0);
+
+  Maybe<Register> fillValue;
+  if (Scalar::isBigIntType(elementType)) {
+    fillValue.emplace(
+        allocator.useRegister(masm, BigIntOperandId(fillValueId)));
+  } else if (Scalar::isFloatingType(elementType)) {
+    allocator.ensureDoubleRegister(masm, NumberOperandId(fillValueId),
+                                   floatScratch0);
+  } else {
+    fillValue.emplace(allocator.useRegister(masm, Int32OperandId(fillValueId)));
+  }
+
+  LiveRegisterSet save = liveVolatileRegs();
+  save.takeUnchecked(scratch);
+  masm.PushRegsInMask(save);
+
+  masm.setupUnalignedABICall(scratch);
+
+  masm.passABIArg(obj);
+  if (Scalar::isFloatingType(elementType)) {
+    masm.passABIArg(floatScratch0, ABIType::Float64);
+  } else {
+    masm.passABIArg(*fillValue);
+  }
+  masm.passABIArg(start);
+  masm.passABIArg(end);
+
+  if (Scalar::isBigIntType(elementType)) {
+    using Fn = void (*)(TypedArrayObject*, BigInt*, intptr_t, intptr_t);
+    masm.callWithABI<Fn, js::TypedArrayFillBigInt>();
+  } else if (Scalar::isFloatingType(elementType)) {
+    using Fn = void (*)(TypedArrayObject*, double, intptr_t, intptr_t);
+    masm.callWithABI<Fn, js::TypedArrayFillDouble>();
+  } else {
+    using Fn = void (*)(TypedArrayObject*, int32_t, intptr_t, intptr_t);
+    masm.callWithABI<Fn, js::TypedArrayFillInt32>();
+  }
+
+  masm.PopRegsInMask(save);
+
+  masm.tagValue(JSVAL_TYPE_OBJECT, obj, output.valueReg());
+  return true;
+}
+
+bool CacheIRCompiler::emitTypedArraySetResult(ObjOperandId targetId,
+                                              ObjOperandId sourceId,
+                                              IntPtrOperandId offsetId,
+                                              bool canUseBitwiseCopy) {
+  JitSpew(JitSpew_Codegen, "%s", __FUNCTION__);
+
+  Maybe<AutoOutputRegister> output;
+  Maybe<AutoCallVM> callvm;
+  if (canUseBitwiseCopy) {
+    output.emplace(*this);
+  } else {
+    callvm.emplace(masm, this, allocator);
+  }
+  Register target = allocator.useRegister(masm, targetId);
+  Register source = allocator.useRegister(masm, sourceId);
+  Register offset = allocator.useRegister(masm, offsetId);
+
+  const auto& eitherOutput = output ? *output : callvm->output();
+  AutoScratchRegisterMaybeOutput scratch1(allocator, masm, eitherOutput);
+  AutoScratchRegisterMaybeOutputType scratch2(allocator, masm, eitherOutput);
+
+  FailurePath* failure;
+  if (!addFailurePath(&failure)) {
+    return false;
+  }
+
+  // AutoCallVM's AutoSaveLiveRegisters aren't accounted for in FailurePath, so
+  // we can't use both at the same time. This isn't an issue here, because Ion
+  // doesn't support CallICs. If that ever changes, this code must be updated.
+  MOZ_ASSERT(isBaseline(), "Can't use FailurePath with AutoCallVM in Ion ICs");
+
+  // Ensure `offset <= target.length`.
+  masm.loadArrayBufferViewLengthIntPtr(target, scratch1);
+  masm.branchSubPtr(Assembler::Signed, offset, scratch1.get(),
+                    failure->label());
+
+  // Ensure `source.length <= (target.length - offset)`.
+  masm.loadArrayBufferViewLengthIntPtr(source, scratch2);
+  masm.branchPtr(Assembler::GreaterThan, scratch2, scratch1, failure->label());
+
+  // Bit-wise copying is infallible because it doesn't need to allocate any
+  // temporary memory, even if the underlying buffers are the same.
+  if (canUseBitwiseCopy) {
+    LiveRegisterSet save = liveVolatileRegs();
+    save.takeUnchecked(scratch1);
+    save.takeUnchecked(scratch2);
+    masm.PushRegsInMask(save);
+
+    using Fn = void (*)(TypedArrayObject*, TypedArrayObject*, intptr_t);
+    masm.setupUnalignedABICall(scratch1);
+
+    masm.passABIArg(target);
+    masm.passABIArg(source);
+    masm.passABIArg(offset);
+    masm.callWithABI<Fn, js::TypedArraySetInfallible>();
+
+    masm.PopRegsInMask(save);
+  } else {
+    callvm->prepare();
+
+    masm.Push(offset);
+    masm.Push(source);
+    masm.Push(target);
+
+    using Fn =
+        bool (*)(JSContext* cx, TypedArrayObject*, TypedArrayObject*, intptr_t);
+    callvm->callNoResult<Fn, js::TypedArraySet>();
+  }
+
+  masm.moveValue(UndefinedValue(), eitherOutput.valueReg());
+  return true;
+}
+
+bool CacheIRCompiler::emitTypedArraySubarrayResult(ObjOperandId objId,
+                                                   IntPtrOperandId startId,
+                                                   IntPtrOperandId endId) {
+  JitSpew(JitSpew_Codegen, "%s", __FUNCTION__);
+
+  AutoCallVM callvm(masm, this, allocator);
+
+  Register obj = allocator.useRegister(masm, objId);
+  Register start = allocator.useRegister(masm, startId);
+  Register end = allocator.useRegister(masm, endId);
+
+  callvm.prepare();
+  masm.Push(end);
+  masm.Push(start);
+  masm.Push(obj);
+
+  using Fn = TypedArrayObject* (*)(JSContext*, Handle<TypedArrayObject*>,
+                                   intptr_t, intptr_t);
+  callvm.call<Fn, js::TypedArraySubarray>();
   return true;
 }
 
@@ -9466,6 +9653,16 @@ bool CacheIRCompiler::emitLoadInt32Constant(uint32_t valOffset,
   return true;
 }
 
+bool CacheIRCompiler::emitLoadInt32AsIntPtrConstant(uint32_t valOffset,
+                                                    IntPtrOperandId resultId) {
+  JitSpew(JitSpew_Codegen, "%s", __FUNCTION__);
+  Register reg = allocator.defineRegister(masm, resultId);
+  StubFieldOffset val(valOffset, StubField::Type::RawInt32);
+  emitLoadStubField(val, reg);
+  masm.move32SignExtendToPtr(reg, reg);
+  return true;
+}
+
 bool CacheIRCompiler::emitLoadBooleanConstant(bool val,
                                               BooleanOperandId resultId) {
   JitSpew(JitSpew_Codegen, "%s", __FUNCTION__);
@@ -10948,6 +11145,90 @@ bool CacheIRCompiler::emitMapSizeResult(ObjOperandId mapId) {
 
   masm.loadMapObjectSize(map, scratch);
   masm.tagValue(JSVAL_TYPE_INT32, scratch, output.valueReg());
+  return true;
+}
+
+bool CacheIRCompiler::emitWeakMapGetObjectResult(ObjOperandId weakMapId,
+                                                 ObjOperandId objId) {
+  JitSpew(JitSpew_Codegen, "%s", __FUNCTION__);
+
+  AutoOutputRegister output(*this);
+  Register weakMap = allocator.useRegister(masm, weakMapId);
+  Register obj = allocator.useRegister(masm, objId);
+  AutoScratchRegisterMaybeOutput scratch1(allocator, masm, output);
+  AutoScratchRegister scratch2(allocator, masm);
+
+  // The result Value will be stored on the stack.
+  masm.reserveStack(sizeof(Value));
+  masm.moveStackPtrTo(scratch1.get());
+
+  LiveRegisterSet volatileRegs = liveVolatileRegs();
+  volatileRegs.takeUnchecked(scratch1);
+  volatileRegs.takeUnchecked(scratch2);
+  masm.PushRegsInMask(volatileRegs);
+
+  using Fn = void (*)(WeakMapObject*, JSObject*, Value*);
+  masm.setupUnalignedABICall(scratch2);
+  masm.passABIArg(weakMap);
+  masm.passABIArg(obj);
+  masm.passABIArg(scratch1);
+  masm.callWithABI<Fn, js::WeakMapObject::getObject>();
+
+  masm.PopRegsInMask(volatileRegs);
+
+  masm.Pop(output.valueReg());
+  return true;
+}
+
+bool CacheIRCompiler::emitWeakMapHasObjectResult(ObjOperandId weakMapId,
+                                                 ObjOperandId objId) {
+  JitSpew(JitSpew_Codegen, "%s", __FUNCTION__);
+
+  AutoOutputRegister output(*this);
+  Register weakMap = allocator.useRegister(masm, weakMapId);
+  Register obj = allocator.useRegister(masm, objId);
+  AutoScratchRegisterMaybeOutput scratch(allocator, masm, output);
+
+  LiveRegisterSet volatileRegs = liveVolatileRegs();
+  volatileRegs.takeUnchecked(scratch);
+  masm.PushRegsInMask(volatileRegs);
+
+  using Fn = bool (*)(WeakMapObject*, JSObject*);
+  masm.setupUnalignedABICall(scratch);
+  masm.passABIArg(weakMap);
+  masm.passABIArg(obj);
+  masm.callWithABI<Fn, js::WeakMapObject::hasObject>();
+  masm.storeCallBoolResult(scratch);
+
+  masm.PopRegsInMask(volatileRegs);
+
+  masm.tagValue(JSVAL_TYPE_BOOLEAN, scratch, output.valueReg());
+  return true;
+}
+
+bool CacheIRCompiler::emitWeakSetHasObjectResult(ObjOperandId weakSetId,
+                                                 ObjOperandId objId) {
+  JitSpew(JitSpew_Codegen, "%s", __FUNCTION__);
+
+  AutoOutputRegister output(*this);
+  Register weakSet = allocator.useRegister(masm, weakSetId);
+  Register obj = allocator.useRegister(masm, objId);
+  AutoScratchRegisterMaybeOutput scratch(allocator, masm, output);
+
+  LiveRegisterSet volatileRegs = liveVolatileRegs();
+  volatileRegs.takeUnchecked(scratch);
+  masm.PushRegsInMask(volatileRegs);
+
+  using Fn = bool (*)(WeakSetObject*, JSObject*);
+  masm.setupUnalignedABICall(scratch);
+  masm.passABIArg(weakSet);
+  masm.passABIArg(obj);
+  masm.callWithABI<Fn, js::WeakSetObject::hasObject>();
+  masm.storeCallBoolResult(scratch);
+
+  masm.PopRegsInMask(volatileRegs);
+
+  masm.tagValue(JSVAL_TYPE_BOOLEAN, scratch, output.valueReg());
   return true;
 }
 

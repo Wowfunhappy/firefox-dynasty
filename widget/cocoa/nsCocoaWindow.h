@@ -24,6 +24,9 @@ class nsMenuBarX;
 
 namespace mozilla {
 enum class NativeKeyBindingsType : uint8_t;
+namespace widget {
+class PlatformCompositorWidgetDelegate;
+}
 }  // namespace mozilla
 
 // NSWindow subclass that is the base class for all of our own window classes.
@@ -479,6 +482,9 @@ class nsCocoaWindow final : public nsBaseWidget {
   int32_t mNumModalDescendants = 0;
   InputContext mInputContext;
   NSWindowAnimationBehavior mWindowAnimationBehavior;
+
+  mozilla::widget::PlatformCompositorWidgetDelegate* mCompositorWidgetDelegate =
+      nullptr;
 
  private:
   // This is class state for tracking which nsCocoaWindow, if any, is in the

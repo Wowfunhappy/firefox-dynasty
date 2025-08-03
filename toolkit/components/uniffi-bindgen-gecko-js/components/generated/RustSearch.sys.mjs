@@ -479,6 +479,8 @@ export class FfiConverterOptionalMapStringString extends FfiConverterArrayBuffer
         return 1 + FfiConverterMapStringString.computeSize(value)
     }
 }
+
+
 /**
  * Defines an individual search engine URL. This is defined separately to
  * `types::SearchEngineUrl` as various fields may be optional in the supplied
@@ -491,13 +493,17 @@ export class JsonEngineUrl {
             method, 
             params, 
             searchTermParamName, 
-            displayNameMap
+            displayNameMap, 
+            isNewUntil, 
+            excludePartnerCodeFromTelemetry
         } = {
             base: undefined, 
             method: undefined, 
             params: undefined, 
             searchTermParamName: undefined, 
-            displayNameMap: undefined
+            displayNameMap: undefined, 
+            isNewUntil: undefined, 
+            excludePartnerCodeFromTelemetry: undefined
         }
     ) {
         try {
@@ -540,6 +546,22 @@ export class JsonEngineUrl {
             }
             throw e;
         }
+        try {
+            FfiConverterOptionalString.checkType(isNewUntil)
+        } catch (e) {
+            if (e instanceof UniFFITypeError) {
+                e.addItemDescriptionPart("isNewUntil");
+            }
+            throw e;
+        }
+        try {
+            FfiConverterBoolean.checkType(excludePartnerCodeFromTelemetry)
+        } catch (e) {
+            if (e instanceof UniFFITypeError) {
+                e.addItemDescriptionPart("excludePartnerCodeFromTelemetry");
+            }
+            throw e;
+        }
         /**
          * The PrePath and FilePath of the URL. May include variables for engines
          * which have a variable FilePath, e.g. `{searchTerms}` for when a search
@@ -569,6 +591,16 @@ export class JsonEngineUrl {
          * its locale is not present in the map.
          */
         this.displayNameMap = displayNameMap;
+        /**
+         * Indicates the date until which the URL is considered new
+         * (format: YYYY-MM-DD).
+         */
+        this.isNewUntil = isNewUntil;
+        /**
+         * Whether the engine's partner code should be excluded from telemetry when
+         * this URL is visited.
+         */
+        this.excludePartnerCodeFromTelemetry = excludePartnerCodeFromTelemetry;
     }
 
     equals(other) {
@@ -578,6 +610,8 @@ export class JsonEngineUrl {
             && this.params == other.params
             && this.searchTermParamName == other.searchTermParamName
             && this.displayNameMap == other.displayNameMap
+            && this.isNewUntil == other.isNewUntil
+            && this.excludePartnerCodeFromTelemetry == other.excludePartnerCodeFromTelemetry
         )
     }
 }
@@ -591,6 +625,8 @@ export class FfiConverterTypeJSONEngineUrl extends FfiConverterArrayBuffer {
             params: FfiConverterOptionalSequenceTypeSearchUrlParam.read(dataStream),
             searchTermParamName: FfiConverterOptionalString.read(dataStream),
             displayNameMap: FfiConverterOptionalMapStringString.read(dataStream),
+            isNewUntil: FfiConverterOptionalString.read(dataStream),
+            excludePartnerCodeFromTelemetry: FfiConverterBoolean.read(dataStream),
         });
     }
     static write(dataStream, value) {
@@ -599,6 +635,8 @@ export class FfiConverterTypeJSONEngineUrl extends FfiConverterArrayBuffer {
         FfiConverterOptionalSequenceTypeSearchUrlParam.write(dataStream, value.params);
         FfiConverterOptionalString.write(dataStream, value.searchTermParamName);
         FfiConverterOptionalMapStringString.write(dataStream, value.displayNameMap);
+        FfiConverterOptionalString.write(dataStream, value.isNewUntil);
+        FfiConverterBoolean.write(dataStream, value.excludePartnerCodeFromTelemetry);
     }
 
     static computeSize(value) {
@@ -608,6 +646,8 @@ export class FfiConverterTypeJSONEngineUrl extends FfiConverterArrayBuffer {
         totalSize += FfiConverterOptionalSequenceTypeSearchUrlParam.computeSize(value.params);
         totalSize += FfiConverterOptionalString.computeSize(value.searchTermParamName);
         totalSize += FfiConverterOptionalMapStringString.computeSize(value.displayNameMap);
+        totalSize += FfiConverterOptionalString.computeSize(value.isNewUntil);
+        totalSize += FfiConverterBoolean.computeSize(value.excludePartnerCodeFromTelemetry);
         return totalSize
     }
 
@@ -653,6 +693,22 @@ export class FfiConverterTypeJSONEngineUrl extends FfiConverterArrayBuffer {
         } catch (e) {
             if (e instanceof UniFFITypeError) {
                 e.addItemDescriptionPart(".displayNameMap");
+            }
+            throw e;
+        }
+        try {
+            FfiConverterOptionalString.checkType(value.isNewUntil);
+        } catch (e) {
+            if (e instanceof UniFFITypeError) {
+                e.addItemDescriptionPart(".isNewUntil");
+            }
+            throw e;
+        }
+        try {
+            FfiConverterBoolean.checkType(value.excludePartnerCodeFromTelemetry);
+        } catch (e) {
+            if (e instanceof UniFFITypeError) {
+                e.addItemDescriptionPart(".excludePartnerCodeFromTelemetry");
             }
             throw e;
         }
@@ -961,8 +1017,6 @@ export class FfiConverterTypeSearchEngineClassification extends FfiConverterArra
       }
     }
 }
-
-
 /**
  * Defines an individual search engine URL.
  */
@@ -973,13 +1027,17 @@ export class SearchEngineUrl {
             method, 
             params, 
             searchTermParamName, 
-            displayName= null
+            displayName= null, 
+            isNewUntil= null, 
+            excludePartnerCodeFromTelemetry= false
         } = {
             base: undefined, 
             method: undefined, 
             params: undefined, 
             searchTermParamName: undefined, 
-            displayName: undefined
+            displayName: undefined, 
+            isNewUntil: undefined, 
+            excludePartnerCodeFromTelemetry: undefined
         }
     ) {
         try {
@@ -1022,6 +1080,22 @@ export class SearchEngineUrl {
             }
             throw e;
         }
+        try {
+            FfiConverterOptionalString.checkType(isNewUntil)
+        } catch (e) {
+            if (e instanceof UniFFITypeError) {
+                e.addItemDescriptionPart("isNewUntil");
+            }
+            throw e;
+        }
+        try {
+            FfiConverterBoolean.checkType(excludePartnerCodeFromTelemetry)
+        } catch (e) {
+            if (e instanceof UniFFITypeError) {
+                e.addItemDescriptionPart("excludePartnerCodeFromTelemetry");
+            }
+            throw e;
+        }
         /**
          * The PrePath and FilePath of the URL. May include variables for engines
          * which have a variable FilePath, e.g. `{searchTerms}` for when a search
@@ -1048,6 +1122,16 @@ export class SearchEngineUrl {
          * corresponds to a brand name distinct from the engine's brand name.
          */
         this.displayName = displayName;
+        /**
+         * Indicates the date until which the URL is considered new
+         * (format: YYYY-MM-DD).
+         */
+        this.isNewUntil = isNewUntil;
+        /**
+         * Whether the engine's partner code should be excluded from telemetry when
+         * this URL is visited.
+         */
+        this.excludePartnerCodeFromTelemetry = excludePartnerCodeFromTelemetry;
     }
 
     equals(other) {
@@ -1057,6 +1141,8 @@ export class SearchEngineUrl {
             && this.params == other.params
             && this.searchTermParamName == other.searchTermParamName
             && this.displayName == other.displayName
+            && this.isNewUntil == other.isNewUntil
+            && this.excludePartnerCodeFromTelemetry == other.excludePartnerCodeFromTelemetry
         )
     }
 }
@@ -1070,6 +1156,8 @@ export class FfiConverterTypeSearchEngineUrl extends FfiConverterArrayBuffer {
             params: FfiConverterSequenceTypeSearchUrlParam.read(dataStream),
             searchTermParamName: FfiConverterOptionalString.read(dataStream),
             displayName: FfiConverterOptionalString.read(dataStream),
+            isNewUntil: FfiConverterOptionalString.read(dataStream),
+            excludePartnerCodeFromTelemetry: FfiConverterBoolean.read(dataStream),
         });
     }
     static write(dataStream, value) {
@@ -1078,6 +1166,8 @@ export class FfiConverterTypeSearchEngineUrl extends FfiConverterArrayBuffer {
         FfiConverterSequenceTypeSearchUrlParam.write(dataStream, value.params);
         FfiConverterOptionalString.write(dataStream, value.searchTermParamName);
         FfiConverterOptionalString.write(dataStream, value.displayName);
+        FfiConverterOptionalString.write(dataStream, value.isNewUntil);
+        FfiConverterBoolean.write(dataStream, value.excludePartnerCodeFromTelemetry);
     }
 
     static computeSize(value) {
@@ -1087,6 +1177,8 @@ export class FfiConverterTypeSearchEngineUrl extends FfiConverterArrayBuffer {
         totalSize += FfiConverterSequenceTypeSearchUrlParam.computeSize(value.params);
         totalSize += FfiConverterOptionalString.computeSize(value.searchTermParamName);
         totalSize += FfiConverterOptionalString.computeSize(value.displayName);
+        totalSize += FfiConverterOptionalString.computeSize(value.isNewUntil);
+        totalSize += FfiConverterBoolean.computeSize(value.excludePartnerCodeFromTelemetry);
         return totalSize
     }
 
@@ -1132,6 +1224,22 @@ export class FfiConverterTypeSearchEngineUrl extends FfiConverterArrayBuffer {
         } catch (e) {
             if (e instanceof UniFFITypeError) {
                 e.addItemDescriptionPart(".displayName");
+            }
+            throw e;
+        }
+        try {
+            FfiConverterOptionalString.checkType(value.isNewUntil);
+        } catch (e) {
+            if (e instanceof UniFFITypeError) {
+                e.addItemDescriptionPart(".isNewUntil");
+            }
+            throw e;
+        }
+        try {
+            FfiConverterBoolean.checkType(value.excludePartnerCodeFromTelemetry);
+        } catch (e) {
+            if (e instanceof UniFFITypeError) {
+                e.addItemDescriptionPart(".excludePartnerCodeFromTelemetry");
             }
             throw e;
         }
@@ -2576,7 +2684,7 @@ export class SearchEngineSelector extends SearchEngineSelectorInterface {
     static init() {
        
         const result = UniFFIScaffolding.callSync(
-            34, // uniffi_search_fn_constructor_searchengineselector_new
+            32, // uniffi_search_fn_constructor_searchengineselector_new
         )
         return handleRustResult(
             result,
@@ -2593,7 +2701,7 @@ export class SearchEngineSelector extends SearchEngineSelectorInterface {
     clearSearchConfig() {
        
         const result = UniFFIScaffolding.callSync(
-            35, // uniffi_search_fn_method_searchengineselector_clear_search_config
+            33, // uniffi_search_fn_method_searchengineselector_clear_search_config
             FfiConverterTypeSearchEngineSelector.lowerReceiver(this),
         )
         return handleRustResult(
@@ -2615,7 +2723,7 @@ export class SearchEngineSelector extends SearchEngineSelectorInterface {
        
         FfiConverterTypeSearchUserEnvironment.checkType(userEnvironment);
         const result = UniFFIScaffolding.callSync(
-            36, // uniffi_search_fn_method_searchengineselector_filter_engine_configuration
+            34, // uniffi_search_fn_method_searchengineselector_filter_engine_configuration
             FfiConverterTypeSearchEngineSelector.lowerReceiver(this),
             FfiConverterTypeSearchUserEnvironment.lower(userEnvironment),
         )
@@ -2635,7 +2743,7 @@ export class SearchEngineSelector extends SearchEngineSelectorInterface {
        
         FfiConverterString.checkType(overrides);
         const result = UniFFIScaffolding.callSync(
-            37, // uniffi_search_fn_method_searchengineselector_set_config_overrides
+            35, // uniffi_search_fn_method_searchengineselector_set_config_overrides
             FfiConverterTypeSearchEngineSelector.lowerReceiver(this),
             FfiConverterString.lower(overrides),
         )
@@ -2659,7 +2767,7 @@ export class SearchEngineSelector extends SearchEngineSelectorInterface {
        
         FfiConverterString.checkType(configuration);
         const result = UniFFIScaffolding.callSync(
-            38, // uniffi_search_fn_method_searchengineselector_set_search_config
+            36, // uniffi_search_fn_method_searchengineselector_set_search_config
             FfiConverterTypeSearchEngineSelector.lowerReceiver(this),
             FfiConverterString.lower(configuration),
         )
@@ -2690,7 +2798,7 @@ export class SearchEngineSelector extends SearchEngineSelectorInterface {
         FfiConverterTypeRemoteSettingsService.checkType(service);
         FfiConverterBoolean.checkType(applyEngineOverrides);
         const result = await UniFFIScaffolding.callAsyncWrapper(
-            39, // uniffi_search_fn_method_searchengineselector_use_remote_settings_server
+            37, // uniffi_search_fn_method_searchengineselector_use_remote_settings_server
             FfiConverterTypeSearchEngineSelector.lowerReceiver(this),
             FfiConverterTypeRemoteSettingsService.lower(service),
             FfiConverterBoolean.lower(applyEngineOverrides),

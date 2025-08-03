@@ -38,9 +38,13 @@
 #include "VibrancyManager.h"
 #include "nsPresContext.h"
 #include "nsDocShell.h"
+#include "CocoaCompositorWidget.h"
 
 #include "gfxPlatform.h"
 #include "qcms.h"
+
+#include "mozilla/layers/NativeLayerRootRemoteMacChild.h"
+#include "mozilla/layers/NativeLayerRootRemoteMacParent.h"
 
 #include "mozilla/AutoRestore.h"
 #include "mozilla/Components.h"
@@ -2765,6 +2769,11 @@ void nsCocoaWindow::CocoaWindowDidResize() {
   // It's important to update our bounds before we trigger any listeners. This
   // ensures that our bounds are correct when GetScreenBounds is called.
   UpdateBounds();
+
+  if (mCompositorWidgetDelegate) {
+    auto deviceIntRect = GetBounds();
+    mCompositorWidgetDelegate->NotifyClientSizeChanged(deviceIntRect.Size());
+  }
 
   if (HandleUpdateFullscreenOnResize()) {
     ReportSizeEvent();

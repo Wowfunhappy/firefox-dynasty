@@ -542,6 +542,7 @@ interface GleanImpl {
     httpsOnlyModeEnabledPbm: GleanQuantity;
     fissionPrincipals: GleanEventWithExtras<{ principalType?: string, scheme?: string, value?: string }>;
     shadowedHtmlDocumentPropertyAccess: GleanEventWithExtras<{ name?: string }>;
+    shadowedHtmlFormElementPropertyAccess: GleanEventWithExtras<{ name?: string }>;
     cspViolationInternalPage: GleanEventWithExtras<{ blockeduridetails?: string, blockeduritype?: string, columnnumber?: string, directive?: string, linenumber?: string, sample?: string, selfdetails?: string, selftype?: string, sourcedetails?: string, sourcetype?: string }>;
     evalUsageParentProcess: GleanEventWithExtras<{ fileinfo?: string, value?: string }>;
     evalUsageSystemContext: GleanEventWithExtras<{ fileinfo?: string, value?: string }>;
@@ -962,6 +963,7 @@ interface GleanImpl {
     aboutHome: Record<string, GleanCounter>;
     aboutNewtab: Record<string, GleanCounter>;
     contextmenu: Record<string, GleanCounter>;
+    contextmenuVisual: Record<string, GleanCounter>;
     searchbar: Record<string, GleanCounter>;
     urlbar: Record<string, GleanCounter>;
     urlbarHandoff: Record<string, GleanCounter>;
@@ -974,6 +976,7 @@ interface GleanImpl {
     aboutHome: Record<string, GleanCounter>;
     aboutNewtab: Record<string, GleanCounter>;
     contextmenu: Record<string, GleanCounter>;
+    contextmenuVisual: Record<string, GleanCounter>;
     reload: Record<string, GleanCounter>;
     searchbar: Record<string, GleanCounter>;
     system: Record<string, GleanCounter>;
@@ -990,6 +993,7 @@ interface GleanImpl {
     aboutHome: Record<string, GleanCounter>;
     aboutNewtab: Record<string, GleanCounter>;
     contextmenu: Record<string, GleanCounter>;
+    contextmenuVisual: Record<string, GleanCounter>;
     reload: Record<string, GleanCounter>;
     searchbar: Record<string, GleanCounter>;
     system: Record<string, GleanCounter>;
@@ -1006,6 +1010,7 @@ interface GleanImpl {
     aboutHome: Record<string, GleanCounter>;
     aboutNewtab: Record<string, GleanCounter>;
     contextmenu: Record<string, GleanCounter>;
+    contextmenuVisual: Record<string, GleanCounter>;
     reload: Record<string, GleanCounter>;
     searchbar: Record<string, GleanCounter>;
     system: Record<string, GleanCounter>;
@@ -1027,6 +1032,10 @@ interface GleanImpl {
     counts: GleanEventWithExtras<{ overridden_by_third_party?: string, partner_code?: string, provider_id?: string, provider_name?: string, source?: string }>;
     deprecatedCounts: Record<string, GleanCounter>;
     searchFormCounts: GleanEventWithExtras<{ provider_id?: string, source?: string }>;
+  }
+
+  sapImpressionCounts: {
+    contextmenuVisual: Record<string, GleanCounter>;
   }
 
   searchWith: {
@@ -4676,8 +4685,8 @@ interface GleanImpl {
     markTime: GleanTimingDistribution;
     markWeak: GleanTimingDistribution;
     maxPause: GleanTimingDistribution;
-    minorReason: Record<"ABORT_GC"|"ALLOC_TRIGGER"|"API"|"BG_TASK_FINISHED"|"CC_FINISHED"|"CC_FORCED"|"COMPARTMENT_REVIVED"|"COMPONENT_UTILS"|"DEBUG_GC"|"DESTROY_RUNTIME"|"DISABLE_GENERATIONAL_GC"|"DOCSHELL"|"DOM_IPC"|"DOM_TESTUTILS"|"DOM_UTILS"|"DOM_WINDOW_UTILS"|"DOM_WORKER"|"EAGER_ALLOC_TRIGGER"|"EAGER_NURSERY_COLLECTION"|"EVICT_NURSERY"|"FINISH_GC"|"FULL_CELL_PTR_BIGINT_BUFFER"|"FULL_CELL_PTR_OBJ_BUFFER"|"FULL_CELL_PTR_STR_BUFFER"|"FULL_GC_TIMER"|"FULL_GENERIC_BUFFER"|"FULL_SHAPE_BUFFER"|"FULL_SLOT_BUFFER"|"FULL_VALUE_BUFFER"|"FULL_WASM_ANYREF_BUFFER"|"FULL_WHOLE_CELL_BUFFER"|"HTML_PARSER"|"INTER_SLICE_GC"|"LAST_DITCH"|"LOAD_END"|"MEM_PRESSURE"|"NSJSCONTEXT_DESTROY"|"NURSERY_MALLOC_BUFFERS"|"NURSERY_TRAILERS"|"OUT_OF_NURSERY"|"PAGE_HIDE"|"PREPARE_FOR_PAGELOAD"|"PREPARE_FOR_TRACING"|"RESET"|"ROOTS_REMOVED"|"SET_DOC_SHELL"|"SHARED_MEMORY_LIMIT"|"SHUTDOWN_CC"|"TOO_MUCH_JIT_CODE"|"TOO_MUCH_MALLOC"|"TOO_MUCH_WASM_MEMORY"|"UNUSED1"|"UNUSED2"|"UNUSED3"|"UNUSED4"|"USER_INACTIVE"|"WORKER_SHUTDOWN"|"XPCONNECT_SHUTDOWN", GleanCounter>;
-    minorReasonLong: Record<"ABORT_GC"|"ALLOC_TRIGGER"|"API"|"BG_TASK_FINISHED"|"CC_FINISHED"|"CC_FORCED"|"COMPARTMENT_REVIVED"|"COMPONENT_UTILS"|"DEBUG_GC"|"DESTROY_RUNTIME"|"DISABLE_GENERATIONAL_GC"|"DOCSHELL"|"DOM_IPC"|"DOM_TESTUTILS"|"DOM_UTILS"|"DOM_WINDOW_UTILS"|"DOM_WORKER"|"EAGER_ALLOC_TRIGGER"|"EAGER_NURSERY_COLLECTION"|"EVICT_NURSERY"|"FINISH_GC"|"FULL_CELL_PTR_BIGINT_BUFFER"|"FULL_CELL_PTR_OBJ_BUFFER"|"FULL_CELL_PTR_STR_BUFFER"|"FULL_GC_TIMER"|"FULL_GENERIC_BUFFER"|"FULL_SHAPE_BUFFER"|"FULL_SLOT_BUFFER"|"FULL_VALUE_BUFFER"|"FULL_WASM_ANYREF_BUFFER"|"FULL_WHOLE_CELL_BUFFER"|"HTML_PARSER"|"INTER_SLICE_GC"|"LAST_DITCH"|"LOAD_END"|"MEM_PRESSURE"|"NSJSCONTEXT_DESTROY"|"NURSERY_MALLOC_BUFFERS"|"NURSERY_TRAILERS"|"OUT_OF_NURSERY"|"PAGE_HIDE"|"PREPARE_FOR_PAGELOAD"|"PREPARE_FOR_TRACING"|"RESET"|"ROOTS_REMOVED"|"SET_DOC_SHELL"|"SHARED_MEMORY_LIMIT"|"SHUTDOWN_CC"|"TOO_MUCH_JIT_CODE"|"TOO_MUCH_MALLOC"|"TOO_MUCH_WASM_MEMORY"|"UNUSED1"|"UNUSED2"|"UNUSED3"|"UNUSED4"|"USER_INACTIVE"|"WORKER_SHUTDOWN"|"XPCONNECT_SHUTDOWN", GleanCounter>;
+    minorReason: Record<"ABORT_GC"|"ALLOC_TRIGGER"|"API"|"BG_TASK_FINISHED"|"CC_FINISHED"|"CC_FORCED"|"COMPARTMENT_REVIVED"|"COMPONENT_UTILS"|"DEBUG_GC"|"DESTROY_RUNTIME"|"DISABLE_GENERATIONAL_GC"|"DOCSHELL"|"DOM_IPC"|"DOM_TESTUTILS"|"DOM_UTILS"|"DOM_WINDOW_UTILS"|"DOM_WORKER"|"EAGER_ALLOC_TRIGGER"|"EAGER_NURSERY_COLLECTION"|"EVICT_NURSERY"|"FINISH_GC"|"FULL_CELL_PTR_BIGINT_BUFFER"|"FULL_CELL_PTR_GETTER_SETTER_BUFFER"|"FULL_CELL_PTR_OBJ_BUFFER"|"FULL_CELL_PTR_STR_BUFFER"|"FULL_GC_TIMER"|"FULL_GENERIC_BUFFER"|"FULL_SHAPE_BUFFER"|"FULL_SLOT_BUFFER"|"FULL_VALUE_BUFFER"|"FULL_WASM_ANYREF_BUFFER"|"FULL_WHOLE_CELL_BUFFER"|"HTML_PARSER"|"INTER_SLICE_GC"|"LAST_DITCH"|"LOAD_END"|"MEM_PRESSURE"|"NSJSCONTEXT_DESTROY"|"NURSERY_MALLOC_BUFFERS"|"NURSERY_TRAILERS"|"OUT_OF_NURSERY"|"PAGE_HIDE"|"PREPARE_FOR_PAGELOAD"|"PREPARE_FOR_TRACING"|"RESET"|"ROOTS_REMOVED"|"SET_DOC_SHELL"|"SHARED_MEMORY_LIMIT"|"SHUTDOWN_CC"|"TOO_MUCH_JIT_CODE"|"TOO_MUCH_MALLOC"|"TOO_MUCH_WASM_MEMORY"|"UNUSED1"|"UNUSED2"|"UNUSED3"|"USER_INACTIVE"|"WORKER_SHUTDOWN"|"XPCONNECT_SHUTDOWN", GleanCounter>;
+    minorReasonLong: Record<"ABORT_GC"|"ALLOC_TRIGGER"|"API"|"BG_TASK_FINISHED"|"CC_FINISHED"|"CC_FORCED"|"COMPARTMENT_REVIVED"|"COMPONENT_UTILS"|"DEBUG_GC"|"DESTROY_RUNTIME"|"DISABLE_GENERATIONAL_GC"|"DOCSHELL"|"DOM_IPC"|"DOM_TESTUTILS"|"DOM_UTILS"|"DOM_WINDOW_UTILS"|"DOM_WORKER"|"EAGER_ALLOC_TRIGGER"|"EAGER_NURSERY_COLLECTION"|"EVICT_NURSERY"|"FINISH_GC"|"FULL_CELL_PTR_BIGINT_BUFFER"|"FULL_CELL_PTR_GETTER_SETTER_BUFFER"|"FULL_CELL_PTR_OBJ_BUFFER"|"FULL_CELL_PTR_STR_BUFFER"|"FULL_GC_TIMER"|"FULL_GENERIC_BUFFER"|"FULL_SHAPE_BUFFER"|"FULL_SLOT_BUFFER"|"FULL_VALUE_BUFFER"|"FULL_WASM_ANYREF_BUFFER"|"FULL_WHOLE_CELL_BUFFER"|"HTML_PARSER"|"INTER_SLICE_GC"|"LAST_DITCH"|"LOAD_END"|"MEM_PRESSURE"|"NSJSCONTEXT_DESTROY"|"NURSERY_MALLOC_BUFFERS"|"NURSERY_TRAILERS"|"OUT_OF_NURSERY"|"PAGE_HIDE"|"PREPARE_FOR_PAGELOAD"|"PREPARE_FOR_TRACING"|"RESET"|"ROOTS_REMOVED"|"SET_DOC_SHELL"|"SHARED_MEMORY_LIMIT"|"SHUTDOWN_CC"|"TOO_MUCH_JIT_CODE"|"TOO_MUCH_MALLOC"|"TOO_MUCH_WASM_MEMORY"|"UNUSED1"|"UNUSED2"|"UNUSED3"|"USER_INACTIVE"|"WORKER_SHUTDOWN"|"XPCONNECT_SHUTDOWN", GleanCounter>;
     minorTime: GleanTimingDistribution;
     mmu50: GleanCustomDistribution;
     nonIncremental: Record<"false"|"true", GleanCounter>;
@@ -4690,7 +4699,7 @@ interface GleanImpl {
     parallelMarkUtilization: GleanCustomDistribution;
     prepareTime: GleanTimingDistribution;
     pretenureCount: GleanCustomDistribution;
-    reason: Record<"ABORT_GC"|"ALLOC_TRIGGER"|"API"|"BG_TASK_FINISHED"|"CC_FINISHED"|"CC_FORCED"|"COMPARTMENT_REVIVED"|"COMPONENT_UTILS"|"DEBUG_GC"|"DESTROY_RUNTIME"|"DISABLE_GENERATIONAL_GC"|"DOCSHELL"|"DOM_IPC"|"DOM_TESTUTILS"|"DOM_UTILS"|"DOM_WINDOW_UTILS"|"DOM_WORKER"|"EAGER_ALLOC_TRIGGER"|"EAGER_NURSERY_COLLECTION"|"EVICT_NURSERY"|"FINISH_GC"|"FULL_CELL_PTR_BIGINT_BUFFER"|"FULL_CELL_PTR_OBJ_BUFFER"|"FULL_CELL_PTR_STR_BUFFER"|"FULL_GC_TIMER"|"FULL_GENERIC_BUFFER"|"FULL_SHAPE_BUFFER"|"FULL_SLOT_BUFFER"|"FULL_VALUE_BUFFER"|"FULL_WASM_ANYREF_BUFFER"|"FULL_WHOLE_CELL_BUFFER"|"HTML_PARSER"|"INTER_SLICE_GC"|"LAST_DITCH"|"LOAD_END"|"MEM_PRESSURE"|"NSJSCONTEXT_DESTROY"|"NURSERY_MALLOC_BUFFERS"|"NURSERY_TRAILERS"|"OUT_OF_NURSERY"|"PAGE_HIDE"|"PREPARE_FOR_PAGELOAD"|"PREPARE_FOR_TRACING"|"RESET"|"ROOTS_REMOVED"|"SET_DOC_SHELL"|"SHARED_MEMORY_LIMIT"|"SHUTDOWN_CC"|"TOO_MUCH_JIT_CODE"|"TOO_MUCH_MALLOC"|"TOO_MUCH_WASM_MEMORY"|"UNUSED1"|"UNUSED2"|"UNUSED3"|"UNUSED4"|"USER_INACTIVE"|"WORKER_SHUTDOWN"|"XPCONNECT_SHUTDOWN", GleanCounter>;
+    reason: Record<"ABORT_GC"|"ALLOC_TRIGGER"|"API"|"BG_TASK_FINISHED"|"CC_FINISHED"|"CC_FORCED"|"COMPARTMENT_REVIVED"|"COMPONENT_UTILS"|"DEBUG_GC"|"DESTROY_RUNTIME"|"DISABLE_GENERATIONAL_GC"|"DOCSHELL"|"DOM_IPC"|"DOM_TESTUTILS"|"DOM_UTILS"|"DOM_WINDOW_UTILS"|"DOM_WORKER"|"EAGER_ALLOC_TRIGGER"|"EAGER_NURSERY_COLLECTION"|"EVICT_NURSERY"|"FINISH_GC"|"FULL_CELL_PTR_BIGINT_BUFFER"|"FULL_CELL_PTR_GETTER_SETTER_BUFFER"|"FULL_CELL_PTR_OBJ_BUFFER"|"FULL_CELL_PTR_STR_BUFFER"|"FULL_GC_TIMER"|"FULL_GENERIC_BUFFER"|"FULL_SHAPE_BUFFER"|"FULL_SLOT_BUFFER"|"FULL_VALUE_BUFFER"|"FULL_WASM_ANYREF_BUFFER"|"FULL_WHOLE_CELL_BUFFER"|"HTML_PARSER"|"INTER_SLICE_GC"|"LAST_DITCH"|"LOAD_END"|"MEM_PRESSURE"|"NSJSCONTEXT_DESTROY"|"NURSERY_MALLOC_BUFFERS"|"NURSERY_TRAILERS"|"OUT_OF_NURSERY"|"PAGE_HIDE"|"PREPARE_FOR_PAGELOAD"|"PREPARE_FOR_TRACING"|"RESET"|"ROOTS_REMOVED"|"SET_DOC_SHELL"|"SHARED_MEMORY_LIMIT"|"SHUTDOWN_CC"|"TOO_MUCH_JIT_CODE"|"TOO_MUCH_MALLOC"|"TOO_MUCH_WASM_MEMORY"|"UNUSED1"|"UNUSED2"|"UNUSED3"|"USER_INACTIVE"|"WORKER_SHUTDOWN"|"XPCONNECT_SHUTDOWN", GleanCounter>;
     reset: Record<"false"|"true", GleanCounter>;
     resetReason: Record<"AbortRequested"|"CompartmentRevived"|"GCBytesTrigger"|"GrayRootBufferingFailed"|"IncrementalDisabled"|"JitCodeBytesTrigger"|"MallocBytesTrigger"|"ModeChange"|"NonIncrementalRequested"|"None"|"Unused1"|"ZoneChange", GleanCounter>;
     sliceCount: GleanCustomDistribution;
@@ -5508,6 +5517,7 @@ interface GleanImpl {
     channelStatus: Record<string, GleanCounter>;
     collectorErrors: Record<string, GleanCounter>;
     failure: GleanCounter;
+    failureEvent: GleanEventWithExtras<{ id?: string, reason?: string }>;
     pending: GleanCounter;
     success: GleanCounter;
   }

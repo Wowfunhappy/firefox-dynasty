@@ -52,6 +52,7 @@ export class MegalistAlpha extends MozLitElement {
     this.viewMode = VIEW_MODES.LIST;
     this.selectedRecord = null;
     this.sidebarHiding = false;
+    this.shouldShowPrimaryPasswordAuth = false;
 
     window.addEventListener("MessageFromViewModel", ev =>
       this.#onMessageFromViewModel(ev)
@@ -74,6 +75,7 @@ export class MegalistAlpha extends MozLitElement {
       notification: { type: Object },
       displayMode: { type: String },
       viewMode: { type: String },
+      shouldShowPrimaryPasswordAuth: { type: Boolean },
     };
   }
 
@@ -286,6 +288,10 @@ export class MegalistAlpha extends MozLitElement {
     });
   }
 
+  receivePrimaryPasswordAuthenticated(authenticated) {
+    this.shouldShowPrimaryPasswordAuth = !authenticated;
+  }
+
   #createLoginRecords(snapshots) {
     const header = snapshots.shift();
     const records = [];
@@ -355,15 +361,13 @@ export class MegalistAlpha extends MozLitElement {
       el.shadowRoot?.contains(e.composedTarget)
     );
 
-    if (e.key === "ArrowUp" || e.key === "ArrowDown") {
-      e.preventDefault();
+    e.preventDefault();
 
-      const direction = e.key === "ArrowUp" ? -1 : 1;
-      const newIndex = currentIndex + direction;
+    const direction = e.key === "ArrowUp" ? -1 : 1;
+    const newIndex = currentIndex + direction;
 
-      if (newIndex >= 0 && newIndex < focusables.length) {
-        focusables[newIndex]?.focus();
-      }
+    if (newIndex >= 0 && newIndex < focusables.length) {
+      focusables[newIndex]?.focus();
     }
   }
 
@@ -407,10 +411,6 @@ export class MegalistAlpha extends MozLitElement {
   renderList() {
     return this.records.length
       ? html`
-          <div class="first-row">
-            ${this.renderSearch()} ${this.renderMenu()}
-          </div>
-          <div class="second-row">${this.renderRadioButtons()}</div>
           <div
             class="passwords-list"
             role="listbox"
@@ -418,10 +418,15 @@ export class MegalistAlpha extends MozLitElement {
             data-l10n-id="contextual-manager-passwords-list-label"
             @keydown=${e => {
               if (e.key === "ArrowDown") {
-                e.preventDefault();
-                this.shadowRoot
-                  .querySelector("password-card")
-                  .originLine.focus();
+                const active = this.shadowRoot.activeElement;
+                const passwordsList = e.currentTarget;
+
+                if (active === passwordsList) {
+                  e.preventDefault();
+                  this.shadowRoot
+                    .querySelector("password-card")
+                    .originLine.focus();
+                }
               }
             }}
           >
@@ -441,12 +446,12 @@ export class MegalistAlpha extends MozLitElement {
         notification: origin.breachedNotification,
       },
       {
-        displayAlert: !username.value.length,
-        notification: username.noUsernameNotification,
-      },
-      {
         displayAlert: password.vulnerable,
         notification: password.vulnerableNotification,
+      },
+      {
+        displayAlert: !username.value.length,
+        notification: username.noUsernameNotification,
       },
     ];
 
@@ -530,7 +535,11 @@ export class MegalistAlpha extends MozLitElement {
   renderNoLoginsCard() {
     return html`
       <moz-card class="empty-state-card">
-        <div class="no-logins-card-content">
+        <div
+          role="region"
+          class="no-logins-card-content"
+          aria-labelledby="no-logins-card-heading"
+        >
           <img
             src="chrome://global/content/megalist/icons/cpm-fox-illustration.svg"
             role="presentation"
@@ -538,7 +547,7 @@ export class MegalistAlpha extends MozLitElement {
           />
           <strong
             class="no-logins-card-heading"
-            data-l10n-id="contextual-manager-passwords-no-passwords-header"
+            data-l10n-id="contextual-manager-passwords-no-passwords-header-2"
           ></strong>
           <p
             data-l10n-id="contextual-manager-passwords-no-passwords-message"
@@ -588,7 +597,7 @@ export class MegalistAlpha extends MozLitElement {
       <div
         id="no-results-message"
         class="empty-search-results"
-        data-l10n-id="contextual-manager-passwords-no-passwords-found-message"
+        data-l10n-id="contextual-manager-passwords-no-passwords-found-message-2"
       ></div>
     </moz-card>`;
   }
@@ -760,7 +769,7 @@ export class MegalistAlpha extends MozLitElement {
         <hr />
         <panel-item
           action="open-preferences"
-          data-l10n-id="contextual-manager-passwords-command-settings"
+          data-l10n-id="contextual-manager-passwords-command-options"
           @click=${() => {
             const command = this.header.commands.find(
               command => command.id === "Settings"
@@ -781,6 +790,15 @@ export class MegalistAlpha extends MozLitElement {
           }}
         ></panel-item>
       </panel-list>
+    `;
+  }
+
+  renderToolbar() {
+    return html`
+      <div class="first-row">${this.renderSearch()} ${this.renderMenu()}</div>
+      ${this.header
+        ? html` <div class="second-row">${this.renderRadioButtons()}</div> `
+        : ""}
     `;
   }
 
@@ -816,19 +834,71 @@ export class MegalistAlpha extends MozLitElement {
     `;
   }
 
+  renderReauthPrimaryPassword() {
+    return html`
+      <moz-card class="empty-state-card">
+        <div class="reauth-card-content">
+          <img
+            src="chrome://global/content/megalist/icons/cpm-fox-illustration.svg"
+            role="presentation"
+            alt=""
+          />
+          <strong
+            class="no-logins-card-heading"
+            data-l10n-id="contextual-manager-primary-password-reauth-header"
+          ></strong>
+          <a
+            is="moz-support-link"
+            data-l10n-id="contextual-manager-primary-password-learn-more-link"
+            support-page="primary-password-stored-logins"
+            @click=${e => {
+              e.preventDefault();
+              this.#sendCommand("OpenLink", {
+                value:
+                  "https://support.mozilla.org/en-US/kb/use-primary-password-protect-stored-logins",
+              });
+            }}
+          >
+          </a>
+          <div class="no-logins-card-buttons">
+            <moz-button
+              class="empty-state-import-from-browser"
+              data-l10n-id="contextual-manager-primary-password-reauth-button"
+              type="primary"
+              @click=${() => {
+                this.#messageToViewModel("ReauthPrimaryPassword");
+              }}
+            ></moz-button>
+          </div>
+        </div>
+      </moz-card>
+    `;
+  }
+
+  renderAuthenticatedView() {
+    const showToolbar =
+      this.viewMode === VIEW_MODES.ALERTS ||
+      (this.viewMode === VIEW_MODES.LIST && this.header?.value?.total > 0);
+
+    return html`${when(showToolbar, () => html`${this.renderToolbar()}`)}
+    ${this.renderNotification()} ${this.renderContent()}`;
+  }
+
   render() {
     return html`
       <link
         rel="stylesheet"
         href="chrome://global/content/megalist/megalist.css"
       />
-      <div class="container">
+      <div class="container" aria-labelledby="sidebar-menu-cpm-header">
         <sidebar-panel-header
           data-l10n-id="sidebar-menu-cpm-header"
           data-l10n-attrs="heading"
           view="viewCPMSidebar"
         ></sidebar-panel-header>
-        ${this.renderNotification()} ${this.renderContent()}
+        ${!this.shouldShowPrimaryPasswordAuth
+          ? this.renderAuthenticatedView()
+          : this.renderReauthPrimaryPassword()}
       </div>
     `;
   }

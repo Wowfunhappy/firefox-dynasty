@@ -5293,11 +5293,6 @@ interface nsILayoutHistoryState extends nsISupports {
   addNewPresState(aKey: string, aScrollX: float, aScrollY: float, aAllowScrollOriginDowngrade: boolean, aRes: float): void;
 }
 
-// https://searchfox.org/mozilla-central/source/layout/base/nsIPreloadedStyleSheet.idl
-
-interface nsIPreloadedStyleSheet extends nsISupports {
-}
-
 // https://searchfox.org/mozilla-central/source/layout/base/nsISVGPaintContext.idl
 
 interface nsISVGPaintContext extends nsISupports {
@@ -5307,7 +5302,12 @@ interface nsISVGPaintContext extends nsISupports {
   readonly strokeOpacity: float;
 }
 
-// https://searchfox.org/mozilla-central/source/layout/base/nsIStyleSheetService.idl
+// https://searchfox.org/mozilla-central/source/layout/style/nsIPreloadedStyleSheet.idl
+
+interface nsIPreloadedStyleSheet extends nsISupports {
+}
+
+// https://searchfox.org/mozilla-central/source/layout/style/nsIStyleSheetService.idl
 
 interface nsIStyleSheetService extends nsISupports {
   readonly AGENT_SHEET?: 0;
@@ -6271,6 +6271,7 @@ interface nsIInputStreamChannel extends nsISupports {
 
 interface nsIInputStreamPump extends nsIRequest {
   init(aStream: nsIInputStream, aSegmentSize: u32, aSegmentCount: u32, aCloseWhenDone: boolean, aMainThreadTarget?: nsISerialEventTarget): void;
+  reset(): void;
   asyncRead(aListener: nsIStreamListener): void;
 }
 
@@ -9752,20 +9753,6 @@ interface mozISyncedBookmarksMirrorCallback extends nsISupports {
   handleError(code: nsresult, message: string): void;
 }
 
-interface mozISyncedBookmarksMirrorLogger extends nsISupports {
-  readonly LEVEL_OFF?: 0;
-  readonly LEVEL_ERROR?: 1;
-  readonly LEVEL_WARN?: 2;
-  readonly LEVEL_DEBUG?: 3;
-  readonly LEVEL_TRACE?: 4;
-
-  maxLevel: i16;
-  error(message: string): void;
-  warn(message: string): void;
-  debug(message: string): void;
-  trace(message: string): void;
-}
-
 }  // global
 
 declare enum mozISyncedBookmarksMerger_SyncedItemKinds {
@@ -9791,7 +9778,6 @@ namespace mozISyncedBookmarksMerger {
 
 interface mozISyncedBookmarksMerger extends nsISupports, Enums<typeof mozISyncedBookmarksMerger_SyncedItemKinds & typeof mozISyncedBookmarksMerger_SyncedItemValidity> {
   db: mozIStorageConnection;
-  logger: mozIServicesLogSink;
   merge(localTimeSeconds: i64, remoteTimeSeconds: i64, callback: mozISyncedBookmarksMirrorCallback): mozIPlacesPendingOperation;
   reset(): void;
 }
@@ -10289,12 +10275,6 @@ type nsIFormFillCompleteObserver = Callable<{
   onSearchCompletion(result: nsIAutoCompleteResult): void;
 }>
 
-// https://searchfox.org/mozilla-central/source/services/interfaces/mozIAppServicesLogger.idl
-
-interface mozIAppServicesLogger extends nsISupports {
-  register(target: string, logger: mozIServicesLogSink): void;
-}
-
 // https://searchfox.org/mozilla-central/source/services/interfaces/mozIBridgedSyncEngine.idl
 
 interface mozIBridgedSyncEngineCallback extends nsISupports {
@@ -10310,7 +10290,6 @@ interface mozIBridgedSyncEngineApplyCallback extends nsISupports {
 interface mozIBridgedSyncEngine extends nsISupports {
   readonly storageVersion: i32;
   readonly allowSkippedRecord: boolean;
-  logger: mozIServicesLogSink;
   getLastSync(callback: mozIBridgedSyncEngineCallback): void;
   setLastSync(lastSyncMillis: i64, callback: mozIBridgedSyncEngineCallback): void;
   getSyncId(callback: mozIBridgedSyncEngineCallback): void;
@@ -10329,24 +10308,6 @@ interface mozIBridgedSyncEngine extends nsISupports {
 
 interface mozIInterruptible extends nsISupports {
   interrupt(): void;
-}
-
-// https://searchfox.org/mozilla-central/source/services/interfaces/mozIServicesLogSink.idl
-
-interface mozIServicesLogSink extends nsISupports {
-  readonly LEVEL_OFF?: 0;
-  readonly LEVEL_ERROR?: 1;
-  readonly LEVEL_WARN?: 2;
-  readonly LEVEL_INFO?: 3;
-  readonly LEVEL_DEBUG?: 4;
-  readonly LEVEL_TRACE?: 5;
-
-  maxLevel: i16;
-  error(message: string): void;
-  warn(message: string): void;
-  debug(message: string): void;
-  trace(message: string): void;
-  info(message: string): void;
 }
 
 // https://searchfox.org/mozilla-central/source/toolkit/components/sessionstore/nsISessionStoreFunctions.idl
@@ -11601,6 +11562,7 @@ interface nsISearchEngine extends nsISupports {
   readonly identifier: string;
   readonly loadPath: string;
   readonly isAppProvided: boolean;
+  readonly isConfigEngine: boolean;
   readonly inMemory: boolean;
   readonly overriddenById: string;
   readonly isGeneralPurposeEngine: boolean;
@@ -12479,7 +12441,10 @@ interface nsIUrlClassifierUtils extends nsISupports {
   getProtocolVersion(provider: string): string;
   convertThreatTypeToListNames(threatType: u32): string;
   convertListNameToThreatType(listName: string): u32;
+  convertServerListNameToLocalListNameV5(serverListName: string): string;
+  convertLocalListNameToServerListNameV5(localListName: string): string;
   makeUpdateRequestV4(aListNames: string[], aStatesBase64: string[]): string;
+  makeUpdateRequestV5(aListNames: string[], aStatesBase64: string[]): string;
   makeFindFullHashRequestV4(aListNames: string[], aListStatesBase64: string[], aPrefixes: string[]): string;
   makeThreatHitReport(aChannel: nsIChannel, aListName: string, aHashBase64: string): string;
   parseFindFullHashResponseV4(aResponse: string, aCallback: nsIUrlClassifierParseFindFullHashCallback): void;
@@ -15792,8 +15757,8 @@ interface nsIXPCComponents_Interfaces {
   nsIKeyValueVariantCallback: nsJSIID<nsIKeyValueVariantCallback>;
   nsIKeyValueVoidCallback: nsJSIID<nsIKeyValueVoidCallback>;
   nsILayoutHistoryState: nsJSIID<nsILayoutHistoryState>;
-  nsIPreloadedStyleSheet: nsJSIID<nsIPreloadedStyleSheet>;
   nsISVGPaintContext: nsJSIID<nsISVGPaintContext>;
+  nsIPreloadedStyleSheet: nsJSIID<nsIPreloadedStyleSheet>;
   nsIStyleSheetService: nsJSIID<nsIStyleSheetService>;
   nsITreeSelection: nsJSIID<nsITreeSelection>;
   nsITreeView: nsJSIID<nsITreeView>;
@@ -16137,7 +16102,6 @@ interface nsIXPCComponents_Interfaces {
   mozIPlacesPendingOperation: nsJSIID<mozIPlacesPendingOperation>;
   mozISyncedBookmarksMirrorProgressListener: nsJSIID<mozISyncedBookmarksMirrorProgressListener>;
   mozISyncedBookmarksMirrorCallback: nsJSIID<mozISyncedBookmarksMirrorCallback>;
-  mozISyncedBookmarksMirrorLogger: nsJSIID<mozISyncedBookmarksMirrorLogger>;
   mozISyncedBookmarksMerger: nsJSIID<mozISyncedBookmarksMerger, typeof mozISyncedBookmarksMerger_SyncedItemKinds & typeof mozISyncedBookmarksMerger_SyncedItemValidity>;
   nsIFaviconService: nsJSIID<nsIFaviconService>;
   nsIFavicon: nsJSIID<nsIFavicon>;
@@ -16171,12 +16135,10 @@ interface nsIXPCComponents_Interfaces {
   mozISandboxSettings: nsJSIID<mozISandboxSettings>;
   nsIFormFillController: nsJSIID<nsIFormFillController>;
   nsIFormFillCompleteObserver: nsJSIID<nsIFormFillCompleteObserver>;
-  mozIAppServicesLogger: nsJSIID<mozIAppServicesLogger>;
   mozIBridgedSyncEngineCallback: nsJSIID<mozIBridgedSyncEngineCallback>;
   mozIBridgedSyncEngineApplyCallback: nsJSIID<mozIBridgedSyncEngineApplyCallback>;
   mozIBridgedSyncEngine: nsJSIID<mozIBridgedSyncEngine>;
   mozIInterruptible: nsJSIID<mozIInterruptible>;
-  mozIServicesLogSink: nsJSIID<mozIServicesLogSink>;
   nsISessionStoreFunctions: nsJSIID<nsISessionStoreFunctions>;
   nsISessionStoreRestoreData: nsJSIID<nsISessionStoreRestoreData>;
   nsIShellService: nsJSIID<nsIShellService>;

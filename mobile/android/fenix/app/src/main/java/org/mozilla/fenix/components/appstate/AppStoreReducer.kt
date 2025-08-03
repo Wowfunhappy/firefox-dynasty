@@ -140,6 +140,7 @@ internal object AppStoreReducer {
             val wallpaperState = state.wallpaperState.copy(availableWallpapers = wallpapers)
             state.copy(wallpaperState = wallpaperState)
         }
+        is AppAction.AppLifecycleAction.StartAction -> { state } // noop
         is AppAction.AppLifecycleAction.ResumeAction -> {
             state.copy(isForeground = true)
         }
@@ -236,7 +237,7 @@ internal object AppStoreReducer {
         )
 
         is AppAction.DownloadAction.DownloadInProgress -> state.copy(
-            snackbarState = SnackbarState.DownloadInProgress(action.sessionId),
+            snackbarState = SnackbarState.DownloadInProgress(action.downloadId),
         )
 
         is AppAction.DownloadAction.DownloadFailed -> state.copy(

@@ -378,11 +378,6 @@
   value: 1.2f
   mirror: always
 
-- name: apz.scrollbarbuttonrepeat.enabled
-  type: RelaxedAtomicBool
-  value: true
-  mirror: always
-
 # After a user has executed a pan gesture, we may receive momentum phase pan
 # gestures from the OS. This specifies how long we should wait following the
 # pan end gesture for possible momentum phase pan gestures before sending the
@@ -1318,6 +1313,14 @@
 - name: browser.contentanalysis.max_connections
   type: uint32_t
   value: 32
+  mirror: always
+
+# Enable an experiment where printing on Windows will disallow other
+# applications to take focus, to avoid a bug in printing-to-file.
+# This pref is relevant whether or not content analysis is used.
+- name: browser.contentanalysis.windows_lock_foreground_window_on_print
+  type: bool
+  value: true
   mirror: always
 
 # Should Firefox use content analysis for clipboard operations?
@@ -2588,6 +2591,12 @@
 
 # https://github.com/whatwg/html/pull/10737
 - name: dom.dialog.light-dismiss.enabled
+  type: bool
+  value: true
+  mirror: always
+
+# Enable relaxed Custom Element names
+- name: dom.custom_elements.relaxed_names.enabled
   type: bool
   value: true
   mirror: always
@@ -8987,6 +8996,12 @@
   mirror: always
   set_spidermonkey_pref: always
 
+- name: javascript.options.wasm_exception_force_stack_trace
+  type: bool
+  value: false
+  mirror: always
+  set_spidermonkey_pref: always
+
 - name: javascript.options.wasm_disable_huge_memory
   type: bool
   value: false
@@ -9970,7 +9985,7 @@
 #    https://drafts.csswg.org/css-grid-2/#algo-grid-sizing
 - name: layout.css.grid-multi-pass-track-sizing.enabled
   type: bool
-  value: false
+  value: true
   mirror: always
 
 # Is support for :heading and :heading() pseudo classes enabled?
@@ -10671,13 +10686,6 @@
 
 # Is support for the ::details-content pseudo-element enabled?
 - name: layout.css.details-content.enabled
-  type: RelaxedAtomicBool
-  value: false
-  mirror: always
-  rust: true
-
-# Is 'content:none' supported on (non-pseudo) elements?
-- name: layout.css.element-content-none.enabled
   type: RelaxedAtomicBool
   value: false
   mirror: always
@@ -18724,7 +18732,7 @@
 # For testing only
 - name: widget.dmabuf-feedback.enabled
   type: bool
-  value: true
+  value: false
   mirror: once
 #endif
 

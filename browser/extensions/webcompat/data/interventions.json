@@ -2072,25 +2072,6 @@
       }
     ]
   },
-  "1897120": {
-    "label": "Flipbook",
-    "bugs": {
-      "1897120": {
-        "issue": "broken-zooming",
-        "matches": ["*://flipbook.se.com/*", "*://*.flipbookpdf.net/*"]
-      }
-    },
-    "interventions": [
-      {
-        "platforms": ["desktop"],
-        "pref_check": { "layout.css.prefixes.transforms": false },
-        "content_scripts": {
-          "all_frames": true,
-          "js": ["bug1897120-turnjs-zoom-fix.js"]
-        }
-      }
-    ]
-  },
   "1897724": {
     "label": "app.homewyse.com",
     "bugs": {
@@ -5255,21 +5236,6 @@
       {
         "platforms": ["all"],
         "ua_string": ["change_Firefox_to_FireFox"]
-      }
-    ]
-  },
-  "1973920": {
-    "label": "app.genio.co",
-    "bugs": {
-      "1973920": {
-        "issue": "firefox-blocked-completely",
-        "matches": ["*://app.genio.co/*"]
-      }
-    },
-    "interventions": [
-      {
-        "platforms": ["desktop"],
-        "ua_string": ["add_Chrome"]
       }
     ]
   },

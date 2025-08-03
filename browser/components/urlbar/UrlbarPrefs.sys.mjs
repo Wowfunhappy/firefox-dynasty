@@ -178,6 +178,15 @@ const PREF_URLBAR_DEFAULTS = /** @type {PreferenceDefinition[]} */ ([
   // than `NONE`.
   ["keywordExposureResults", ""],
 
+  // The minimum prefix length of a market keyword the user must type to
+  // trigger the suggestion. 0 means the min length should be taken from Nimbus
+  // or remote settings.
+  ["market.minKeywordLength", 0],
+
+  // The number of times the user has clicked the "Show less frequently" command
+  // for Market suggestions.
+  ["market.showLessFrequentlyCount", 0],
+
   // As a user privacy measure, don't fetch results from remote services for
   // searches that start by pasting a string longer than this. The pref name
   // indicates search suggestions, but this is used for all remote results.
@@ -227,7 +236,7 @@ const PREF_URLBAR_DEFAULTS = /** @type {PreferenceDefinition[]} */ ([
   ["quickactions.enabled", true],
 
   // The number of times we should show the actions onboarding label.
-  ["quickactions.timesToShowOnboardingLabel", 0],
+  ["quickactions.timesToShowOnboardingLabel", 3],
 
   // The number of times we have shown the actions onboarding label.
   ["quickactions.timesShownOnboardingLabel", 0],
@@ -470,6 +479,9 @@ const PREF_URLBAR_DEFAULTS = /** @type {PreferenceDefinition[]} */ ([
   // Whether results will include the user's history.
   ["suggest.history", true],
 
+  // Whether results will include Market suggestions.
+  ["suggest.market", true],
+
   // If `browser.urlbar.mdn.featureGate` is true, this controls whether
   // mdn suggestions are turned on.
   ["suggest.mdn", true],
@@ -500,9 +512,6 @@ const PREF_URLBAR_DEFAULTS = /** @type {PreferenceDefinition[]} */ ([
   // Whether results will include search suggestions.
   ["suggest.searches", false],
 
-  // Whether results will include stocks suggestions.
-  ["suggest.stocks", true],
-
   // Whether results will include top sites and the view will open on focus.
   ["suggest.topsites", true],
 
@@ -524,7 +533,7 @@ const PREF_URLBAR_DEFAULTS = /** @type {PreferenceDefinition[]} */ ([
 
   // Whether history results with the same title and URL excluding the ref
   // will be deduplicated.
-  ["deduplication.enabled", false],
+  ["deduplication.enabled", true],
 
   // How old history results have to be to be deduplicated.
   ["deduplication.thresholdDays", 0],
@@ -650,6 +659,8 @@ const PREF_OTHER_DEFAULTS = new Map([
 const NIMBUS_DEFAULTS = {
   addonsShowLessFrequentlyCap: 0,
   fakespotMinKeywordLength: null,
+  marketMinKeywordLength: null,
+  marketShowLessFrequentlyCap: null,
   quickSuggestScoreMap: null,
   weatherKeywordsMinimumLength: null,
   weatherShowLessFrequentlyCap: null,

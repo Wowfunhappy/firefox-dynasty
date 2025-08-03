@@ -72,9 +72,9 @@ import org.mozilla.fenix.components.appstate.search.SelectedSearchEngine
 import org.mozilla.fenix.components.search.BOOKMARKS_SEARCH_ENGINE_ID
 import org.mozilla.fenix.components.search.HISTORY_SEARCH_ENGINE_ID
 import org.mozilla.fenix.components.search.TABS_SEARCH_ENGINE_ID
+import org.mozilla.fenix.components.toolbar.BrowserToolbarEnvironment
 import org.mozilla.fenix.components.usecases.FenixBrowserUseCases
 import org.mozilla.fenix.helpers.lifecycle.TestLifecycleOwner
-import org.mozilla.fenix.home.toolbar.HomeToolbarEnvironment
 import org.mozilla.fenix.search.EditPageEndActionsInteractions.ClearSearchClicked
 import org.mozilla.fenix.search.EditPageEndActionsInteractions.QrScannerClicked
 import org.mozilla.fenix.search.EditPageEndActionsInteractions.VoiceSearchButtonClicked
@@ -138,8 +138,41 @@ class BrowserToolbarSearchMiddlewareTest {
     fun `WHEN the toolbar enters in edit mode with non-blank query THEN a clear button is shown`() {
         val (_, store) = buildMiddlewareAndAddToStore()
 
-        store.dispatch(SearchQueryUpdated("test"))
         store.dispatch(ToggleEditMode(true))
+        store.dispatch(SearchQueryUpdated("test"))
+
+        assertEquals(
+            expectedClearButton,
+            store.state.editState.editActionsEnd.last() as ActionButtonRes,
+        )
+    }
+
+    @Test
+    fun `WHEN the toolbar enters in edit mode with blank query THEN a qr scanner button is shown`() {
+        val (_, store) = buildMiddlewareAndAddToStore()
+
+        store.dispatch(ToggleEditMode(true))
+        store.dispatch(SearchQueryUpdated(""))
+
+        assertEquals(
+            expectedQrButton,
+            store.state.editState.editActionsEnd.last() as ActionButtonRes,
+        )
+    }
+
+    @Test
+    fun `WHEN the toolbar enters in edit mode with blank query AND user starts typing THEN qr button is replaced by clear button`() {
+        val (_, store) = buildMiddlewareAndAddToStore()
+
+        store.dispatch(ToggleEditMode(true))
+        store.dispatch(SearchQueryUpdated(""))
+
+        assertEquals(
+            expectedQrButton,
+            store.state.editState.editActionsEnd.last() as ActionButtonRes,
+        )
+
+        store.dispatch(SearchQueryUpdated("a"))
 
         assertEquals(
             expectedClearButton,
@@ -730,7 +763,7 @@ class BrowserToolbarSearchMiddlewareTest {
         store.dispatch(ToggleEditMode(true))
 
         val actions = store.state.editState.editActionsEnd
-        assertEquals(1, actions.size)
+        assertEquals(2, actions.size)
         val voiceAction = actions.first() as ActionButtonRes
         assertEquals(expectedVoiceAction, voiceAction)
     }
@@ -741,11 +774,12 @@ class BrowserToolbarSearchMiddlewareTest {
         every { middleware.isSpeechRecognitionAvailable() } returns false
         val store = buildStore(middleware)
         store.dispatch(ToggleEditMode(true))
-
+        store.dispatch(SearchQueryUpdated(""))
         store.dispatch(ToggleEditMode(true))
 
         val actions = store.state.editState.editActionsEnd
-        assertTrue(actions.isEmpty())
+        assertTrue(actions.size == 1)
+        assertEquals(expectedQrButton, actions.last())
     }
 
     @Test
@@ -818,7 +852,7 @@ class BrowserToolbarSearchMiddlewareTest {
         ).also {
             it.dispatch(
                 EnvironmentRehydrated(
-                    HomeToolbarEnvironment(
+                    BrowserToolbarEnvironment(
                         testContext, lifecycleOwner, navController, browsingModeManager,
                     ),
                 ),
@@ -864,7 +898,7 @@ class BrowserToolbarSearchMiddlewareTest {
             SearchEngine("engine-g", "Engine G", mock(), type = SearchEngine.Type.BUNDLED),
         ),
         regionDefaultSearchEngineId = null,
-        userSelectedSearchEngineId = null,
+        userSelectedSearchEngineId = "engine-c",
         userSelectedSearchEngineName = null,
     )
 }

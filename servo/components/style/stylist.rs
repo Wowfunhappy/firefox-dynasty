@@ -14,7 +14,8 @@ use crate::dom::TElement;
 #[cfg(feature = "gecko")]
 use crate::gecko_bindings::structs::{ServoStyleSetSizes, StyleRuleInclusion};
 use crate::invalidation::element::invalidation_map::{
-    note_selector_for_invalidation, InvalidationMap, AdditionalRelativeSelectorInvalidationMap,
+    note_selector_for_invalidation, AdditionalRelativeSelectorInvalidationMap, Dependency,
+    InvalidationMap,
 };
 use crate::invalidation::media_queries::{
     EffectiveMediaQueryResults, MediaListKey, ToMediaListKey,
@@ -72,7 +73,7 @@ use selectors::parser::{
     SelectorList,
 };
 use selectors::visitor::{SelectorListKind, SelectorVisitor};
-use servo_arc::{Arc, ArcBorrow};
+use servo_arc::{Arc, ArcBorrow, ThinArc};
 use smallvec::SmallVec;
 use std::cmp::Ordering;
 use std::hash::{Hash, Hasher};
@@ -1265,6 +1266,7 @@ impl Stylist {
             },
         };
 
+        let mut implemented_pseudo = None;
         // Read the comment on `precomputed_values_for_pseudo` to see why it's
         // difficult to assert that display: contents nodes never arrive here
         // (tl;dr: It doesn't apply for replaced elements and such, but the
@@ -1273,7 +1275,10 @@ impl Stylist {
         // FIXME(emilio): We should assert that it holds if pseudo.is_none()!
         properties::cascade::<E>(
             &self,
-            pseudo,
+            pseudo.or_else(|| {
+                implemented_pseudo = element.unwrap().implemented_pseudo_element();
+                implemented_pseudo.as_ref()
+            }),
             inputs.rules.as_ref().unwrap_or(self.rule_tree.root()),
             guards,
             parent_style,
@@ -1470,10 +1475,20 @@ impl Stylist {
     ) where
         E: TElement,
     {
+        let mut cur = element;
+        let mut pseudos = SmallVec::new();
+        if let Some(pseudo) = pseudo_element {
+            pseudos.push(pseudo.clone());
+        }
+        while let Some(p) = cur.implemented_pseudo_element() {
+            pseudos.push(p);
+            let Some(parent_pseudo) = cur.pseudo_element_originating_element() else { break };
+            cur = parent_pseudo;
+        }
         RuleCollector::new(
             self,
             element,
-            pseudo_element,
+            pseudos,
             style_attribute,
             smil_override,
             animation_declarations,
@@ -2341,34 +2356,33 @@ struct GenericElementAndPseudoRules<Map> {
     /// FIXME(emilio): There are a bunch of wasted entries here in practice.
     /// Figure out a good way to do a `PerNonAnonBox` and `PerAnonBox` (for
     /// `precomputed_values_for_pseudo`) without duplicating a lot of code.
-    pseudos_map: PerPseudoElementMap<Box<Map>>,
+    pseudos_map: PerPseudoElementMap<Box<Self>>,
 }
 
 impl<Map: Default + MallocSizeOf> GenericElementAndPseudoRules<Map> {
     #[inline(always)]
-    fn for_insertion(&mut self, pseudo_element: Option<&PseudoElement>) -> &mut Map {
-        debug_assert!(
-            pseudo_element.map_or(true, |pseudo| {
-                !pseudo.is_precomputed() && !pseudo.is_unknown_webkit_pseudo_element()
-            }),
-            "Precomputed pseudos should end up in precomputed_pseudo_element_decls, \
-             and unknown webkit pseudos should be discarded before getting here"
-        );
+    fn for_insertion<'a>(&mut self, pseudo_elements: &[&'a PseudoElement]) -> &mut Map {
+        let mut current = self;
+        for &pseudo_element in pseudo_elements {
+            debug_assert!(
+                !pseudo_element.is_precomputed() && !pseudo_element.is_unknown_webkit_pseudo_element(),
+                "Precomputed pseudos should end up in precomputed_pseudo_element_decls, \
+                 and unknown webkit pseudos should be discarded before getting here"
+            );
 
-        match pseudo_element {
-            None => &mut self.element_map,
-            Some(pseudo) => self
-                .pseudos_map
-                .get_or_insert_with(pseudo, || Box::new(Default::default())),
+            current = current.pseudos_map.get_or_insert_with(pseudo_element, Default::default);
         }
+
+        &mut current.element_map
     }
 
     #[inline]
-    fn rules(&self, pseudo: Option<&PseudoElement>) -> Option<&Map> {
-        match pseudo {
-            Some(pseudo) => self.pseudos_map.get(pseudo).map(|p| &**p),
-            None => Some(&self.element_map),
+    fn rules(&self, pseudo_elements: &[PseudoElement]) -> Option<&Map> {
+        let mut current = self;
+        for pseudo in pseudo_elements {
+            current = current.pseudos_map.get(&pseudo)?.as_ref();
         }
+        Some(&current.element_map)
     }
 
     /// Measures heap usage.
@@ -2573,8 +2587,22 @@ impl ScopeBoundsWithHashes {
                 quirks_mode, selectors)),
         }
     }
-}
 
+    fn selectors_for<'a>(
+        bound_with_hashes: Option<&'a ScopeBoundWithHashes>,
+    ) -> impl Iterator<Item = &'a Selector<SelectorImpl>> {
+        bound_with_hashes
+            .map(|b| b.selectors.slice().iter())
+            .into_iter()
+            .flatten()
+    }
+
+    fn iter_selectors<'a>(&'a self) -> impl Iterator<Item = &'a Selector<SelectorImpl>> {
+        let start_selectors = Self::selectors_for(self.start.as_ref());
+        let end_selectors = Self::selectors_for(self.end.as_ref());
+        start_selectors.chain(end_selectors)
+    }
+}
 
 /// Implicit scope root, which may or may not be cached (i.e. For shadow DOM author
 /// styles that are cached and shared).
@@ -2896,19 +2924,19 @@ impl CascadeData {
 
     /// Returns the normal rule map for a given pseudo-element.
     #[inline]
-    pub fn normal_rules(&self, pseudo: Option<&PseudoElement>) -> Option<&SelectorMap<Rule>> {
-        self.normal_rules.rules(pseudo)
+    pub fn normal_rules(&self, pseudo_elements: &[PseudoElement]) -> Option<&SelectorMap<Rule>> {
+        self.normal_rules.rules(pseudo_elements)
     }
 
     /// Returns the featureless pseudo rule map for a given pseudo-element.
     #[inline]
     pub fn featureless_host_rules(
         &self,
-        pseudo: Option<&PseudoElement>,
+        pseudo_elements: &[PseudoElement],
     ) -> Option<&SelectorMap<Rule>> {
         self.featureless_host_rules
             .as_ref()
-            .and_then(|d| d.rules(pseudo))
+            .and_then(|d| d.rules(pseudo_elements))
     }
 
     /// Whether there's any featureless rule that could match in this scope.
@@ -2918,8 +2946,8 @@ impl CascadeData {
 
     /// Returns the slotted rule map for a given pseudo-element.
     #[inline]
-    pub fn slotted_rules(&self, pseudo: Option<&PseudoElement>) -> Option<&SelectorMap<Rule>> {
-        self.slotted_rules.as_ref().and_then(|d| d.rules(pseudo))
+    pub fn slotted_rules(&self, pseudo_elements: &[PseudoElement]) -> Option<&SelectorMap<Rule>> {
+        self.slotted_rules.as_ref().and_then(|d| d.rules(pseudo_elements))
     }
 
     /// Whether there's any ::slotted rule that could match in this scope.
@@ -2929,8 +2957,8 @@ impl CascadeData {
 
     /// Returns the parts rule map for a given pseudo-element.
     #[inline]
-    pub fn part_rules(&self, pseudo: Option<&PseudoElement>) -> Option<&PartMap> {
-        self.part_rules.as_ref().and_then(|d| d.rules(pseudo))
+    pub fn part_rules(&self, pseudo_elements: &[PseudoElement]) -> Option<&PartMap> {
+        self.part_rules.as_ref().and_then(|d| d.rules(pseudo_elements))
     }
 
     /// Whether there's any ::part rule that could match in this scope.
@@ -3098,33 +3126,33 @@ impl CascadeData {
         }
 
         let candidates = if let Some(end) = bounds.end.as_ref() {
-            let mut result = vec![];
-            // If any scope-end selector matches, we're not in scope.
-            for scope_root in potential_scope_roots {
+                let mut result = vec![];
+                // If any scope-end selector matches, we're not in scope.
+                for scope_root in potential_scope_roots {
                 if end.selectors.slice().iter().zip(end.hashes.iter()).all(|(selector, hashes)| {
-                    // Like checking for scope-start, use the bloom filter here.
-                    if let Some(filter) = context.bloom_filter {
-                        if !selector_may_match(hashes, filter) {
-                            // Selector this hash belongs to won't cause us to be out of this scope.
-                            return true;
-                        }
-                    }
+                            // Like checking for scope-start, use the bloom filter here.
+                            if let Some(filter) = context.bloom_filter {
+                                if !selector_may_match(hashes, filter) {
+                                    // Selector this hash belongs to won't cause us to be out of this scope.
+                                    return true;
+                                }
+                            }
 
-                    !element_is_outside_of_scope(
-                        selector,
-                        element,
-                        scope_root.root,
-                        context,
-                        matches_shadow_host,
-                    )
+                            !element_is_outside_of_scope(
+                                selector,
+                                element,
+                                scope_root.root,
+                                context,
+                                matches_shadow_host,
+                            )
                 }) {
-                    result.push(scope_root);
+                        result.push(scope_root);
+                    }
                 }
-            }
-            result
-        } else {
-            potential_scope_roots
-        };
+                result
+            } else {
+                potential_scope_roots
+            };
 
         ScopeRootCandidates {
             candidates,
@@ -3267,8 +3295,9 @@ impl CascadeData {
         for selector in selectors.slice() {
             self.num_selectors += 1;
 
-            let pseudo_element = selector.pseudo_element();
-            if let Some(pseudo) = pseudo_element {
+            let pseudo_elements = selector.pseudo_elements();
+            let inner_pseudo_element = pseudo_elements.get(0);
+            if let Some(pseudo) = inner_pseudo_element {
                 if pseudo.is_precomputed() {
                     debug_assert!(selector.is_universal());
                     debug_assert!(ancestor_selectors.is_none());
@@ -3292,10 +3321,12 @@ impl CascadeData {
                         ));
                     continue;
                 }
-                if pseudo.is_unknown_webkit_pseudo_element() {
+                if pseudo_elements.iter().any(|p| p.is_unknown_webkit_pseudo_element()) {
                     continue;
                 }
             }
+
+            debug_assert!(!pseudo_elements.iter().any(|p| p.is_precomputed() || p.is_unknown_webkit_pseudo_element()));
 
             let selector = match ancestor_selectors {
                 Some(ref s) => selector.replace_parent_selector(&s),
@@ -3320,12 +3351,43 @@ impl CascadeData {
             }
 
             if rebuild_kind.should_rebuild_invalidation() {
+                let mut scope_idx = containing_rule_state.scope_condition_id;
+                let mut inner_scope_dependencies: Option<ThinArc<(), Dependency>> = None;
+                while scope_idx != ScopeConditionId::none() {
+                    let cur_scope = &self.scope_conditions[scope_idx.0 as usize];
+
+                    if let Some(cond) = cur_scope.condition.as_ref() {
+                        let mut dependency_vector: Vec<Dependency> = Vec::new();
+
+                        for s in cond.iter_selectors() {
+                            let mut new_inner_dependencies = note_selector_for_invalidation(
+                                &s.clone(),
+                                quirks_mode,
+                                &mut self.invalidation_map,
+                                &mut self.relative_selector_invalidation_map,
+                                &mut self.additional_relative_selector_invalidation_map,
+                                inner_scope_dependencies.as_ref(),
+                            )?;
+
+                            new_inner_dependencies.as_mut().map(|dep| {
+                                dependency_vector.append(dep);
+                            });
+                        }
+                        inner_scope_dependencies = Some(ThinArc::from_header_and_iter(
+                            (),
+                            dependency_vector.into_iter(),
+                        ));
+                    }
+                    scope_idx = cur_scope.parent;
+                }
+
                 note_selector_for_invalidation(
                     &rule.selector,
                     quirks_mode,
                     &mut self.invalidation_map,
                     &mut self.relative_selector_invalidation_map,
                     &mut self.additional_relative_selector_invalidation_map,
+                    None,
                 )?;
                 let mut needs_revalidation = false;
                 let mut visitor = StylistSelectorVisitor {
@@ -3370,7 +3432,7 @@ impl CascadeData {
                 let map = self
                     .part_rules
                     .get_or_insert_with(|| Box::new(Default::default()))
-                    .for_insertion(pseudo_element);
+                    .for_insertion(&pseudo_elements);
                 map.try_reserve(1)?;
                 let vec = map.entry(parts.last().unwrap().clone().0).or_default();
                 vec.try_reserve(1)?;
@@ -3383,7 +3445,7 @@ impl CascadeData {
                         // We need to insert this in featureless_host_rules but also normal_rules.
                         self.featureless_host_rules
                             .get_or_insert_with(|| Box::new(Default::default()))
-                            .for_insertion(pseudo_element)
+                            .for_insertion(&pseudo_elements)
                             .insert(rule.clone(), quirks_mode)?;
                         false
                     },
@@ -3405,7 +3467,7 @@ impl CascadeData {
                 } else {
                     &mut self.normal_rules
                 }
-                .for_insertion(pseudo_element);
+                .for_insertion(&pseudo_elements);
                 rules.insert(rule, quirks_mode)?;
             }
         }
@@ -3722,20 +3784,20 @@ impl CascadeData {
                     };
 
                     let replaced = {
-                        let start = rule.bounds.start.as_ref().map(|selector| {
-                            match containing_rule_state.ancestor_selector_lists.last() {
-                                Some(s) => selector.replace_parent_selector(s),
-                                None => selector.clone(),
-                            }
-                        });
-                        let implicit_scope_selector = &*IMPLICIT_SCOPE;
+                            let start = rule.bounds.start.as_ref().map(|selector| {
+                                match containing_rule_state.ancestor_selector_lists.last() {
+                                    Some(s) => selector.replace_parent_selector(s),
+                                    None => selector.clone(),
+                                }
+                            });
+                            let implicit_scope_selector = &*IMPLICIT_SCOPE;
                         let end = rule.bounds
                             .end
                             .as_ref()
                             .map(|selector| selector.replace_parent_selector(implicit_scope_selector));
                         containing_rule_state.ancestor_selector_lists.push(implicit_scope_selector.clone());
-                        ScopeBoundsWithHashes::new(quirks_mode, start, end)
-                    };
+                            ScopeBoundsWithHashes::new(quirks_mode, start, end)
+                        };
 
                     if let Some(selectors) = replaced.start.as_ref() {
                         self.scope_subject_map.add_bound_start(&selectors.selectors, quirks_mode);

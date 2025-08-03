@@ -26,6 +26,8 @@
 #include "mozilla/MouseEvents.h"
 #include "mozilla/UniquePtr.h"
 #include "mozilla/webrender/WebRenderTypes.h"
+#include "mozilla/layers/NativeLayerRootRemoteMacChild.h"
+#include "mozilla/layers/NativeLayerRootRemoteMacParent.h"
 
 #include "nsString.h"
 #include "nsIDragService.h"
@@ -56,6 +58,7 @@ class NativeLayerRootCA;
 class NativeLayerCA;
 }  // namespace layers
 namespace widget {
+class PlatformCompositorWidgetDelegate;
 class WidgetRenderingContext;
 }  // namespace widget
 }  // namespace mozilla
@@ -463,7 +466,14 @@ class nsChildView final : public nsBaseWidget {
 
   void CreateCompositor() override;
 
+  void SetCompositorWidgetDelegate(
+      mozilla::widget::CompositorWidgetDelegate*) override;
+  void CreateCompositor(int aWidth, int aHeight) override;
+  void DestroyCompositor() override;
   bool WidgetPaintsBackground() override { return true; }
+  void GetCompositorWidgetInitData(
+      mozilla::widget::CompositorWidgetInitData* aInitData) override;
+  mozilla::layers::CompositorBridgeChild* GetCompositorBridgeChild() const;
 
   bool PreRender(
       mozilla::widget::WidgetRenderingContext* aContext) override;
@@ -609,6 +619,12 @@ class nsChildView final : public nsBaseWidget {
   bool mIsDispatchPaint;  // Is a paint event being dispatched
 
   RefPtr<mozilla::layers::NativeLayerRootCA> mNativeLayerRoot;
+  RefPtr<mozilla::layers::NativeLayerRootRemoteMacParent>
+      mNativeLayerRootRemoteMacParent;
+  mozilla::ipc::Endpoint<mozilla::layers::PNativeLayerRemoteChild>
+      mChildEndpoint;
+  mozilla::widget::PlatformCompositorWidgetDelegate* mCompositorWidgetDelegate =
+      nullptr;
 
   // Only used for drawRect-based painting in popups.
   // Always null if nsCocoaFeatures::OnMavericksOrLater() is true.

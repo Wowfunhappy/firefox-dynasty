@@ -604,6 +604,13 @@ export const PREFS_CONFIG = new Map([
     },
   ],
   [
+    "discoverystream.promoCard.enabled",
+    {
+      title: "Boolean flag to turn the promo card on and off",
+      value: false,
+    },
+  ],
+  [
     "discoverystream.sections.enabled",
     {
       title: "Boolean flag to enable section layout UI in recommended stories",
@@ -857,6 +864,13 @@ export const PREFS_CONFIG = new Map([
       getValue: () => {
         return Services.prefs.getCharPref(BROWSER_URLBAR_PLACEHOLDERNAME, "");
       },
+    },
+  ],
+  [
+    "widgets.system.enabled",
+    {
+      title: "Enables visibility of all widgets and controls to enable them",
+      value: false,
     },
   ],
   [

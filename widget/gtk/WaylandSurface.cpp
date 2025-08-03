@@ -21,11 +21,9 @@
 #  include "mozilla/Logging.h"
 #  include "nsTArray.h"
 #  include "Units.h"
-#  include "nsWindow.h"
 #  undef LOGWAYLAND
 #  undef LOGVERBOSE
 extern mozilla::LazyLogModule gWidgetWaylandLog;
-extern mozilla::LazyLogModule gWidgetLog;
 #  define LOGWAYLAND(str, ...)                           \
     MOZ_LOG(gWidgetWaylandLog, mozilla::LogLevel::Debug, \
             ("%s: " str, GetDebugTag().get(), ##__VA_ARGS__))
@@ -639,13 +637,19 @@ void WaylandSurface::Commit(WaylandSurfaceLock* aProofOfLock, bool aForceCommit,
   // mSurface may be already deleted, see WaylandSurface::Unmap();
   if (mSurface && (aForceCommit || mSurfaceNeedsCommit)) {
     LOGVERBOSE(
-        "WaylandSurface::Commit() needs commit %d, force commit %d flush %d",
-        !!mSurfaceNeedsCommit, aForceCommit, aForceDisplayFlush);
-    mSurfaceNeedsCommit = false;
-    wl_surface_commit(mSurface);
+        "WaylandSurface::Commit() allowed [%d] needs commit %d, force commit "
+        "%d flush %d",
+        mCommitAllowed, !!mSurfaceNeedsCommit, aForceCommit,
+        aForceDisplayFlush);
+    if (!mCommitAllowed) {
+      return;
+    }
     if (!mSubsurfaceDesync && mParent) {
+      LOGVERBOSE("  request force commit to parent [%p]", mParent.get());
       mParent->ForceCommit();
     }
+    mSurfaceNeedsCommit = false;
+    wl_surface_commit(mSurface);
     if (aForceDisplayFlush) {
       wl_display_flush(WaylandDisplayGet()->GetDisplay());
     }
@@ -1087,6 +1091,7 @@ void WaylandSurface::RemoveTransactionLocked(
   MOZ_DIAGNOSTIC_ASSERT(aTransaction->IsDeleted());
   [[maybe_unused]] bool removed =
       mBufferTransactions.RemoveElement(aTransaction);
+  MOZ_DIAGNOSTIC_ASSERT(!mBufferTransactions.Contains(aTransaction));
 }
 
 BufferTransaction* WaylandSurface::GetNextTransactionLocked(
