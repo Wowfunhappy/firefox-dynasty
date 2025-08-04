@@ -88,12 +88,18 @@ MediaResult FFmpegDataDecoder<LIBAV_VER>::InitSWDecoder(
     return MediaResult(NS_ERROR_DOM_MEDIA_FATAL_ERR,
                        RESULT_DETAIL("unable to find codec"));
   }
-  FFMPEG_LOG("  codec %s : %s", codec->name, codec->long_name);
+
+  return InitDecoder(codec, aOptions);
+}
+
+MediaResult FFmpegDataDecoder<LIBAV_VER>::InitDecoder(AVCodec* aCodec,
+                                                      AVDictionary** aOptions) {
+  FFMPEG_LOG("  codec %s : %s", aCodec->name, aCodec->long_name);
 
   StaticMutexAutoLock mon(sMutex);
 
-  if (!(mCodecContext = mLib->avcodec_alloc_context3(codec))) {
-    FFMPEG_LOG("  couldn't allocate ffmpeg context for codec %s", codec->name);
+  if (!(mCodecContext = mLib->avcodec_alloc_context3(aCodec))) {
+    FFMPEG_LOG("  couldn't allocate ffmpeg context for codec %s", aCodec->name);
     return MediaResult(NS_ERROR_OUT_OF_MEMORY,
                        RESULT_DETAIL("Couldn't init ffmpeg context"));
   }
@@ -111,23 +117,23 @@ MediaResult FFmpegDataDecoder<LIBAV_VER>::InitSWDecoder(
   MediaResult ret = AllocateExtraData();
   if (NS_FAILED(ret)) {
     FFMPEG_LOG("  couldn't allocate ffmpeg extra data for codec %s",
-               codec->name);
+               aCodec->name);
     mLib->av_freep(&mCodecContext);
     return ret;
   }
 
 #if LIBAVCODEC_VERSION_MAJOR < 57
-  if (codec->capabilities & CODEC_CAP_DR1) {
+  if (aCodec->capabilities & CODEC_CAP_DR1) {
     mCodecContext->flags |= CODEC_FLAG_EMU_EDGE;
   }
 #endif
 
-  if (mLib->avcodec_open2(mCodecContext, codec, aOptions) < 0) {
+  if (mLib->avcodec_open2(mCodecContext, aCodec, aOptions) < 0) {
     if (mCodecContext->extradata) {
       mLib->av_freep(&mCodecContext->extradata);
     }
     mLib->av_freep(&mCodecContext);
-    FFMPEG_LOG("  Couldn't open avcodec for %s", codec->name);
+    FFMPEG_LOG("  Couldn't open avcodec for %s", aCodec->name);
     return MediaResult(NS_ERROR_DOM_MEDIA_FATAL_ERR,
                        RESULT_DETAIL("Couldn't open avcodec"));
   }
@@ -230,16 +236,25 @@ FFmpegDataDecoder<LIBAV_VER>::ProcessDrain() {
   // as pending data in the pipeline being corrupt or invalid, non-EOS errors
   // like NS_ERROR_DOM_MEDIA_DECODE_ERR will be returned and must be handled
   // accordingly.
+  RefPtr<MediaDataDecoder::DecodePromise> p = mDrainPromise.Ensure(__func__);
   do {
     MediaResult r = DoDecode(empty, &gotFrame, results);
     if (NS_FAILED(r)) {
       if (r.Code() == NS_ERROR_DOM_MEDIA_END_OF_STREAM) {
         break;
       }
-      return DecodePromise::CreateAndReject(r, __func__);
+      if (r.Code() == NS_ERROR_NOT_AVAILABLE) {
+        if (results.IsEmpty()) {
+          return p;
+        }
+        break;
+      }
+      mDrainPromise.Reject(r, __func__);
+      return p;
     }
   } while (gotFrame);
-  return DecodePromise::CreateAndResolve(std::move(results), __func__);
+  mDrainPromise.Resolve(std::move(results), __func__);
+  return p;
 }
 
 RefPtr<MediaDataDecoder::FlushPromise>

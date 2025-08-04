@@ -54,6 +54,7 @@ class FFmpegDataDecoder<LIBAV_VER>
   virtual void InitCodecContext() MOZ_REQUIRES(sMutex) {}
   AVFrame* PrepareFrame();
   MediaResult InitSWDecoder(AVDictionary** aOptions);
+  MediaResult InitDecoder(AVCodec* aCodec, AVDictionary** aOptions);
   MediaResult AllocateExtraData();
   MediaResult DoDecode(MediaRawData* aSample, bool* aGotFrame,
                        DecodedData& aResults);
@@ -75,9 +76,11 @@ class FFmpegDataDecoder<LIBAV_VER>
                               // for calls into ffmpeg
   const RefPtr<TaskQueue> mTaskQueue;  // set in constructor
 
+  RefPtr<DecodePromise> ProcessDrain();
+  MozPromiseHolder<DecodePromise> mDrainPromise;
+
  private:
   RefPtr<DecodePromise> ProcessDecode(MediaRawData* aSample);
-  RefPtr<DecodePromise> ProcessDrain();
   virtual MediaResult DoDecode(MediaRawData* aSample, uint8_t* aData, int aSize,
                                bool* aGotFrame,
                                MediaDataDecoder::DecodedData& aOutResults) = 0;

@@ -390,6 +390,9 @@ void nsCocoaWindow::SetCursor(const Cursor& aCursor) {
 // paint has been handled completely, which is when we return to the event loop
 // after layer display.
 void nsCocoaWindow::SuspendAsyncCATransactions() {
+  if (!nsCocoaFeatures::OnMavericksOrLater()) {
+    return;
+  }
   if (mUnsuspendAsyncCATransactionsRunnable) {
     mUnsuspendAsyncCATransactionsRunnable->Cancel();
     mUnsuspendAsyncCATransactionsRunnable = nullptr;
@@ -1867,6 +1870,12 @@ NSEvent* gLastDragMouseDownEvent = nil;  // [strong]
   return [frameView roundedCornerRadius];
 }
 
+- (BOOL)isCoveringTitlebar {
+  return [[self window] isKindOfClass:[BaseWindow class]] &&
+         [(BaseWindow*)[self window] mainChildView] == self &&
+         [(BaseWindow*)[self window] drawsContentsIntoWindowFrame];
+}
+
 - (void)showContextMenuForSelection:(id)sender {
   if (!mGeckoChild) {
     return;
@@ -1978,6 +1987,10 @@ NSEvent* gLastDragMouseDownEvent = nil;  // [strong]
     CGContextFillRect(cgContext, NSRectToCGRect(aRect));
   }
 
+  if ([self isCoveringTitlebar]) {
+    [self drawTitleString];
+    [self maskTopCornersInContext:cgContext];
+  }
 }
 
 - (BOOL)hasRoundedBottomCorners {
@@ -2009,6 +2022,10 @@ NSEvent* gLastDragMouseDownEvent = nil;  // [strong]
   CGFloat w = [self bounds].size.width, h = [self bounds].size.height;
   [[NSColor clearColor] set];
 
+  if ([self isCoveringTitlebar]) {
+    NSRectFill(NSMakeRect(0, 0, radius, radius));
+    NSRectFill(NSMakeRect(w - radius, 0, radius, radius));
+  }
 
   if ([self hasRoundedBottomCorners]) {
     NSRectFill(NSMakeRect(0, h - radius, radius, radius));
@@ -5314,7 +5331,6 @@ nsresult nsCocoaWindow::CreateNativeWindow(const NSRect& aRect,
       // - superview setWantsLayer here  to ensure our
       //   menu and fullscreen buttons are shown, but not at the  cost of
       //   losing the rounded corners on popup menus.
-      [mWindow setBackgroundColor:[NSColor clearColor]];
       [[[mWindow contentView] superview] setWantsLayer:YES];
     }
   }
@@ -5689,7 +5705,7 @@ bool nsCocoaWindow::ShouldUseOffMainThreadCompositing() {
     return false;
   }
   if(!nsCocoaFeatures::OnMountainLionOrLater())
-  return false;
+    return false;
   return nsBaseWidget::ShouldUseOffMainThreadCompositing();
 }
 
