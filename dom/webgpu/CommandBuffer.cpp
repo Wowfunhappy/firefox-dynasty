@@ -3,33 +3,43 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/dom/WebGPUBinding.h"
 #include "CommandBuffer.h"
-#include "CommandEncoder.h"
-#include "ipc/WebGPUChild.h"
 
-#include "mozilla/webgpu/CanvasContext.h"
+#include "CommandEncoder.h"
 #include "Device.h"
+#include "ipc/WebGPUChild.h"
+#include "mozilla/dom/WebGPUBinding.h"
+#include "mozilla/webgpu/CanvasContext.h"
 
 namespace mozilla::webgpu {
 
-GPU_IMPL_CYCLE_COLLECTION(CommandBuffer, mParent, mEncoder)
+GPU_IMPL_CYCLE_COLLECTION(CommandBuffer, mParent, mBridge)
 GPU_IMPL_JS_WRAP(CommandBuffer)
 
 CommandBuffer::CommandBuffer(
-    Device* const aParent, RawId aId,
-    nsTArray<WeakPtr<CanvasContext>>&& aPresentationContexts,
-    RefPtr<CommandEncoder>&& aEncoder)
+    Device* const aParent, WebGPUChild* const aBridge, RawId aId,
+    nsTArray<WeakPtr<CanvasContext>>&& aPresentationContexts)
     : ChildOf(aParent),
       mId(aId),
+      mBridge(aBridge),
       mPresentationContexts(std::move(aPresentationContexts)) {
-  mEncoder = std::move(aEncoder);
   MOZ_RELEASE_ASSERT(aId);
 }
 
 CommandBuffer::~CommandBuffer() {}
 
-void CommandBuffer::Cleanup() { mEncoder = nullptr; }
+void CommandBuffer::Cleanup() {
+  if (!mValid) {
+    return;
+  }
+  mValid = false;
+
+  if (!mBridge) {
+    return;
+  }
+
+  ffi::wgpu_client_drop_command_buffer(mBridge->GetClient(), mId);
+}
 
 Maybe<RawId> CommandBuffer::Commit() {
   if (!mValid) {

@@ -10,14 +10,14 @@
 #include "GMPCrashHelper.h"
 #include "GMPCrashHelperHolder.h"
 #include "GMPMessageUtils.h"
-#include "mozilla/gmp/PChromiumCDMParent.h"
-#include "mozilla/RefPtr.h"
-#include "nsTHashMap.h"
-#include "PlatformDecoderModule.h"
 #include "ImageContainer.h"
-#include "mozilla/Maybe.h"
-#include "mozilla/Span.h"
+#include "PlatformDecoderModule.h"
 #include "ReorderQueue.h"
+#include "mozilla/Maybe.h"
+#include "mozilla/RefPtr.h"
+#include "mozilla/Span.h"
+#include "mozilla/gmp/PChromiumCDMParent.h"
+#include "nsTHashMap.h"
 
 class ChromiumCDMCallback;
 
@@ -126,8 +126,11 @@ class ChromiumCDMParent final : public PChromiumCDMParent,
                                         const double& aSecondsSinceEpoch);
   ipc::IPCResult RecvOnSessionClosed(const nsCString& aSessionId);
   ipc::IPCResult RecvOnQueryOutputProtectionStatus();
-  ipc::IPCResult RecvDecrypted(const uint32_t& aId, const uint32_t& aStatus,
-                               ipc::Shmem&& aData);
+  ipc::IPCResult RecvDecryptedShmem(const uint32_t& aId,
+                                    const uint32_t& aStatus,
+                                    ipc::Shmem&& aData);
+  ipc::IPCResult RecvDecryptedData(const uint32_t& aId, const uint32_t& aStatus,
+                                   nsTArray<uint8_t>&& aData);
   ipc::IPCResult RecvDecryptFailed(const uint32_t& aId,
                                    const uint32_t& aStatus);
   ipc::IPCResult RecvOnDecoderInitDone(const uint32_t& aStatus);

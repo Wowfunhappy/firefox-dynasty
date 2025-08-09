@@ -4,8 +4,10 @@
 
 package org.mozilla.fenix.reviewprompt
 
+import androidx.annotation.VisibleForTesting
 import mozilla.components.lib.state.Middleware
 import mozilla.components.lib.state.MiddlewareContext
+import mozilla.components.service.nimbus.evalJexlSafe
 import mozilla.components.service.nimbus.messaging.use
 import org.mozilla.experiments.nimbus.NimbusMessagingHelperInterface
 import org.mozilla.fenix.components.appstate.AppAction
@@ -15,6 +17,7 @@ import org.mozilla.fenix.components.appstate.AppAction.ReviewPromptAction.Review
 import org.mozilla.fenix.components.appstate.AppAction.ReviewPromptAction.ShowCustomReviewPrompt
 import org.mozilla.fenix.components.appstate.AppAction.ReviewPromptAction.ShowPlayStorePrompt
 import org.mozilla.fenix.components.appstate.AppState
+import org.mozilla.fenix.messaging.CustomAttributeProvider
 import org.mozilla.fenix.utils.Settings
 
 /**
@@ -44,12 +47,15 @@ class ReviewPromptMiddleware(
         ): (NimbusMessagingHelperInterface) -> Sequence<Boolean> = {
             sequence {
                 yield(hasNotBeenPromptedLastFourMonths(settings, timeNowInMillis))
+                yield(usedAppOnAtLeastFourOfLastSevenDaysTrigger(it))
             }
         }
 
         fun subCriteria(settings: Settings): (NimbusMessagingHelperInterface) -> Sequence<Boolean> = {
             sequence {
                 yield(legacyReviewPromptTrigger(settings))
+                yield(createdAtLeastOneBookmark(it))
+                yield(isDefaultBrowserTrigger(it))
             }
         }
     }
@@ -125,8 +131,40 @@ fun hasNotBeenPromptedLastFourMonths(settings: Settings, timeNowInMillis: () -> 
  * Matches logic from ReviewPromptController.shouldShowPrompt, which has been deleted.
  * Kept for parity. To be replaced by a set of new triggers.
  */
-fun legacyReviewPromptTrigger(settings: Settings): Boolean {
+@VisibleForTesting
+internal fun legacyReviewPromptTrigger(settings: Settings): Boolean {
     val hasOpenedAtLeastFiveTimes =
         settings.numberOfAppLaunches >= NUMBER_OF_LAUNCHES_REQUIRED
     return settings.isDefaultBrowser && hasOpenedAtLeastFiveTimes
+}
+
+/**
+ * Evaluates whether the user has created at least one bookmark.
+ *
+ * Note: Because Nimbus limits data to 4 calendar years, this will ignore bookmarks created before then.
+ */
+@VisibleForTesting
+internal fun createdAtLeastOneBookmark(jexlHelper: NimbusMessagingHelperInterface): Boolean {
+    return jexlHelper.evalJexlSafe("'bookmark_added'|eventSum('Years', 4) >= 1")
+}
+
+/**
+ * The raw string "is_default_browser" must match the json value provided in
+ * [CustomAttributeProvider.getCustomAttributes].
+ */
+@VisibleForTesting
+internal fun isDefaultBrowserTrigger(jexlHelper: NimbusMessagingHelperInterface) =
+    jexlHelper.evalJexlSafe("is_default_browser")
+
+/**
+ * Evaluates whether the user has used the app on at least 4 distinct days
+ * within the last 7 days. This does not require consecutive days.
+ *
+ * @return true if the user has opened the app on 4 or more days in the last 7, false otherwise
+ */
+@VisibleForTesting
+internal fun usedAppOnAtLeastFourOfLastSevenDaysTrigger(
+    jexlHelper: NimbusMessagingHelperInterface,
+): Boolean {
+    return jexlHelper.evalJexlSafe("'app_opened'|eventCountNonZero('Days', 7) >= 4")
 }

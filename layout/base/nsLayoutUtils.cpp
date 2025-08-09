@@ -82,6 +82,7 @@
 #include "mozilla/dom/AnonymousContent.h"
 #include "mozilla/dom/BrowserChild.h"
 #include "mozilla/dom/CanvasUtils.h"
+#include "mozilla/dom/CharacterDataBuffer.h"
 #include "mozilla/dom/DOMRect.h"
 #include "mozilla/dom/DOMStringList.h"
 #include "mozilla/dom/Document.h"
@@ -162,7 +163,6 @@
 #include "nsTArray.h"
 #include "nsTHashMap.h"
 #include "nsTableWrapperFrame.h"
-#include "nsTextFragment.h"
 #include "nsTextFrame.h"
 #include "nsTransitionManager.h"
 #include "nsView.h"
@@ -9084,7 +9084,7 @@ void nsLayoutUtils::AppendFrameTextContent(nsIFrame* aFrame,
     auto* const textFrame = static_cast<nsTextFrame*>(aFrame);
     const auto offset = AssertedCast<uint32_t>(textFrame->GetContentOffset());
     const auto length = AssertedCast<uint32_t>(textFrame->GetContentLength());
-    textFrame->TextFragment()->AppendTo(aResult, offset, length);
+    textFrame->CharacterDataBuffer()->AppendTo(aResult, offset, length);
   } else {
     for (nsIFrame* child : aFrame->PrincipalChildList()) {
       AppendFrameTextContent(child, aResult);

@@ -10,14 +10,20 @@
 
 #include "nsINode.h"
 
+#include <algorithm>
+
 #include "AccessCheck.h"
-#include "jsapi.h"
+#include "GeometryUtils.h"
+#include "HTMLLegendElement.h"
+#include "WrapperFactory.h"
+#include "XPathGenerator.h"
 #include "js/ForOfIterator.h"  // JS::ForOfIterator
 #include "js/JSON.h"           // JS_ParseJSON
+#include "jsapi.h"
 #include "mozAutoDocUpdate.h"
 #include "mozilla/AsyncEventDispatcher.h"
-#include "mozilla/ClearOnShutdown.h"
 #include "mozilla/CORSMode.h"
+#include "mozilla/ClearOnShutdown.h"
 #include "mozilla/EventDispatcher.h"
 #include "mozilla/EventListenerManager.h"
 #include "mozilla/HTMLEditor.h"
@@ -25,69 +31,74 @@
 #include "mozilla/Likely.h"
 #include "mozilla/Maybe.h"
 #include "mozilla/MemoryReporting.h"
+#include "mozilla/Preferences.h"
 #include "mozilla/PresShell.h"
+#include "mozilla/ProfilerLabels.h"
 #include "mozilla/ServoBindings.h"
+#include "mozilla/StaticPrefs_layout.h"
 #include "mozilla/TextControlElement.h"
 #include "mozilla/TextControlState.h"
 #include "mozilla/TextEditor.h"
 #include "mozilla/TimeStamp.h"
+#include "mozilla/dom/AncestorIterator.h"
+#include "mozilla/dom/Attr.h"
 #include "mozilla/dom/BindContext.h"
+#include "mozilla/dom/BindingDeclarations.h"
 #include "mozilla/dom/CharacterData.h"
 #include "mozilla/dom/ChildIterator.h"
 #include "mozilla/dom/CustomElementRegistry.h"
 #include "mozilla/dom/DebuggerNotificationBinding.h"
+#include "mozilla/dom/Document.h"
+#include "mozilla/dom/DocumentInlines.h"
 #include "mozilla/dom/DocumentType.h"
 #include "mozilla/dom/Element.h"
 #include "mozilla/dom/ElementBinding.h"
 #include "mozilla/dom/Event.h"
 #include "mozilla/dom/Exceptions.h"
-#include "mozilla/dom/Link.h"
 #include "mozilla/dom/HTMLButtonElement.h"
-#include "mozilla/dom/HTMLDialogElement.h"
 #include "mozilla/dom/HTMLDetailsElement.h"
+#include "mozilla/dom/HTMLDialogElement.h"
 #include "mozilla/dom/HTMLImageElement.h"
 #include "mozilla/dom/HTMLMediaElement.h"
 #include "mozilla/dom/HTMLTemplateElement.h"
+#include "mozilla/dom/L10nOverlays.h"
+#include "mozilla/dom/Link.h"
 #include "mozilla/dom/MutationObservers.h"
+#include "mozilla/dom/NodeBinding.h"
+#include "mozilla/dom/NodeInfo.h"
+#include "mozilla/dom/NodeInfoInlines.h"
 #include "mozilla/dom/PolicyContainer.h"
-#include "mozilla/dom/Selection.h"
-#include "mozilla/dom/ShadowRoot.h"
 #include "mozilla/dom/SVGUseElement.h"
 #include "mozilla/dom/ScriptSettings.h"
-#include "mozilla/dom/L10nOverlays.h"
-#include "mozilla/ProfilerLabels.h"
-#include "mozilla/StaticPrefs_layout.h"
+#include "mozilla/dom/Selection.h"
+#include "mozilla/dom/ShadowRoot.h"
+#include "nsAtom.h"
 #include "nsAttrValueOrString.h"
 #include "nsCCUncollectableMarker.h"
+#include "nsCOMArray.h"
+#include "nsChildContentList.h"
 #include "nsContentCreatorFunctions.h"
 #include "nsContentList.h"
 #include "nsContentUtils.h"
-#include "nsCOMArray.h"
 #include "nsCycleCollectionParticipant.h"
-#include "mozilla/dom/Attr.h"
 #include "nsDOMAttributeMap.h"
 #include "nsDOMCID.h"
 #include "nsDOMCSSAttrDeclaration.h"
-#include "nsError.h"
-#include "nsExpirationTracker.h"
 #include "nsDOMMutationObserver.h"
 #include "nsDOMString.h"
 #include "nsDOMTokenList.h"
+#include "nsError.h"
+#include "nsExpirationTracker.h"
 #include "nsFocusManager.h"
 #include "nsFrameSelection.h"
 #include "nsGenericHTMLElement.h"
 #include "nsGkAtoms.h"
+#include "nsGlobalWindowInner.h"
+#include "nsIAnimationObserver.h"
 #include "nsIAnonymousContentCreator.h"
-#include "nsAtom.h"
 #include "nsIContentInlines.h"
-#include "mozilla/dom/Document.h"
-#include "mozilla/dom/DocumentInlines.h"
 #include "nsIFrameInlines.h"
-#include "mozilla/dom/NodeInfo.h"
-#include "mozilla/dom/NodeInfoInlines.h"
 #include "nsIScriptGlobalObject.h"
-#include "nsView.h"
-#include "nsViewManager.h"
 #include "nsIWidget.h"
 #include "nsLayoutUtils.h"
 #include "nsNameSpaceManager.h"
@@ -101,23 +112,12 @@
 #include "nsStyleConsts.h"
 #include "nsTextNode.h"
 #include "nsUnicharUtils.h"
+#include "nsView.h"
+#include "nsViewManager.h"
 #include "nsWindowSizes.h"
-#include "mozilla/Preferences.h"
-#include "xpcpublic.h"
-#include "HTMLLegendElement.h"
 #include "nsWrapperCacheInlines.h"
-#include "WrapperFactory.h"
-#include <algorithm>
-#include "nsGlobalWindowInner.h"
-#include "GeometryUtils.h"
-#include "nsIAnimationObserver.h"
-#include "nsChildContentList.h"
-#include "mozilla/dom/NodeBinding.h"
-#include "mozilla/dom/BindingDeclarations.h"
-#include "mozilla/dom/AncestorIterator.h"
 #include "xpcprivate.h"
-
-#include "XPathGenerator.h"
+#include "xpcpublic.h"
 
 #ifdef ACCESSIBILITY
 #  include "mozilla/dom/AccessibleNode.h"
@@ -173,24 +173,28 @@ bool nsINode::IsInclusiveFlatTreeDescendantOf(const nsINode* aNode) const {
   return false;
 }
 
+bool nsINode::IsShadowIncludingDescendantOf(const nsINode* aNode) const {
+  MOZ_ASSERT(aNode, "The node is nullptr.");
+
+  const nsINode* node = this;
+  while ((node = node->GetParentOrShadowHostNode())) {
+    if (node == aNode) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 bool nsINode::IsShadowIncludingInclusiveDescendantOf(
     const nsINode* aNode) const {
   MOZ_ASSERT(aNode, "The node is nullptr.");
 
-  if (this->GetComposedDoc() == aNode) {
+  if (this->GetComposedDoc() == aNode || this == aNode) {
     return true;
   }
 
-  const nsINode* node = this;
-  do {
-    if (node == aNode) {
-      return true;
-    }
-
-    node = node->GetParentOrShadowHostNode();
-  } while (node);
-
-  return false;
+  return IsShadowIncludingDescendantOf(aNode);
 }
 
 nsINode::nsSlots::nsSlots() : mWeakReference(nullptr) {}
@@ -1104,8 +1108,9 @@ void nsINode::Normalize() {
   for (uint32_t i = 0; i < nodes.Length(); ++i) {
     nsIContent* node = nodes[i];
     // Merge with previous node unless empty
-    const nsTextFragment* text = node->GetText();
-    if (text->GetLength()) {
+    const CharacterDataBuffer* characterDataBuffer =
+        node->GetCharacterDataBuffer();
+    if (characterDataBuffer->GetLength()) {
       nsIContent* target = node->GetPreviousSibling();
       NS_ASSERTION(
           (target && target->NodeType() == TEXT_NODE) || hasRemoveListeners,
@@ -1113,12 +1118,13 @@ void nsINode::Normalize() {
           "mutation events messed us up");
       if (!hasRemoveListeners || (target && target->NodeType() == TEXT_NODE)) {
         nsTextNode* t = static_cast<nsTextNode*>(target);
-        if (text->Is2b()) {
-          t->AppendTextForNormalize(text->Get2b(), text->GetLength(), true,
+        if (characterDataBuffer->Is2b()) {
+          t->AppendTextForNormalize(characterDataBuffer->Get2b(),
+                                    characterDataBuffer->GetLength(), true,
                                     node);
         } else {
           tmpStr.Truncate();
-          text->AppendTo(tmpStr);
+          characterDataBuffer->AppendTo(tmpStr);
           t->AppendTextForNormalize(tmpStr.get(), tmpStr.Length(), true, node);
         }
       }

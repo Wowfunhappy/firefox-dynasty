@@ -26,6 +26,7 @@ import mozilla.components.ui.widgets.SnackbarDelegate
 import org.mozilla.fenix.FeatureFlags
 import org.mozilla.fenix.GleanMetrics.SentFromFirefox
 import org.mozilla.fenix.R
+import org.mozilla.fenix.bookmarks.friendlyRootTitle
 import org.mozilla.fenix.browser.BrowserFragmentDirections
 import org.mozilla.fenix.components.AppStore
 import org.mozilla.fenix.components.appstate.AppAction
@@ -38,7 +39,6 @@ import org.mozilla.fenix.ext.components
 import org.mozilla.fenix.ext.navigateWithBreadcrumb
 import org.mozilla.fenix.ext.settings
 import org.mozilla.fenix.ext.tabClosedUndoMessage
-import org.mozilla.fenix.library.bookmarks.friendlyRootTitle
 
 const val WEBCOMPAT_SNACKBAR_DURATION_MS = 20000
 const val DOWNLOAD_SNACKBAR_DURATION_MS = 20000
@@ -332,6 +332,7 @@ class SnackbarBinding(
                         ) {
                             val fileWasOpened = AbstractFetchDownloadService.openFile(
                                 applicationContext = context.applicationContext,
+                                packageName = context.applicationContext.packageName,
                                 downloadFileName = state.downloadState.fileName,
                                 downloadFilePath = state.downloadState.filePath,
                                 downloadContentType = state.downloadState.contentType,

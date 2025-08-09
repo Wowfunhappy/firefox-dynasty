@@ -8,6 +8,7 @@
 
 #include <dlfcn.h>
 
+#include "AOMDecoder.h"
 #include "AppleATDecoder.h"
 #include "AppleVTDecoder.h"
 #include "H265.h"
@@ -18,9 +19,8 @@
 #include "AppleVTLinker.h"
 
 #include "MP4Decoder.h"
-#include "VideoUtils.h"
 #include "VPXDecoder.h"
-#include "AOMDecoder.h"
+#include "VideoUtils.h"
 #include "mozilla/Logging.h"
 #include "mozilla/StaticPrefs_media.h"
 #include "mozilla/gfx/gfxVars.h"

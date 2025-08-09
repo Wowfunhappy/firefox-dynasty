@@ -13,11 +13,12 @@
 #include "FFmpegVideoDecoder.h"
 #include "MP4Decoder.h"
 #include "PlatformDecoderModule.h"
-#include "VideoUtils.h"
 #include "VPXDecoder.h"
+#include "VideoUtils.h"
 #include "mozilla/DataMutex.h"
 #include "mozilla/StaticPrefs_media.h"
 #include "mozilla/gfx/gfxVars.h"
+#include "prenv.h"
 
 #ifdef DEBUG
 #  include "mozilla/AppShutdown.h"
@@ -44,7 +45,8 @@ class FFmpegDecoderModule : public PlatformDecoderModule {
       return;
     }
 #  else
-    if (!XRE_IsRDDProcess() && !XRE_IsUtilityProcess()) {
+    if (!XRE_IsRDDProcess() && !XRE_IsUtilityProcess() &&
+        !(XRE_IsParentProcess() && PR_GetEnv("MOZ_RUN_GTEST"))) {
       return;
     }
 #  endif
@@ -161,7 +163,7 @@ class FFmpegDecoderModule : public PlatformDecoderModule {
             CreateDecoderParams::Option::HardwareDecoderNotAllowed),
         aParams.mOptions.contains(
             CreateDecoderParams::Option::Output8BitPerChannel),
-        aParams.mTrackingId);
+        aParams.mTrackingId, aParams.mCDM);
 
     // Ensure that decoding is exclusively performed using HW decoding in
     // the GPU process. If FFmpeg does not support HW decoding, reset the

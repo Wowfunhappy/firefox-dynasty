@@ -6,10 +6,8 @@
   /* Colors from common.css */
   --in-content-background-color: light-dark(#fff, rgb(28, 27, 34));
   --in-content-border-color: light-dark(#d7d7db, rgba(249, 249, 250, 0.2));
-  --in-content-text-color: light-dark(#0c0c0d, #eee);
-
   --bg-color: var(--in-content-background-color);
-  --text-color: var(--in-content-text-color);
+  --text-color: light-dark(#0c0c0d, #eee);
   --secondary-text-color: light-dark(var(--grey-50), rgb(168, 168, 168));
 
   --border-color: var(--in-content-border-color);
@@ -48,7 +46,7 @@
 
   /* Dimensions from common.css #categories > .category */
   /* TODO: Values are not based on photon's 4px base distance, see bug 1501638 */
-  --category-height: 48px;
+  --category-height: var(--size-item-xlarge);
   --category-padding: 10px;
   --category-transition-duration: 150ms;
 

@@ -10,9 +10,9 @@
 #include <atomic>
 
 #include "AndroidSurfaceTexture.h"
-#include "ImageContainer.h"
 #include "FFmpegDataDecoder.h"
 #include "FFmpegLibWrapper.h"
+#include "ImageContainer.h"
 #include "PerformanceRecorder.h"
 #include "SimpleMap.h"
 #include "mozilla/ScopeExit.h"
@@ -71,7 +71,7 @@ class FFmpegVideoDecoder<LIBAV_VER>
                      KnowsCompositor* aAllocator,
                      ImageContainer* aImageContainer, bool aLowLatency,
                      bool aDisableHardwareDecoding, bool a8BitOutput,
-                     Maybe<TrackingId> aTrackingId);
+                     Maybe<TrackingId> aTrackingId, PRemoteCDMActor* aCDM);
 
   ~FFmpegVideoDecoder();
 

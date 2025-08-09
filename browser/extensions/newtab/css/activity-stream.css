@@ -1009,9 +1009,9 @@ main section {
 .top-site-outer .title .search-topsite {
   margin-inline-end: var(--space-xxsmall);
   fill: currentColor;
-  background-size: 12px;
-  height: 12px;
-  width: 12px;
+  background-size: var(--icon-size-xsmall);
+  height: var(--icon-size-xsmall);
+  width: var(--icon-size-xsmall);
   background-position: center;
   background-repeat: no-repeat;
   background-color: transparent;
@@ -1516,7 +1516,7 @@ main section {
   }
 }
 .search-wrapper .search-inner-wrapper.no-handoff input {
-  padding-inline-end: calc(48px + var(--space-medium));
+  padding-inline-end: calc(var(--size-item-xlarge) + var(--space-medium));
 }
 .search-wrapper .search-inner-wrapper:has(.trending-searches-pill-wrapper) {
   display: flex;
@@ -1564,7 +1564,7 @@ main section {
   height: 100%;
   inset-inline-end: 0;
   position: absolute;
-  width: 48px;
+  width: var(--size-item-xlarge);
 }
 .search-wrapper .search-button:focus, .search-wrapper .search-button:hover {
   background-color: var(--newtab-element-hover-color);
@@ -4186,7 +4186,7 @@ main section {
   height: 16px;
   margin-inline-start: var(--space-xsmall);
   vertical-align: top;
-  width: 12px;
+  width: var(--icon-size-xsmall);
 }
 .more-recommendations:dir(rtl)::after {
   background-image: url("chrome://global/skin/icons/arrow-left-12.svg");
@@ -4416,12 +4416,27 @@ main section {
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
+.discovery-stream.ds-layout.ds-layout-widgets {
+  margin-inline: 0;
+  margin-block-end: var(--space-xlarge);
+}
+
 .widgets-container:has(.lists), .widgets-container:has(.focus-timer) {
   display: grid;
-  border: 1px solid var(--border-color-card);
-  grid-template-columns: 1fr 1fr;
-  column-gap: var(--space-large);
+  grid-template-columns: repeat(auto-fit, minmax(300px, 300px));
+  gap: var(--space-large);
+  justify-content: center;
   width: 100%;
+}
+@media (min-width: 1122px) {
+  .widgets-container:has(.lists), .widgets-container:has(.focus-timer) {
+    gap: var(--space-xlarge);
+  }
+}
+@media (min-width: 1122px) {
+  .has-sections-grid .widgets-container {
+    gap: var(--space-large);
+  }
 }
 
 /* This Source Code Form is subject to the terms of the Mozilla Public
@@ -4434,6 +4449,7 @@ main section {
   border-radius: var(--border-radius-large);
   padding-block: var(--space-large);
   max-height: var(--newtab-card-height);
+  box-shadow: var(--box-shadow-card);
 }
 .lists .select-wrapper {
   padding-inline: var(--space-large);
@@ -4496,6 +4512,7 @@ main section {
 .lists .task-item .checkbox-wrapper {
   display: flex;
   align-items: center;
+  flex-grow: 2;
 }
 .lists .task-item .checkbox-wrapper span {
   -webkit-line-clamp: 3;
@@ -4544,7 +4561,6 @@ main section {
   outline: var(--focus-outline);
 }
 .lists .empty-list-text {
-  padding-inline: var(--space-large);
   color: var(--text-color-deemphasized);
 }
 .lists .completed-task-wrapper summary {
@@ -4586,14 +4602,27 @@ main section {
   display: flex;
   flex-direction: column;
   align-items: center;
+  box-shadow: var(--box-shadow-card);
 }
 
 .focus-timer-tabs {
+  display: flex;
   margin-block-end: var(--space-medium);
+  position: relative;
+  width: 100%;
+  padding-inline: var(--space-large);
 }
 
-.focus-timer-tabs > moz-button:first-child {
-  margin-inline-end: var(--space-small);
+.focus-timer-tabs-buttons {
+  display: flex;
+  gap: var(--space-small);
+  justify-content: center;
+  flex-grow: 1;
+  margin-inline-start: calc(var(--space-xlarge) + var(--space-small));
+}
+
+.focus-timer-context-menu {
+  margin-inline-end: auto;
 }
 
 .progress-circle-wrapper {
@@ -8558,26 +8587,6 @@ main section {
   margin-inline-start: var(--space-small);
 }
 
-.wallpaper-feature-highlight .icon.icon-dismiss {
-  background: transparent url("chrome://global/skin/icons/close.svg");
-  background-size: var(--size-item-small);
-  height: var(--size-item-small);
-  width: var(--size-item-small);
-  position: absolute;
-  margin: 0;
-  inset-block-start: calc(var(--space-large) + var(--space-xxsmall));
-  inset-inline-end: calc(var(--space-large) + var(--space-xxsmall));
-}
-@media (prefers-color-scheme: dark) {
-  .wallpaper-feature-highlight .icon.icon-dismiss {
-    --dark-icon-color: var(--color-gray-70);
-    color: var(--dark-icon-color);
-  }
-}
-.wallpaper-feature-highlight .icon.icon-dismiss:hover {
-  --dark-icon-hover: var(--color-gray-60);
-  color: var(--dark-icon-hover);
-}
 .wallpaper-feature-highlight .feature-highlight .feature-highlight-modal {
   --arrow-size: 24px;
   width: auto;
@@ -8630,6 +8639,15 @@ main section {
   width: var(--arrow-size);
   box-shadow: 4px -4px 6px -2px rgba(0, 0, 0, 0.15);
   pointer-events: none;
+}
+.wallpaper-feature-highlight .feature-highlight .feature-highlight-modal > moz-button {
+  margin-inline-start: calc(-1 * var(--space-xlarge));
+}
+@media (prefers-color-scheme: dark) {
+  .wallpaper-feature-highlight .feature-highlight .feature-highlight-modal > moz-button {
+    --dark-icon-color: var(--color-gray-70);
+    background-color: var(--dark-icon-color);
+  }
 }
 
 .shortcut-feature-highlight .feature-highlight-modal {
@@ -9705,6 +9723,12 @@ main section {
 .trending-searches-list-view:not(.placeholder) .trending-searches-list-item a:has(.trending-icon) {
   display: flex;
   align-items: center;
+}
+.trending-searches-list-view:not(.placeholder) .trending-searches-list-item.compact a {
+  padding: var(--space-small);
+}
+.trending-searches-list-view:not(.placeholder) .trending-searches-list-item.compact:first-child a {
+  padding-block-start: var(--space-medium);
 }
 .trending-searches-list-view:not(.placeholder) .trending-searches-list-item a img {
   height: var(--icon-size-xlarge);

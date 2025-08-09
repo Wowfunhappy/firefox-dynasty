@@ -25,14 +25,17 @@ ChromeUtils.defineESModuleGetters(this, {
   BrowserWindowTracker: "resource:///modules/BrowserWindowTracker.sys.mjs",
   CFRPageActions: "resource:///modules/asrouter/CFRPageActions.sys.mjs",
   Color: "resource://gre/modules/Color.sys.mjs",
-  ContentAnalysis: "resource:///modules/ContentAnalysis.sys.mjs",
+  ContentAnalysis:
+    "moz-src:///browser/components/contentanalysis/content/ContentAnalysis.sys.mjs",
   ContextualIdentityService:
     "resource://gre/modules/ContextualIdentityService.sys.mjs",
-  CustomizableUI: "resource:///modules/CustomizableUI.sys.mjs",
+  CustomizableUI:
+    "moz-src:///browser/components/customizableui/CustomizableUI.sys.mjs",
   DevToolsSocketStatus:
     "resource://devtools/shared/security/DevToolsSocketStatus.sys.mjs",
   DownloadUtils: "resource://gre/modules/DownloadUtils.sys.mjs",
-  DownloadsCommon: "resource:///modules/DownloadsCommon.sys.mjs",
+  DownloadsCommon:
+    "moz-src:///browser/components/downloads/DownloadsCommon.sys.mjs",
   E10SUtils: "resource://gre/modules/E10SUtils.sys.mjs",
   ExtensionsUI: "resource:///modules/ExtensionsUI.sys.mjs",
   HomePage: "resource:///modules/HomePage.sys.mjs",
@@ -53,8 +56,10 @@ ChromeUtils.defineESModuleGetters(this, {
     "moz-src:///browser/components/search/OpenSearchManager.sys.mjs",
   PageActions: "resource:///modules/PageActions.sys.mjs",
   PageThumbs: "resource://gre/modules/PageThumbs.sys.mjs",
-  PanelMultiView: "resource:///modules/PanelMultiView.sys.mjs",
-  PanelView: "resource:///modules/PanelMultiView.sys.mjs",
+  PanelMultiView:
+    "moz-src:///browser/components/customizableui/PanelMultiView.sys.mjs",
+  PanelView:
+    "moz-src:///browser/components/customizableui/PanelMultiView.sys.mjs",
   PictureInPicture: "resource://gre/modules/PictureInPicture.sys.mjs",
   PlacesTransactions: "resource://gre/modules/PlacesTransactions.sys.mjs",
   PlacesUIUtils: "moz-src:///browser/components/places/PlacesUIUtils.sys.mjs",
@@ -66,7 +71,8 @@ ChromeUtils.defineESModuleGetters(this, {
     "moz-src:///toolkit/profile/ProfilesDatastoreService.sys.mjs",
   PromptUtils: "resource://gre/modules/PromptUtils.sys.mjs",
   ReaderMode: "moz-src:///toolkit/components/reader/ReaderMode.sys.mjs",
-  ResetPBMPanel: "resource:///modules/ResetPBMPanel.sys.mjs",
+  ResetPBMPanel:
+    "moz-src:///browser/components/privatebrowsing/ResetPBMPanel.sys.mjs",
   SafeBrowsing: "resource://gre/modules/SafeBrowsing.sys.mjs",
   Sanitizer: "resource:///modules/Sanitizer.sys.mjs",
   ScreenshotsUtils: "resource:///modules/ScreenshotsUtils.sys.mjs",
@@ -88,8 +94,10 @@ ChromeUtils.defineESModuleGetters(this, {
   TaskbarTabsChrome:
     "resource:///modules/taskbartabs/TaskbarTabsChrome.sys.mjs",
   TelemetryEnvironment: "resource://gre/modules/TelemetryEnvironment.sys.mjs",
-  ToolbarContextMenu: "resource:///modules/ToolbarContextMenu.sys.mjs",
-  ToolbarDropHandler: "resource:///modules/ToolbarDropHandler.sys.mjs",
+  ToolbarContextMenu:
+    "moz-src:///browser/components/customizableui/ToolbarContextMenu.sys.mjs",
+  ToolbarDropHandler:
+    "moz-src:///browser/components/customizableui/ToolbarDropHandler.sys.mjs",
   ToolbarIconColor: "moz-src:///browser/themes/ToolbarIconColor.sys.mjs",
   TranslationsParent: "resource://gre/actors/TranslationsParent.sys.mjs",
   UITour: "moz-src:///browser/components/uitour/UITour.sys.mjs",
@@ -348,7 +356,7 @@ ChromeUtils.defineLazyGetter(this, "gBrowserBundle", () => {
 
 ChromeUtils.defineLazyGetter(this, "gCustomizeMode", () => {
   let { CustomizeMode } = ChromeUtils.importESModule(
-    "resource:///modules/CustomizeMode.sys.mjs"
+    "moz-src:///browser/components/customizableui/CustomizeMode.sys.mjs"
   );
   return new CustomizeMode(window);
 });
@@ -3713,125 +3721,6 @@ var BrowserOffline = {
     }
 
     this._uiElement.setAttribute("checked", aOffline);
-  },
-};
-
-var CanvasPermissionPromptHelper = {
-  _permissionsPrompt: "canvas-permissions-prompt",
-  _permissionsPromptHideDoorHanger: "canvas-permissions-prompt-hide-doorhanger",
-  _notificationIcon: "canvas-notification-icon",
-
-  init() {
-    Services.obs.addObserver(this, this._permissionsPrompt);
-    Services.obs.addObserver(this, this._permissionsPromptHideDoorHanger);
-  },
-
-  uninit() {
-    Services.obs.removeObserver(this, this._permissionsPrompt);
-    Services.obs.removeObserver(this, this._permissionsPromptHideDoorHanger);
-  },
-
-  // aSubject is an nsIBrowser (e10s) or an nsIDOMWindow (non-e10s).
-  // aData is an Origin string.
-  observe(aSubject, aTopic, aData) {
-    if (
-      aTopic != this._permissionsPrompt &&
-      aTopic != this._permissionsPromptHideDoorHanger
-    ) {
-      return;
-    }
-
-    let browser;
-    if (aSubject instanceof Ci.nsIDOMWindow) {
-      browser = aSubject.docShell.chromeEventHandler;
-    } else {
-      browser = aSubject;
-    }
-
-    if (browser?.ownerGlobal !== window) {
-      // Must belong to some other window.
-      return;
-    }
-
-    let message = gNavigatorBundle.getFormattedString(
-      "canvas.siteprompt2",
-      ["<>"],
-      1
-    );
-
-    let principal =
-      Services.scriptSecurityManager.createContentPrincipalFromOrigin(aData);
-
-    function setCanvasPermission(aPerm, aPersistent) {
-      Services.perms.addFromPrincipal(
-        principal,
-        "canvas",
-        aPerm,
-        aPersistent
-          ? Ci.nsIPermissionManager.EXPIRE_NEVER
-          : Ci.nsIPermissionManager.EXPIRE_SESSION
-      );
-    }
-
-    let mainAction = {
-      label: gNavigatorBundle.getString("canvas.allow2"),
-      accessKey: gNavigatorBundle.getString("canvas.allow2.accesskey"),
-      callback(state) {
-        setCanvasPermission(
-          Ci.nsIPermissionManager.ALLOW_ACTION,
-          state && state.checkboxChecked
-        );
-      },
-    };
-
-    let secondaryActions = [
-      {
-        label: gNavigatorBundle.getString("canvas.block"),
-        accessKey: gNavigatorBundle.getString("canvas.block.accesskey"),
-        callback(state) {
-          setCanvasPermission(
-            Ci.nsIPermissionManager.DENY_ACTION,
-            state && state.checkboxChecked
-          );
-        },
-      },
-    ];
-
-    let checkbox = {
-      // In PB mode, we don't want the "always remember" checkbox
-      show: !PrivateBrowsingUtils.isWindowPrivate(window),
-    };
-    if (checkbox.show) {
-      checkbox.checked = true;
-      checkbox.label = gBrowserBundle.GetStringFromName("canvas.remember2");
-    }
-
-    let options = {
-      checkbox,
-      name: principal.host,
-      learnMoreURL:
-        Services.urlFormatter.formatURLPref("app.support.baseURL") +
-        "fingerprint-permission",
-      dismissed: aTopic == this._permissionsPromptHideDoorHanger,
-      eventCallback(e) {
-        if (e == "showing") {
-          this.browser.ownerDocument.getElementById(
-            "canvas-permissions-prompt-warning"
-          ).textContent = gBrowserBundle.GetStringFromName(
-            "canvas.siteprompt2.warning"
-          );
-        }
-      },
-    };
-    PopupNotifications.show(
-      browser,
-      this._permissionsPrompt,
-      message,
-      this._notificationIcon,
-      mainAction,
-      secondaryActions,
-      options
-    );
   },
 };
 

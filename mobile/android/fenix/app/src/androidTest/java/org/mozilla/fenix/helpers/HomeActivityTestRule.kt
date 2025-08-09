@@ -62,6 +62,7 @@ class HomeActivityTestRule(
         isUnifiedTrustPanelEnabled: Boolean = false,
         etpPolicy: ETPPolicy = getETPPolicy(settings),
         isLocationPermissionEnabled: SitePermissionsRules.Action = getFeaturePermission(PhoneFeature.LOCATION, settings),
+        isComposableToolbarEnabled: Boolean = false,
         isMenuRedesignEnabled: Boolean = false,
         isMenuRedesignCFREnabled: Boolean = false,
         isPageLoadTranslationsPromptEnabled: Boolean = false,
@@ -69,6 +70,7 @@ class HomeActivityTestRule(
         shouldUseBottomToolbar: Boolean = settings.shouldUseBottomToolbar,
         isUseNewCrashReporterDialog: Boolean = false,
         isTabSwipeCFREnabled: Boolean = false,
+        isTermsOfServiceAccepted: Boolean = true,
     ) : this(initialTouchMode, launchActivity, skipOnboarding) {
         this.isHomepageHeaderEnabled = isHomepageHeaderEnabled
         this.isPocketEnabled = isPocketEnabled
@@ -81,6 +83,7 @@ class HomeActivityTestRule(
         this.isUnifiedTrustPanelEnabled = isUnifiedTrustPanelEnabled
         this.etpPolicy = etpPolicy
         this.isLocationPermissionEnabled = isLocationPermissionEnabled
+        this.isComposableToolbarEnabled = isComposableToolbarEnabled
         this.isMenuRedesignEnabled = isMenuRedesignEnabled
         this.isMenuRedesignCFREnabled = isMenuRedesignCFREnabled
         this.enableOrDisablePageLoadTranslationsPrompt(isPageLoadTranslationsPromptEnabled)
@@ -88,6 +91,7 @@ class HomeActivityTestRule(
         this.shouldUseBottomToolbar = shouldUseBottomToolbar
         this.isUseNewCrashReporterDialog = isUseNewCrashReporterDialog
         this.isTabSwipeCFREnabled = isTabSwipeCFREnabled
+        this.isTermsOfServiceAccepted = isTermsOfServiceAccepted
     }
 
     /**
@@ -144,12 +148,14 @@ class HomeActivityTestRule(
             isWallpaperOnboardingEnabled = false,
             isOpenInAppBannerEnabled = false,
             isMicrosurveyEnabled = false,
+            isComposableToolbarEnabled = false,
             // workaround for toolbar at top position by default
             // remove with https://bugzilla.mozilla.org/show_bug.cgi?id=1917640
             shouldUseBottomToolbar = true,
             isPageLoadTranslationsPromptEnabled = false,
             isUseNewCrashReporterDialog = useNewCrashReporterDialog,
             isTabSwipeCFREnabled = true,
+            isTermsOfServiceAccepted = true,
         )
     }
 }
@@ -186,6 +192,7 @@ class HomeActivityIntentTestRule internal constructor(
         isUnifiedTrustPanelEnabled: Boolean = false,
         etpPolicy: ETPPolicy = getETPPolicy(settings),
         isLocationPermissionEnabled: SitePermissionsRules.Action = getFeaturePermission(PhoneFeature.LOCATION, settings),
+        isComposableToolbarEnabled: Boolean = false,
         isMenuRedesignEnabled: Boolean = false,
         isMenuRedesignCFREnabled: Boolean = false,
         isPageLoadTranslationsPromptEnabled: Boolean = false,
@@ -193,6 +200,7 @@ class HomeActivityIntentTestRule internal constructor(
         shouldUseBottomToolbar: Boolean = settings.shouldUseBottomToolbar,
         onboardingFeatureEnabled: Boolean = true,
         isTabSwipeCFREnabled: Boolean = false,
+        isTermsOfServiceAccepted: Boolean = true,
     ) : this(initialTouchMode, launchActivity, skipOnboarding) {
         this.isHomepageHeaderEnabled = isHomepageHeaderEnabled
         this.isPocketEnabled = isPocketEnabled
@@ -205,6 +213,7 @@ class HomeActivityIntentTestRule internal constructor(
         this.isUnifiedTrustPanelEnabled = isUnifiedTrustPanelEnabled
         this.etpPolicy = etpPolicy
         this.isLocationPermissionEnabled = isLocationPermissionEnabled
+        this.isComposableToolbarEnabled = isComposableToolbarEnabled
         this.isMenuRedesignEnabled = isMenuRedesignEnabled
         this.isMenuRedesignCFREnabled = isMenuRedesignCFREnabled
         this.enableOrDisablePageLoadTranslationsPrompt(isPageLoadTranslationsPromptEnabled)
@@ -212,6 +221,7 @@ class HomeActivityIntentTestRule internal constructor(
         this.shouldUseBottomToolbar = shouldUseBottomToolbar
         this.onboardingFeatureEnabled = onboardingFeatureEnabled
         this.isTabSwipeCFREnabled = isTabSwipeCFREnabled
+        this.isTermsOfServiceAccepted = isTermsOfServiceAccepted
     }
 
     private val longTapUserPreference = getLongPressTimeout()
@@ -278,11 +288,13 @@ class HomeActivityIntentTestRule internal constructor(
         isUnifiedTrustPanelEnabled = settings.enableUnifiedTrustPanel
         etpPolicy = getETPPolicy(settings)
         isLocationPermissionEnabled = getFeaturePermission(PhoneFeature.LOCATION, settings)
+        isComposableToolbarEnabled = settings.shouldUseComposableToolbar
         isMenuRedesignEnabled = settings.enableMenuRedesign
         isMenuRedesignCFREnabled = settings.shouldShowMenuCFR
         isMicrosurveyEnabled = settings.microsurveyFeatureEnabled
         shouldUseBottomToolbar = settings.shouldUseBottomToolbar
         isTabSwipeCFREnabled = !settings.hasShownTabSwipeCFR
+        isTermsOfServiceAccepted = settings.hasAcceptedTermsOfService
     }
 
     companion object {
@@ -306,11 +318,13 @@ class HomeActivityIntentTestRule internal constructor(
             isWallpaperOnboardingEnabled = false,
             isOpenInAppBannerEnabled = false,
             isMicrosurveyEnabled = false,
+            isComposableToolbarEnabled = false,
             // workaround for toolbar at top position by default
             // remove with https://bugzilla.mozilla.org/show_bug.cgi?id=1917640
             shouldUseBottomToolbar = true,
             isPageLoadTranslationsPromptEnabled = false,
             isTabSwipeCFREnabled = true,
+            isTermsOfServiceAccepted = true,
         )
     }
 }

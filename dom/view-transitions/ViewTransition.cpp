@@ -4,40 +4,49 @@
 
 #include "ViewTransition.h"
 
+#include "Units.h"
 #include "WindowRenderer.h"
-#include "mozilla/layers/WebRenderLayerManager.h"
-#include "mozilla/layers/RenderRootStateManager.h"
+#include "mozilla/AnimationEventDispatcher.h"
+#include "mozilla/EffectSet.h"
+#include "mozilla/ElementAnimationData.h"
+#include "mozilla/FlowMarkers.h"
+#include "mozilla/SVGIntegrationUtils.h"
+#include "mozilla/ServoStyleConsts.h"
+#include "mozilla/WritingModes.h"
 #include "mozilla/dom/BindContext.h"
-#include "mozilla/layers/WebRenderBridgeChild.h"
 #include "mozilla/dom/DocumentInlines.h"
 #include "mozilla/dom/DocumentTimeline.h"
 #include "mozilla/dom/Promise-inl.h"
 #include "mozilla/dom/ViewTransitionBinding.h"
 #include "mozilla/image/WebRenderImageProvider.h"
+#include "mozilla/layers/RenderRootStateManager.h"
+#include "mozilla/layers/WebRenderBridgeChild.h"
+#include "mozilla/layers/WebRenderLayerManager.h"
 #include "mozilla/webrender/WebRenderAPI.h"
-#include "mozilla/FlowMarkers.h"
-#include "mozilla/AnimationEventDispatcher.h"
-#include "mozilla/EffectSet.h"
-#include "mozilla/ElementAnimationData.h"
-#include "mozilla/ServoStyleConsts.h"
-#include "mozilla/SVGIntegrationUtils.h"
-#include "mozilla/WritingModes.h"
+#include "nsCanvasFrame.h"
 #include "nsDisplayList.h"
 #include "nsFrameState.h"
 #include "nsITimer.h"
 #include "nsLayoutUtils.h"
 #include "nsPresContext.h"
-#include "nsCanvasFrame.h"
 #include "nsString.h"
 #include "nsViewManager.h"
-#include "Units.h"
 
 namespace mozilla::dom {
 
 LazyLogModule gViewTransitionsLog("ViewTransitions");
 
-static void SetCaptured(nsIFrame* aFrame, bool aCaptured) {
+NS_DECLARE_FRAME_PROPERTY_RELEASABLE(ViewTransitionCaptureName, nsAtom)
+
+static void SetCaptured(nsIFrame* aFrame, bool aCaptured,
+                        nsAtom* aNameIfCaptured) {
   aFrame->AddOrRemoveStateBits(NS_FRAME_CAPTURED_IN_VIEW_TRANSITION, aCaptured);
+  if (aCaptured) {
+    aFrame->AddProperty(ViewTransitionCaptureName(),
+                        do_AddRef(aNameIfCaptured).take());
+  } else {
+    aFrame->RemoveProperty(ViewTransitionCaptureName());
+  }
   aFrame->InvalidateFrameSubtree();
   if (aFrame->Style()->IsRootElementStyle()) {
     aFrame->PresShell()->GetRootFrame()->InvalidateFrameSubtree();
@@ -392,9 +401,7 @@ const wr::ImageKey* ViewTransition::GetImageKeyForCapturedFrame(
   MOZ_ASSERT(aFrame);
   MOZ_ASSERT(aFrame->HasAnyStateBits(NS_FRAME_CAPTURED_IN_VIEW_TRANSITION));
 
-  RefPtr<nsAtom> name = DocumentScopedTransitionNameForWithGenerator(
-      aFrame,
-      [this](Element* aElement) { return GetElementIdentifier(aElement); });
+  nsAtom* name = aFrame->GetProperty(ViewTransitionCaptureName());
   if (NS_WARN_IF(!name)) {
     return nullptr;
   }
@@ -1344,14 +1351,14 @@ Maybe<SkipTransitionReason> ViewTransition::CaptureOldState() {
           SkipTransitionReason::DuplicateTransitionNameCapturingOldState);
       return false;
     }
-    SetCaptured(aFrame, true);
+    SetCaptured(aFrame, true, name.get());
     captureElements.AppendElement(std::make_pair(aFrame, std::move(name)));
     return true;
   });
 
   if (result) {
     for (auto& [f, name] : captureElements) {
-      SetCaptured(f, false);
+      SetCaptured(f, false, nullptr);
     }
     return result;
   }
@@ -1386,7 +1393,7 @@ Maybe<SkipTransitionReason> ViewTransition::CaptureOldState() {
   }
 
   for (auto& [f, name] : captureElements) {
-    SetCaptured(f, false);
+    SetCaptured(f, false, nullptr);
   }
   return result;
 }
@@ -1419,7 +1426,7 @@ Maybe<SkipTransitionReason> ViewTransition::CaptureNewState() {
       return MakeUnique<CapturedElement>();
     });
     if (!wasPresent) {
-      mNames.AppendElement(std::move(name));
+      mNames.AppendElement(name);
     }
     capturedElement->mNewElement = aFrame->GetContent()->AsElement();
     // Note: mInitialSnapshotContainingBlockSize should be the same as the
@@ -1438,7 +1445,7 @@ Maybe<SkipTransitionReason> ViewTransition::CaptureNewState() {
     // have to use the latest one.
     // https://drafts.csswg.org/css-view-transitions-2/#vt-class-algorithms
     capturedElement->CaptureClassList(DocumentScopedClassListFor(aFrame));
-    SetCaptured(aFrame, true);
+    SetCaptured(aFrame, true, name);
     return true;
   });
   return result;
@@ -1619,7 +1626,7 @@ void ViewTransition::ClearNamedElements() {
   for (auto& entry : mNamedElements) {
     if (auto* element = entry.GetData()->mNewElement.get()) {
       if (nsIFrame* f = element->GetPrimaryFrame()) {
-        SetCaptured(f, false);
+        SetCaptured(f, false, nullptr);
       }
     }
   }

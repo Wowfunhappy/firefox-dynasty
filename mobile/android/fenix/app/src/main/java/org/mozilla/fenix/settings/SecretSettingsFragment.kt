@@ -63,7 +63,7 @@ class SecretSettingsFragment : PreferenceFragmentCompat() {
         }
 
         requirePreference<SwitchPreference>(R.string.pref_key_enable_composable_toolbar).apply {
-            isVisible = Config.channel.isDebug
+            isVisible = Config.channel.isNightlyOrDebug
             isChecked = context.settings().shouldUseComposableToolbar
             onPreferenceChangeListener = SharedPreferenceUpdater()
         }
@@ -74,11 +74,6 @@ class SecretSettingsFragment : PreferenceFragmentCompat() {
             onPreferenceChangeListener = SharedPreferenceUpdater()
         }
 
-        requirePreference<SwitchPreference>(R.string.pref_key_use_new_bookmarks_ui).apply {
-            isVisible = true
-            isChecked = context.settings().useNewBookmarks
-            onPreferenceChangeListener = SharedPreferenceUpdater()
-        }
         requirePreference<SwitchPreference>(R.string.pref_key_enable_address_sync).apply {
             isVisible = Config.channel.isNightlyOrDebug
             isChecked = context.settings().isAddressSyncEnabled
@@ -249,6 +244,12 @@ class SecretSettingsFragment : PreferenceFragmentCompat() {
         requirePreference<SwitchPreference>(R.string.pref_key_crash_pull_never_show_again).apply {
             isVisible = true
             isChecked = context.settings().crashPullNeverShowAgain
+            onPreferenceChangeListener = SharedPreferenceUpdater()
+        }
+
+        requirePreference<SwitchPreference>(R.string.pref_key_tab_manager_enhancements).apply {
+            isVisible = Config.channel.isNightlyOrDebug
+            isChecked = context.settings().tabManagerEnhancementsEnabled
             onPreferenceChangeListener = SharedPreferenceUpdater()
         }
     }

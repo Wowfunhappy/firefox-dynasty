@@ -316,6 +316,7 @@ export class nsContextMenu {
     }
 
     this.hasTextFragments = context.hasTextFragments;
+    this.textDirectiveTarget = context.textDirectiveTarget;
     this.textFragmentURL = null;
   } // setContext
 
@@ -444,8 +445,13 @@ export class nsContextMenu {
         false
       ) &&
       lazy.STRIP_ON_SHARE_ENABLED &&
-      !(this.inPDFViewer || this.inFrame || this.onEditable) &&
-      this.isContentSelected;
+      !(
+        this.inPDFViewer ||
+        this.inFrame ||
+        this.onEditable ||
+        this.browser.currentURI.schemeIs("view-source")
+      ) &&
+      this.textDirectiveTarget;
     this.showItem("context-copy-link-to-highlight", shouldShow);
     this.showItem("context-copy-clean-link-to-highlight", shouldShow);
 
@@ -2871,6 +2877,17 @@ export class nsContextMenu {
           !Services.prefs.getBoolPref(
             "browser.search.separatePrivateDefault.ui.enabled"
           )));
+
+    if (!menuitem.hidden) {
+      let url = engine.wrappedJSObject.getURLOfType(searchUrlType);
+      if (
+        url?.acceptedContentTypes &&
+        (!this.contentData?.contentType ||
+          !url.acceptedContentTypes.includes(this.contentData.contentType))
+      ) {
+        menuitem.hidden = true;
+      }
+    }
 
     if (!menuitem.hidden) {
       menuitem.engine = engine;

@@ -17,7 +17,6 @@
 // XXX Avoid including this here by moving function bodies to the cpp file
 #include "mozilla/dom/Document.h"
 #include "mozilla/dom/Element.h"
-
 #include "mozilla/layers/InputAPZContext.h"
 
 class AutoWeakFrame;
@@ -154,6 +153,13 @@ struct PointerInfo final {
     mLastTiltY = 0;
     mLastButtons = 0;
     mLastPressure = 0.0f;
+  }
+
+  [[nodiscard]] bool EqualsBasicPointerData(const PointerInfo& aOther) const {
+    return mInputSource == aOther.mInputSource &&
+           mIsActive == aOther.mIsActive && mIsPrimary == aOther.mIsPrimary &&
+           mFromTouchEvent == aOther.mFromTouchEvent &&
+           mIsSynthesizedForTests == aOther.mIsSynthesizedForTests;
   }
 
   // mLastRefPointInRootDoc stores the event point relative to the root
@@ -556,6 +562,11 @@ class PointerEventHandler final {
    * Return a log module reference for logging the mouse location.
    */
   [[nodiscard]] static LazyLogModule& MouseLocationLogRef();
+
+  /**
+   * Return a log module reference for logging the pointer location.
+   */
+  [[nodiscard]] static LazyLogModule& PointerLocationLogRef();
 
  private:
   // Set pointer capture of the specified pointer by the element.

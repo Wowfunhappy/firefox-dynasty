@@ -4,21 +4,22 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "ChromiumCDMChild.h"
-#include "GMPContentChild.h"
-#include "WidevineUtils.h"
-#include "WidevineFileIO.h"
-#include "WidevineVideoFrame.h"
-#include "GMPLog.h"
-#include "GMPPlatform.h"
-#include "mozilla/Unused.h"
-#include "nsPrintfCString.h"
-#include "base/time.h"
-#include "GMPUtils.h"
-#include "mozilla/ScopeExit.h"
-#include "CDMStorageIdProvider.h"
-#include "nsReadableUtils.h"
 
 #include <type_traits>
+
+#include "CDMStorageIdProvider.h"
+#include "GMPContentChild.h"
+#include "GMPLog.h"
+#include "GMPPlatform.h"
+#include "GMPUtils.h"
+#include "WidevineFileIO.h"
+#include "WidevineUtils.h"
+#include "WidevineVideoFrame.h"
+#include "base/time.h"
+#include "mozilla/ScopeExit.h"
+#include "mozilla/Unused.h"
+#include "nsPrintfCString.h"
+#include "nsReadableUtils.h"
 
 namespace mozilla::gmp {
 
@@ -644,25 +645,32 @@ mozilla::ipc::IPCResult ChromiumCDMChild::RecvDecrypt(
   cdm::Status status = mCDM->Decrypt(input, &output);
 
   // CDM should have allocated a cdm::Buffer for output.
-  CDMShmemBuffer* buffer =
-      output.DecryptedBuffer()
-          ? static_cast<CDMShmemBuffer*>(output.DecryptedBuffer())
-          : nullptr;
-  MOZ_ASSERT_IF(buffer, buffer->AsShmemBuffer());
-  if (status != cdm::kSuccess || !buffer) {
+  if (status != cdm::kSuccess || !output.DecryptedBuffer()) {
     Unused << SendDecryptFailed(aId, status);
     return IPC_OK();
   }
 
-  // Success! Return the decrypted sample to parent.
-  MOZ_ASSERT(!HasShmemOfSize(outputShmemSize));
-  ipc::Shmem shmem = buffer->ExtractShmem();
-  if (SendDecrypted(aId, cdm::kSuccess, std::move(shmem))) {
-    // No need to deallocate the output shmem; it should have been returned
-    // to the content process.
-    autoDeallocateOutputShmem.release();
+  auto* buffer = static_cast<CDMBuffer*>(output.DecryptedBuffer());
+  if (auto* shmemBuffer = buffer->AsShmemBuffer()) {
+    MOZ_ASSERT(!HasShmemOfSize(outputShmemSize));
+    ipc::Shmem shmem = shmemBuffer->ExtractShmem();
+    if (SendDecryptedShmem(aId, cdm::kSuccess, std::move(shmem))) {
+      // No need to deallocate the output shmem; it should have been returned
+      // to the content process.
+      autoDeallocateOutputShmem.release();
+    }
+    return IPC_OK();
   }
 
+  if (auto* arrayBuffer = buffer->AsArrayBuffer()) {
+    Unused << SendDecryptedData(aId, cdm::kSuccess,
+                                arrayBuffer->ExtractBuffer());
+    return IPC_OK();
+  }
+
+  MOZ_ASSERT_UNREACHABLE("Unexpected CDMBuffer type!");
+  GMP_LOG_DEBUG("ChromiumCDMChild::RecvDecrypt() unexpected CDMBuffer type");
+  Unused << SendDecryptFailed(aId, cdm::kDecryptError);
   return IPC_OK();
 }
 
@@ -804,13 +812,18 @@ void ChromiumCDMChild::ReturnOutput(WidevineVideoFrame& aFrame) {
   }
 
   CDMBuffer* base = reinterpret_cast<CDMBuffer*>(aFrame.FrameBuffer());
-  if (base->AsShmemBuffer()) {
-    ipc::Shmem shmem = base->AsShmemBuffer()->ExtractShmem();
+  if (auto* shmemBase = base->AsShmemBuffer()) {
+    ipc::Shmem shmem = shmemBase->ExtractShmem();
     Unused << SendDecodedShmem(output, std::move(shmem));
-  } else {
-    MOZ_ASSERT(base->AsArrayBuffer());
-    Unused << SendDecodedData(output, base->AsArrayBuffer()->ExtractBuffer());
+    return;
   }
+
+  if (auto* arrayBase = base->AsArrayBuffer()) {
+    Unused << SendDecodedData(output, arrayBase->ExtractBuffer());
+    return;
+  }
+
+  MOZ_ASSERT_UNREACHABLE("Unexpected CDMBuffer type!");
 }
 
 mozilla::ipc::IPCResult ChromiumCDMChild::RecvDrain() {

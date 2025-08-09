@@ -13,49 +13,11 @@
 #include "mozilla/MathAlgorithms.h"
 
 #include "ds/SlimLinkedList.h"
-#include "gc/BufferAllocatorInternals.h"
 #include "js/HeapAPI.h"
 
 #include "gc/Allocator-inl.h"
 
 namespace js::gc {
-
-static constexpr size_t SmallAllocGranularityShift =
-    BufferAllocator::MinSmallAllocShift;
-static constexpr size_t MediumAllocGranularityShift =
-    BufferAllocator::MinMediumAllocShift;
-
-static constexpr size_t SmallAllocGranularity = 1 << SmallAllocGranularityShift;
-static constexpr size_t MediumAllocGranularity = 1
-                                                 << MediumAllocGranularityShift;
-
-static constexpr size_t MinSmallAllocSize =
-    1 << BufferAllocator::MinSmallAllocShift;
-static constexpr size_t MinMediumAllocSize =
-    1 << BufferAllocator::MinMediumAllocShift;
-static constexpr size_t MinLargeAllocSize =
-    1 << BufferAllocator::MinLargeAllocShift;
-
-static constexpr size_t MinAllocSize = MinSmallAllocSize;
-
-static constexpr size_t MaxSmallAllocSize =
-    MinMediumAllocSize - SmallAllocGranularity;
-static constexpr size_t MaxMediumAllocSize =
-    MinLargeAllocSize - MediumAllocGranularity;
-static constexpr size_t MaxAlignedAllocSize = MinLargeAllocSize / 4;
-
-// Size classes map to power of two sizes. The full range contains two
-// consecutive sub-ranges [MinSmallAllocClass, MaxSmallAllocClass] and
-// [MinMediumAllocClass, MaxMediumAllocClass]. MaxSmallAllocClass and
-// MinMediumAllocClass are consecutive but both map to the same size, which is
-// MinMediumAllocSize.
-static constexpr size_t MinSmallAllocClass = 0;
-static constexpr size_t MaxSmallAllocClass =
-    BufferAllocator::SmallSizeClasses - 1;
-static constexpr size_t MinMediumAllocClass = MaxSmallAllocClass + 1;
-static constexpr size_t MaxMediumAllocClass =
-    MinMediumAllocClass + BufferAllocator::MediumSizeClasses - 1;
-static_assert(MaxMediumAllocClass == BufferAllocator::AllocSizeClasses - 1);
 
 /* static */
 inline bool BufferAllocator::IsSmallAllocSize(size_t bytes) {
@@ -134,13 +96,13 @@ inline void* AllocBufferInGC(JS::Zone* zone, size_t bytes, bool nurseryOwned) {
   return zone->bufferAllocator.allocInGC(bytes, nurseryOwned);
 }
 
-inline void* ReallocBuffer(JS::Zone* zone, void* alloc, size_t oldBytes,
-                           size_t newBytes, bool nurseryOwned) {
+inline void* ReallocBuffer(JS::Zone* zone, void* alloc, size_t bytes,
+                           bool nurseryOwned) {
   if (js::oom::ShouldFailWithOOM()) {
     return nullptr;
   }
 
-  return zone->bufferAllocator.realloc(alloc, oldBytes, newBytes, nurseryOwned);
+  return zone->bufferAllocator.realloc(alloc, bytes, nurseryOwned);
 }
 
 inline void FreeBuffer(JS::Zone* zone, void* alloc) {

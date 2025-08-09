@@ -8220,9 +8220,7 @@ nsresult nsDocShell::SetupNewViewer(nsIDocumentViewer* aNewViewer,
 
   mDocumentViewer = aNewViewer;
 
-  nsCOMPtr<nsIWidget> widget;
-  NS_ENSURE_SUCCESS(GetMainWidget(getter_AddRefs(widget)), NS_ERROR_FAILURE);
-
+  nsCOMPtr<nsIWidget> widget = GetMainWidget();
   LayoutDeviceIntRect bounds(x, y, cx, cy);
 
   mDocumentViewer->SetNavigationTiming(mTiming);
@@ -9685,7 +9683,8 @@ nsresult nsDocShell::InternalLoad(nsDocShellLoadState* aLoadState,
       !document->IsInitialDocument() &&
       !NS_IsAboutBlankAllowQueryAndFragment(document->GetDocumentURI()) &&
       NS_IsFetchScheme(aLoadState->URI()) &&
-      document->NodePrincipal()->Subsumes(aLoadState->TriggeringPrincipal())) {
+      document->NodePrincipal()->EqualsConsideringDomain(
+          aLoadState->TriggeringPrincipal())) {
     if (nsCOMPtr<nsPIDOMWindowInner> window = document->GetInnerWindow()) {
       // Step 21.1
       if (RefPtr<Navigation> navigation = window->Navigation()) {

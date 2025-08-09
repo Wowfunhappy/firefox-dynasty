@@ -3,20 +3,20 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/dom/UnionTypes.h"
-#include "mozilla/dom/WebGPUBinding.h"
 #include "CommandEncoder.h"
 
-#include "CommandBuffer.h"
 #include "Buffer.h"
+#include "CommandBuffer.h"
 #include "ComputePassEncoder.h"
 #include "Device.h"
 #include "RenderPassEncoder.h"
 #include "TextureView.h"
 #include "Utility.h"
+#include "ipc/WebGPUChild.h"
+#include "mozilla/dom/UnionTypes.h"
+#include "mozilla/dom/WebGPUBinding.h"
 #include "mozilla/webgpu/CanvasContext.h"
 #include "mozilla/webgpu/ffi/wgpu.h"
-#include "ipc/WebGPUChild.h"
 
 namespace mozilla::webgpu {
 
@@ -332,10 +332,6 @@ already_AddRefed<CommandBuffer> CommandEncoder::Finish(
   webgpu::StringHelper label(aDesc.mLabel);
   desc.label = label.Get();
 
-  // We rely on knowledge that `CommandEncoderId` == `CommandBufferId`
-  // TODO: refactor this to truly behave as if the encoder is being finished,
-  // and a new command buffer ID is being created from it. Resolve the ID
-  // type aliasing at the place that introduces it: `wgpu-core`.
   if (mState == CommandEncoderState::Locked) {
     // Most errors that could occur here will be raised by wgpu. But since we
     // don't tell wgpu about passes until they are ended, we need to raise an
@@ -345,14 +341,13 @@ already_AddRefed<CommandBuffer> CommandEncoder::Finish(
     ffi::wgpu_report_validation_error(mBridge->GetClient(), mParent->mId,
                                       message);
   }
-  ffi::wgpu_command_encoder_finish(mBridge->GetClient(), mParent->mId, mId,
-                                   &desc);
+  RawId command_buffer_id = ffi::wgpu_command_encoder_finish(
+      mBridge->GetClient(), mParent->mId, mId, &desc);
 
   mState = CommandEncoderState::Ended;
 
-  RefPtr<CommandEncoder> me(this);
   RefPtr<CommandBuffer> comb = new CommandBuffer(
-      mParent, mId, std::move(mPresentationContexts), std::move(me));
+      mParent, mBridge, command_buffer_id, std::move(mPresentationContexts));
   comb->SetLabel(aDesc.mLabel);
   return comb.forget();
 }

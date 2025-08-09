@@ -43,7 +43,7 @@ features:
         type: Map<HomeScreenSection, Boolean>
         default:
           {
-            "header": false,
+            "header": true,
             "top-sites": true,
             "jump-back-in": true,
             "bookmarks": true,
@@ -57,7 +57,7 @@ features:
       - channel: nightly
         value: {
           "sections-enabled": {
-            "header": false,
+            "header": true,
             "top-sites": true,
             "jump-back-in": true,
             "bookmarks": true,
@@ -470,6 +470,10 @@ features:
           When the feature is enabled the user will see a new composable toolbar instead the previous View based one.
         type: Boolean
         default: false
+    defaults:
+      - channel: developer
+        value:
+          enabled: true
 
   remote-tab-management:
     description: >
@@ -884,6 +888,9 @@ features:
         default: false
     defaults:
       - channel: developer
+        value:
+          enabled: true
+      - channel: nightly
         value:
           enabled: true
 

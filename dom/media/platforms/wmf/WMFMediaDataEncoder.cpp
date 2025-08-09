@@ -6,6 +6,8 @@
 
 #include "WMFMediaDataEncoder.h"
 
+#include <comdef.h>
+
 #include "ImageContainer.h"
 #include "ImageConversion.h"
 #include "MFTEncoder.h"
@@ -13,10 +15,12 @@
 #include "TimeUnits.h"
 #include "WMFDataEncoderUtils.h"
 #include "WMFUtils.h"
-#include <comdef.h>
 #include "mozilla/WindowsProcessMitigations.h"
+#include "mozilla/dom/WebCodecsUtils.h"
 
 namespace mozilla {
+
+#define AUTO_MARKER(desc) AUTO_WEBCODECS_MARKER("WMFMediaDataEncoder", desc)
 
 using InitPromise = MediaDataEncoder::InitPromise;
 using EncodePromise = MediaDataEncoder::EncodePromise;
@@ -275,6 +279,8 @@ already_AddRefed<IMFSample> WMFMediaDataEncoder::ConvertToNV12InputSample(
   AssertOnTaskQueue();
   MOZ_ASSERT(mEncoder);
 
+  AUTO_MARKER("::ConvertToNV12InputSample");
+
   size_t mBufferLength = 0;
 
   const int32_t ySrtride = mConfig.mSize.width;
@@ -484,5 +490,7 @@ bool WMFMediaDataEncoder::WriteFrameData(RefPtr<MediaRawData>& aDest,
   PodCopy(writer->Data(), aSrc.Data(), aSrc.Length());
   return true;
 }
+
+#undef AUTO_MARKER
 
 }  // namespace mozilla

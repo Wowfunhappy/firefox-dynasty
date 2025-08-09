@@ -9,6 +9,7 @@
   border-radius: var(--border-radius-large);
   padding-block: var(--space-large);
   max-height: var(--newtab-card-height);
+  box-shadow: var(--box-shadow-card);
 
   .select-wrapper {
     padding-inline: var(--space-large);
@@ -30,7 +31,7 @@
   }
 
   .edit-list {
-    outline: var(--focus-outline)
+    outline: var(--focus-outline);
   }
 
   .add-task-container {
@@ -84,6 +85,7 @@
     .checkbox-wrapper {
       display: flex;
       align-items: center;
+      flex-grow: 2;
 
       span {
         -webkit-line-clamp: 3;
@@ -149,7 +151,6 @@
   }
 
   .empty-list-text {
-    padding-inline: var(--space-large);
     color: var(--text-color-deemphasized);
   }
 

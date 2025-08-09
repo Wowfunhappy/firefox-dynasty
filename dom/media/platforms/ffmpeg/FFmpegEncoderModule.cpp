@@ -7,8 +7,8 @@
 #include "FFmpegEncoderModule.h"
 
 #include "EncoderConfig.h"
-#include "FFmpegLog.h"
 #include "FFmpegAudioEncoder.h"
+#include "FFmpegLog.h"
 #include "FFmpegUtils.h"
 #include "FFmpegVideoEncoder.h"
 
@@ -16,8 +16,9 @@
 #  include "mozilla/AppShutdown.h"
 #endif
 
-#include "mozilla/gfx/gfxVars.h"
 #include "mozilla/StaticPrefs_media.h"
+#include "mozilla/gfx/gfxVars.h"
+#include "prenv.h"
 
 // This must be the last header included
 #include "FFmpegLibs.h"
@@ -35,7 +36,8 @@ template <int V>
 #  ifdef XP_WIN
   if (!XRE_IsGPUProcess())
 #  else
-  if (!XRE_IsRDDProcess())
+  if (!XRE_IsRDDProcess() &&
+      !(XRE_IsParentProcess() && PR_GetEnv("MOZ_RUN_GTEST")))
 #  endif
   {
     MOZ_LOG(sPEMLog, LogLevel::Debug,

@@ -39,14 +39,15 @@ class FeatureSettingsHelperDelegate : FeatureSettingsHelper {
         isUnifiedTrustPanelEnabled = settings.enableUnifiedTrustPanel,
         etpPolicy = getETPPolicy(settings),
         isLocationPermissionEnabled = getFeaturePermission(PhoneFeature.LOCATION, settings),
+        isComposableToolbarEnabled = settings.shouldUseComposableToolbar,
         isMenuRedesignEnabled = settings.enableMenuRedesign,
         isMenuRedesignCFREnabled = settings.shouldShowMenuCFR,
-        isNewBookmarksEnabled = settings.useNewBookmarks,
         isMicrosurveyEnabled = settings.microsurveyFeatureEnabled,
         shouldUseBottomToolbar = settings.shouldUseBottomToolbar,
         onboardingFeatureEnabled = settings.onboardingFeatureEnabled,
         isUseNewCrashReporterDialog = settings.useNewCrashReporterDialog,
         isTabSwipeCFREnabled = settings.hasShownTabSwipeCFR,
+        isTermsOfServiceAccepted = settings.hasAcceptedTermsOfService,
     )
 
     /**
@@ -64,6 +65,7 @@ class FeatureSettingsHelperDelegate : FeatureSettingsHelper {
     override var isUnifiedTrustPanelEnabled: Boolean by updatedFeatureFlags::isUnifiedTrustPanelEnabled
     override var etpPolicy: ETPPolicy by updatedFeatureFlags::etpPolicy
     override var isLocationPermissionEnabled: SitePermissionsRules.Action by updatedFeatureFlags::isLocationPermissionEnabled
+    override var isComposableToolbarEnabled: Boolean by updatedFeatureFlags::isComposableToolbarEnabled
     override var isMenuRedesignEnabled: Boolean by updatedFeatureFlags::isMenuRedesignEnabled
     override var isMenuRedesignCFREnabled: Boolean by updatedFeatureFlags::isMenuRedesignCFREnabled
     override var isMicrosurveyEnabled: Boolean by updatedFeatureFlags::isMicrosurveyEnabled
@@ -71,6 +73,7 @@ class FeatureSettingsHelperDelegate : FeatureSettingsHelper {
     override var onboardingFeatureEnabled: Boolean by updatedFeatureFlags::onboardingFeatureEnabled
     override var isUseNewCrashReporterDialog: Boolean by updatedFeatureFlags::isUseNewCrashReporterDialog
     override var isTabSwipeCFREnabled: Boolean by updatedFeatureFlags::isTabSwipeCFREnabled
+    override var isTermsOfServiceAccepted: Boolean by updatedFeatureFlags::isTermsOfServiceAccepted
 
     override fun applyFlagUpdates() {
         Log.i(TAG, "applyFlagUpdates: Trying to apply the updated feature flags: $updatedFeatureFlags")
@@ -95,9 +98,9 @@ class FeatureSettingsHelperDelegate : FeatureSettingsHelper {
         settings.showWallpaperOnboarding = featureFlags.isWallpaperOnboardingEnabled
         settings.deleteSitePermissions = featureFlags.isDeleteSitePermissionsEnabled
         settings.shouldShowOpenInAppBanner = featureFlags.isOpenInAppBannerEnabled
+        settings.shouldUseComposableToolbar = featureFlags.isComposableToolbarEnabled
         settings.enableMenuRedesign = featureFlags.isMenuRedesignEnabled
         settings.shouldShowMenuCFR = featureFlags.isMenuRedesignCFREnabled
-        settings.useNewBookmarks = featureFlags.isNewBookmarksEnabled
         settings.microsurveyFeatureEnabled = featureFlags.isMicrosurveyEnabled
         settings.shouldUseBottomToolbar = featureFlags.shouldUseBottomToolbar
         settings.enableUnifiedTrustPanel = featureFlags.isUnifiedTrustPanelEnabled
@@ -106,6 +109,7 @@ class FeatureSettingsHelperDelegate : FeatureSettingsHelper {
         settings.onboardingFeatureEnabled = featureFlags.onboardingFeatureEnabled
         settings.useNewCrashReporterDialog = featureFlags.isUseNewCrashReporterDialog
         settings.hasShownTabSwipeCFR = !featureFlags.isTabSwipeCFREnabled
+        settings.hasAcceptedTermsOfService = featureFlags.isTermsOfServiceAccepted
     }
 }
 
@@ -121,14 +125,15 @@ private data class FeatureFlags(
     var isUnifiedTrustPanelEnabled: Boolean,
     var etpPolicy: ETPPolicy,
     var isLocationPermissionEnabled: SitePermissionsRules.Action,
+    var isComposableToolbarEnabled: Boolean,
     var isMenuRedesignEnabled: Boolean,
     var isMenuRedesignCFREnabled: Boolean,
-    var isNewBookmarksEnabled: Boolean,
     var isMicrosurveyEnabled: Boolean,
     var shouldUseBottomToolbar: Boolean,
     var onboardingFeatureEnabled: Boolean,
     var isUseNewCrashReporterDialog: Boolean,
     var isTabSwipeCFREnabled: Boolean,
+    var isTermsOfServiceAccepted: Boolean,
 )
 
 internal fun getETPPolicy(settings: Settings): ETPPolicy {

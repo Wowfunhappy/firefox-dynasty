@@ -303,10 +303,10 @@ for (const type of [
   "WEBEXT_DISMISS",
   "WIDGETS_LISTS_CHANGE_SELECTED",
   "WIDGETS_LISTS_SET",
-  "WIDGETS_LISTS_SET_LOCAL",
   "WIDGETS_LISTS_SET_SELECTED",
   "WIDGETS_LISTS_UPDATE",
-  "WIDGETS_LISTS_UPDATE_LOCAL",
+  "WIDGETS_LISTS_USER_EVENT",
+  "WIDGETS_LISTS_USER_IMPRESSION",
   "WIDGETS_TIMER_END",
   "WIDGETS_TIMER_PAUSE",
   "WIDGETS_TIMER_PLAY",
@@ -2639,10 +2639,12 @@ const DSLinkMenu = (0,external_ReactRedux_namespaceObject.connect)(state => ({
  */
 function useIntersectionObserver(callback, threshold = 0.3) {
   const elementsRef = (0,external_React_namespaceObject.useRef)([]);
+  const triggeredElements = (0,external_React_namespaceObject.useRef)(new WeakSet());
   (0,external_React_namespaceObject.useEffect)(() => {
     const observer = new IntersectionObserver(entries => {
       entries.forEach(entry => {
-        if (entry.isIntersecting) {
+        if (entry.isIntersecting && !triggeredElements.current.has(entry.target)) {
+          triggeredElements.current.add(entry.target);
           callback(entry.target);
           observer.unobserve(entry.target);
         }
@@ -2651,7 +2653,7 @@ function useIntersectionObserver(callback, threshold = 0.3) {
       threshold
     });
     elementsRef.current.forEach(el => {
-      if (el) {
+      if (el && !triggeredElements.current.has(el)) {
         observer.observe(el);
       }
     });
@@ -4978,6 +4980,7 @@ const PromoCard = () => {
 
 
 const PREF_TRENDING_VARIANT = "trendingSearch.variant";
+const PREF_REFINED_CARDS_LAYOUT = "discoverystream.refinedCardsLayout.enabled";
 function TrendingSearches() {
   const [showContextMenu, setShowContextMenu] = (0,external_React_namespaceObject.useState)(false);
   // The keyboard access parameter is passed down to LinkMenu component
@@ -4996,6 +4999,7 @@ function TrendingSearches() {
     collapsed
   } = TrendingSearch;
   const variant = prefs[PREF_TRENDING_VARIANT];
+  const refinedCards = prefs[PREF_REFINED_CARDS_LAYOUT];
   let resultRef = (0,external_React_namespaceObject.useRef)([]);
   let contextMenuHost = (0,external_React_namespaceObject.useRef)(null);
   const TRENDING_SEARCH_CONTEXT_MENU_OPTIONS = ["TrendingSearchDismiss", "TrendingSearchLearnMore"];
@@ -5169,7 +5173,7 @@ function TrendingSearches() {
     }, suggestions.slice(0, 6).map((result, index) => {
       return /*#__PURE__*/external_React_default().createElement("li", {
         key: result.suggestion,
-        className: "trending-searches-list-item",
+        className: `trending-searches-list-item ${refinedCards ? "compact" : ""}`,
         onKeyDown: e => handleResultKeyDown(e, index)
       }, /*#__PURE__*/external_React_default().createElement(SafeAnchor, {
         url: result.searchUrl,
@@ -12296,6 +12300,7 @@ function CardSections({
 }
 
 ;// CONCATENATED MODULE: ./content-src/components/Widgets/Lists/Lists.jsx
+function Lists_extends() { return Lists_extends = Object.assign ? Object.assign.bind() : function (n) { for (var e = 1; e < arguments.length; e++) { var t = arguments[e]; for (var r in t) ({}).hasOwnProperty.call(t, r) && (n[r] = t[r]); } return n; }, Lists_extends.apply(null, arguments); }
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
@@ -12303,26 +12308,94 @@ function CardSections({
 
 
 
-const taskType = {
+
+const TASK_TYPE = {
   IN_PROGRESS: "tasks",
   COMPLETED: "completed"
+};
+const USER_ACTION_TYPES = {
+  LIST_COPY: "list_copy",
+  LIST_CREATE: "list_create",
+  LIST_EDIT: "list_edit",
+  LIST_DELETE: "list_delete",
+  TASK_CREATE: "task_create",
+  TASK_EDIT: "task_edit",
+  TASK_DELETE: "task_delete",
+  TASK_COMPLETE: "task_complete"
 };
 function Lists({
   dispatch
 }) {
-  const listsData = (0,external_ReactRedux_namespaceObject.useSelector)(state => state.ListsWidget);
   const {
     selected,
     lists
-  } = listsData;
+  } = (0,external_ReactRedux_namespaceObject.useSelector)(state => state.ListsWidget);
   const [newTask, setNewTask] = (0,external_React_namespaceObject.useState)("");
   const [isEditing, setIsEditing] = (0,external_React_namespaceObject.useState)(false);
   const [pendingNewList, setPendingNewList] = (0,external_React_namespaceObject.useState)(null);
   const inputRef = (0,external_React_namespaceObject.useRef)(null);
   const selectRef = (0,external_React_namespaceObject.useRef)(null);
+  const reorderListRef = (0,external_React_namespaceObject.useRef)(null);
+
+  // store selectedList with useMemo so it isnt re-calculated on every re-render
+  const selectedList = (0,external_React_namespaceObject.useMemo)(() => lists[selected], [lists, selected]);
+  const isValidUrl = (0,external_React_namespaceObject.useCallback)(str => URL.canParse(str), []);
+  const handleIntersection = (0,external_React_namespaceObject.useCallback)(() => {
+    dispatch(actionCreators.AlsoToMain({
+      type: actionTypes.WIDGETS_LISTS_USER_IMPRESSION
+    }));
+  }, [dispatch]);
+  const listsRef = useIntersectionObserver(handleIntersection);
+  const reorderLists = (0,external_React_namespaceObject.useCallback)((draggedElement, targetElement, before = false) => {
+    const draggedIndex = selectedList.tasks.findIndex(({
+      id
+    }) => id === draggedElement.id);
+    const targetIndex = selectedList.tasks.findIndex(({
+      id
+    }) => id === targetElement.id);
+
+    // return early is index is not found
+    if (draggedIndex === -1 || targetIndex === -1 || draggedIndex === targetIndex) {
+      return;
+    }
+    const reordered = [...selectedList.tasks];
+    const [removed] = reordered.splice(draggedIndex, 1);
+    const insertIndex = before ? targetIndex : targetIndex + 1;
+    reordered.splice(insertIndex > draggedIndex ? insertIndex - 1 : insertIndex, 0, removed);
+    const updatedLists = {
+      ...lists,
+      [selected]: {
+        ...selectedList,
+        tasks: reordered
+      }
+    };
+    dispatch(actionCreators.AlsoToMain({
+      type: actionTypes.WIDGETS_LISTS_UPDATE,
+      data: {
+        lists: updatedLists
+      }
+    }));
+  }, [lists, selected, selectedList, dispatch]);
+  const moveTask = (0,external_React_namespaceObject.useCallback)((task, direction) => {
+    const index = selectedList.tasks.findIndex(({
+      id
+    }) => id === task.id);
+
+    // guardrail a falsey index
+    if (index === -1) {
+      return;
+    }
+    const targetIndex = direction === "up" ? index - 1 : index + 1;
+    const before = direction === "up";
+    const targetTask = selectedList.tasks[targetIndex];
+    if (targetTask) {
+      reorderLists(task, targetTask, before);
+    }
+  }, [selectedList, reorderLists]);
   (0,external_React_namespaceObject.useEffect)(() => {
-    const node = selectRef.current;
-    if (!node) {
+    const selectNode = selectRef.current;
+    const reorderNode = reorderListRef.current;
+    if (!selectNode || !reorderNode) {
       return undefined;
     }
     function handleSelectChange(e) {
@@ -12331,25 +12404,34 @@ function Lists({
         data: e.target.value
       }));
     }
-    node.addEventListener("change", handleSelectChange);
+    function handleReorder(e) {
+      const {
+        draggedElement,
+        targetElement,
+        position
+      } = e.detail;
+      reorderLists(draggedElement, targetElement, position === -1);
+    }
+    reorderNode.addEventListener("reorder", handleReorder);
+    selectNode.addEventListener("change", handleSelectChange);
     return () => {
-      node.removeEventListener("change", handleSelectChange);
+      selectNode.removeEventListener("change", handleSelectChange);
+      reorderNode.removeEventListener("reorder", handleReorder);
     };
-  }, [dispatch, isEditing]);
+  }, [dispatch, isEditing, reorderLists]);
+
+  // effect that enables editing new list name only after store has been hydrated
   (0,external_React_namespaceObject.useEffect)(() => {
     if (selected === pendingNewList) {
       setIsEditing(true);
       setPendingNewList(null);
     }
   }, [selected, pendingNewList]);
-  function isValidUrl(string) {
-    return URL.canParse(string);
-  }
   function saveTask() {
     const trimmedTask = newTask.trimEnd();
     // only add new task if it has a length, to avoid creating empty tasks
     if (trimmedTask) {
-      const taskObject = {
+      const formattedTask = {
         value: trimmedTask,
         completed: false,
         created: Date.now(),
@@ -12359,32 +12441,40 @@ function Lists({
       const updatedLists = {
         ...lists,
         [selected]: {
-          ...lists[selected],
-          tasks: [...lists[selected].tasks, taskObject]
+          ...selectedList,
+          tasks: [formattedTask, ...lists[selected].tasks]
         }
       };
-      dispatch(actionCreators.AlsoToMain({
-        type: actionTypes.WIDGETS_LISTS_UPDATE,
-        data: {
-          lists: updatedLists
-        }
-      }));
+      (0,external_ReactRedux_namespaceObject.batch)(() => {
+        dispatch(actionCreators.AlsoToMain({
+          type: actionTypes.WIDGETS_LISTS_UPDATE,
+          data: {
+            lists: updatedLists
+          }
+        }));
+        dispatch(actionCreators.OnlyToMain({
+          type: actionTypes.WIDGETS_LISTS_USER_EVENT,
+          data: {
+            userAction: USER_ACTION_TYPES.TASK_CREATE
+          }
+        }));
+      });
       setNewTask("");
     }
   }
   function updateTask(updatedTask, type) {
-    let localUpdatedTasks;
-    const selectedList = lists[selected];
-    const isCompletedType = type === taskType.COMPLETED;
+    const isCompletedType = type === TASK_TYPE.COMPLETED;
     const isNowCompleted = updatedTask.completed;
+    let newTasks = selectedList.tasks;
+    let newCompleted = selectedList.completed;
+    let localUpdatedTasks;
+    let userAction;
 
     // If the task is in the completed array and is now unchecked
-    const shouldMoveToTasks = isCompletedType && !updatedTask.completed;
+    const shouldMoveToTasks = isCompletedType && !isNowCompleted;
 
     // If we're moving the task from tasks → completed (user checked it)
     const shouldMoveToCompleted = !isCompletedType && isNowCompleted;
-    let newTasks = selectedList.tasks;
-    let newCompleted = selectedList.completed;
 
     //  Move task from completed -> task
     if (shouldMoveToTasks) {
@@ -12397,6 +12487,7 @@ function Lists({
 
       // Keep a local version of tasks that still includes this item (to preserve UI in this tab)
       localUpdatedTasks = selectedList.tasks.map(existingTask => existingTask.id === updatedTask.id ? updatedTask : existingTask);
+      userAction = USER_ACTION_TYPES.TASK_COMPLETE;
     } else {
       const targetKey = isCompletedType ? "completed" : "tasks";
       const updatedArray = selectedList[targetKey].map(task => task.id === updatedTask.id ? updatedTask : task);
@@ -12406,6 +12497,7 @@ function Lists({
       } else {
         newCompleted = updatedArray;
       }
+      userAction = USER_ACTION_TYPES.TASK_EDIT;
     }
     const updatedLists = {
       ...lists,
@@ -12422,19 +12514,31 @@ function Lists({
       [selected]: {
         ...selectedList,
         tasks: localUpdatedTasks || newTasks,
-        completed: newCompleted.filter(task => task.id !== updatedTask.id)
+        completed: newCompleted.filter(({
+          id
+        }) => id !== updatedTask.id)
       }
     };
 
     // Dispatch the update to main - will sync across tabs
     // and apply local override to this tab only
-    dispatch(actionCreators.AlsoToMain({
-      type: actionTypes.WIDGETS_LISTS_UPDATE,
-      data: {
-        lists: updatedLists,
-        localLists
+    (0,external_ReactRedux_namespaceObject.batch)(() => {
+      dispatch(actionCreators.AlsoToMain({
+        type: actionTypes.WIDGETS_LISTS_UPDATE,
+        data: {
+          lists: updatedLists,
+          localLists
+        }
+      }));
+      if (userAction) {
+        dispatch(actionCreators.AlsoToMain({
+          type: actionTypes.WIDGETS_LISTS_USER_EVENT,
+          data: {
+            userAction
+          }
+        }));
       }
-    }));
+    });
   }
   function deleteTask(task, type) {
     const selectedTasks = lists[selected][type];
@@ -12444,16 +12548,24 @@ function Lists({
     const updatedLists = {
       ...lists,
       [selected]: {
-        ...lists[selected],
+        ...selectedList,
         [type]: updatedTasks
       }
     };
-    dispatch(actionCreators.AlsoToMain({
-      type: actionTypes.WIDGETS_LISTS_UPDATE,
-      data: {
-        lists: updatedLists
-      }
-    }));
+    (0,external_ReactRedux_namespaceObject.batch)(() => {
+      dispatch(actionCreators.AlsoToMain({
+        type: actionTypes.WIDGETS_LISTS_UPDATE,
+        data: {
+          lists: updatedLists
+        }
+      }));
+      dispatch(actionCreators.OnlyToMain({
+        type: actionTypes.WIDGETS_LISTS_USER_EVENT,
+        data: {
+          userAction: USER_ACTION_TYPES.TASK_DELETE
+        }
+      }));
+    });
   }
   function handleKeyDown(e) {
     if (e.key === "Enter" && document.activeElement === inputRef.current) {
@@ -12464,30 +12576,37 @@ function Lists({
     }
   }
   function handleListNameSave(newLabel) {
-    const selectedList = lists[selected];
     const trimmedLabel = newLabel.trimEnd();
     if (trimmedLabel && trimmedLabel !== selectedList?.label) {
       const updatedLists = {
         ...lists,
         [selected]: {
-          ...lists[selected],
+          ...selectedList,
           label: trimmedLabel
         }
       };
-      dispatch(actionCreators.AlsoToMain({
-        type: actionTypes.WIDGETS_LISTS_UPDATE,
-        data: {
-          lists: updatedLists
-        }
-      }));
+      (0,external_ReactRedux_namespaceObject.batch)(() => {
+        dispatch(actionCreators.AlsoToMain({
+          type: actionTypes.WIDGETS_LISTS_UPDATE,
+          data: {
+            lists: updatedLists
+          }
+        }));
+        dispatch(actionCreators.OnlyToMain({
+          type: actionTypes.WIDGETS_LISTS_USER_EVENT,
+          data: {
+            userAction: USER_ACTION_TYPES.LIST_EDIT
+          }
+        }));
+      });
       setIsEditing(false);
     }
   }
   function handleCreateNewList() {
-    const listUuid = crypto.randomUUID();
+    const id = crypto.randomUUID();
     const newLists = {
       ...lists,
-      [listUuid]: {
+      [id]: {
         label: "New list",
         tasks: [],
         completed: []
@@ -12502,10 +12621,16 @@ function Lists({
       }));
       dispatch(actionCreators.AlsoToMain({
         type: actionTypes.WIDGETS_LISTS_CHANGE_SELECTED,
-        data: listUuid
+        data: id
+      }));
+      dispatch(actionCreators.OnlyToMain({
+        type: actionTypes.WIDGETS_LISTS_USER_EVENT,
+        data: {
+          userAction: USER_ACTION_TYPES.LIST_CREATE
+        }
       }));
     });
-    setPendingNewList(listUuid);
+    setPendingNewList(id);
   }
   function handleDeleteList() {
     let updatedLists = {
@@ -12537,11 +12662,67 @@ function Lists({
           type: actionTypes.WIDGETS_LISTS_CHANGE_SELECTED,
           data: key
         }));
+        dispatch(actionCreators.OnlyToMain({
+          type: actionTypes.WIDGETS_LISTS_USER_EVENT,
+          data: {
+            userAction: USER_ACTION_TYPES.LIST_DELETE
+          }
+        }));
       });
     }
   }
-  return lists ? /*#__PURE__*/external_React_default().createElement("article", {
-    className: "lists"
+  function handleHideLists() {
+    dispatch(actionCreators.OnlyToMain({
+      type: actionTypes.SET_PREF,
+      data: {
+        name: "widgets.lists.enabled",
+        value: false
+      }
+    }));
+  }
+  function handleCopyListToClipboard() {
+    const currentList = lists[selected];
+    if (!currentList) {
+      return;
+    }
+    const {
+      label,
+      tasks = [],
+      completed = []
+    } = currentList;
+    const uncompleted = tasks.filter(task => !task.completed);
+    const currentCompleted = tasks.filter(task => task.completed);
+
+    // In order in include all items, we need to iterate through both current and completed tasks list and mark format all completed tasks accordingly.
+    const formatted = [`List: ${label}`, `---`, ...uncompleted.map(task => `- [ ] ${task.value}`), ...currentCompleted.map(task => `- [x] ${task.value}`), ...completed.map(task => `- [x] ${task.value}`)].join("\n");
+    try {
+      navigator.clipboard.writeText(formatted);
+    } catch (err) {
+      console.error("Copy failed", err);
+    }
+    dispatch(actionCreators.OnlyToMain({
+      type: actionTypes.WIDGETS_LISTS_USER_EVENT,
+      data: {
+        userAction: USER_ACTION_TYPES.LIST_COPY
+      }
+    }));
+  }
+  function handleLearnMore() {
+    dispatch(actionCreators.OnlyToMain({
+      type: actionTypes.OPEN_LINK,
+      data: {
+        url: "https://support.mozilla.org/kb/firefox-new-tab-widgets"
+      }
+    }));
+  }
+  if (!lists) {
+    return null;
+  }
+  return /*#__PURE__*/external_React_default().createElement("article", {
+    className: "lists",
+    ref: el => {
+      listsRef.current = [el];
+    }
   }, /*#__PURE__*/external_React_default().createElement("div", {
     className: "select-wrapper"
   }, /*#__PURE__*/external_React_default().createElement(EditableText, {
@@ -12566,12 +12747,25 @@ function Lists({
   }), /*#__PURE__*/external_React_default().createElement("panel-list", {
     id: "lists-panel"
   }, /*#__PURE__*/external_React_default().createElement("panel-item", {
+    "data-l10n-id": "newtab-widget-lists-menu-edit",
     onClick: () => setIsEditing(true)
-  }, "Edit name"), /*#__PURE__*/external_React_default().createElement("panel-item", {
+  }), /*#__PURE__*/external_React_default().createElement("panel-item", {
+    "data-l10n-id": "newtab-widget-lists-menu-create",
     onClick: () => handleCreateNewList()
-  }, "Create a new list"), /*#__PURE__*/external_React_default().createElement("panel-item", {
+  }), /*#__PURE__*/external_React_default().createElement("panel-item", {
+    "data-l10n-id": "newtab-widget-lists-menu-delete",
     onClick: () => handleDeleteList()
-  }, "Delete this list"), /*#__PURE__*/external_React_default().createElement("panel-item", null, "Hide To Do list"), /*#__PURE__*/external_React_default().createElement("panel-item", null, "Learn more"), /*#__PURE__*/external_React_default().createElement("panel-item", null, "Copy to clipboard"))), /*#__PURE__*/external_React_default().createElement("div", {
+  }), /*#__PURE__*/external_React_default().createElement("hr", null), /*#__PURE__*/external_React_default().createElement("panel-item", {
+    "data-l10n-id": "newtab-widget-lists-menu-copy",
+    onClick: () => handleCopyListToClipboard()
+  }), /*#__PURE__*/external_React_default().createElement("panel-item", {
+    "data-l10n-id": "newtab-widget-lists-menu-hide",
+    onClick: () => handleHideLists()
+  }), /*#__PURE__*/external_React_default().createElement("panel-item", {
+    className: "learn-more",
+    "data-l10n-id": "newtab-widget-lists-menu-learn-more",
+    onClick: handleLearnMore
+  }))), /*#__PURE__*/external_React_default().createElement("div", {
     className: "add-task-container"
   }, /*#__PURE__*/external_React_default().createElement("span", {
     className: "icon icon-add"
@@ -12588,37 +12782,50 @@ function Lists({
   })), /*#__PURE__*/external_React_default().createElement("div", {
     className: "task-list-wrapper"
   }, /*#__PURE__*/external_React_default().createElement("moz-reorderable-list", {
-    itemSelector: "fieldset .task-item"
-  }, /*#__PURE__*/external_React_default().createElement("fieldset", null, lists[selected]?.tasks.length >= 1 ? lists[selected].tasks.map(task => /*#__PURE__*/external_React_default().createElement(ListItem, {
-    type: taskType.IN_PROGRESS,
+    ref: reorderListRef,
+    itemSelector: "fieldset .task-type-tasks",
+    dragSelector: ".checkbox-wrapper"
+  }, /*#__PURE__*/external_React_default().createElement("fieldset", null, selectedList?.tasks.length >= 1 ? selectedList.tasks.map((task, index) => /*#__PURE__*/external_React_default().createElement(ListItem, {
+    type: TASK_TYPE.IN_PROGRESS,
     task: task,
     key: task.id,
     updateTask: updateTask,
     deleteTask: deleteTask,
-    isValidUrl: isValidUrl
+    moveTask: moveTask,
+    isValidUrl: isValidUrl,
+    isFirst: index === 0,
+    isLast: index === selectedList.tasks.length - 1
   })) : /*#__PURE__*/external_React_default().createElement("p", {
-    className: "empty-list-text"
-  }, "The list is empty. For now \uD83E\uDD8A"), lists[selected]?.completed.length >= 1 && /*#__PURE__*/external_React_default().createElement("details", {
+    className: "empty-list-text",
+    "data-l10n-id": "newtab-widget-lists-empty-cta"
+  }), selectedList?.completed.length >= 1 && /*#__PURE__*/external_React_default().createElement("details", {
     className: "completed-task-wrapper"
   }, /*#__PURE__*/external_React_default().createElement("summary", null, /*#__PURE__*/external_React_default().createElement("span", {
+    "data-l10n-id": "newtab-widget-lists-completed-list",
+    "data-l10n-args": JSON.stringify({
+      number: lists[selected]?.completed.length
+    }),
     className: "completed-title"
-  }, `Completed (${lists[selected]?.completed.length})`)), lists[selected]?.completed.map(completedTask => /*#__PURE__*/external_React_default().createElement(ListItem, {
+  })), selectedList?.completed.map(completedTask => /*#__PURE__*/external_React_default().createElement(ListItem, {
     key: completedTask.id,
-    type: taskType.COMPLETED,
+    type: TASK_TYPE.COMPLETED,
     task: completedTask,
     deleteTask: deleteTask,
     updateTask: updateTask
-  }))))))) : null;
+  })))))));
 }
 function ListItem({
   task,
   updateTask,
   deleteTask,
+  moveTask,
   isValidUrl,
-  type
+  type,
+  isFirst = false,
+  isLast = false
 }) {
   const [isEditing, setIsEditing] = (0,external_React_namespaceObject.useState)(false);
-  const isCompleted = type === taskType.COMPLETED;
+  const isCompleted = type === TASK_TYPE.COMPLETED;
   function handleCheckboxChange(e) {
     const updatedTask = {
       ...task,
@@ -12652,7 +12859,9 @@ function ListItem({
     onClick: () => setIsEditing(true)
   }, task.value);
   return /*#__PURE__*/external_React_default().createElement("div", {
-    className: "task-item"
+    className: `task-item task-type-${type}`,
+    id: task.id,
+    key: task.id
   }, /*#__PURE__*/external_React_default().createElement("div", {
     className: "checkbox-wrapper"
   }, /*#__PURE__*/external_React_default().createElement("input", {
@@ -12672,14 +12881,27 @@ function ListItem({
   }), /*#__PURE__*/external_React_default().createElement("panel-list", {
     id: `panel-task-${task.id}`
   }, !isCompleted && /*#__PURE__*/external_React_default().createElement((external_React_default()).Fragment, null, task.isUrl && /*#__PURE__*/external_React_default().createElement("panel-item", {
+    "data-l10n-id": "newtab-widget-lists-input-menu-open-link",
     onClick: () => window.open(task.value, "_blank", "noopener")
-  }, "Open link"), /*#__PURE__*/external_React_default().createElement("panel-item", null, "Move up"), /*#__PURE__*/external_React_default().createElement("panel-item", null, "Move down"), /*#__PURE__*/external_React_default().createElement("panel-item", {
+  }), /*#__PURE__*/external_React_default().createElement("panel-item", Lists_extends({}, isFirst ? {
+    disabled: true
+  } : {}, {
+    onClick: () => moveTask(task, "up"),
+    "data-l10n-id": "newtab-widget-lists-input-menu-move-up"
+  })), /*#__PURE__*/external_React_default().createElement("panel-item", Lists_extends({}, isLast ? {
+    disabled: true
+  } : {}, {
+    onClick: () => moveTask(task, "down"),
+    "data-l10n-id": "newtab-widget-lists-input-menu-move-down"
+  })), /*#__PURE__*/external_React_default().createElement("panel-item", {
+    "data-l10n-id": "newtab-widget-lists-input-menu-edit",
     className: "edit-item",
     onClick: () => setIsEditing(true)
-  }, "Edit")), /*#__PURE__*/external_React_default().createElement("panel-item", {
+  })), /*#__PURE__*/external_React_default().createElement("panel-item", {
+    "data-l10n-id": "newtab-widget-lists-input-menu-delete",
     className: "delete-item",
     onClick: handleDelete
-  }, "Delete item")));
+  })));
 }
 function EditableText({
   value,
@@ -12822,6 +13044,8 @@ const FocusTimer = ({
     }
     setProgress(0);
   }, [arcRef]);
+  const prefs = (0,external_ReactRedux_namespaceObject.useSelector)(state => state.Prefs.values);
+  const showSystemNotifications = prefs["widgets.focusTimer.showSystemNotifications"];
 
   // If the timer is running, set the progress visibility to true
   // This helps persist progressbar visibility on refresh/opening a new tab
@@ -13042,19 +13266,60 @@ const FocusTimer = ({
       sel.addRange(range);
     }
   };
+  function handleLearnMore() {
+    dispatch(actionCreators.OnlyToMain({
+      type: actionTypes.OPEN_LINK,
+      data: {
+        url: "https://support.mozilla.org/kb/firefox-new-tab-widgets"
+      }
+    }));
+  }
+  function handlePrefUpdate(prefName, prefValue) {
+    dispatch(actionCreators.OnlyToMain({
+      type: actionTypes.SET_PREF,
+      data: {
+        name: prefName,
+        value: prefValue
+      }
+    }));
+  }
   return timerData ? /*#__PURE__*/external_React_default().createElement("article", {
     className: "focus-timer"
   }, /*#__PURE__*/external_React_default().createElement("div", {
     className: "focus-timer-tabs"
+  }, /*#__PURE__*/external_React_default().createElement("div", {
+    className: "focus-timer-tabs-buttons"
   }, /*#__PURE__*/external_React_default().createElement("moz-button", {
     type: timerType === "focus" ? "primary" : "ghost",
-    label: "Focus",
+    "data-l10n-id": "newtab-widget-timer-mode-focus",
     onClick: () => toggleType("focus")
   }), /*#__PURE__*/external_React_default().createElement("moz-button", {
     type: timerType === "break" ? "primary" : "ghost",
-    label: "Break",
+    "data-l10n-id": "newtab-widget-timer-mode-break",
     onClick: () => toggleType("break")
   })), /*#__PURE__*/external_React_default().createElement("div", {
+    className: "focus-timer-context-menu-wrapper"
+  }, /*#__PURE__*/external_React_default().createElement("moz-button", {
+    className: "focus-timer-context-menu-button",
+    iconSrc: "chrome://global/skin/icons/more.svg",
+    menuId: "focus-timer-context-menu",
+    type: "ghost"
+  }), /*#__PURE__*/external_React_default().createElement("panel-list", {
+    id: "focus-timer-context-menu"
+  }, /*#__PURE__*/external_React_default().createElement("panel-item", {
+    "data-l10n-id": showSystemNotifications ? "newtab-widget-timer-menu-notifications" : "newtab-widget-timer-menu-notifications-on",
+    onClick: () => {
+      handlePrefUpdate("widgets.focusTimer.showSystemNotifications", !showSystemNotifications);
+    }
+  }), /*#__PURE__*/external_React_default().createElement("panel-item", {
+    "data-l10n-id": "newtab-widget-timer-menu-hide",
+    onClick: () => {
+      handlePrefUpdate("widgets.focusTimer.enabled", false);
+    }
+  }), /*#__PURE__*/external_React_default().createElement("panel-item", {
+    "data-l10n-id": "newtab-widget-timer-menu-learn-more",
+    onClick: handleLearnMore
+  })))), /*#__PURE__*/external_React_default().createElement("div", {
     role: "progress",
     className: `progress-circle-wrapper${progressVisible ? " visible" : ""}`
   }, /*#__PURE__*/external_React_default().createElement("div", {
@@ -13098,12 +13363,12 @@ const FocusTimer = ({
   }, /*#__PURE__*/external_React_default().createElement("moz-button", {
     type: "primary",
     iconsrc: `chrome://global/skin/media/${isRunning ? "pause" : "play"}-fill.svg`,
-    title: isRunning ? "Pause" : "Play",
+    "data-l10n-id": isRunning ? "newtab-widget-timer-pause" : "newtab-widget-timer-play",
     onClick: toggleTimer
   }), /*#__PURE__*/external_React_default().createElement("moz-button", {
     type: "icon ghost",
     iconsrc: "chrome://newtab/content/data/content/assets/arrow-clockwise-16.svg",
-    title: "Reset",
+    "data-l10n-id": "newtab-widget-timer-reset",
     onClick: resetTimer
   })))) : null;
 };
@@ -14438,7 +14703,9 @@ class ContentSection extends (external_React_default()).PureComponent {
       className: "widgets-section"
     }, /*#__PURE__*/external_React_default().createElement("div", {
       className: "category-header"
-    }, /*#__PURE__*/external_React_default().createElement("h2", null, "Widgets")), /*#__PURE__*/external_React_default().createElement("div", {
+    }, /*#__PURE__*/external_React_default().createElement("h2", {
+      "data-l10n-id": "newtab-custom-widget-section-title"
+    })), /*#__PURE__*/external_React_default().createElement("div", {
       className: "settings-widgets"
     }, mayHaveWeather && /*#__PURE__*/external_React_default().createElement("div", {
       id: "weather-section",
@@ -14449,7 +14716,7 @@ class ContentSection extends (external_React_default()).PureComponent {
       onToggle: this.onPreferenceSelect,
       "data-preference": "showWeather",
       "data-eventSource": "WEATHER",
-      label: "Weather"
+      "data-l10n-id": "newtab-custom-widget-weather-toggle"
     })), mayHaveListsWidget && /*#__PURE__*/external_React_default().createElement("div", {
       id: "lists-widget-section",
       className: "section"
@@ -14459,7 +14726,7 @@ class ContentSection extends (external_React_default()).PureComponent {
       onToggle: this.onPreferenceSelect,
       "data-preference": "widgets.lists.enabled",
       "data-eventSource": "WIDGET_LISTS",
-      label: "Lists"
+      "data-l10n-id": "newtab-custom-widget-lists-toggle"
     })), mayHaveTimerWidget && /*#__PURE__*/external_React_default().createElement("div", {
       id: "timer-widget-section",
       className: "section"
@@ -14469,7 +14736,7 @@ class ContentSection extends (external_React_default()).PureComponent {
       onToggle: this.onPreferenceSelect,
       "data-preference": "widgets.focusTimer.enabled",
       "data-eventSource": "WIDGET_TIMER",
-      label: "Timer"
+      "data-l10n-id": "newtab-custom-widget-timer-toggle"
     })), mayHaveTrendingSearch && /*#__PURE__*/external_React_default().createElement("div", {
       id: "trending-search-section",
       className: "section"
@@ -14479,7 +14746,7 @@ class ContentSection extends (external_React_default()).PureComponent {
       onToggle: this.onPreferenceSelect,
       "data-preference": "trendingSearch.enabled",
       "data-eventSource": "TRENDING_SEARCH",
-      label: "Trending Searches"
+      "data-l10n-id": "newtab-custom-widget-trending-search-toggle"
     })), /*#__PURE__*/external_React_default().createElement("span", {
       className: "divider",
       role: "separator"

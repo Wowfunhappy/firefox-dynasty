@@ -14,8 +14,8 @@
 #include "MP4Decoder.h"
 #include "MediaInfo.h"
 #include "VALibWrapper.h"
-#include "VideoUtils.h"
 #include "VPXDecoder.h"
+#include "VideoUtils.h"
 #if LIBAVCODEC_VERSION_MAJOR >= 58
 #  include "libavutil/buffer.h"
 #  include "libavutil/frame.h"
@@ -36,9 +36,9 @@
 #  include "H265.h"
 #endif
 #if defined(MOZ_USE_HWDECODE) && defined(MOZ_WIDGET_GTK)
+#  include "FFmpegVideoFramePool.h"
 #  include "mozilla/gfx/gfxVars.h"
 #  include "mozilla/layers/DMABUFSurfaceImage.h"
-#  include "FFmpegVideoFramePool.h"
 #  include "va/va.h"
 #endif
 
@@ -84,15 +84,14 @@
 #endif
 
 #ifdef MOZ_WIDGET_ANDROID
-#  include "mozilla/layers/TextureClientOGL.h"
-#  include "mozilla/java/GeckoSurfaceWrappers.h"
+#  include "ffvpx/hwcontext_mediacodec.h"
+#  include "ffvpx/mediacodec.h"
 #  include "mozilla/java/CodecProxyWrappers.h"
 #  include "mozilla/java/GeckoSurfaceWrappers.h"
 #  include "mozilla/java/SampleBufferWrappers.h"
 #  include "mozilla/java/SampleWrappers.h"
 #  include "mozilla/java/SurfaceAllocatorWrappers.h"
-#  include "ffvpx/mediacodec.h"
-#  include "ffvpx/hwcontext_mediacodec.h"
+#  include "mozilla/layers/TextureClientOGL.h"
 #endif
 
 #if defined(MOZ_USE_HWDECODE) && defined(MOZ_WIDGET_GTK)
@@ -580,8 +579,8 @@ FFmpegVideoDecoder<LIBAV_VER>::FFmpegVideoDecoder(
     FFmpegLibWrapper* aLib, const VideoInfo& aConfig,
     KnowsCompositor* aAllocator, ImageContainer* aImageContainer,
     bool aLowLatency, bool aDisableHardwareDecoding, bool a8BitOutput,
-    Maybe<TrackingId> aTrackingId)
-    : FFmpegDataDecoder(aLib, GetCodecId(aConfig.mMimeType)),
+    Maybe<TrackingId> aTrackingId, PRemoteCDMActor* aCDM)
+    : FFmpegDataDecoder(aLib, GetCodecId(aConfig.mMimeType), aCDM),
       mImageAllocator(aAllocator),
 #ifdef MOZ_USE_HWDECODE
       mHardwareDecodingDisabled(
@@ -1185,6 +1184,25 @@ MediaResult FFmpegVideoDecoder<LIBAV_VER>::DoDecode(
         nsPrintfCString("FFmpegVideoDecoder(%d)", LIBAVCODEC_VERSION_MAJOR),
         aId, flag);
   });
+
+#if defined(MOZ_WIDGET_ANDROID) && defined(USING_MOZFFVPX)
+  RefPtr<MediaDrmCryptoInfo> cryptoInfo;
+  if (aSample->mCrypto.IsEncrypted()) {
+    if (NS_WARN_IF(!mCDM)) {
+      return MediaResult(NS_ERROR_DOM_MEDIA_DECODE_ERR,
+                         RESULT_DETAIL("Missing CDM for encrypted sample"));
+    }
+
+    cryptoInfo = mCDM->CreateCryptoInfo(aSample);
+    if (NS_WARN_IF(!cryptoInfo)) {
+      return MediaResult(
+          NS_ERROR_DOM_MEDIA_DECODE_ERR,
+          RESULT_DETAIL("Failed to create CryptoInfo for encrypted sample"));
+    }
+
+    packet->moz_ndk_crypto_info = cryptoInfo->GetNdkCryptoInfo();
+  }
+#endif
 
 #ifdef MOZ_FFMPEG_USE_INPUT_INFO_MAP
 #  ifdef MOZ_WIDGET_ANDROID

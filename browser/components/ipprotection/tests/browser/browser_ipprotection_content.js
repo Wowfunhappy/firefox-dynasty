@@ -145,7 +145,7 @@ add_task(async function test_status_card() {
 
   Assert.ok(content.statusCardEl, "Status card should be present");
   Assert.equal(
-    content.connectionTitleEl?.getAttribute("data-l10n-id"),
+    content.statusCardEl?.getAttribute("data-l10n-id"),
     l10nIdOff,
     "Status card connection toggle data-l10n-id should be correct by default"
   );
@@ -155,33 +155,53 @@ add_task(async function test_status_card() {
   content.requestUpdate();
   await content.updateComplete;
 
-  let locationName = content.shadowRoot.getElementById("location-name");
+  let locationName =
+    content.locationEl?.shadowRoot.getElementById("location-name");
   Assert.equal(
     locationName?.textContent,
     mockLocationName,
     "Location name should be present and correct"
   );
 
+  let animationLoadedPromise = BrowserTestUtils.waitForMutationCondition(
+    content.shadowRoot,
+    { childList: true, subtree: true },
+    () => !content.animationEl
+  );
+
   // Set state as if protection is enabled
   content.state.isProtectionEnabled = true;
   content.requestUpdate();
   await content.updateComplete;
+  await animationLoadedPromise;
 
   Assert.equal(
-    content.connectionTitleEl?.getAttribute("data-l10n-id"),
+    content.statusCardEl?.getAttribute("data-l10n-id"),
     l10nIdOn,
     "Status card connection toggle data-l10n-id should be correct when protection is enabled"
+  );
+  Assert.ok(content.animationEl, "Status card animation should be present");
+
+  let animationUnloadedPromise = BrowserTestUtils.waitForMutationCondition(
+    content.shadowRoot,
+    { childList: true, subtree: true },
+    () => !content.animationEl
   );
 
   // Set state as if protection is disabled
   content.state.isProtectionEnabled = false;
   content.requestUpdate();
   await content.updateComplete;
+  await animationUnloadedPromise;
 
   Assert.equal(
-    content.connectionTitleEl?.getAttribute("data-l10n-id"),
+    content.statusCardEl?.getAttribute("data-l10n-id"),
     l10nIdOff,
     "Status card connection toggle data-l10n-id should be correct when protection is disabled"
+  );
+  Assert.ok(
+    !content.animationEl,
+    "Status card animation should not be present"
   );
 
   // To be safe, reset the entire state
