@@ -17,6 +17,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.RadioGroup
 import androidx.activity.result.ActivityResultLauncher
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.foundation.background
@@ -92,7 +93,9 @@ import org.mozilla.fenix.R
 import org.mozilla.fenix.addons.showSnackBar
 import org.mozilla.fenix.browser.browsingmode.BrowsingMode
 import org.mozilla.fenix.components.StoreProvider
+import org.mozilla.fenix.components.VoiceSearchFeature
 import org.mozilla.fenix.components.appstate.AppAction
+import org.mozilla.fenix.components.appstate.qrScanner.QrScannerBinding
 import org.mozilla.fenix.components.history.DefaultPagedHistoryProvider
 import org.mozilla.fenix.components.metrics.MetricsUtils
 import org.mozilla.fenix.components.search.HISTORY_SEARCH_ENGINE_ID
@@ -111,8 +114,8 @@ import org.mozilla.fenix.library.history.HistoryFragmentAction.SearchDismissed
 import org.mozilla.fenix.library.history.state.HistoryTelemetryMiddleware
 import org.mozilla.fenix.library.history.state.bindings.MenuBinding
 import org.mozilla.fenix.library.history.state.bindings.PendingDeletionBinding
-import org.mozilla.fenix.lifecycle.registerForVerification
-import org.mozilla.fenix.lifecycle.verifyUser
+import org.mozilla.fenix.pbmlock.registerForVerification
+import org.mozilla.fenix.pbmlock.verifyUser
 import org.mozilla.fenix.search.BrowserStoreToFenixSearchMapperMiddleware
 import org.mozilla.fenix.search.BrowserToolbarSearchMiddleware
 import org.mozilla.fenix.search.BrowserToolbarSearchStatusSyncMiddleware
@@ -125,6 +128,7 @@ import org.mozilla.fenix.search.SearchFragmentStore
 import org.mozilla.fenix.search.createInitialSearchFragmentState
 import org.mozilla.fenix.tabstray.Page
 import org.mozilla.fenix.theme.FirefoxTheme
+import kotlin.getValue
 import org.mozilla.fenix.GleanMetrics.History as GleanHistory
 
 private const val MATERIAL_DESIGN_SCRIM = "#52000000"
@@ -159,6 +163,14 @@ class HistoryFragment : LibraryPageFragment<History>(), UserInteractionHandler, 
 
     private var verificationResultLauncher: ActivityResultLauncher<Intent> =
         registerForVerification(onVerified = ::openHistoryInPrivate)
+
+    private val voiceSearchFeature by lazy(LazyThreadSafetyMode.NONE) {
+        ViewBoundFeatureWrapper<VoiceSearchFeature>()
+    }
+    private val voiceSearchLauncher: ActivityResultLauncher<Intent> =
+        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+            voiceSearchFeature.get()?.handleVoiceSearchResult(result.resultCode, result.data)
+        }
 
     private val menuBinding by lazy {
         MenuBinding(
@@ -204,10 +216,6 @@ class HistoryFragment : LibraryPageFragment<History>(), UserInteractionHandler, 
             scope = lifecycleScope,
         )
 
-        if (requireContext().settings().shouldUseComposableToolbar) {
-            toolbarStore = buildToolbarStore()
-        }
-
         return view
     }
 
@@ -244,6 +252,20 @@ class HistoryFragment : LibraryPageFragment<History>(), UserInteractionHandler, 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
         requireActivity().addMenuProvider(this, viewLifecycleOwner, Lifecycle.State.RESUMED)
+
+        if (requireContext().settings().shouldUseComposableToolbar) {
+            toolbarStore = buildToolbarStore()
+            QrScannerBinding.register(this)
+            voiceSearchFeature.set(
+                feature = VoiceSearchFeature(
+                    context = requireContext(),
+                    appStore = requireContext().components.appStore,
+                    voiceSearchLauncher = voiceSearchLauncher,
+                ),
+                owner = viewLifecycleOwner,
+                view = view,
+            )
+        }
 
         consumeFrom(historyStore) {
             historyView.update(it)
@@ -437,27 +459,29 @@ class HistoryFragment : LibraryPageFragment<History>(), UserInteractionHandler, 
                                         )
                                     },
                             ) {
-                                AwesomeBar(
-                                    text = searchState.query,
-                                    providers = searchState.searchSuggestionsProviders,
-                                    orientation = AwesomeBarOrientation.TOP,
-                                    colors = AwesomeBarDefaults.colors(
-                                        background = Color.Transparent,
-                                        title = FirefoxTheme.colors.textPrimary,
-                                        description = FirefoxTheme.colors.textSecondary,
-                                        autocompleteIcon = FirefoxTheme.colors.textSecondary,
-                                        groupTitle = FirefoxTheme.colors.textSecondary,
-                                    ),
-                                    onSuggestionClicked = { suggestion ->
-                                        searchStore.dispatch(SuggestionClicked(suggestion))
-                                    },
-                                    onAutoComplete = { suggestion ->
-                                        searchStore.dispatch(SuggestionSelected(suggestion))
-                                    },
-                                    onVisibilityStateUpdated = {},
-                                    onScroll = { view.hideKeyboard() },
-                                    profiler = requireComponents.core.engine.profiler,
-                                )
+                                if (searchState.shouldShowSearchSuggestions) {
+                                    AwesomeBar(
+                                        text = searchState.query,
+                                        providers = searchState.searchSuggestionsProviders,
+                                        orientation = AwesomeBarOrientation.TOP,
+                                        colors = AwesomeBarDefaults.colors(
+                                            background = Color.Transparent,
+                                            title = FirefoxTheme.colors.textPrimary,
+                                            description = FirefoxTheme.colors.textSecondary,
+                                            autocompleteIcon = FirefoxTheme.colors.textSecondary,
+                                            groupTitle = FirefoxTheme.colors.textSecondary,
+                                        ),
+                                        onSuggestionClicked = { suggestion ->
+                                            searchStore.dispatch(SuggestionClicked(suggestion))
+                                        },
+                                        onAutoComplete = { suggestion ->
+                                            searchStore.dispatch(SuggestionSelected(suggestion))
+                                        },
+                                        onVisibilityStateUpdated = {},
+                                        onScroll = { view.hideKeyboard() },
+                                        profiler = requireComponents.core.engine.profiler,
+                                    )
+                                }
                             }
                         }
                     }

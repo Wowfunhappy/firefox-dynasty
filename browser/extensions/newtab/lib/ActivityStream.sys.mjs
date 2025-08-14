@@ -303,6 +303,20 @@ export const PREFS_CONFIG = new Map([
     },
   ],
   [
+    "discoverystream.merino-provider.ohttp.enabled",
+    {
+      title: "Enables the Merino requests and images sent over OHTTP",
+      value: false,
+    },
+  ],
+  [
+    "unifiedAds.ohttp.enabled",
+    {
+      title: "Enables the MARS requests and images sent over OHTTP",
+      value: false,
+    },
+  ],
+  [
     "unifiedAds.adsFeed.enabled",
     {
       title:
@@ -607,6 +621,13 @@ export const PREFS_CONFIG = new Map([
     "discoverystream.promoCard.enabled",
     {
       title: "Boolean flag to turn the promo card on and off",
+      value: false,
+    },
+  ],
+  [
+    "discoverystream.promoCard.visible",
+    {
+      title: "Boolean flag whether the promo card is visible or not",
       value: false,
     },
   ],

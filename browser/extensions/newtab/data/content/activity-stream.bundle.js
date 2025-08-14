@@ -314,6 +314,8 @@ for (const type of [
   "WIDGETS_TIMER_SET",
   "WIDGETS_TIMER_SET_DURATION",
   "WIDGETS_TIMER_SET_TYPE",
+  "WIDGETS_TIMER_USER_EVENT",
+  "WIDGETS_TIMER_USER_IMPRESSION",
 ]) {
   actionTypes[type] = type;
 }
@@ -1482,12 +1484,27 @@ class DSImage extends (external_React_default()).PureComponent {
       });
     }
   }
+
+  // Wraps the image url with the Pocket proxy to both resize and crop the image.
   reformatImageURL(url, width, height) {
     const smart = this.props.smartCrop ? "smart/" : "";
     // Change the image URL to request a size tailored for the parent container width
     // Also: force JPEG, quality 60, no upscaling, no EXIF data
     // Uses Thumbor: https://thumbor.readthedocs.io/en/latest/usage.html
-    return `https://img-getpocket.cdn.mozilla.net/${width}x${height}/${smart}filters:format(jpeg):quality(60):no_upscale():strip_exif()/${encodeURIComponent(url)}`;
+    const formattedUrl = `https://img-getpocket.cdn.mozilla.net/${width}x${height}/${smart}filters:format(jpeg):quality(60):no_upscale():strip_exif()/${encodeURIComponent(url)}`;
+    return this.secureImageURL(formattedUrl);
+  }
+
+  // Wraps the image URL with the moz-cached-ohttp:// protocol.
+  // This enables Firefox to load resources over Oblivious HTTP (OHTTP),
+  // providing privacy-preserving resource loading.
+  // Applied only when inferred personalization is enabled.
+  // See: https://firefox-source-docs.mozilla.org/browser/components/mozcachedohttp/docs/index.html
+  secureImageURL(url) {
+    if (!this.props.secureImage) {
+      return url;
+    }
+    return `moz-cached-ohttp://newtab-image/?url=${encodeURIComponent(url)}`;
   }
   componentDidMount() {
     this.idleCallbackId = this.props.windowObj.requestIdleCallback(this.onIdleCallback.bind(this));
@@ -1506,7 +1523,12 @@ class DSImage extends (external_React_default()).PureComponent {
     let img;
     if (this.state) {
       if (this.props.optimize && this.props.rawSource && !this.state.optimizedImageFailed) {
-        let baseSource = this.props.rawSource;
+        const baseSource = this.props.rawSource;
+
+        // We don't care about securing this.props.source, as this exclusivly
+        // comes from an older service that is not personalized.
+        // This can also return a non secure url if this functionality is not enabled.
+        const securedSource = this.secureImageURL(baseSource);
         let sizeRules = [];
         let srcSetRules = [];
         for (let rule of this.props.sizes) {
@@ -1534,7 +1556,7 @@ class DSImage extends (external_React_default()).PureComponent {
           onLoad: this.onLoad,
           onError: this.onOptimizedImageError,
           sizes: sizeRules.join(","),
-          src: baseSource,
+          src: securedSource,
           srcSet: srcSetRules.join(",")
         });
       } else if (this.props.source && !this.state.nonOptimizedImageFailed) {
@@ -3507,6 +3529,13 @@ function DSThumbsUpDownButtons({
 
 
 const READING_WPM = 220;
+const PREF_OHTTP_MERINO = "discoverystream.merino-provider.ohttp.enabled";
+const PREF_OHTTP_UNIFIED_ADS = "unifiedAds.ohttp.enabled";
+const PREF_CONTEXTUAL_ADS = "discoverystream.sections.contextualAds.enabled";
+const PREF_INFERRED_PERSONALIZATION_SYSTEM = "discoverystream.sections.personalization.inferred.enabled";
+const PREF_INFERRED_PERSONALIZATION_USER = "discoverystream.sections.personalization.inferred.user.enabled";
+const DSCard_PREF_SECTIONS_ENABLED = "discoverystream.sections.enabled";
+const PREF_FAVICONS_ENABLED = "discoverystream.publisherFavicon.enabled";
 
 /**
  * READ TIME FROM WORD COUNT
@@ -4009,12 +4038,18 @@ class _DSCard extends (external_React_default()).PureComponent {
   }
   onIdleCallback() {
     if (!this.state.isSeen) {
-      if (this.observer && this.placeholderElement) {
-        this.observer.unobserve(this.placeholderElement);
+      // To improve responsiveness without impacting performance,
+      // we start rendering stories on idle.
+      // To reduce the number of requests for secure OHTTP images,
+      // we skip idle-time loading.
+      if (!this.secureImage) {
+        if (this.observer && this.placeholderElement) {
+          this.observer.unobserve(this.placeholderElement);
+        }
+        this.setState({
+          isSeen: true
+        });
       }
-      this.setState({
-        isSeen: true
-      });
     }
   }
   componentDidMount() {
@@ -4032,6 +4067,57 @@ class _DSCard extends (external_React_default()).PureComponent {
     if (this.idleCallbackId) {
       this.props.windowObj.cancelIdleCallback(this.idleCallbackId);
     }
+  }
+
+  // Wraps the image URL with the moz-cached-ohttp:// protocol.
+  // This enables Firefox to load resources over Oblivious HTTP (OHTTP),
+  // providing privacy-preserving resource loading.
+  // Applied only when inferred personalization is enabled.
+  // See: https://firefox-source-docs.mozilla.org/browser/components/mozcachedohttp/docs/index.html
+  secureImageURL(url) {
+    return `moz-cached-ohttp://newtab-image/?url=${encodeURIComponent(url)}`;
+  }
+  getRawImageSrc() {
+    let rawImageSrc = "";
+    // There is no point in fetching images for startup cache.
+    if (!this.props.App.isForStartupCache.App) {
+      rawImageSrc = this.props.raw_image_src;
+    }
+    return rawImageSrc;
+  }
+  getFaviconSrc() {
+    let faviconSrc = "";
+    const faviconEnabled = this.props.Prefs.values[PREF_FAVICONS_ENABLED];
+    // There is no point in fetching favicons for startup cache.
+    if (!this.props.App.isForStartupCache.App && faviconEnabled && this.props.icon_src) {
+      faviconSrc = this.props.icon_src;
+      if (this.secureImage) {
+        faviconSrc = this.secureImageURL(this.props.icon_src);
+      }
+    }
+    return faviconSrc;
+  }
+  get secureImage() {
+    const {
+      Prefs,
+      flightId
+    } = this.props;
+    let ohttpEnabled = false;
+    if (flightId) {
+      ohttpEnabled = Prefs.values[PREF_CONTEXTUAL_ADS] && Prefs.values[PREF_OHTTP_UNIFIED_ADS];
+    } else {
+      ohttpEnabled = Prefs.values[PREF_OHTTP_MERINO];
+    }
+    const inferredPersonalizationUser = Prefs.values[PREF_INFERRED_PERSONALIZATION_USER];
+    const inferredPersonalizationSystem = Prefs.values[PREF_INFERRED_PERSONALIZATION_SYSTEM];
+    const inferredPersonalization = inferredPersonalizationSystem && inferredPersonalizationUser;
+    const ohttpImagesEnabled = Prefs.values.ohttpImagesConfig?.enabled;
+    const includeTopStoriesSection = Prefs.values.ohttpImagesConfig?.includeTopStoriesSection;
+    const sectionsEnabled = Prefs.values[DSCard_PREF_SECTIONS_ENABLED];
+    const nonPersonalizedSections = ["top_stories_section"];
+    const sectionPersonalized = !nonPersonalizedSections.includes(this.props.section) || includeTopStoriesSection;
+    const secureImage = sectionsEnabled && ohttpImagesEnabled && ohttpEnabled && sectionPersonalized && inferredPersonalization;
+    return secureImage;
   }
   render() {
     const {
@@ -4088,9 +4174,8 @@ class _DSCard extends (external_React_default()).PureComponent {
       descLines = 3,
       readTime: displayReadTime
     } = DiscoveryStream;
-    const sectionsEnabled = Prefs.values["discoverystream.sections.enabled"];
+    const sectionsEnabled = Prefs.values[DSCard_PREF_SECTIONS_ENABLED];
     const smartCrop = Prefs.values["images.smart"];
-    const faviconEnabled = Prefs.values["discoverystream.publisherFavicon.enabled"];
     // Refined cards have their own excerpt hiding logic.
     // We can ignore hideDescriptions if we are in sections and refined cards.
     const excerpt = !hideDescriptions || sectionsEnabled && refinedCardsLayout ? this.props.excerpt : "";
@@ -4115,6 +4200,8 @@ class _DSCard extends (external_React_default()).PureComponent {
     const descLinesClassName = `ds-card-desc-lines-${descLines}`;
     const isMediumRectangle = format === "rectangle";
     const spocFormatClassName = isMediumRectangle ? `ds-spoc-rectangle` : ``;
+    const rawImageSrc = this.getRawImageSrc();
+    const faviconSrc = this.getFaviconSrc();
     let sizes = [];
     if (!isMediumRectangle) {
       sizes = this.dsImageSizes;
@@ -4148,13 +4235,14 @@ class _DSCard extends (external_React_default()).PureComponent {
     }, /*#__PURE__*/external_React_default().createElement(DSImage, {
       extraClassNames: "img",
       source: this.props.image_src,
-      rawSource: this.props.raw_image_src,
+      rawSource: rawImageSrc,
       sizes: sizes,
       url: this.props.url,
       title: this.props.title,
       isRecentSave: isRecentSave,
       alt_text: alt_text,
-      smartCrop: smartCrop
+      smartCrop: smartCrop,
+      secureImage: this.secureImage
     })), /*#__PURE__*/external_React_default().createElement(ImpressionStats_ImpressionStats, {
       flightId: this.props.flightId,
       rows: [{
@@ -4224,7 +4312,7 @@ class _DSCard extends (external_React_default()).PureComponent {
       isSectionsCard: this.props.mayHaveSectionsCards && this.props.topic && !isListCard,
       format: format,
       topic: this.props.topic,
-      icon_src: faviconEnabled && this.props.icon_src,
+      icon_src: faviconSrc,
       refinedCardsLayout: refinedCardsLayout
     })), /*#__PURE__*/external_React_default().createElement("div", {
       className: "card-stp-button-hover-background"
@@ -4817,6 +4905,12 @@ function AdBannerContextMenu({
 
 
 
+const AdBanner_PREF_SECTIONS_ENABLED = "discoverystream.sections.enabled";
+const AdBanner_PREF_OHTTP_UNIFIED_ADS = "unifiedAds.ohttp.enabled";
+const AdBanner_PREF_CONTEXTUAL_ADS = "discoverystream.sections.contextualAds.enabled";
+const PREF_USER_INFERRED_PERSONALIZATION = "discoverystream.sections.personalization.inferred.user.enabled";
+const PREF_SYSTEM_INFERRED_PERSONALIZATION = "discoverystream.sections.personalization.inferred.enabled";
+const PREF_REPORT_ADS_ENABLED = "discoverystream.reportAds.enabled";
 
 /**
  * A new banner ad that appears between rows of stories: leaderboard or billboard size.
@@ -4857,8 +4951,12 @@ const AdBanner = ({
       height: undefined
     };
   };
-  const sectionsEnabled = prefs["discoverystream.sections.enabled"];
-  const showAdReporting = prefs["discoverystream.reportAds.enabled"];
+  const sectionsEnabled = prefs[AdBanner_PREF_SECTIONS_ENABLED];
+  const ohttpEnabled = prefs[AdBanner_PREF_OHTTP_UNIFIED_ADS];
+  const contextualAds = prefs[AdBanner_PREF_CONTEXTUAL_ADS];
+  const inferredPersonalization = prefs[PREF_USER_INFERRED_PERSONALIZATION] && prefs[PREF_SYSTEM_INFERRED_PERSONALIZATION];
+  const showAdReporting = prefs[PREF_REPORT_ADS_ENABLED];
+  const ohttpImagesEnabled = prefs.ohttpImagesConfig?.enabled;
   const [menuActive, setMenuActive] = (0,external_React_namespaceObject.useState)(false);
   const adBannerWrapperClassName = `ad-banner-wrapper ${menuActive ? "active" : ""}`;
   const {
@@ -4894,6 +4992,17 @@ const AdBanner = ({
   // in the default card grid 1 would come before the 1st row of cards and 9 comes after the last row
   // using clamp to make sure its between valid values (1-9)
   const clampedRow = Math.max(1, Math.min(9, row));
+  const secureImage = ohttpImagesEnabled && ohttpEnabled && contextualAds && inferredPersonalization && sectionsEnabled;
+  let rawImageSrc = spoc.raw_image_src;
+
+  // Wraps the image URL with the moz-cached-ohttp:// protocol.
+  // This enables Firefox to load resources over Oblivious HTTP (OHTTP),
+  // providing privacy-preserving resource loading.
+  // Applied only when inferred personalization is enabled.
+  // See: https://firefox-source-docs.mozilla.org/browser/components/mozcachedohttp/docs/index.html
+  if (secureImage) {
+    rawImageSrc = `moz-cached-ohttp://newtab-image/?url=${encodeURIComponent(spoc.raw_image_src)}`;
+  }
   return /*#__PURE__*/external_React_default().createElement("aside", {
     className: adBannerWrapperClassName,
     style: {
@@ -4925,7 +5034,7 @@ const AdBanner = ({
   }), /*#__PURE__*/external_React_default().createElement("div", {
     className: "ad-banner-content"
   }, /*#__PURE__*/external_React_default().createElement("img", {
-    src: spoc.raw_image_src,
+    src: rawImageSrc,
     alt: spoc.alt_text,
     loading: "eager",
     width: imgWidth,
@@ -4953,20 +5062,48 @@ const AdBanner = ({
 
 
 
+
+const PREF_PROMO_CARD_DISMISSED = "discoverystream.promoCard.visible";
+
 /**
  * The PromoCard component displays a promotional message.
  * It is used next to the AdBanner component in a four-column layout.
  */
 
 const PromoCard = () => {
+  const dispatch = (0,external_ReactRedux_namespaceObject.useDispatch)();
+  const onDismissClick = (0,external_React_namespaceObject.useCallback)(() => {
+    dispatch(actionCreators.SetPref(PREF_PROMO_CARD_DISMISSED, false));
+  }, [dispatch]);
   return /*#__PURE__*/external_React_default().createElement("div", {
     className: "promo-card-wrapper"
   }, /*#__PURE__*/external_React_default().createElement("div", {
+    className: "promo-card-dismiss-button"
+  }, /*#__PURE__*/external_React_default().createElement("moz-button", {
+    type: "icon ghost",
+    size: "small",
+    "data-l10n-id": "promo-card-dismiss-button",
+    iconsrc: "chrome://global/skin/icons/close.svg",
+    onClick: onDismissClick,
+    onKeyDown: onDismissClick
+  })), /*#__PURE__*/external_React_default().createElement("div", {
     className: "promo-card-inner"
-  }, /*#__PURE__*/external_React_default().createElement("span", {
-    className: "promo-card-label",
-    "data-l10n-id": "promo-card-default-title"
-  })));
+  }, /*#__PURE__*/external_React_default().createElement("div", {
+    className: "img-wrapper"
+  }), /*#__PURE__*/external_React_default().createElement("span", {
+    className: "promo-card-title",
+    "data-l10n-id": "newtab-promo-card-title"
+  }), /*#__PURE__*/external_React_default().createElement("span", {
+    className: "promo-card-body",
+    "data-l10n-id": "newtab-promo-card-body"
+  }), /*#__PURE__*/external_React_default().createElement("span", {
+    className: "promo-card-cta-wrapper"
+  }, /*#__PURE__*/external_React_default().createElement("a", {
+    href: "https://support.mozilla.org/kb/sponsor-privacy",
+    "data-l10n-id": "newtab-promo-card-cta",
+    target: "_blank",
+    rel: "noreferrer"
+  }))));
 };
 
 ;// CONCATENATED MODULE: ./content-src/components/DiscoveryStreamComponents/TrendingSearches/TrendingSearches.jsx
@@ -5227,6 +5364,7 @@ const PREF_FAKESPOT_ENABLED = "discoverystream.contextualContent.fakespot.enable
 const PREF_BILLBOARD_ENABLED = "newtabAdSize.billboard";
 const PREF_BILLBOARD_POSITION = "newtabAdSize.billboard.position";
 const PREF_PROMOCARD_ENABLED = "discoverystream.promoCard.enabled";
+const PREF_PROMOCARD_VISIBLE = "discoverystream.promoCard.visible";
 const PREF_LEADERBOARD_ENABLED = "newtabAdSize.leaderboard";
 const PREF_LEADERBOARD_POSITION = "newtabAdSize.leaderboard.position";
 const PREF_TRENDING_SEARCH = "trendingSearch.enabled";
@@ -5515,7 +5653,7 @@ class _CardGrid extends (external_React_default()).PureComponent {
     const listFeedEnabled = prefs[PREF_LIST_FEED_ENABLED];
     const listFeedSelectedFeed = prefs[PREF_LIST_FEED_SELECTED_FEED];
     const billboardEnabled = prefs[PREF_BILLBOARD_ENABLED];
-    const promoCardEnabled = prefs[PREF_PROMOCARD_ENABLED];
+    const promoCardEnabled = prefs[PREF_PROMOCARD_ENABLED] && prefs[PREF_PROMOCARD_VISIBLE];
     const leaderboardEnabled = prefs[PREF_LEADERBOARD_ENABLED];
     const trendingEnabled = prefs[PREF_TRENDING_SEARCH] && prefs[PREF_TRENDING_SEARCH_SYSTEM] && prefs[PREF_SEARCH_ENGINE]?.toLowerCase() === "google";
     const trendingVariant = prefs[PREF_TRENDING_SEARCH_VARIANT];
@@ -11859,10 +11997,11 @@ const CardSections_PREF_VISIBLE_SECTIONS = "discoverystream.sections.interestPic
 const CardSections_PREF_BILLBOARD_ENABLED = "newtabAdSize.billboard";
 const CardSections_PREF_BILLBOARD_POSITION = "newtabAdSize.billboard.position";
 const CardSections_PREF_PROMOCARD_ENABLED = "discoverystream.promoCard.enabled";
+const CardSections_PREF_PROMOCARD_VISIBLE = "discoverystream.promoCard.visible";
 const CardSections_PREF_LEADERBOARD_ENABLED = "newtabAdSize.leaderboard";
 const CardSections_PREF_LEADERBOARD_POSITION = "newtabAdSize.leaderboard.position";
 const PREF_REFINED_CARDS_ENABLED = "discoverystream.refinedCardsLayout.enabled";
-const PREF_INFERRED_PERSONALIZATION_USER = "discoverystream.sections.personalization.inferred.user.enabled";
+const CardSections_PREF_INFERRED_PERSONALIZATION_USER = "discoverystream.sections.personalization.inferred.user.enabled";
 const CardSections_PREF_TRENDING_SEARCH = "trendingSearch.enabled";
 const CardSections_PREF_TRENDING_SEARCH_SYSTEM = "system.trendingSearch.enabled";
 const CardSections_PREF_SEARCH_ENGINE = "trendingSearch.defaultSearchEngine";
@@ -12233,7 +12372,7 @@ function CardSections({
   // Add a billboard/leaderboard IAB ad to the sectionsToRender array (if enabled/possible).
   const billboardEnabled = prefs[CardSections_PREF_BILLBOARD_ENABLED];
   const leaderboardEnabled = prefs[CardSections_PREF_LEADERBOARD_ENABLED];
-  const promoCardEnabled = prefs[CardSections_PREF_PROMOCARD_ENABLED];
+  const promoCardEnabled = prefs[CardSections_PREF_PROMOCARD_ENABLED] && prefs[CardSections_PREF_PROMOCARD_VISIBLE];
   if ((billboardEnabled || leaderboardEnabled) && spocs?.data?.newtab_spocs?.items) {
     const spocToRender = spocs.data.newtab_spocs.items.find(({
       format
@@ -12244,7 +12383,9 @@ function CardSections({
       const row = spocToRender.format === "leaderboard" ? prefs[CardSections_PREF_LEADERBOARD_POSITION] : prefs[CardSections_PREF_BILLBOARD_POSITION];
       sectionsToRender.splice(
       // Math.min is used here to ensure the given row stays within the bounds of the sectionsToRender array.
-      Math.min(sectionsToRender.length - 1, row), 0, /*#__PURE__*/external_React_default().createElement(AdBanner, {
+      Math.min(sectionsToRender.length - 1, row), 0, /*#__PURE__*/external_React_default().createElement("div", {
+        className: "ad-banner-container"
+      }, /*#__PURE__*/external_React_default().createElement(AdBanner, {
         spoc: spocToRender,
         key: `dscard-${spocToRender.id}`,
         dispatch: dispatch,
@@ -12252,10 +12393,7 @@ function CardSections({
         firstVisibleTimestamp: firstVisibleTimestamp,
         row: row,
         prefs: prefs
-      }));
-      if (promoCardEnabled) {
-        sectionsToRender.splice(Math.min(sectionsToRender.length + 1, row), 0, /*#__PURE__*/external_React_default().createElement(PromoCard, null));
-      }
+      }), promoCardEnabled && /*#__PURE__*/external_React_default().createElement(PromoCard, null)));
     }
   }
 
@@ -12273,7 +12411,7 @@ function CardSections({
   }
   function displayP13nCard() {
     if (messageData && Object.keys(messageData).length >= 1) {
-      if (shouldShowOMCHighlight(messageData, "PersonalizedCard") && prefs[PREF_INFERRED_PERSONALIZATION_USER]) {
+      if (shouldShowOMCHighlight(messageData, "PersonalizedCard") && prefs[CardSections_PREF_INFERRED_PERSONALIZATION_USER]) {
         const row = messageData.content.position;
         sectionsToRender.splice(row, 0, /*#__PURE__*/external_React_default().createElement(MessageWrapper, {
           dispatch: dispatch,
@@ -12955,6 +13093,16 @@ function EditableText({
 
 
 
+const FocusTimer_USER_ACTION_TYPES = {
+  TIMER_SET: "timer_set",
+  TIMER_PLAY: "timer_play",
+  TIMER_PAUSE: "timer_pause",
+  TIMER_RESET: "timer_reset",
+  TIMER_END: "timer_end",
+  TIMER_TOGGLE_FOCUS: "timer_toggle_focus",
+  TIMER_TOGGLE_BREAK: "timer_toggle_break"
+};
+
 /**
  * Calculates the remaining time (in seconds) by subtracting elapsed time from the original duration
  *
@@ -13037,6 +13185,12 @@ const FocusTimer = ({
     isRunning
   } = timerData[timerType];
   const initialTimerDuration = timerData[timerType].initialDuration;
+  const handleIntersection = (0,external_React_namespaceObject.useCallback)(() => {
+    dispatch(actionCreators.AlsoToMain({
+      type: actionTypes.WIDGETS_TIMER_USER_IMPRESSION
+    }));
+  }, [dispatch]);
+  const timerRef = useIntersectionObserver(handleIntersection);
   const resetProgressCircle = (0,external_React_namespaceObject.useCallback)(() => {
     if (arcRef?.current) {
       arcRef.current.style.clipPath = "polygon(50% 50%)";
@@ -13062,14 +13216,22 @@ const FocusTimer = ({
         const remaining = calculateTimeRemaining(duration, startTime);
         if (remaining <= 0) {
           clearInterval(interval);
-          dispatch(actionCreators.AlsoToMain({
-            type: actionTypes.WIDGETS_TIMER_END,
-            data: {
-              timerType,
-              duration: initialTimerDuration,
-              initialDuration: initialTimerDuration
-            }
-          }));
+          (0,external_ReactRedux_namespaceObject.batch)(() => {
+            dispatch(actionCreators.AlsoToMain({
+              type: actionTypes.WIDGETS_TIMER_END,
+              data: {
+                timerType,
+                duration: initialTimerDuration,
+                initialDuration: initialTimerDuration
+              }
+            }));
+            dispatch(actionCreators.OnlyToMain({
+              type: actionTypes.WIDGETS_TIMER_USER_EVENT,
+              data: {
+                userAction: FocusTimer_USER_ACTION_TYPES.TIMER_END
+              }
+            }));
+          });
 
           // animate the progress circle to turn solid green
           setProgress(1);
@@ -13085,12 +13247,21 @@ const FocusTimer = ({
               setProgressVisible(false);
 
               // switch over to the other timer type
-              dispatch(actionCreators.AlsoToMain({
-                type: actionTypes.WIDGETS_TIMER_SET_TYPE,
-                data: {
-                  timerType: timerType === "focus" ? "break" : "focus"
-                }
-              }));
+              // eslint-disable-next-line max-nested-callbacks
+              (0,external_ReactRedux_namespaceObject.batch)(() => {
+                dispatch(actionCreators.AlsoToMain({
+                  type: actionTypes.WIDGETS_TIMER_SET_TYPE,
+                  data: {
+                    timerType: timerType === "focus" ? "break" : "focus"
+                  }
+                }));
+                dispatch(actionCreators.OnlyToMain({
+                  type: actionTypes.WIDGETS_TIMER_USER_EVENT,
+                  data: {
+                    userAction: timerType === "focus" ? FocusTimer_USER_ACTION_TYPES.TIMER_TOGGLE_BREAK : FocusTimer_USER_ACTION_TYPES.TIMER_TOGGLE_FOCUS
+                  }
+                }));
+              });
             }, 1500);
           }, 1500);
         }
@@ -13129,13 +13300,21 @@ const FocusTimer = ({
     seconds = Math.min(seconds, 59);
     const totalSeconds = minutes * 60 + seconds;
     if (!Number.isNaN(totalSeconds) && totalSeconds > 0 && totalSeconds !== duration) {
-      dispatch(actionCreators.AlsoToMain({
-        type: actionTypes.WIDGETS_TIMER_SET_DURATION,
-        data: {
-          timerType,
-          duration: totalSeconds
-        }
-      }));
+      (0,external_ReactRedux_namespaceObject.batch)(() => {
+        dispatch(actionCreators.AlsoToMain({
+          type: actionTypes.WIDGETS_TIMER_SET_DURATION,
+          data: {
+            timerType,
+            duration: totalSeconds
+          }
+        }));
+        dispatch(actionCreators.OnlyToMain({
+          type: actionTypes.WIDGETS_TIMER_USER_EVENT,
+          data: {
+            userAction: FocusTimer_USER_ACTION_TYPES.TIMER_SET
+          }
+        }));
+      });
     }
   };
 
@@ -13143,33 +13322,57 @@ const FocusTimer = ({
   const toggleTimer = () => {
     if (!isRunning && duration > 0) {
       setProgressVisible(true);
-      dispatch(actionCreators.AlsoToMain({
-        type: actionTypes.WIDGETS_TIMER_PLAY,
-        data: {
-          timerType
-        }
-      }));
+      (0,external_ReactRedux_namespaceObject.batch)(() => {
+        dispatch(actionCreators.AlsoToMain({
+          type: actionTypes.WIDGETS_TIMER_PLAY,
+          data: {
+            timerType
+          }
+        }));
+        dispatch(actionCreators.OnlyToMain({
+          type: actionTypes.WIDGETS_TIMER_USER_EVENT,
+          data: {
+            userAction: FocusTimer_USER_ACTION_TYPES.TIMER_PLAY
+          }
+        }));
+      });
     } else if (isRunning) {
       // calculated to get the new baseline of the timer when it starts or resumes
       const remaining = calculateTimeRemaining(duration, startTime);
-      dispatch(actionCreators.AlsoToMain({
-        type: actionTypes.WIDGETS_TIMER_PAUSE,
-        data: {
-          timerType,
-          duration: remaining
-        }
-      }));
+      (0,external_ReactRedux_namespaceObject.batch)(() => {
+        dispatch(actionCreators.AlsoToMain({
+          type: actionTypes.WIDGETS_TIMER_PAUSE,
+          data: {
+            timerType,
+            duration: remaining
+          }
+        }));
+        dispatch(actionCreators.OnlyToMain({
+          type: actionTypes.WIDGETS_TIMER_USER_EVENT,
+          data: {
+            userAction: FocusTimer_USER_ACTION_TYPES.TIMER_PAUSE
+          }
+        }));
+      });
     }
   };
 
   // reset timer function
   const resetTimer = () => {
-    dispatch(actionCreators.AlsoToMain({
-      type: actionTypes.WIDGETS_TIMER_RESET,
-      data: {
-        timerType
-      }
-    }));
+    (0,external_ReactRedux_namespaceObject.batch)(() => {
+      dispatch(actionCreators.AlsoToMain({
+        type: actionTypes.WIDGETS_TIMER_RESET,
+        data: {
+          timerType
+        }
+      }));
+      dispatch(actionCreators.OnlyToMain({
+        type: actionTypes.WIDGETS_TIMER_USER_EVENT,
+        data: {
+          userAction: FocusTimer_USER_ACTION_TYPES.TIMER_RESET
+        }
+      }));
+    });
 
     // Reset progress value and gradient arc on the progress circle
     resetProgressCircle();
@@ -13192,12 +13395,24 @@ const FocusTimer = ({
           duration: oldTypeRemaining
         }
       }));
+      dispatch(actionCreators.OnlyToMain({
+        type: actionTypes.WIDGETS_TIMER_USER_EVENT,
+        data: {
+          userAction: FocusTimer_USER_ACTION_TYPES.TIMER_PAUSE
+        }
+      }));
 
       // Sets the current timer type so it persists when opening a new tab
       dispatch(actionCreators.AlsoToMain({
         type: actionTypes.WIDGETS_TIMER_SET_TYPE,
         data: {
           timerType: type
+        }
+      }));
+      dispatch(actionCreators.OnlyToMain({
+        type: actionTypes.WIDGETS_TIMER_USER_EVENT,
+        data: {
+          userAction: type === "focus" ? FocusTimer_USER_ACTION_TYPES.TIMER_TOGGLE_FOCUS : FocusTimer_USER_ACTION_TYPES.TIMER_TOGGLE_BREAK
         }
       }));
     });
@@ -13246,13 +13461,21 @@ const FocusTimer = ({
     if (isRunning) {
       // calculated to get the new baseline of the timer when it starts or resumes
       const remaining = calculateTimeRemaining(duration, startTime);
-      dispatch(actionCreators.AlsoToMain({
-        type: actionTypes.WIDGETS_TIMER_PAUSE,
-        data: {
-          timerType,
-          duration: remaining
-        }
-      }));
+      (0,external_ReactRedux_namespaceObject.batch)(() => {
+        dispatch(actionCreators.AlsoToMain({
+          type: actionTypes.WIDGETS_TIMER_PAUSE,
+          data: {
+            timerType,
+            duration: remaining
+          }
+        }));
+        dispatch(actionCreators.OnlyToMain({
+          type: actionTypes.WIDGETS_TIMER_USER_EVENT,
+          data: {
+            userAction: FocusTimer_USER_ACTION_TYPES.TIMER_PAUSE
+          }
+        }));
+      });
     }
 
     // highlight entire text when focused on the time.
@@ -13284,7 +13507,10 @@ const FocusTimer = ({
     }));
   }
   return timerData ? /*#__PURE__*/external_React_default().createElement("article", {
-    className: "focus-timer"
+    className: "focus-timer",
+    ref: el => {
+      timerRef.current = [el];
+    }
   }, /*#__PURE__*/external_React_default().createElement("div", {
     className: "focus-timer-tabs"
   }, /*#__PURE__*/external_React_default().createElement("div", {
@@ -16203,7 +16429,7 @@ function Base_extends() { return Base_extends = Object.assign ? Object.assign.bi
 
 const Base_VISIBLE = "visible";
 const Base_VISIBILITY_CHANGE_EVENT = "visibilitychange";
-const PREF_INFERRED_PERSONALIZATION_SYSTEM = "discoverystream.sections.personalization.inferred.enabled";
+const Base_PREF_INFERRED_PERSONALIZATION_SYSTEM = "discoverystream.sections.personalization.inferred.enabled";
 const Base_PREF_INFERRED_PERSONALIZATION_USER = "discoverystream.sections.personalization.inferred.user.enabled";
 
 // Returns a function will not be continuously triggered when called. The
@@ -16682,7 +16908,7 @@ class BaseContent extends (external_React_default()).PureComponent {
     };
     const pocketRegion = prefs["feeds.system.topstories"];
     const mayHaveSponsoredStories = prefs["system.showSponsored"];
-    const mayHaveInferredPersonalization = prefs[PREF_INFERRED_PERSONALIZATION_SYSTEM];
+    const mayHaveInferredPersonalization = prefs[Base_PREF_INFERRED_PERSONALIZATION_SYSTEM];
     const mayHaveWeather = prefs["system.showWeather"];
     const {
       mayHaveSponsoredTopSites

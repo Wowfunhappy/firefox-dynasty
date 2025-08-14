@@ -3319,6 +3319,15 @@
   mirror: once
 #endif
 
+#if defined(XP_DARWIN)
+# Whether or not to use the mach-based IPC backend on macOS/iOS.
+# Only read once at startup by IOThreadParent's constructor.
+- name: dom.ipc.backend.mach
+  type: bool
+  value: @IS_IOS@
+  mirror: never
+#endif
+
 #ifdef MOZ_WIDGET_GTK
 #
 # Avoid the use of GTK in content processes if possible, by running
@@ -15118,6 +15127,14 @@
 # Whether to enable Zstd for H3/QUIC certificate compression.
 # Has no effect unless security.tls.enable_certificate_compression_zstd is true.
 - name: network.http.http3.enable_certificate_compression_zstd
+  type: RelaxedAtomicBool
+  value: true
+  mirror: always
+  rust: true
+
+# Whether to enable Brotli for H3/QUIC certificate compression.
+# Has no effect unless security.tls.enable_certificate_compression_brotli is true.
+- name: network.http.http3.enable_certificate_compression_brotli
   type: RelaxedAtomicBool
   value: true
   mirror: always

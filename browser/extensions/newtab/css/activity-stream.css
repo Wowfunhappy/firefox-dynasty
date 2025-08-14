@@ -4422,6 +4422,7 @@ main section {
 }
 
 .widgets-container:has(.lists), .widgets-container:has(.focus-timer) {
+  align-items: flex-start;
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(300px, 300px));
   gap: var(--space-large);
@@ -4625,6 +4626,16 @@ main section {
   margin-inline-end: auto;
 }
 
+.focus-timer-context-menu-wrapper {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.focus-timer:hover .focus-timer-context-menu-wrapper, .focus-timer:focus-within .focus-timer-context-menu-wrapper {
+  opacity: 1;
+  pointer-events: auto;
+}
+
 .progress-circle-wrapper {
   /* Colours for the main timer */
   --timer-red: var(--color-red-50);
@@ -4708,7 +4719,7 @@ main section {
   justify-content: center;
   position: absolute;
   width: 100%;
-  z-index: 10;
+  z-index: 2;
 }
 
 .timer-set-minutes:focus,
@@ -9186,6 +9197,22 @@ main section {
   background-color: var(--newtab-button-background);
 }
 
+@media (min-width: 1390px) {
+  .ad-banner-container {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: nowrap;
+    margin-block: var(--space-medium) var(--space-xlarge);
+  }
+  .ad-banner-container .ad-banner-wrapper {
+    width: unset;
+    display: inline-block;
+    inset-inline-start: unset;
+    transform: unset;
+    margin-block: unset;
+  }
+}
 .ad-banner-wrapper {
   --banner-padding: var(--space-large);
   --billboard-width: 970px;
@@ -9338,13 +9365,55 @@ main section {
 }
 
 .promo-card-wrapper {
-  background: var(--newtab-background-card);
-  box-shadow: var(--box-shadow-card);
-  border-radius: var(--border-radius-large);
-  height: var(--billboard-height);
+  display: none;
 }
-.promo-card-wrapper:hover {
-  box-shadow: var(--box-shadow-card-hover);
+@media (min-width: 1390px) {
+  .promo-card-wrapper {
+    display: block;
+    background: var(--newtab-background-card);
+    box-shadow: var(--box-shadow-card);
+    border-radius: var(--border-radius-large);
+    height: 298px;
+    width: 228px;
+    position: relative;
+    padding: var(--space-large);
+  }
+  .promo-card-wrapper .promo-card-title {
+    display: block;
+    font-size: var(--font-size-medium);
+    font-weight: var(--font-weight-bold);
+    margin-block: var(--space-medium);
+  }
+  .promo-card-wrapper .promo-card-title::before {
+    content: "";
+    display: inline-block;
+    width: var(--icon-size);
+    height: var(--icon-size);
+    background-image: url("chrome://branding/content/icon32.png");
+    background-size: contain;
+    background-repeat: no-repeat;
+    margin-inline-end: var(--space-small);
+    vertical-align: middle;
+  }
+  .promo-card-wrapper .promo-card-body {
+    display: block;
+    margin-block: 0 var(--space-medium);
+  }
+  .promo-card-wrapper .promo-card-dismiss-button {
+    position: absolute;
+    top: var(--space-small);
+    inset-inline-end: var(--space-small);
+    margin: 0;
+  }
+  .promo-card-wrapper .promo-card-cta-wrapper {
+    display: flex;
+    width: 100%;
+    justify-content: end;
+  }
+  .promo-card-wrapper .img-wrapper {
+    height: 132px;
+    width: 196px;
+  }
 }
 
 .section-context-menu {

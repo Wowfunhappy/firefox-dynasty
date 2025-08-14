@@ -329,7 +329,7 @@ class HTMLEditUtils final {
   static bool IsTable(const nsINode* aNode);
   static bool IsTableRow(nsINode* aNode);
   static bool IsAnyTableElement(const nsINode* aNode);
-  static bool IsAnyTableElementButNotTable(nsINode* aNode);
+  static bool IsAnyTableElementButNotTable(const nsINode* aNode);
   static bool IsTableCell(const nsINode* aNode);
   static bool IsTableCellOrCaption(nsINode& aNode);
   static bool IsAnyListElement(const nsINode* aNode);
@@ -337,7 +337,7 @@ class HTMLEditUtils final {
   static bool IsImage(nsINode* aNode);
   static bool IsLink(const nsINode* aNode);
   static bool IsNamedAnchor(const nsINode* aNode);
-  static bool IsMozDiv(nsINode* aNode);
+  static bool IsMozDiv(const nsINode* aNode);
   static bool IsMailCite(const Element& aElement);
   static bool IsFormWidget(const nsINode* aNode);
   static bool SupportsAlignAttr(nsINode& aNode);
@@ -1805,11 +1805,10 @@ class HTMLEditUtils final {
       const nsIContent& aContent);
 
   /**
-   * GetClosestAncestorListItemElement() returns a list item element if
-   * aContent or its ancestor in editing host is one.  However, this won't
-   * cross table related element.
+   * Return a list item element if aContent or its ancestor in editing host is
+   * one.  However, this won't cross table related element.
    */
-  static Element* GetClosestAncestorListItemElement(
+  static Element* GetClosestInclusiveAncestorListItemElement(
       const nsIContent& aContent, const Element* aAncestorLimit = nullptr) {
     MOZ_ASSERT_IF(aAncestorLimit,
                   aContent.IsInclusiveDescendantOf(aAncestorLimit));

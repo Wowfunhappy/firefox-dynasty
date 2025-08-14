@@ -1904,6 +1904,15 @@ class HTMLEditor final : public EditorBase,
                           const EditorDOMPoint& aPointToInsert);
 
   /**
+   * Moves all siblings from aFirstContentToMove to aLastContentToMove to
+   * aPointToInsert with a transaction.
+   */
+  [[nodiscard]] MOZ_CAN_RUN_SCRIPT Result<MoveNodeResult, nsresult>
+  MoveSiblingsWithTransaction(nsIContent& aFirstContentToMove,
+                              nsIContent& aLastContentToMove,
+                              const EditorDOMPoint& aPointToInsert);
+
+  /**
    * MoveNodeToEndWithTransaction() moves aContentToMove to end of
    * aNewContainer.
    *
@@ -1914,6 +1923,15 @@ class HTMLEditor final : public EditorBase,
   [[nodiscard]] inline MOZ_CAN_RUN_SCRIPT Result<MoveNodeResult, nsresult>
   MoveNodeToEndWithTransaction(nsIContent& aContentToMove,
                                nsINode& aNewContainer);
+
+  /**
+   * Moves all siblings from aFirstContentToMove to aLastContentToMove to the
+   * end of aNewContainer with a transaction.
+   */
+  [[nodiscard]] inline MOZ_CAN_RUN_SCRIPT Result<MoveNodeResult, nsresult>
+  MoveSiblingsToEndWithTransaction(nsIContent& aFirstContentToMove,
+                                   nsIContent& aLastContentToMove,
+                                   nsINode& aNewContainer);
 
   /**
    * MoveNodeOrChildrenWithTransaction() moves aContent to aPointToInsert.  If
@@ -4639,9 +4657,10 @@ class HTMLEditor final : public EditorBase,
                                                // CollectNonEditableNodes
   friend class ListItemElementSelectionState;  // CollectEditTargetNodes,
                                                // CollectNonEditableNodes
-  friend class MoveNodeTransaction;  // AllowsTransactionsToChangeSelection,
-                                     // CollapseSelectionTo, MarkElementDirty,
-                                     // RangeUpdaterRef
+  friend class MoveNodeTransaction;      // AllowsTransactionsToChangeSelection,
+                                         // CollapseSelectionTo, RangeUpdaterRef
+  friend class MoveSiblingsTransaction;  // AllowsTransactionsToChangeSelection,
+                                         // CollapseSelectionTo, RangeUpdaterRef
   friend class ParagraphStateAtSelection;  // CollectChildren,
                                            // CollectEditTargetNodes,
                                            // CollectListChildren,
