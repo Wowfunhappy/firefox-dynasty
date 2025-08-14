@@ -48,8 +48,12 @@ export class IPProtectionPanel {
    *  The timestamp in milliseconds since IP Protection was enabled
    * @property {boolean} isSignedIn
    *  True if signed in to account
-   * @property {string} location
-   *  The name of the location the proxy is connected to
+   * @property {object} location
+   *  Data about the server location the proxy is connected to
+   * @property {string} location.name
+   *  The location country name
+   * @property {string} location.code
+   *  The location country code
    */
 
   /**
@@ -77,8 +81,10 @@ export class IPProtectionPanel {
    *
    * @param {Window} window
    *   Window containing the panelView to manage.
+   * @param {string} variant
+   *   Variant of the panel that should be used.
    */
-  constructor(window) {
+  constructor(window, variant = "") {
     this.handleEvent = this.#handleEvent.bind(this);
 
     let {
@@ -91,7 +97,11 @@ export class IPProtectionPanel {
       isSignedIn,
       isProtectionEnabled,
       protectionEnabledSince,
-      location: "United States",
+      location: {
+        name: "United States",
+        code: "us",
+      },
+      variant,
     };
 
     if (window) {

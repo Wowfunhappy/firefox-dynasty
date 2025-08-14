@@ -4,7 +4,8 @@
 
 import React, { useCallback } from "react";
 import { useDispatch } from "react-redux";
-import { actionCreators as ac } from "common/Actions.mjs";
+import { actionCreators as ac, actionTypes as at } from "common/Actions.mjs";
+import { useIntersectionObserver } from "../../../lib/utils";
 
 const PREF_PROMO_CARD_DISMISSED = "discoverystream.promoCard.visible";
 
@@ -15,25 +16,58 @@ const PREF_PROMO_CARD_DISMISSED = "discoverystream.promoCard.visible";
 
 const PromoCard = () => {
   const dispatch = useDispatch();
+
+  const onCtaClick = useCallback(() => {
+    dispatch(
+      ac.AlsoToMain({
+        type: at.PROMO_CARD_CLICK,
+      })
+    );
+  }, [dispatch]);
+
   const onDismissClick = useCallback(() => {
+    dispatch(
+      ac.AlsoToMain({
+        type: at.PROMO_CARD_DISMISS,
+      })
+    );
     dispatch(ac.SetPref(PREF_PROMO_CARD_DISMISSED, false));
   }, [dispatch]);
 
+  const handleIntersection = useCallback(() => {
+    dispatch(
+      ac.AlsoToMain({
+        type: at.PROMO_CARD_IMPRESSION,
+      })
+    );
+  }, [dispatch]);
+
+  const ref = useIntersectionObserver(handleIntersection);
+
   return (
-    <div className="promo-card-wrapper">
+    <div
+      className="promo-card-wrapper"
+      ref={el => {
+        ref.current = [el];
+      }}
+    >
       <div className="promo-card-dismiss-button">
         <moz-button
           type="icon ghost"
           size="small"
-          data-l10n-id="promo-card-dismiss-button"
+          data-l10n-id="newtab-promo-card-dismiss-button"
           iconsrc="chrome://global/skin/icons/close.svg"
           onClick={onDismissClick}
           onKeyDown={onDismissClick}
         />
       </div>
       <div className="promo-card-inner">
-        <div className="img-wrapper"></div>
-        {/* bug 1981800 waiting on final illustration*/}
+        <div className="img-wrapper">
+          <img
+            src="chrome://newtab/content/data/content/assets/puzzle-fox.svg"
+            alt=""
+          />
+        </div>
         <span
           className="promo-card-title"
           data-l10n-id="newtab-promo-card-title"
@@ -48,6 +82,7 @@ const PromoCard = () => {
             data-l10n-id="newtab-promo-card-cta"
             target="_blank"
             rel="noreferrer"
+            onClick={onCtaClick}
           ></a>
         </span>
       </div>

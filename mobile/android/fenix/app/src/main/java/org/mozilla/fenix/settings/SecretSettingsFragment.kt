@@ -125,7 +125,7 @@ class SecretSettingsFragment : PreferenceFragmentCompat() {
         }
 
         requirePreference<SwitchPreference>(R.string.pref_key_enable_homepage_searchbar).apply {
-            isVisible = Config.channel.isNightlyOrDebug
+            isVisible = true
             isChecked = context.settings().enableHomepageSearchBar
             onPreferenceChangeListener = SharedPreferenceUpdater()
         }
@@ -152,6 +152,18 @@ class SecretSettingsFragment : PreferenceFragmentCompat() {
             isVisible = true
             isChecked = context.settings().isTrendingSearchesVisible
             onPreferenceChangeListener = SharedPreferenceUpdater()
+        }
+
+        requirePreference<SwitchPreference>(R.string.pref_key_enable_lna_blocking_enabled).apply {
+            isVisible = Config.channel.isNightlyOrDebug
+            isChecked = context.settings().isLnaBlockingEnabled
+            onPreferenceChangeListener = object : SharedPreferenceUpdater() {
+                override fun onPreferenceChange(preference: Preference, newValue: Any?): Boolean {
+                    context.components.core.engine.settings.lnaBlockingEnabled =
+                        newValue as Boolean
+                    return super.onPreferenceChange(preference, newValue)
+                }
+            }
         }
 
         requirePreference<SwitchPreference>(R.string.pref_key_enable_recent_searches).apply {

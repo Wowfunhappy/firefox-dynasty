@@ -1448,25 +1448,11 @@ main section {
   font-size: var(--font-size-small);
 }
 @media (max-width: 865px) {
-  .top-stories-bottom-container .wrapper-topics,
-.top-stories-bottom-container .wrapper-cta + .wrapper-more-recommendations {
+  .top-stories-bottom-container .wrapper-topics {
     display: none;
   }
 }
 @media (max-width: 609px) {
-  .top-stories-bottom-container .wrapper-cta {
-    text-align: center;
-  }
-  .top-stories-bottom-container .wrapper-cta .pocket-logged-in-cta {
-    display: block;
-    margin-inline-end: 0;
-  }
-  .top-stories-bottom-container .wrapper-cta .pocket-logged-in-cta .pocket-cta-button {
-    max-width: none;
-    display: block;
-    margin-inline-end: 0;
-    margin: var(--space-xsmall) 0 var(--space-small);
-  }
   .top-stories-bottom-container .wrapper-more-recommendations {
     width: 100%;
   }
@@ -2126,24 +2112,10 @@ main section {
   background-color: var(--newtab-background-color-secondary);
   z-index: 1;
 }
-.customize-menu .close-button {
+.customize-menu .close-button-wrapper moz-button {
   margin-inline-start: auto;
   margin-inline-end: var(--space-large);
-  white-space: nowrap;
   display: block;
-  background-color: var(--newtab-element-secondary-color);
-  padding: var(--space-small) var(--space-medium);
-  border: 1px solid rgba(0, 0, 0, 0.15);
-  border-radius: var(--border-radius-small);
-  color: var(--newtab-text-primary-color);
-  font-size: var(--font-size-small);
-  font-weight: var(--font-weight-bold);
-}
-.customize-menu .close-button:hover {
-  background-color: var(--newtab-element-secondary-hover-color);
-}
-.customize-menu .close-button:hover:active {
-  background-color: var(--newtab-element-secondary-active-color);
 }
 
 .grid-skip {
@@ -2155,7 +2127,8 @@ main section {
   grid-template-columns: 1fr;
   grid-template-rows: repeat(4, auto);
   grid-row-gap: var(--space-xxlarge);
-  padding: var(--space-large);
+  padding-block: var(--space-xsmall) var(--space-large);
+  padding-inline: var(--space-large);
 }
 .home-section .wallpapers-section h2 {
   font-size: inherit;
@@ -4144,33 +4117,6 @@ main section {
   margin-inline-end: var(--space-medium);
 }
 
-.pocket-logged-in-cta {
-  font-size: var(--font-size-small);
-  margin-inline-end: var(--space-large);
-  display: flex;
-  align-items: flex-start;
-}
-.pocket-logged-in-cta .pocket-cta-button {
-  white-space: nowrap;
-  background: var(--newtab-primary-action-background);
-  letter-spacing: -0.34px;
-  color: var(--color-white);
-  border-radius: var(--border-radius-small);
-  cursor: pointer;
-  max-width: 130px;
-  margin-block-start: calc(var(--space-xxsmall) * -1);
-  min-height: 18px;
-  padding: 0 var(--space-small);
-  display: inline-flex;
-  justify-content: center;
-  align-items: center;
-  margin-inline-end: var(--space-small);
-}
-.pocket-logged-in-cta .pocket-cta-button,
-.pocket-logged-in-cta .cta-text {
-  vertical-align: top;
-}
-
 .more-recommendations {
   display: flex;
   align-items: center;
@@ -4451,15 +4397,29 @@ main section {
   padding-block: var(--space-large);
   max-height: var(--newtab-card-height);
   box-shadow: var(--box-shadow-card);
+  position: relative;
+}
+.lists .confetti-canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 1;
+  /* adjust as needed to sit above background but below UI */
 }
 .lists .select-wrapper {
   padding-inline: var(--space-large);
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-start;
   position: relative;
+  align-items: center;
+  gap: var(--space-medium);
 }
 .lists .select-wrapper moz-button {
   visibility: hidden;
+  margin-inline-start: auto;
 }
 .lists:hover .select-wrapper moz-button, .lists:focus-within .select-wrapper moz-button,
 .lists .select-wrapper panel-list[open] .select-wrapper moz-button {
@@ -4509,6 +4469,12 @@ main section {
   display: flex;
   justify-content: space-between;
   margin-block-end: var(--space-small);
+  transition: opacity 300ms ease;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .lists .task-item.exiting {
+    opacity: 0;
+  }
 }
 .lists .task-item .checkbox-wrapper {
   display: flex;
@@ -4562,6 +4528,7 @@ main section {
   outline: var(--focus-outline);
 }
 .lists .empty-list-text {
+  height: var(--space-xlarge);
   color: var(--text-color-deemphasized);
 }
 .lists .completed-task-wrapper summary {
@@ -5645,6 +5612,14 @@ main section {
     display: none;
   }
 }
+@media (min-width: 610px) {
+  .ds-section-grid.ds-card-grid .ds-image.image-2, .ds-section-grid.ds-card-grid .ds-image.image-3, .ds-section-grid.ds-card-grid .ds-image.image-4 {
+    display: none;
+  }
+  .ds-section-grid.ds-card-grid .ds-image.image-1 {
+    display: block;
+  }
+}
 @media (min-width: 724px) {
   .ds-section-grid.ds-card-grid {
     grid-template-columns: repeat(2, 300px);
@@ -6008,6 +5983,14 @@ main section {
 @media (min-width: 724px) {
   .ds-section-grid.ds-card-grid .col-2-hide-excerpt .meta .info-wrap .excerpt {
     display: none;
+  }
+}
+@media (min-width: 724px) {
+  .ds-section-grid.ds-card-grid .ds-image.image-1, .ds-section-grid.ds-card-grid .ds-image.image-3, .ds-section-grid.ds-card-grid .ds-image.image-4 {
+    display: none;
+  }
+  .ds-section-grid.ds-card-grid .ds-image.image-2 {
+    display: block;
   }
 }
 @media (min-width: 1122px) {
@@ -6376,6 +6359,14 @@ main section {
     display: none;
   }
 }
+@media (min-width: 1122px) {
+  .ds-section-grid.ds-card-grid .ds-image.image-1, .ds-section-grid.ds-card-grid .ds-image.image-2, .ds-section-grid.ds-card-grid .ds-image.image-4 {
+    display: none;
+  }
+  .ds-section-grid.ds-card-grid .ds-image.image-3 {
+    display: block;
+  }
+}
 @media (min-width: 1390px) {
   .ds-section-grid.ds-card-grid {
     grid-template-columns: repeat(4, 300px);
@@ -6739,6 +6730,14 @@ main section {
 @media (min-width: 1390px) {
   .ds-section-grid.ds-card-grid .col-4-hide-excerpt .meta .info-wrap .excerpt {
     display: none;
+  }
+}
+@media (min-width: 1390px) {
+  .ds-section-grid.ds-card-grid .ds-image.image-1, .ds-section-grid.ds-card-grid .ds-image.image-2, .ds-section-grid.ds-card-grid .ds-image.image-3 {
+    display: none;
+  }
+  .ds-section-grid.ds-card-grid .ds-image.image-4 {
+    display: block;
   }
 }
 

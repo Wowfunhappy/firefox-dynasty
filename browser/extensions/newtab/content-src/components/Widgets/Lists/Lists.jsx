@@ -11,7 +11,7 @@ import React, {
 } from "react";
 import { useSelector, batch } from "react-redux";
 import { actionCreators as ac, actionTypes as at } from "common/Actions.mjs";
-import { useIntersectionObserver } from "../../../lib/utils";
+import { useIntersectionObserver, useConfetti } from "../../../lib/utils";
 
 const TASK_TYPE = {
   IN_PROGRESS: "tasks",
@@ -34,14 +34,15 @@ function Lists({ dispatch }) {
   const [newTask, setNewTask] = useState("");
   const [isEditing, setIsEditing] = useState(false);
   const [pendingNewList, setPendingNewList] = useState(null);
+  const selectedList = useMemo(() => lists[selected], [lists, selected]);
 
+  const prevCompletedCount = useRef(selectedList?.completed?.length || 0);
   const inputRef = useRef(null);
   const selectRef = useRef(null);
   const reorderListRef = useRef(null);
+  const [canvasRef, fireConfetti] = useConfetti();
 
   // store selectedList with useMemo so it isnt re-calculated on every re-render
-  const selectedList = useMemo(() => lists[selected], [lists, selected]);
-
   const isValidUrl = useCallback(str => URL.canParse(str), []);
 
   const handleIntersection = useCallback(() => {
@@ -201,7 +202,6 @@ function Lists({ dispatch }) {
 
     let newTasks = selectedList.tasks;
     let newCompleted = selectedList.completed;
-    let localUpdatedTasks;
     let userAction;
 
     // If the task is in the completed array and is now unchecked
@@ -221,10 +221,6 @@ function Lists({ dispatch }) {
       newTasks = selectedList.tasks.filter(task => task.id !== updatedTask.id);
       newCompleted = [...selectedList.completed, updatedTask];
 
-      // Keep a local version of tasks that still includes this item (to preserve UI in this tab)
-      localUpdatedTasks = selectedList.tasks.map(existingTask =>
-        existingTask.id === updatedTask.id ? updatedTask : existingTask
-      );
       userAction = USER_ACTION_TYPES.TASK_COMPLETE;
     } else {
       const targetKey = isCompletedType ? "completed" : "tasks";
@@ -249,23 +245,11 @@ function Lists({ dispatch }) {
       },
     };
 
-    // local override: keep completed item out of the "completed" array
-    const localLists = {
-      ...lists,
-      [selected]: {
-        ...selectedList,
-        tasks: localUpdatedTasks || newTasks,
-        completed: newCompleted.filter(({ id }) => id !== updatedTask.id),
-      },
-    };
-
-    // Dispatch the update to main - will sync across tabs
-    // and apply local override to this tab only
     batch(() => {
       dispatch(
         ac.AlsoToMain({
           type: at.WIDGETS_LISTS_UPDATE,
-          data: { lists: updatedLists, localLists },
+          data: { lists: updatedLists },
         })
       );
       if (userAction) {
@@ -478,6 +462,19 @@ function Lists({ dispatch }) {
     );
   }
 
+  useEffect(() => {
+    if (selectedList) {
+      const doneCount = selectedList.completed?.length || 0;
+      const previous = Math.floor(prevCompletedCount.current / 5);
+      const current = Math.floor(doneCount / 5);
+
+      if (current > previous) {
+        fireConfetti();
+      }
+      prevCompletedCount.current = doneCount;
+    }
+  }, [selectedList, fireConfetti]);
+
   if (!lists) {
     return null;
   }
@@ -504,6 +501,7 @@ function Lists({ dispatch }) {
             ))}
           </moz-select>
         </EditableText>
+        <moz-badge data-l10n-id="newtab-widget-lists-label-beta"></moz-badge>
         <moz-button
           className="lists-panel-button"
           iconSrc="chrome://global/skin/icons/more.svg"
@@ -605,6 +603,7 @@ function Lists({ dispatch }) {
           </fieldset>
         </moz-reorderable-list>
       </div>
+      <canvas className="confetti-canvas" ref={canvasRef} />
     </article>
   );
 }
@@ -620,11 +619,31 @@ function ListItem({
   isLast = false,
 }) {
   const [isEditing, setIsEditing] = useState(false);
+  const [exiting, setExiting] = useState(false);
   const isCompleted = type === TASK_TYPE.COMPLETED;
 
+  const prefersReducedMotion =
+    typeof window !== "undefined" &&
+    typeof window.matchMedia === "function" &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
   function handleCheckboxChange(e) {
-    const updatedTask = { ...task, completed: e.target.checked };
-    updateTask(updatedTask, type);
+    const { checked } = e.target;
+    const updatedTask = { ...task, completed: checked };
+    if (checked && !prefersReducedMotion) {
+      setExiting(true);
+    } else {
+      updateTask(updatedTask, type);
+    }
+  }
+
+  // When the CSS transition finishes, dispatch the real “completed = true”
+  function handleTransitionEnd(e) {
+    // only fire once for the exit:
+    if (e.propertyName === "opacity" && exiting) {
+      updateTask({ ...task, completed: true }, type);
+      setExiting(false);
+    }
   }
 
   function handleSave(newValue) {
@@ -663,12 +682,17 @@ function ListItem({
   );
 
   return (
-    <div className={`task-item task-type-${type}`} id={task.id} key={task.id}>
+    <div
+      className={`task-item task-type-${type} ${exiting ? " exiting" : ""}`}
+      id={task.id}
+      key={task.id}
+      onTransitionEnd={handleTransitionEnd}
+    >
       <div className="checkbox-wrapper">
         <input
           type="checkbox"
           onChange={handleCheckboxChange}
-          checked={task.completed}
+          checked={task.completed || exiting}
         />
         {isCompleted ? (
           taskLabel

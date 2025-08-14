@@ -4,7 +4,8 @@
 
 package org.mozilla.fenix.home.ui
 
-import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -16,9 +17,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.derivedStateOf
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
@@ -31,8 +29,7 @@ import org.mozilla.fenix.home.interactor.HomepageInteractor
 import org.mozilla.fenix.home.pocket.ui.PocketSection
 import org.mozilla.fenix.home.store.HomepageState
 import org.mozilla.fenix.home.ui.HomepageTestTag.HOMEPAGE
-
-private const val MIDDLE_SEARCH_SCROLL_THRESHOLD_PX = 10
+import org.mozilla.fenix.theme.FirefoxTheme
 
 /**
  * Top level composable for the middle search homepage.
@@ -98,21 +95,11 @@ internal fun MiddleSearchHomepage(
 
                             Spacer(modifier = Modifier.weight(1f))
 
-                            if (searchBarEnabled) {
-                                val atTopOfList by remember {
-                                    derivedStateOf {
-                                        scrollState.value < MIDDLE_SEARCH_SCROLL_THRESHOLD_PX
-                                    }
-                                }
+                            LaunchedEffect(key1 = searchBarEnabled, key2 = searchBarVisible) {
+                                onMiddleSearchBarVisibilityChanged(searchBarEnabled && searchBarVisible)
+                            }
 
-                                LaunchedEffect(atTopOfList) {
-                                    onMiddleSearchBarVisibilityChanged(atTopOfList)
-                                }
-
-                                val alpha by animateFloatAsState(
-                                    targetValue = if (showSearchBar && atTopOfList) 1f else 0f,
-                                )
-
+                            if (searchBarEnabled && searchBarVisible) {
                                 SearchBar(
                                     modifier = Modifier
                                         .padding(horizontal = horizontalMargin)
@@ -120,6 +107,7 @@ internal fun MiddleSearchHomepage(
                                     onClick = interactor::onNavigateSearch,
                                 )
                             }
+
                             Spacer(modifier = Modifier.weight(1f))
 
                             if (showPocketStories) {
@@ -138,5 +126,21 @@ internal fun MiddleSearchHomepage(
                 }
             }
         }
+
+        if (state.isSearchInProgress) {
+            Scrim(onDismiss = interactor::onHomeContentFocusedWhileSearchIsActive)
+        }
     }
+}
+
+@Composable
+private fun Scrim(onDismiss: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .background(FirefoxTheme.colors.layerScrim.copy(alpha = 0.75f))
+            .fillMaxSize()
+            .pointerInput(Unit) {
+                detectTapGestures(onTap = { onDismiss() })
+            },
+    )
 }

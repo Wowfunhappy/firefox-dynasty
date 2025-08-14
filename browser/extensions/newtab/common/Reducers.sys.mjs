@@ -759,7 +759,6 @@ function DiscoveryStream(prevState = INITIAL_STATE.DiscoveryStream, action) {
         ...prevState,
         recentSavesEnabled: action.data.recentSavesEnabled,
         pocketButtonEnabled: action.data.pocketButtonEnabled,
-        saveToPocketCard: action.data.saveToPocketCard,
         hideDescriptions: action.data.hideDescriptions,
         compactImages: action.data.compactImages,
         imageGradient: action.data.imageGradient,
@@ -1160,8 +1159,9 @@ function TimerWidget(prevState = INITIAL_STATE.TimerWidget, action) {
       return {
         ...prevState,
         [timerType]: {
-          duration: 0,
-          initialDuration: 0,
+          ...prevState[timerType],
+          duration: action.data.duration,
+          initialDuration: action.data.duration,
           startTime: null,
           isRunning: false,
         },

@@ -733,8 +733,6 @@ bool nsAppShell::ProcessNextNativeEvent(bool aMayWait) {
 
   NSRunLoop* currentRunLoop = [NSRunLoop currentRunLoop];
 
-  EventQueueRef currentEventQueue = GetCurrentEventQueue();
-
   if (aMayWait) {
     mozilla::BackgroundHangMonitor().NotifyWait();
   }
@@ -830,9 +828,11 @@ bool nsAppShell::ProcessNextNativeEvent(bool aMayWait) {
   } while (mRunningEventLoop);
 
   if (eventProcessed) {
-    moreEvents =
-        (AcquireFirstMatchingEventInQueue(currentEventQueue, 0, NULL,
-                                          kEventQueueOptionsNone) != NULL);
+    NSEvent* nextEvent = [NSApp nextEventMatchingMask:NSEventMaskAny
+                                            untilDate:nil
+                                               inMode:currentMode
+                                              dequeue:NO];
+    moreEvents = !!nextEvent;
   }
 
   mRunningEventLoop = wasRunningEventLoop;

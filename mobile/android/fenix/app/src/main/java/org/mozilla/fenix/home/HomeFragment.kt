@@ -17,7 +17,6 @@ import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.DrawableRes
 import androidx.annotation.VisibleForTesting
-import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.foundation.layout.Column
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -89,7 +88,6 @@ import org.mozilla.fenix.components.appstate.AppAction.ReviewPromptAction.CheckI
 import org.mozilla.fenix.components.appstate.AppAction.ReviewPromptAction.ReviewPromptShown
 import org.mozilla.fenix.components.appstate.AppState
 import org.mozilla.fenix.components.appstate.qrScanner.QrScannerBinding
-import org.mozilla.fenix.components.appstate.qrScanner.QrScannerDelegate
 import org.mozilla.fenix.components.components
 import org.mozilla.fenix.components.toolbar.BottomToolbarContainerView
 import org.mozilla.fenix.compose.snackbar.Snackbar
@@ -135,6 +133,7 @@ import org.mozilla.fenix.home.topsites.DefaultTopSitesView
 import org.mozilla.fenix.home.topsites.TopSitesConfigConstants.AMAZON_SEARCH_ENGINE_NAME
 import org.mozilla.fenix.home.topsites.TopSitesConfigConstants.AMAZON_SPONSORED_TITLE
 import org.mozilla.fenix.home.topsites.TopSitesConfigConstants.EBAY_SPONSORED_TITLE
+import org.mozilla.fenix.home.topsites.controller.DefaultTopSiteController
 import org.mozilla.fenix.home.topsites.getTopSitesConfig
 import org.mozilla.fenix.home.ui.Homepage
 import org.mozilla.fenix.home.ui.MiddleSearchHomepage
@@ -160,7 +159,6 @@ import org.mozilla.fenix.snackbar.FenixSnackbarDelegate
 import org.mozilla.fenix.snackbar.SnackbarBinding
 import org.mozilla.fenix.tabstray.Page
 import org.mozilla.fenix.tabstray.TabsTrayAccessPoint
-import org.mozilla.fenix.termsofuse.shouldShowTermsOfUsePrompt
 import org.mozilla.fenix.theme.FirefoxTheme
 import org.mozilla.fenix.utils.allowUndo
 import org.mozilla.fenix.utils.showAddSearchWidgetPromptIfSupported
@@ -468,8 +466,6 @@ class HomeFragment : Fragment() {
             restoreUseCase = components.useCases.tabsUseCases.restore,
             selectTabUseCase = components.useCases.tabsUseCases.selectTab,
             reloadUrlUseCase = components.useCases.sessionUseCases.reload,
-            topSitesUseCases = components.useCases.topSitesUseCase,
-            marsUseCases = components.useCases.marsUseCases,
             fenixBrowserUseCases = components.useCases.fenixBrowserUseCases,
             appStore = components.appStore,
             navControllerRef = WeakReference(findNavController()),
@@ -556,6 +552,18 @@ class HomeFragment : Fragment() {
             homeSearchController = DefaultHomeSearchController(
                 appStore = components.appStore,
             ),
+            topSiteController = DefaultTopSiteController(
+                activityRef = WeakReference(activity),
+                store = store,
+                navControllerRef = WeakReference(findNavController()),
+                settings = components.settings,
+                addTabUseCase = components.useCases.tabsUseCases.addTab,
+                selectTabUseCase = components.useCases.tabsUseCases.selectTab,
+                fenixBrowserUseCases = components.useCases.fenixBrowserUseCases,
+                topSitesUseCases = components.useCases.topSitesUseCase,
+                marsUseCases = components.useCases.marsUseCases,
+                viewLifecycleScope = viewLifecycleOwner.lifecycleScope,
+            ),
         )
 
         nullableToolbarView = buildToolbar(activity)
@@ -569,12 +577,6 @@ class HomeFragment : Fragment() {
         disableAppBarDragging()
 
         FxNimbus.features.homescreen.recordExposure()
-
-        if (requireContext().settings().shouldShowTermsOfUsePrompt()) {
-            findNavController().navigate(
-                BrowserFragmentDirections.actionGlobalTermsOfUseDialog(),
-            )
-        }
 
         // DO NOT MOVE ANYTHING BELOW THIS addMarker CALL!
         requireComponents.core.engine.profiler?.addMarker(
@@ -873,7 +875,7 @@ class HomeFragment : Fragment() {
             },
         )
 
-        toolbarView.build(requireComponents.core.store.state)
+        toolbarView.build(requireComponents.core.store.state, requireContext().settings().enableHomepageSearchBar)
         if (requireContext().settings().isTabStripEnabled) {
             initTabStrip()
         }
@@ -1155,6 +1157,12 @@ class HomeFragment : Fragment() {
 
         // Trigger review prompt logic and show the appropriate prompt variation if applicable
         requireComponents.appStore.dispatch(CheckIfEligibleForReviewPrompt)
+
+        if (requireComponents.termsOfUseManager.shouldShowTermsOfUsePromptOnHomepage()) {
+            findNavController().navigate(
+                BrowserFragmentDirections.actionGlobalTermsOfUseDialog(),
+            )
+        }
     }
 
     @VisibleForTesting
@@ -1356,6 +1364,7 @@ class HomeFragment : Fragment() {
             toolbarStore = toolbarStore,
             navController = findNavController(),
             lifecycleOwner = this,
+            tabId = args.sessionToStartSearchFor,
             searchAccessPoint = args.searchAccessPoint,
         ).also {
             awesomeBarComposable = it

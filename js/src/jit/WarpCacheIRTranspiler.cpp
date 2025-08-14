@@ -2490,16 +2490,38 @@ bool WarpCacheIRTranspiler::emitTypedArraySetResult(ObjOperandId targetId,
 }
 
 bool WarpCacheIRTranspiler::emitTypedArraySubarrayResult(
-    ObjOperandId objId, IntPtrOperandId startId, IntPtrOperandId endId) {
+    uint32_t templateObjectOffset, ObjOperandId objId, IntPtrOperandId startId,
+    IntPtrOperandId endId) {
+  JSObject* templateObj = tenuredObjectStubField(templateObjectOffset);
   MDefinition* obj = getOperand(objId);
   MDefinition* start = getOperand(startId);
   MDefinition* end = getOperand(endId);
 
-  auto* ins = MTypedArraySubarray::New(alloc(), obj, start, end);
-  addEffectful(ins);
+  auto* srcLength = MArrayBufferViewLength::New(alloc(), obj);
+  add(srcLength);
+
+  auto* actualStart = MToIntegerIndex::New(alloc(), start, srcLength);
+  add(actualStart);
+
+  auto* actualEnd = MToIntegerIndex::New(alloc(), end, srcLength);
+  add(actualEnd);
+
+  auto* minStart =
+      MMinMax::NewMin(alloc(), actualStart, actualEnd, MIRType::IntPtr);
+  add(minStart);
+
+  auto* length = MSub::New(alloc(), actualEnd, minStart, MIRType::IntPtr);
+  add(length);
+
+  // TODO: support pre-tenuring.
+  gc::Heap heap = gc::Heap::Default;
+
+  auto* ins = MTypedArraySubarray::New(alloc(), obj, actualStart, length,
+                                       templateObj, heap);
+  add(ins);
 
   pushResult(ins);
-  return resumeAfter(ins);
+  return true;
 }
 
 bool WarpCacheIRTranspiler::emitLinearizeForCharAccess(

@@ -60,12 +60,12 @@ import org.mozilla.fenix.home.recentvisits.view.RecentVisitMenuItem
 import org.mozilla.fenix.home.recentvisits.view.RecentlyVisited
 import org.mozilla.fenix.home.sessioncontrol.CollectionInteractor
 import org.mozilla.fenix.home.sessioncontrol.MessageCardInteractor
-import org.mozilla.fenix.home.sessioncontrol.TopSiteInteractor
 import org.mozilla.fenix.home.setup.ui.SetupChecklist
 import org.mozilla.fenix.home.store.HomepageState
 import org.mozilla.fenix.home.store.NimbusMessageState
 import org.mozilla.fenix.home.topsites.TopSiteColors
 import org.mozilla.fenix.home.topsites.TopSites
+import org.mozilla.fenix.home.topsites.interactor.TopSiteInteractor
 import org.mozilla.fenix.home.ui.HomepageTestTag.HOMEPAGE
 import org.mozilla.fenix.theme.FirefoxTheme
 import org.mozilla.fenix.theme.Theme
@@ -254,6 +254,8 @@ internal fun TopSitesSection(
     HomeSectionHeader(
         headerText = stringResource(R.string.homepage_shortcuts_title),
         modifier = Modifier.padding(horizontal = horizontalMargin),
+        description = stringResource(R.string.homepage_shortcuts_show_all_content_description),
+        onShowAllClick = interactor::onShowAllTopSitesClicked,
     )
 
     Spacer(Modifier.height(16.dp))
@@ -459,7 +461,7 @@ private fun HomepagePreview() {
                     showPocketStories = true,
                     showCollections = true,
                     showHeader = false,
-                    showSearchBar = true,
+                    searchBarVisible = true,
                     searchBarEnabled = false,
                     firstFrameDrawn = true,
                     setupChecklistState = null,
@@ -499,7 +501,7 @@ private fun HomepagePreviewCollections() {
                 showPocketStories = true,
                 showCollections = true,
                 showHeader = false,
-                showSearchBar = true,
+                searchBarVisible = true,
                 searchBarEnabled = false,
                 firstFrameDrawn = true,
                 setupChecklistState = null,

@@ -5919,7 +5919,7 @@ void PresShell::SynthesizeMouseMove(bool aFromScroll) {
     return;
   }
 
-  if (mLastMousePointerId.isNothing() && !mPointerIds.IsEmpty()) {
+  if (mLastMousePointerId.isNothing() && mPointerIds.IsEmpty()) {
     return;
   }
 
@@ -12491,8 +12491,7 @@ void PresShell::MarkStickyFramesForReflow() {
     return;
   }
 
-  StickyScrollContainer* ssc =
-      StickyScrollContainer::GetStickyScrollContainerForScrollFrame(sc);
+  StickyScrollContainer* ssc = sc->GetStickyContainer();
   if (!ssc) {
     return;
   }

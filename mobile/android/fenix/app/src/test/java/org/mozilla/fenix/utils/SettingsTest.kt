@@ -44,6 +44,8 @@ class SettingsTest {
         persistentStorage = ASK_TO_ALLOW,
         mediaKeySystemAccess = ASK_TO_ALLOW,
         crossOriginStorageAccess = ASK_TO_ALLOW,
+        localDeviceAccess = ASK_TO_ALLOW,
+        localNetworkAccess = ASK_TO_ALLOW,
     )
 
     @Before
@@ -579,6 +581,30 @@ class SettingsTest {
         // Then
         assertEquals(
             defaultPermissions.copy(microphone = BLOCKED),
+            settings.getSitePermissionsCustomSettingsRules(),
+        )
+    }
+
+    @Test
+    fun getSitePermissionsCustomSettingsRules_localDeviceAccess() {
+        // When
+        settings.setSitePermissionsPhoneFeatureAction(PhoneFeature.LOCAL_DEVICE_ACCESS, BLOCKED)
+
+        // Then
+        assertEquals(
+            defaultPermissions.copy(localDeviceAccess = BLOCKED),
+            settings.getSitePermissionsCustomSettingsRules(),
+        )
+    }
+
+    @Test
+    fun getSitePermissionsCustomSettingsRules_localNetworkAccess() {
+        // When
+        settings.setSitePermissionsPhoneFeatureAction(PhoneFeature.LOCAL_NETWORK_ACCESS, BLOCKED)
+
+        // Then
+        assertEquals(
+            defaultPermissions.copy(localNetworkAccess = BLOCKED),
             settings.getSitePermissionsCustomSettingsRules(),
         )
     }

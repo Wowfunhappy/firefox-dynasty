@@ -88,7 +88,6 @@
 #include "nsIFrameInlines.h"
 #include "nsILayoutHistoryState.h"
 #include "nsINode.h"
-#include "nsIScrollPositionListener.h"
 #include "nsIScrollbarMediator.h"
 #include "nsIXULRuntime.h"
 #include "nsLayoutUtils.h"
@@ -531,7 +530,6 @@ ScrollReflowInput::ScrollReflowInput(ScrollContainerFrame* aFrame,
   mOverlayScrollbars = aFrame->UsesOverlayScrollbars();
 
   if (nsScrollbarFrame* scrollbar = aFrame->GetScrollbarBox(false)) {
-    scrollbar->SetScrollbarMediatorContent(mReflowInput.mFrame->GetContent());
     mHScrollbarPrefSize = scrollbar->ScrollbarMinSize();
     // A zero minimum size is a bug with non-overlay scrollbars. That means
     // we'll always try to place the scrollbar, even if it will ultimately not
@@ -544,7 +542,6 @@ ScrollReflowInput::ScrollReflowInput(ScrollContainerFrame* aFrame,
     mHScrollbarAllowedForScrollingVVInsideLV = false;
   }
   if (nsScrollbarFrame* scrollbar = aFrame->GetScrollbarBox(true)) {
-    scrollbar->SetScrollbarMediatorContent(mReflowInput.mFrame->GetContent());
     mVScrollbarPrefSize = scrollbar->ScrollbarMinSize();
     // See above.
     MOZ_ASSERT(mVScrollbarPrefSize.width && mVScrollbarPrefSize.height,
@@ -3075,11 +3072,6 @@ void ScrollContainerFrame::ScrollToImpl(
     needFrameVisibilityUpdate = true;
   }
 
-  // notify the listeners.
-  for (uint32_t i = 0; i < mListeners.Length(); i++) {
-    mListeners[i]->ScrollPositionWillChange(pt.x, pt.y);
-  }
-
   nsRect oldDisplayPort;
   nsIContent* content = GetContent();
   DisplayPortUtils::GetDisplayPort(content, &oldDisplayPort);
@@ -3289,9 +3281,8 @@ void ScrollContainerFrame::ScrollToImpl(
   // this moment. Therefore, we can schedule scroll animations directly.
   ScheduleScrollAnimations();
 
-  // notify the listeners.
-  for (uint32_t i = 0; i < mListeners.Length(); i++) {
-    mListeners[i]->ScrollPositionDidChange(pt.x, pt.y);
+  if (mStickyContainer) {
+    mStickyContainer->UpdatePositions(pt, /* aSubtreeRoot = */ nullptr);
   }
 
   if (nsCOMPtr<nsIDocShell> docShell = presContext->GetDocShell()) {
@@ -5176,8 +5167,15 @@ static void AddToListIfHeaderFooter(nsIFrame* aFrame,
   }
 }
 
+StickyScrollContainer& ScrollContainerFrame::EnsureStickyContainer() {
+  if (!mStickyContainer) {
+    mStickyContainer = MakeUnique<StickyScrollContainer>(this);
+  }
+  return *mStickyContainer;
+}
+
 static nsSize GetScrollPortSizeExcludingHeadersAndFooters(
-    nsIFrame* aScrollFrame, nsIFrame* aViewportFrame,
+    ScrollContainerFrame* aScrollFrame, nsIFrame* aViewportFrame,
     const nsRect& aScrollPort) {
   AutoTArray<TopAndBottom, 10> list;
   if (aViewportFrame) {
@@ -5187,10 +5185,7 @@ static nsSize GetScrollPortSizeExcludingHeadersAndFooters(
   }
 
   // Add sticky frames that are currently in "fixed" positions
-  StickyScrollContainer* ssc =
-      StickyScrollContainer::GetStickyScrollContainerForScrollFrame(
-          aScrollFrame);
-  if (ssc) {
+  if (auto* ssc = aScrollFrame->GetStickyContainer()) {
     for (nsIFrame* f : ssc->GetFrames().IterFromShallowest()) {
       // If it's acting like fixed position.
       if (ssc->IsStuckInYDirection(f)) {
@@ -5484,31 +5479,20 @@ void ScrollContainerFrame::ReloadChildFrames() {
     if (content == GetContent()) {
       NS_ASSERTION(!mScrolledFrame, "Already found the scrolled frame");
       mScrolledFrame = frame;
-    } else {
-      nsAutoString value;
-      if (content->IsElement()) {
-        content->AsElement()->GetAttr(nsGkAtoms::orient, value);
-      }
-      if (!value.IsEmpty()) {
-        // probably a scrollbar then
-        if (value.LowerCaseEqualsLiteral("horizontal")) {
-          NS_ASSERTION(!mHScrollbarBox,
-                       "Found multiple horizontal scrollbars?");
-          mHScrollbarBox = do_QueryFrame(frame);
-          MOZ_ASSERT(mHScrollbarBox, "Not a scrollbar?");
-        } else {
-          NS_ASSERTION(!mVScrollbarBox, "Found multiple vertical scrollbars?");
-          mVScrollbarBox = do_QueryFrame(frame);
-          MOZ_ASSERT(mVScrollbarBox, "Not a scrollbar?");
-        }
-      } else if (content->IsXULElement(nsGkAtoms::resizer)) {
-        NS_ASSERTION(!mResizerBox, "Found multiple resizers");
-        mResizerBox = frame;
-      } else if (content->IsXULElement(nsGkAtoms::scrollcorner)) {
-        // probably a scrollcorner
-        NS_ASSERTION(!mScrollCornerBox, "Found multiple scrollcorners");
-        mScrollCornerBox = frame;
-      }
+    } else if (content == mVScrollbarContent) {
+      NS_ASSERTION(!mVScrollbarBox, "Found multiple vertical scrollbars?");
+      mVScrollbarBox = do_QueryFrame(frame);
+      MOZ_ASSERT(mVScrollbarBox, "Not a scrollbar?");
+    } else if (content == mHScrollbarContent) {
+      NS_ASSERTION(!mHScrollbarBox, "Found multiple horizontal scrollbars?");
+      mHScrollbarBox = do_QueryFrame(frame);
+      MOZ_ASSERT(mHScrollbarBox, "Not a scrollbar?");
+    } else if (content == mResizerContent) {
+      NS_ASSERTION(!mResizerBox, "Found multiple resizers");
+      mResizerBox = frame;
+    } else if (content == mScrollCornerContent) {
+      NS_ASSERTION(!mScrollCornerBox, "Found multiple scrollcorners");
+      mScrollCornerBox = frame;
     }
   }
 }
@@ -5518,11 +5502,6 @@ already_AddRefed<Element> ScrollContainerFrame::MakeScrollbar(
   MOZ_ASSERT(aNodeInfo);
   MOZ_ASSERT(
       aNodeInfo->Equals(nsGkAtoms::scrollbar, nullptr, kNameSpaceID_XUL));
-
-  static constexpr nsLiteralString kOrientValues[2] = {
-      u"horizontal"_ns,
-      u"vertical"_ns,
-  };
 
   aKey = AnonymousContentKey::Type_Scrollbar;
   if (aVertical) {
@@ -5540,15 +5519,16 @@ already_AddRefed<Element> ScrollContainerFrame::MakeScrollbar(
                  reinterpret_cast<void*>(true));
 #endif  // DEBUG
 
-  e->SetAttr(kNameSpaceID_None, nsGkAtoms::orient, kOrientValues[aVertical],
-             false);
+  if (aVertical) {
+    e->SetAttr(kNameSpaceID_None, nsGkAtoms::vertical, u"true"_ns, false);
+  }
 
   if (mIsRoot) {
     e->SetProperty(nsGkAtoms::docLevelNativeAnonymousContent,
                    reinterpret_cast<void*>(true));
     e->SetAttr(kNameSpaceID_None, nsGkAtoms::root, u"true"_ns, false);
 
-    // Don't bother making style caching take [root="true"] styles into account.
+    // Don't bother making style caching take [root] styles into account.
     aKey = AnonymousContentKey::None;
   }
 
@@ -5623,9 +5603,7 @@ auto ScrollContainerFrame::GetNeededAnonymousContent() const
 }
 
 nsresult ScrollContainerFrame::CreateAnonymousContent(
-    nsTArray<nsIAnonymousContentCreator::ContentInfo>& aElements) {
-  typedef nsIAnonymousContentCreator::ContentInfo ContentInfo;
-
+    nsTArray<ContentInfo>& aElements) {
   nsPresContext* presContext = PresContext();
   nsNodeInfoManager* nodeInfoManager =
       presContext->Document()->NodeInfoManager();
@@ -5715,15 +5693,6 @@ nsresult ScrollContainerFrame::CreateAnonymousContent(
     }
     aElements.AppendElement(ContentInfo(mScrollCornerContent, key));
   }
-
-  // Don't cache styles if we are a child of a <select> element, since we have
-  // some UA style sheet rules that depend on the <select>'s attributes.
-  if (GetContent()->IsHTMLElement(nsGkAtoms::select)) {
-    for (auto& info : aElements) {
-      info.mKey = AnonymousContentKey::None;
-    }
-  }
-
   return NS_OK;
 }
 
@@ -6421,10 +6390,8 @@ bool ScrollContainerFrame::ComputeCustomOverflow(
 }
 
 void ScrollContainerFrame::UpdateSticky() {
-  StickyScrollContainer* ssc =
-      StickyScrollContainer::GetStickyScrollContainerForScrollFrame(this);
-  if (ssc) {
-    ssc->UpdatePositions(GetScrollPosition(), this);
+  if (mStickyContainer) {
+    mStickyContainer->UpdatePositions(GetScrollPosition(), this);
   }
 }
 

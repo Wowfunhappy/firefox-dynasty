@@ -36,6 +36,7 @@ class IPProtectionWidget {
   static PANEL_ID = "PanelUI-ipprotection";
 
   static ENABLED_PREF = "browser.ipProtection.enabled";
+  static VARIANT_PREF = "browser.ipProtection.variant";
 
   #enabled = true;
   #created = false;
@@ -45,6 +46,7 @@ class IPProtectionWidget {
   constructor() {
     this.updateEnabled = this.#updateEnabled.bind(this);
     this.sendReadyTrigger = this.#sendReadyTrigger.bind(this);
+    this.handleEvent = this.#handleEvent.bind(this);
   }
 
   /**
@@ -63,6 +65,8 @@ class IPProtectionWidget {
     }
 
     lazy.IPProtectionService.init();
+    lazy.CustomizableUI.addListener(this);
+    this.#destroyed = false;
   }
 
   /**
@@ -73,6 +77,7 @@ class IPProtectionWidget {
     this.#uninitPanels();
     lazy.IPProtectionService.uninit();
     this.#destroyed = true;
+    lazy.CustomizableUI.removeListener(this);
   }
 
   /**
@@ -121,6 +126,7 @@ class IPProtectionWidget {
     const onViewHiding = this.#onViewHiding.bind(this);
     const onBeforeCreated = this.#onBeforeCreated.bind(this);
     const onCreated = this.#onCreated.bind(this);
+    const onDestroyed = this.#onDestroyed.bind(this);
     lazy.CustomizableUI.createWidget({
       id: IPProtectionWidget.WIDGET_ID,
       l10nId: IPProtectionWidget.WIDGET_ID,
@@ -131,6 +137,7 @@ class IPProtectionWidget {
       onViewHiding,
       onBeforeCreated,
       onCreated,
+      onDestroyed,
     });
 
     this.#placeWidget();
@@ -262,7 +269,7 @@ class IPProtectionWidget {
   #onBeforeCreated(doc) {
     let { ownerGlobal } = doc;
     if (!this.#panels.has(ownerGlobal)) {
-      let panel = new lazy.IPProtectionPanel(ownerGlobal);
+      let panel = new lazy.IPProtectionPanel(ownerGlobal, this.variant);
       this.#panels.set(ownerGlobal, panel);
     }
   }
@@ -277,6 +284,34 @@ class IPProtectionWidget {
     this.readyTriggerIdleCallback = lazy.requestIdleCallback(
       this.sendReadyTrigger
     );
+
+    lazy.IPProtectionService.addEventListener(
+      "IPProtectionService:Started",
+      this.handleEvent
+    );
+
+    lazy.IPProtectionService.addEventListener(
+      "IPProtectionService:Stopped",
+      this.handleEvent
+    );
+  }
+
+  #onDestroyed() {
+    lazy.IPProtectionService.removeEventListener(
+      "IPProtectionService:Started",
+      this.handleEvent
+    );
+    lazy.IPProtectionService.removeEventListener(
+      "IPProtectionService:Stopped",
+      this.handleEvent
+    );
+  }
+
+  onWidgetRemoved(widgetId) {
+    // Shut down VPN connection when widget is removed
+    if (widgetId == IPProtectionWidget.WIDGET_ID) {
+      lazy.IPProtectionService.stop();
+    }
   }
 
   async #sendReadyTrigger() {
@@ -288,6 +323,25 @@ class IPProtectionWidget {
       id: "ipProtectionReady",
     });
   }
+
+  #handleEvent(event) {
+    if (
+      event.type == "IPProtectionService:Started" ||
+      event.type == "IPProtectionService:Stopped"
+    ) {
+      let status = {
+        isActive: lazy.IPProtectionService.isActive,
+        isError: !!event.detail?.error,
+      };
+
+      let widget = lazy.CustomizableUI.getWidget(IPProtectionWidget.WIDGET_ID);
+      let windows = ChromeUtils.nondeterministicGetWeakMapKeys(this.#panels);
+      for (let win of windows) {
+        let toolbaritem = widget.forWindow(win).node;
+        this.updateIconStatus(toolbaritem, status);
+      }
+    }
+  }
 }
 
 const IPProtection = new IPProtectionWidget();
@@ -298,6 +352,13 @@ XPCOMUtils.defineLazyPreferenceGetter(
   IPProtectionWidget.ENABLED_PREF,
   false,
   IPProtection.updateEnabled
+);
+
+XPCOMUtils.defineLazyPreferenceGetter(
+  IPProtection,
+  "variant",
+  IPProtectionWidget.VARIANT_PREF,
+  ""
 );
 
 export { IPProtection, IPProtectionWidget };

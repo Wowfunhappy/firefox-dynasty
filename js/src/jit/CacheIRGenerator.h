@@ -119,11 +119,23 @@ class MOZ_RAII IRGenerator {
   void emitCallDOMGetterResultNoGuards(NativeObject* holder, PropertyInfo prop,
                                        ObjOperandId objId);
 
+  void emitCallAccessorGuards(NativeObject* obj, NativeObject* holder,
+                              HandleId id, PropertyInfo prop,
+                              ObjOperandId objId, AccessorKind accessorKind);
+
   bool canOptimizeConstantDataProperty(NativeObject* holder, PropertyInfo prop,
                                        ObjectFuse** objFuse);
   void emitConstantDataPropertyResult(NativeObject* holder,
                                       ObjOperandId holderId, PropertyKey key,
                                       PropertyInfo prop, ObjectFuse* objFuse);
+
+  bool canOptimizeConstantAccessorProperty(NativeObject* holder,
+                                           PropertyInfo prop,
+                                           ObjectFuse** objFuse);
+  void emitGuardConstantAccessorProperty(NativeObject* holder,
+                                         ObjOperandId holderId, PropertyKey key,
+                                         PropertyInfo prop,
+                                         ObjectFuse* objFuse);
 
   gc::AllocSite* maybeCreateAllocSite();
 

@@ -128,6 +128,73 @@ pub struct AdapterInformation<S> {
     support_use_shared_texture_in_swap_chain: bool,
 }
 
+#[repr(C)]
+pub struct TextureViewDescriptor<'a> {
+    label: Option<&'a nsACString>,
+    format: Option<&'a wgt::TextureFormat>,
+    dimension: Option<&'a wgt::TextureViewDimension>,
+    aspect: wgt::TextureAspect,
+    base_mip_level: u32,
+    mip_level_count: Option<&'a u32>,
+    base_array_layer: u32,
+    array_layer_count: Option<&'a u32>,
+}
+
+// Declare an ID type for referring to external texture sources, and allow
+// them to be managed by IdentityHub just like built-in wgpu resource types.
+#[derive(Debug)]
+pub enum ExternalTextureSource {}
+impl id::Marker for ExternalTextureSource {}
+pub type ExternalTextureSourceId = id::Id<ExternalTextureSource>;
+
+#[repr(C)]
+#[derive(Debug, Copy, Clone, serde::Serialize, serde::Deserialize)]
+pub enum PredefinedColorSpace {
+    Srgb,
+    DisplayP3,
+}
+
+// Descriptor for creating an external texture as used by the client side.
+// Contains the fields of dom::GPUExternalTextureDescriptor, but with the
+// source encoded as an ID.
+#[repr(C)]
+#[derive(serde::Serialize, serde::Deserialize)]
+pub struct ExternalTextureDescriptor<L> {
+    label: L,
+    source: Option<crate::ExternalTextureSourceId>,
+    color_space: PredefinedColorSpace,
+}
+
+impl<L> ExternalTextureDescriptor<L> {
+    #[must_use]
+    pub fn map_label<K>(&self, fun: impl FnOnce(&L) -> K) -> ExternalTextureDescriptor<K> {
+        ExternalTextureDescriptor {
+            label: fun(&self.label),
+            source: self.source,
+            color_space: self.color_space,
+        }
+    }
+}
+
+// Descriptor for creating an external texture as used by the server side. This
+// contains information that can only be provided from the server side via the
+// `ExternalTextureSourceHost`. It will be combined with the
+// `ExternalTextureDescriptor` provided by the client in order to create the
+// descriptor that will be passed to wgpu.
+#[repr(C)]
+struct ExternalTextureDescriptorFromSource<'a> {
+    planes: FfiSlice<'a, id::TextureViewId>,
+    width: u32,
+    height: u32,
+    format: wgt::ExternalTextureFormat,
+    yuv_conversion_matrix: [f32; 16],
+    gamut_conversion_matrix: [f32; 9],
+    src_transfer_function: wgt::ExternalTextureTransferFunction,
+    dst_transfer_function: wgt::ExternalTextureTransferFunction,
+    sample_transform: [f32; 6],
+    load_transform: [f32; 6],
+}
+
 #[derive(serde::Serialize, serde::Deserialize)]
 #[repr(transparent)]
 pub struct SurfaceFormat(i8);
@@ -230,6 +297,8 @@ enum Message<'a> {
 
     DestroyBuffer(id::BufferId),
     DestroyTexture(id::TextureId),
+    DestroyExternalTexture(id::ExternalTextureId),
+    DestroyExternalTextureSource(crate::ExternalTextureSourceId),
     DestroyDevice(id::DeviceId),
 
     DropAdapter(id::AdapterId),
@@ -247,6 +316,8 @@ enum Message<'a> {
     DropRenderPipeline(id::RenderPipelineId),
     DropTexture(id::TextureId),
     DropTextureView(id::TextureViewId),
+    DropExternalTexture(id::ExternalTextureId),
+    DropExternalTextureSource(crate::ExternalTextureSourceId),
     DropSampler(id::SamplerId),
     DropQuerySet(id::QuerySetId),
 }
@@ -262,6 +333,10 @@ enum DeviceAction<'a> {
         id::TextureId,
         wgc::resource::TextureDescriptor<'a>,
         Option<SwapChainId>,
+    ),
+    CreateExternalTexture(
+        id::ExternalTextureId,
+        crate::ExternalTextureDescriptor<wgc::Label<'a>>,
     ),
     CreateSampler(id::SamplerId, wgc::resource::SamplerDescriptor<'a>),
     CreateBindGroupLayout(

@@ -286,33 +286,16 @@ nsScrollbarFrame::HandleRelease(nsPresContext* aPresContext,
   return NS_OK;
 }
 
-void nsScrollbarFrame::SetScrollbarMediatorContent(nsIContent* aMediator) {
-  mScrollbarMediator = aMediator;
+void nsScrollbarFrame::SetOverrideScrollbarMediator(
+    nsIScrollbarMediator* aMediator) {
+  mOverriddenScrollbarMediator = do_QueryFrame(aMediator);
 }
 
 nsIScrollbarMediator* nsScrollbarFrame::GetScrollbarMediator() {
-  if (!mScrollbarMediator) {
-    return nullptr;
+  if (auto* override = mOverriddenScrollbarMediator.GetFrame()) {
+    return do_QueryFrame(override);
   }
-  nsIFrame* f = mScrollbarMediator->GetPrimaryFrame();
-  ScrollContainerFrame* scrollContainerFrame = do_QueryFrame(f);
-  nsIScrollbarMediator* sbm;
-
-  if (scrollContainerFrame) {
-    nsIFrame* scrolledFrame = scrollContainerFrame->GetScrolledFrame();
-    sbm = do_QueryFrame(scrolledFrame);
-    if (sbm) {
-      return sbm;
-    }
-  }
-  sbm = do_QueryFrame(f);
-  if (f && !sbm) {
-    f = f->PresShell()->GetRootScrollContainerFrame();
-    if (f && f->GetContent() == mScrollbarMediator) {
-      return do_QueryFrame(f);
-    }
-  }
-  return sbm;
+  return do_QueryFrame(GetParent());
 }
 
 bool nsScrollbarFrame::IsHorizontal() const {
@@ -410,10 +393,7 @@ nsresult nsScrollbarFrame::CreateAnonymousContent(
     return NS_OK;
   }
 
-  nsAutoString orient;
-  el->GetAttr(nsGkAtoms::orient, orient);
-  bool vertical = orient.EqualsLiteral("vertical");
-
+  const bool vertical = el->HasAttr(nsGkAtoms::vertical);
   RefPtr<dom::NodeInfo> sbbNodeInfo =
       nodeInfoManager->GetNodeInfo(nsGkAtoms::scrollbarbutton, nullptr,
                                    kNameSpaceID_XUL, nsINode::ELEMENT_NODE);
@@ -449,7 +429,6 @@ nsresult nsScrollbarFrame::CreateAnonymousContent(
         getter_AddRefs(mSlider),
         nodeInfoManager->GetNodeInfo(nsGkAtoms::slider, nullptr,
                                      kNameSpaceID_XUL, nsINode::ELEMENT_NODE));
-    mSlider->SetAttr(kNameSpaceID_None, nsGkAtoms::orient, orient, false);
 
     aElements.AppendElement(ContentInfo(mSlider, key));
 
@@ -457,7 +436,6 @@ nsresult nsScrollbarFrame::CreateAnonymousContent(
         getter_AddRefs(mThumb),
         nodeInfoManager->GetNodeInfo(nsGkAtoms::thumb, nullptr,
                                      kNameSpaceID_XUL, nsINode::ELEMENT_NODE));
-    mThumb->SetAttr(kNameSpaceID_None, nsGkAtoms::orient, orient, false);
     mSlider->AppendChildTo(mThumb, false, IgnoreErrors());
   }
 
@@ -475,14 +453,6 @@ nsresult nsScrollbarFrame::CreateAnonymousContent(
         MakeScrollbarButton(sbbNodeInfo, vertical, /* aBottom */ true,
                             /* aDown */ true, key);
     aElements.AppendElement(ContentInfo(mDownBottomButton, key));
-  }
-
-  // Don't cache styles if we are inside a <select> element, since we have
-  // some UA style sheet rules that depend on the <select>'s attributes.
-  if (el->GetParent() && el->GetParent()->IsHTMLElement(nsGkAtoms::select)) {
-    for (auto& info : aElements) {
-      info.mKey = AnonymousContentKey::None;
-    }
   }
 
   return NS_OK;

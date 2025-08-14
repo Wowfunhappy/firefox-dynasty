@@ -6,6 +6,7 @@ package org.mozilla.fenix.components
 
 import android.content.Context
 import android.content.res.Configuration
+import android.os.Build
 import android.os.StrictMode
 import androidx.core.content.ContextCompat
 import androidx.datastore.preferences.preferencesDataStore
@@ -156,7 +157,8 @@ class Core(
     val engine: Engine by lazyMonitored {
         val defaultSettings = DefaultSettings(
             requestInterceptor = requestInterceptor,
-            remoteDebuggingEnabled = context.settings().isRemoteDebuggingEnabled,
+            remoteDebuggingEnabled = context.settings().isRemoteDebuggingEnabled &&
+                Build.VERSION.SDK_INT >= Build.VERSION_CODES.M,
             testingModeEnabled = false,
             trackingProtectionPolicy = trackingProtectionPolicyFactory.createTrackingProtectionPolicy(),
             historyTrackingDelegate = HistoryDelegate(lazyHistoryStorage),
@@ -195,6 +197,7 @@ class Core(
             postQuantumKeyExchangeEnabled = FxNimbus.features.pqcrypto.value().postQuantumKeyExchangeEnabled,
             dohAutoselectEnabled = FxNimbus.features.doh.value().autoselectEnabled,
             bannedPorts = FxNimbus.features.networkingBannedPorts.value().bannedPortList,
+            lnaBlockingEnabled = context.settings().isLnaBlockingEnabled,
         )
 
         // Apply fingerprinting protection overrides if the feature is enabled in Nimbus
