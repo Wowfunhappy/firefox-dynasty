@@ -75,8 +75,7 @@ enum class ModuleType : uint32_t {
  *  - The operation must treat the |payload| argument as an opaque
  *    value to be passed through to FinishLoadingImportedModule.
  */
-using ModuleLoadHook = bool (*)(JSContext* cx, Handle<JSObject*> referrer,
-                                Handle<Value> referencingPrivate,
+using ModuleLoadHook = bool (*)(JSContext* cx, Handle<JSScript*> referrer,
                                 Handle<JSObject*> moduleRequest,
                                 Handle<Value> hostDefined,
                                 Handle<Value> payload);
@@ -148,9 +147,8 @@ extern JS_PUBLIC_API void SetModuleMetadataHook(JSRuntime* rt,
  * See https://tc39.es/ecma262/#sec-FinishLoadingImportedModule
  */
 extern JS_PUBLIC_API bool FinishLoadingImportedModule(
-    JSContext* cx, Handle<JSObject*> referrer, Handle<Value> referencingPrivate,
-    Handle<JSObject*> moduleRequest, Handle<Value> payload,
-    Handle<JSObject*> result, bool usePromise);
+    JSContext* cx, Handle<JSScript*> referrer, Handle<JSObject*> moduleRequest,
+    Handle<Value> payload, Handle<JSObject*> result, bool usePromise);
 
 /**
  * Overloaded version of FinishLoadingImportedModule for error handling.

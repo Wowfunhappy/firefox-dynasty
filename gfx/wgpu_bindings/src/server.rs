@@ -160,6 +160,7 @@ pub extern "C" fn wgpu_server_new(owner: WebGPUParentPtr) -> *mut Global {
                 },
                 dx12: wgt::Dx12BackendOptions {
                     shader_compiler: dx12_shader_compiler,
+                    ..Default::default()
                 },
                 noop: wgt::NoopBackendOptions { enable: false },
             },
@@ -392,6 +393,16 @@ unsafe fn adapter_request_device(
             log::warn!("Failed to create directory {:?} for wgpu recording.", path);
         } else {
             desc.trace = wgt::Trace::Directory(path);
+        }
+    }
+
+    if wgpu_parent_is_external_texture_enabled() {
+        if global
+            .adapter_features(self_id)
+            .contains(wgt::Features::EXTERNAL_TEXTURE)
+        {
+            desc.required_features
+                .insert(wgt::Features::EXTERNAL_TEXTURE);
         }
     }
 
@@ -1284,6 +1295,7 @@ extern "C" {
     #[cfg(target_os = "macos")]
     fn wgpu_server_get_external_io_surface_id(parent: WebGPUParentPtr, id: id::TextureId) -> u32;
     fn wgpu_server_remove_shared_texture(parent: WebGPUParentPtr, id: id::TextureId);
+    fn wgpu_parent_is_external_texture_enabled() -> bool;
     fn wgpu_parent_external_texture_source_get_external_texture_descriptor<'a>(
         parent: WebGPUParentPtr,
         id: crate::ExternalTextureSourceId,

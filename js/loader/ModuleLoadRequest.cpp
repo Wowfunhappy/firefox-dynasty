@@ -28,8 +28,7 @@ NS_IMPL_CYCLE_COLLECTION_CLASS(ModuleLoadRequest)
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(ModuleLoadRequest,
                                                 ScriptLoadRequest)
-  tmp->mReferencingPrivate.setUndefined();
-  tmp->mReferrerObj = nullptr;
+  tmp->mReferrerScript = nullptr;
   tmp->mModuleRequestObj = nullptr;
   tmp->mPayload.setUndefined();
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mLoader, mRootModule, mModuleScript)
@@ -43,9 +42,8 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
 NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN_INHERITED(ModuleLoadRequest,
                                                ScriptLoadRequest)
-  NS_IMPL_CYCLE_COLLECTION_TRACE_JS_MEMBER_CALLBACK(mReferrerObj)
+  NS_IMPL_CYCLE_COLLECTION_TRACE_JS_MEMBER_CALLBACK(mReferrerScript)
   NS_IMPL_CYCLE_COLLECTION_TRACE_JS_MEMBER_CALLBACK(mModuleRequestObj)
-  NS_IMPL_CYCLE_COLLECTION_TRACE_JS_MEMBER_CALLBACK(mReferencingPrivate)
   NS_IMPL_CYCLE_COLLECTION_TRACE_JS_MEMBER_CALLBACK(mPayload)
 NS_IMPL_CYCLE_COLLECTION_TRACE_END
 
@@ -86,7 +84,7 @@ void ModuleLoadRequest::Cancel() {
   ScriptLoadRequest::Cancel();
 
   mModuleScript = nullptr;
-  mReferrerObj = nullptr;
+  mReferrerScript = nullptr;
   mModuleRequestObj = nullptr;
 }
 

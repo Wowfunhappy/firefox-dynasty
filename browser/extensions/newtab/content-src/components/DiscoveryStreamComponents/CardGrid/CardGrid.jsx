@@ -9,7 +9,6 @@ import { TopicsWidget } from "../TopicsWidget/TopicsWidget.jsx";
 import { ListFeed } from "../ListFeed/ListFeed.jsx";
 import { SafeAnchor } from "../SafeAnchor/SafeAnchor";
 import { AdBanner } from "../AdBanner/AdBanner.jsx";
-import { PromoCard } from "../PromoCard/PromoCard.jsx";
 import { FluentOrText } from "../../FluentOrText/FluentOrText.jsx";
 import { actionCreators as ac, actionTypes as at } from "common/Actions.mjs";
 import React, { useEffect, useState, useRef, useCallback } from "react";
@@ -31,8 +30,6 @@ const PREF_FAKESPOT_ENABLED =
   "discoverystream.contextualContent.fakespot.enabled";
 const PREF_BILLBOARD_ENABLED = "newtabAdSize.billboard";
 const PREF_BILLBOARD_POSITION = "newtabAdSize.billboard.position";
-const PREF_PROMOCARD_ENABLED = "discoverystream.promoCard.enabled";
-const PREF_PROMOCARD_VISIBLE = "discoverystream.promoCard.visible";
 const PREF_LEADERBOARD_ENABLED = "newtabAdSize.leaderboard";
 const PREF_LEADERBOARD_POSITION = "newtabAdSize.leaderboard.position";
 const PREF_TRENDING_SEARCH = "trendingSearch.enabled";
@@ -343,9 +340,6 @@ export class _CardGrid extends React.PureComponent {
     const prefs = this.props.Prefs.values;
     const {
       items,
-      fourCardLayout,
-      essentialReadsHeader,
-      editorsPicksHeader,
       onboardingExperience,
       ctaButtonSponsors,
       ctaButtonVariant,
@@ -368,8 +362,6 @@ export class _CardGrid extends React.PureComponent {
     const listFeedEnabled = prefs[PREF_LIST_FEED_ENABLED];
     const listFeedSelectedFeed = prefs[PREF_LIST_FEED_SELECTED_FEED];
     const billboardEnabled = prefs[PREF_BILLBOARD_ENABLED];
-    const promoCardEnabled =
-      prefs[PREF_PROMOCARD_ENABLED] && prefs[PREF_PROMOCARD_VISIBLE];
     const leaderboardEnabled = prefs[PREF_LEADERBOARD_ENABLED];
     const trendingEnabled =
       prefs[PREF_TRENDING_SEARCH] &&
@@ -382,9 +374,6 @@ export class _CardGrid extends React.PureComponent {
       .filter(item => !item.feedName)
       .slice(0, items);
     const cards = [];
-
-    let essentialReadsCards = [];
-    let editorsPicksCards = [];
 
     for (let index = 0; index < items; index++) {
       const rec = recs[index];
@@ -427,7 +416,6 @@ export class _CardGrid extends React.PureComponent {
             pocket_id={rec.pocket_id}
             context_type={rec.context_type}
             bookmarkGuid={rec.bookmarkGuid}
-            is_collection={this.props.is_collection}
             ctaButtonSponsors={ctaButtonSponsors}
             ctaButtonVariant={ctaButtonVariant}
             spocMessageVariant={spocMessageVariant}
@@ -558,10 +546,6 @@ export class _CardGrid extends React.PureComponent {
               prefs={prefs}
             />
           );
-
-          if (promoCardEnabled) {
-            cards.splice(bannerIndex + 1, 0, <PromoCard />);
-          }
         };
 
         const getBannerIndex = () => {
@@ -577,20 +561,9 @@ export class _CardGrid extends React.PureComponent {
 
     let moreRecsHeader = "";
     // For now this is English only.
-    if (showRecentSaves || (essentialReadsHeader && editorsPicksHeader)) {
-      let spliceAt = 6;
-      // For 4 card row layouts, second row is 8 cards, and regular it is 6 cards.
-      if (fourCardLayout) {
-        spliceAt = 8;
-      }
+    if (showRecentSaves) {
       // If we have a custom header, ensure the more recs section also has a header.
       moreRecsHeader = "More Recommendations";
-      // Put the first 2 rows into essentialReadsCards.
-      essentialReadsCards = [...cards.splice(0, spliceAt)];
-      // Put the rest into editorsPicksCards.
-      if (essentialReadsHeader && editorsPicksHeader) {
-        editorsPicksCards = [...cards.splice(0, cards.length)];
-      }
     }
 
     const gridClassName = this.renderGridClassName();
@@ -600,24 +573,11 @@ export class _CardGrid extends React.PureComponent {
         {!isOnboardingExperienceDismissed && onboardingExperience && (
           <OnboardingExperience dispatch={this.props.dispatch} />
         )}
-        {essentialReadsCards?.length > 0 && (
-          <div className={gridClassName}>{essentialReadsCards}</div>
-        )}
         {showRecentSaves && (
           <RecentSavesContainer
             gridClassName={gridClassName}
             dispatch={this.props.dispatch}
           />
-        )}
-        {editorsPicksCards?.length > 0 && (
-          <>
-            <DSSubHeader>
-              <span className="section-title">
-                <FluentOrText message="Editor’s Picks" />
-              </span>
-            </DSSubHeader>
-            <div className={gridClassName}>{editorsPicksCards}</div>
-          </>
         )}
         {cards?.length > 0 && (
           <>

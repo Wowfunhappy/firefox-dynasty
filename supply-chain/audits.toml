@@ -1711,6 +1711,11 @@ who = "Andreas Pehrson <apehrson@mozilla.com>"
 criteria = "safe-to-deploy"
 delta = "0.12.0 -> 0.13.0"
 
+[[audits.cubeb]]
+who = "Matthew Gregan <kinetik@flim.org>"
+criteria = "safe-to-deploy"
+delta = "0.13.0 -> 0.29.0"
+
 [[audits.cubeb-backend]]
 who = "Matthew Gregan <kinetik@flim.org>"
 criteria = "safe-to-deploy"
@@ -1746,6 +1751,11 @@ delta = "0.10.7 -> 0.12.0"
 who = "Andreas Pehrson <apehrson@mozilla.com>"
 criteria = "safe-to-deploy"
 delta = "0.12.0 -> 0.13.0"
+
+[[audits.cubeb-backend]]
+who = "Matthew Gregan <kinetik@flim.org>"
+criteria = "safe-to-deploy"
+delta = "0.13.0 -> 0.29.0"
 
 [[audits.cubeb-core]]
 who = "Matthew Gregan <kinetik@flim.org>"
@@ -1788,6 +1798,11 @@ who = "Andreas Pehrson <apehrson@mozilla.com>"
 criteria = "safe-to-deploy"
 delta = "0.12.0 -> 0.13.0"
 
+[[audits.cubeb-core]]
+who = "Matthew Gregan <kinetik@flim.org>"
+criteria = "safe-to-deploy"
+delta = "0.13.0 -> 0.29.0"
+
 [[audits.cubeb-sys]]
 who = "Matthew Gregan <kinetik@flim.org>"
 criteria = "safe-to-deploy"
@@ -1823,6 +1838,11 @@ delta = "0.10.7 -> 0.12.0"
 who = "Andreas Pehrson <apehrson@mozilla.com>"
 criteria = "safe-to-deploy"
 delta = "0.12.0 -> 0.13.0"
+
+[[audits.cubeb-sys]]
+who = "Matthew Gregan <kinetik@flim.org>"
+criteria = "safe-to-deploy"
+delta = "0.13.0 -> 0.29.0"
 
 [[audits.d3d12]]
 who = "Jim Blandy <jimb@red-bean.com>"
@@ -3366,11 +3386,21 @@ criteria = "safe-to-deploy"
 version = "0.3.0"
 notes = "This crate doesn't contain any unsafe code or IO usage."
 
+[[audits.jexl-eval]]
+who = "Tif Tran <ttran@mozilla.com>"
+criteria = "safe-to-deploy"
+delta = "0.3.0 -> 0.4.0"
+
 [[audits.jexl-parser]]
 who = "Ben Dean-Kawamura <bdk@mozilla.com>"
 criteria = "safe-to-deploy"
 version = "0.3.0"
 notes = "This crate doesn't contain any unsafe code or IO usage."
+
+[[audits.jexl-parser]]
+who = "Tif Tran <ttran@mozilla.com>"
+criteria = "safe-to-deploy"
+delta = "0.3.0 -> 0.4.0"
 
 [[audits.jobserver]]
 who = "Mike Hommey <mh+mozilla@glandium.org>"
@@ -4071,7 +4101,7 @@ who = [
     "Erich Gubler <erichdongubler@gmail.com>",
 ]
 criteria = "safe-to-deploy"
-delta = "26.0.0 -> 26.0.0@git:1bf1671ed877a6a9ccf5f1a349ec167cd28af3d7"
+delta = "26.0.0 -> 26.0.0@git:54be6a2b5b780e356976ef7e30d00244f2bad651"
 importable = false
 
 [[audits.net2]]
@@ -6512,7 +6542,7 @@ who = [
     "Erich Gubler <erichdongubler@gmail.com>",
 ]
 criteria = "safe-to-deploy"
-delta = "26.0.0 -> 26.0.0@git:1bf1671ed877a6a9ccf5f1a349ec167cd28af3d7"
+delta = "26.0.0 -> 26.0.0@git:54be6a2b5b780e356976ef7e30d00244f2bad651"
 importable = false
 
 [[audits.wgpu-core-deps-apple]]
@@ -6532,7 +6562,7 @@ who = [
     "Erich Gubler <erichdongubler@gmail.com>",
 ]
 criteria = "safe-to-deploy"
-delta = "26.0.0 -> 26.0.0@git:1bf1671ed877a6a9ccf5f1a349ec167cd28af3d7"
+delta = "26.0.0 -> 26.0.0@git:54be6a2b5b780e356976ef7e30d00244f2bad651"
 importable = false
 
 [[audits.wgpu-core-deps-windows-linux-android]]
@@ -6552,7 +6582,7 @@ who = [
     "Erich Gubler <erichdongubler@gmail.com>",
 ]
 criteria = "safe-to-deploy"
-delta = "26.0.0 -> 26.0.0@git:1bf1671ed877a6a9ccf5f1a349ec167cd28af3d7"
+delta = "26.0.0 -> 26.0.0@git:54be6a2b5b780e356976ef7e30d00244f2bad651"
 importable = false
 
 [[audits.wgpu-hal]]
@@ -6650,7 +6680,7 @@ who = [
     "Erich Gubler <erichdongubler@gmail.com>",
 ]
 criteria = "safe-to-deploy"
-delta = "26.0.0 -> 26.0.0@git:1bf1671ed877a6a9ccf5f1a349ec167cd28af3d7"
+delta = "26.0.0 -> 26.0.0@git:54be6a2b5b780e356976ef7e30d00244f2bad651"
 importable = false
 
 [[audits.wgpu-types]]
@@ -6743,7 +6773,7 @@ who = [
     "Erich Gubler <erichdongubler@gmail.com>",
 ]
 criteria = "safe-to-deploy"
-delta = "26.0.0 -> 26.0.0@git:1bf1671ed877a6a9ccf5f1a349ec167cd28af3d7"
+delta = "26.0.0 -> 26.0.0@git:54be6a2b5b780e356976ef7e30d00244f2bad651"
 importable = false
 
 [[audits.whatsys]]
@@ -6941,6 +6971,11 @@ who = "Makoto Kato <m_kato@ga2.so-net.ne.jp>"
 criteria = "safe-to-deploy"
 delta = "0.11.2 -> 0.11.3"
 
+[[audits.zerovec]]
+who = "Makoto Kato <m_kato@ga2.so-net.ne.jp>"
+criteria = "safe-to-deploy"
+delta = "0.11.3 -> 0.11.4"
+
 [[audits.zerovec-derive]]
 who = "Makoto Kato <m_kato@ga2.so-net.ne.jp>"
 criteria = "safe-to-deploy"
@@ -7097,7 +7132,7 @@ end = "2024-04-25"
 
 [[trusted.equivalent]]
 criteria = "safe-to-deploy"
-user-id = 539
+user-id = 539 # Josh Stone (cuviper)
 start = "2023-02-05"
 end = "2024-07-17"
 
@@ -7145,7 +7180,7 @@ end = "2026-07-04"
 
 [[trusted.indexmap]]
 criteria = "safe-to-deploy"
-user-id = 539
+user-id = 539 # Josh Stone (cuviper)
 start = "2020-01-15"
 end = "2024-05-05"
 
@@ -7220,6 +7255,24 @@ criteria = "safe-to-deploy"
 user-id = 10 # Carl Lerche (carllerche)
 start = "2019-05-15"
 end = "2024-05-06"
+
+[[trusted.num]]
+criteria = "safe-to-deploy"
+user-id = 539 # Josh Stone (cuviper)
+start = "2020-01-10"
+end = "2026-07-30"
+
+[[trusted.num-bigint]]
+criteria = "safe-to-deploy"
+user-id = 539 # Josh Stone (cuviper)
+start = "2019-09-04"
+end = "2026-07-30"
+
+[[trusted.num-complex]]
+criteria = "safe-to-deploy"
+user-id = 539 # Josh Stone (cuviper)
+start = "2019-06-10"
+end = "2026-07-30"
 
 [[trusted.num_cpus]]
 criteria = "safe-to-deploy"

@@ -2343,7 +2343,7 @@ struct GenericElementAndPseudoRules<Map> {
     /// FIXME(emilio): There are a bunch of wasted entries here in practice.
     /// Figure out a good way to do a `PerNonAnonBox` and `PerAnonBox` (for
     /// `precomputed_values_for_pseudo`) without duplicating a lot of code.
-    pseudos_map: PerPseudoElementMap<Box<Self>>,
+    pseudos_map: PerPseudoElementMap<Self>,
 }
 
 impl<Map: Default + MallocSizeOf> GenericElementAndPseudoRules<Map> {
@@ -2370,7 +2370,7 @@ impl<Map: Default + MallocSizeOf> GenericElementAndPseudoRules<Map> {
     fn rules(&self, pseudo_elements: &[PseudoElement]) -> Option<&Map> {
         let mut current = self;
         for pseudo in pseudo_elements {
-            current = current.pseudos_map.get(&pseudo)?.as_ref();
+            current = current.pseudos_map.get(&pseudo)?;
         }
         Some(&current.element_map)
     }
@@ -2381,9 +2381,7 @@ impl<Map: Default + MallocSizeOf> GenericElementAndPseudoRules<Map> {
         sizes.mElementAndPseudosMaps += self.element_map.size_of(ops);
 
         for elem in self.pseudos_map.iter() {
-            if let Some(ref elem) = *elem {
-                sizes.mElementAndPseudosMaps += <Box<_> as MallocSizeOf>::size_of(elem, ops);
-            }
+            sizes.mElementAndPseudosMaps += MallocSizeOf::size_of(elem, ops);
         }
     }
 }
@@ -2402,9 +2400,7 @@ impl ElementAndPseudoRules {
     fn shrink_if_needed(&mut self) {
         self.element_map.shrink_if_needed();
         for pseudo in self.pseudos_map.iter_mut() {
-            if let Some(ref mut pseudo) = pseudo {
-                pseudo.shrink_if_needed();
-            }
+            pseudo.shrink_if_needed();
         }
     }
 }
@@ -3451,6 +3447,23 @@ impl CascadeData {
                                 &mut self.additional_relative_selector_invalidation_map,
                                 inner_scope_dependencies.as_ref(),
                             )?;
+
+                            let mut _unused = false;
+                            let mut visitor = StylistSelectorVisitor {
+                                needs_revalidation: &mut _unused,
+                                passed_rightmost_selector: true,
+                                in_selector_list_of: SelectorListKind::default(),
+                                mapped_ids: &mut self.mapped_ids,
+                                nth_of_mapped_ids: &mut self.nth_of_mapped_ids,
+                                attribute_dependencies: &mut self.attribute_dependencies,
+                                nth_of_class_dependencies: &mut self.nth_of_class_dependencies,
+                                nth_of_attribute_dependencies: &mut self.nth_of_attribute_dependencies,
+                                nth_of_custom_state_dependencies: &mut self.nth_of_custom_state_dependencies,
+                                state_dependencies: &mut self.state_dependencies,
+                                nth_of_state_dependencies: &mut self.nth_of_state_dependencies,
+                                document_state_dependencies: &mut self.document_state_dependencies,
+                            };
+                            rule.selector.visit(&mut visitor);
 
                             new_inner_dependencies.as_mut().map(|dep| {
                                 dependency_vector.append(dep);
