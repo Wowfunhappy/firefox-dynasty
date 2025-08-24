@@ -88,6 +88,7 @@ SOURCES += [
     "MediaHardwareKeysEventSourceMac.mm",
     "MediaHardwareKeysEventSourceMacMediaCenter.mm",
     "MediaKeysEventSourceFactory.cpp",
+    "nsChildView.mm",
     "nsClipboard.mm",
     "nsDragService.mm",
     "nsNativeThemeCocoa.mm",
