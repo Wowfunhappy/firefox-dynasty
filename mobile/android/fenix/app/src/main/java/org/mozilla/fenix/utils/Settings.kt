@@ -10,7 +10,6 @@ import android.content.Context
 import android.content.Context.MODE_PRIVATE
 import android.content.SharedPreferences
 import android.content.pm.ShortcutManager
-import android.os.Build
 import android.view.accessibility.AccessibilityManager
 import androidx.annotation.VisibleForTesting
 import androidx.annotation.VisibleForTesting.Companion.PRIVATE
@@ -556,6 +555,15 @@ class Settings(private val appContext: Context) : PreferencesHolder {
     )
 
     /**
+     * Returns true if the terms of use feature flag is enabled
+     */
+    var isTermsOfUsePromptEnabled by lazyFeatureFlagPreference(
+        key = appContext.getPreferenceKey(R.string.pref_key_terms_prompt_enabled),
+        default = { FxNimbus.features.termsOfUsePrompt.value().enabled },
+        featureFlag = true,
+    )
+
+    /**
      * Timestamp in milliseconds when the terms of use prompt was last shown to the user.
      * A value of 0L indicates that the prompt has never been shown.
      */
@@ -577,6 +585,22 @@ class Settings(private val appContext: Context) : PreferencesHolder {
         appContext.getPreferenceKey(R.string.pref_key_debug_terms_trigger_time),
         default = false,
         persistDefaultIfNotExists = true,
+    )
+
+    /**
+     * Used to determine users who have interacted with any links from the Terms of Use prompt.
+     */
+    var hasClickedTermOfUsePromptLink by booleanPreference(
+        appContext.getPreferenceKey(R.string.pref_key_terms_clicked_link),
+        default = false,
+    )
+
+    /**
+     * Used to determine users who clicked the "remind me later" action.
+     */
+    var hasClickedTermOfUsePromptRemindMeLater by booleanPreference(
+        appContext.getPreferenceKey(R.string.pref_key_terms_clicked_remind_me_later),
+        default = false,
     )
 
     /**
@@ -664,7 +688,7 @@ class Settings(private val appContext: Context) : PreferencesHolder {
      */
     val shortcutSuggestionsEnabled by booleanPreference(
         appContext.getPreferenceKey(R.string.pref_key_show_shortcuts_suggestions),
-        default = true,
+        default = false,
     )
 
     /**
@@ -1290,6 +1314,16 @@ class Settings(private val appContext: Context) : PreferencesHolder {
         persistDefaultIfNotExists = true,
     )
 
+    var shouldShowSimpleToolbarCustomization by booleanPreference(
+        key = appContext.getPreferenceKey(R.string.pref_key_enable_simple_toolbar_customization),
+        default = { FxNimbus.features.toolbarRedesignOption.value().showSimpleCustomization },
+    )
+
+    var shouldShowExpandedToolbarCustomization by booleanPreference(
+        key = appContext.getPreferenceKey(R.string.pref_key_enable_expanded_toolbar_customization),
+        default = { FxNimbus.features.toolbarRedesignOption.value().showExpandedCustomization },
+    )
+
     val toolbarPosition: ToolbarPosition
         get() = if (isTabStripEnabled) {
             ToolbarPosition.TOP
@@ -1436,7 +1470,7 @@ class Settings(private val appContext: Context) : PreferencesHolder {
             if (userNeedsToVisitInstallableSites) return false
 
             // ShortcutManager::pinnedShortcuts is only available on Oreo+
-            if (!userKnowsAboutPwas && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            if (!userKnowsAboutPwas) {
                 val manager = appContext.getSystemService(ShortcutManager::class.java)
                 val alreadyHavePwaInstalled = manager != null && manager.pinnedShortcuts.size > 0
 
@@ -2193,6 +2227,14 @@ class Settings(private val appContext: Context) : PreferencesHolder {
     )
 
     /**
+     * Indicates if the Homepage "Discover more" stories is enabled.
+     */
+    var enableDiscoverMoreStories by booleanPreference(
+        key = appContext.getPreferenceKey(R.string.pref_key_enable_discover_more_stories),
+        default = FeatureFlags.DISCOVER_MORE_STORIES,
+    )
+
+    /**
      * Indicates if the Unified Trust Panel is enabled.
      */
     var enableUnifiedTrustPanel by booleanPreference(
@@ -2389,30 +2431,6 @@ class Settings(private val appContext: Context) : PreferencesHolder {
                 false -> R.dimen.browser_toolbar_height
             },
         )
-
-    /**
-     * Returns the height of the bottom toolbar container.
-     *
-     * The bottom toolbar container can consist of a navigation bar, the microsurvey prompt
-     * a combination of a navigation and microsurvey prompt, or be absent.
-     */
-    fun getBottomToolbarContainerHeight(): Int {
-        val isMicrosurveyEnabled = shouldShowMicrosurveyPrompt
-
-        val microsurveyHeight = if (isMicrosurveyEnabled) {
-            appContext.pixelSizeFor(R.dimen.browser_microsurvey_height)
-        } else {
-            0
-        }
-
-        val navBarHeight = if (shouldUseExpandedToolbar) {
-            appContext.pixelSizeFor(R.dimen.browser_navbar_height)
-        } else {
-            0
-        }
-
-        return microsurveyHeight + navBarHeight
-    }
 
     /**
      * Indicates if the microsurvey feature is enabled.
@@ -2684,14 +2702,6 @@ class Settings(private val appContext: Context) : PreferencesHolder {
     var distributionId by stringPreference(
         key = appContext.getPreferenceKey(R.string.pref_key_distribution_id),
         default = "",
-    )
-
-    /**
-     * Suffix of the currently selected app icon (launcher alias).
-     */
-    var selectedAppIcon by stringPreference(
-        key = appContext.getPreferenceKey(R.string.pref_key_selected_app_icon),
-        default = AppIcon.AppDefault.aliasSuffix,
     )
 
     /**

@@ -2,13 +2,17 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-do-not-track-removal = We no longer support the “Do Not Track” signal
+do-not-track-removal2 =
+    .label = We no longer support the “Do Not Track” signal
 
 global-privacy-control-description =
     .label = Tell websites not to sell or share my data
     .accesskey = s
 
 non-technical-privacy-header = Website Privacy Preferences
+
+non-technical-privacy-label =
+     .aria-label = { non-technical-privacy-header }
 
 # Do not translate.
 # "Global Privacy Control" or "GPC" are a web platform feature name and abbreviation
@@ -1378,6 +1382,11 @@ content-blocking-baseline-label = Fix major site issues (recommended)
 content-blocking-convenience-label = Fix minor site issues
 
 content-blocking-exceptions-subheader = Fix site issues
+
+content-blocking-baseline-uncheck-warning-dialog-title = Are you sure you want to turn off fixes?
+content-blocking-baseline-uncheck-warning-dialog-body = This setting helps fix the most common site problems. If you turn it off, some sites may not work, and { -brand-short-name } won’t be able to help troubleshoot those issues.
+content-blocking-baseline-uncheck-warning-dialog-ok-button = Turn fixes off
+content-blocking-baseline-uncheck-warning-dialog-cancel-button = Keep fixes on
 
 content-blocking-reload-description = You will need to reload your tabs to apply these changes.
 content-blocking-reload-tabs-button =

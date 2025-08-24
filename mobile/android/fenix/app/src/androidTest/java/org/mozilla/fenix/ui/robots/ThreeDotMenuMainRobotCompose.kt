@@ -49,19 +49,6 @@ class ThreeDotMenuMainRobotCompose(private val composeTestRule: ComposeTestRule)
     }
 
     fun verifyHomeMainMenuItems() {
-        Log.i(TAG, "verifyHomeMainMenuItems: Trying to verify the main menu items on the home page.")
-        Log.i(TAG, "verifyHomeMainMenuItems: Trying to verify that the \"Back\" button exists.")
-        composeTestRule.backButton().assertIsDisplayed()
-        Log.i(TAG, "verifyHomeMainMenuItems: Verified that the \"Back\" button exists.")
-        Log.i(TAG, "verifyHomeMainMenuItems: Trying to verify that the \"Forward\" button exists.")
-        composeTestRule.forwardButton().assertIsDisplayed()
-        Log.i(TAG, "verifyHomeMainMenuItems: Verified that the \"Forward\" button exists.")
-        Log.i(TAG, "verifyHomeMainMenuItems: Trying to verify that the \"Refresh\" button exists.")
-        composeTestRule.refreshButton().assertIsDisplayed()
-        Log.i(TAG, "verifyHomeMainMenuItems: Verified that the \"Refresh\" button exists.")
-        Log.i(TAG, "verifyHomeMainMenuItems: Trying to verify that the \"Share\" button exists.")
-        composeTestRule.shareButton().assertIsDisplayed()
-        Log.i(TAG, "verifyHomeMainMenuItems: Verified that the \"Share\" button exists.")
         Log.i(TAG, "verifyHomeMainMenuItems: Trying to verify that the \"Make Firefox your default\" button exists.")
         verifyMakeFirefoxYourDefaultBrowserPromotionBanner()
         Log.i(TAG, "verifyHomeMainMenuItems: Verified that the \"Make Firefox your default\" button exists.")
@@ -691,8 +678,6 @@ private fun ComposeTestRule.historyButton() = onNodeWithContentDescription(getSt
 private fun ComposeTestRule.downloadsButton() = onNodeWithContentDescription(getStringResource(R.string.library_downloads), substring = true)
 
 private fun ComposeTestRule.passwordsButton() = onNodeWithContentDescription(getStringResource(R.string.browser_menu_passwords), substring = true)
-
-private fun ComposeTestRule.backToMainMenuButton() = onNodeWithContentDescription(getStringResource(R.string.browser_menu_back_button_content_description))
 
 private fun ComposeTestRule.quitFirefoxButton() = onNodeWithContentDescription("Quit $appName")
 

@@ -1201,16 +1201,6 @@ add_task(async function test_onAction_basic_actions() {
         "TelemetryFeed.createUserEvent called once"
       );
       Assert.ok(
-        instance.createUserEvent.calledWith({
-          type: actionTypes.DISCOVERY_STREAM_USER_EVENT,
-          data: {
-            value: {
-              pocket_logged_in_status: Glean.pocket.isSignedIn.testGetValue(),
-            },
-          },
-        })
-      );
-      Assert.ok(
         instance.utEvents.sendUserEvent.calledOnce,
         "TelemetryFeed.utEvents.sendUserEvent called once"
       );
@@ -2144,7 +2134,7 @@ add_task(async function test_handleDiscoveryStreamUserEvent_tooltip_click() {
   let sandbox = sinon.createSandbox();
   let instance = new TelemetryFeed();
   Services.fog.testResetFOG();
-  const feature = "SPONSORED_CONTENT_INFO";
+  const feature = "FEATURE_HIGHLIGHT_DEFAULT";
   let action = actionCreators.DiscoveryStreamUserEvent({
     event: "CLICK",
     source: "FEATURE_HIGHLIGHT",

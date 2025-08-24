@@ -12,7 +12,10 @@ use cssparser::{
 use dom::{DocumentState, ElementState};
 use malloc_size_of::MallocSizeOfOps;
 use nsstring::{nsCString, nsString};
-use selectors::matching::{ElementSelectorFlags, MatchingForInvalidation, SelectorCaches};
+use selectors::context::{MatchingContext, MatchingMode, NeedsSelectorFlags};
+use selectors::matching::{
+    matches_selector_list, ElementSelectorFlags, MatchingForInvalidation, SelectorCaches,
+};
 use selectors::parser::PseudoElement as PseudoElementTrait;
 use selectors::{Element, OpaqueElement};
 use servo_arc::{Arc, ArcBorrow};
@@ -30,7 +33,7 @@ use style::context::{CascadeInputs, QuirksMode, SharedStyleContext, StyleContext
 use style::counter_style;
 use style::custom_properties::DeferFontRelativeCustomPropertyResolution;
 use style::data::{self, ElementStyles};
-use style::dom::{ShowSubtreeData, TDocument, TElement, TNode};
+use style::dom::{ShowSubtreeData, TDocument, TElement, TNode, TShadowRoot};
 use style::driver;
 use style::error_reporting::{ParseErrorReporter, SelectorWarningKind};
 use style::font_face::{self, FontFaceSourceFormat, FontFaceSourceListComponent, Source};
@@ -128,7 +131,7 @@ use style::style_adjuster::StyleAdjuster;
 use style::stylesheets::container_rule::ContainerSizeQuery;
 use style::stylesheets::import_rule::{ImportLayer, ImportSheet};
 use style::stylesheets::keyframes_rule::{Keyframe, KeyframeSelector, KeyframesStepValue};
-use style::stylesheets::scope_rule::{ImplicitScopeRoot, ScopeSubjectMap};
+use style::stylesheets::scope_rule::{ImplicitScopeRoot, ScopeRootCandidate, ScopeSubjectMap};
 use style::stylesheets::supports_rule::parse_condition_or_declaration;
 use style::stylesheets::{
     AllowImportRules, ContainerRule, CounterStyleRule, CssRule, CssRuleType, CssRuleTypes,
@@ -2748,26 +2751,28 @@ pub struct ScopeRuleData {
     pub valid_til: usize,
 }
 
-#[no_mangle]
-pub extern "C" fn Servo_StyleRule_SelectorMatchesElement(
+fn selector_matches_element<F, R>(
     rules: &nsTArray<&LockedStyleRule>,
     scope_rules: &nsTArray<ScopeRuleData>,
-    element: &RawGeckoElement,
+    element: GeckoElement,
     index: u32,
     host: Option<&RawGeckoElement>,
     pseudo_type: PseudoStyleType,
     relevant_link_visited: bool,
-) -> bool {
+    on_match: F,
+) -> Option<R>
+where
+    F: FnOnce(Option<&ScopeRootCandidate>) -> R,
+{
     use selectors::matching::{
         matches_selector, IncludeStartingStyle, MatchingContext, MatchingMode, NeedsSelectorFlags,
         VisitedHandlingMode,
     };
 
-    let element = GeckoElement(element);
     let quirks_mode = element.as_node().owner_doc().quirks_mode();
     let (selectors, scopes) = desugared_selector_list_with_scope(quirks_mode, rules, scope_rules);
     let Some(selector) = selectors.slice().get(index as usize) else {
-        return false;
+        return None;
     };
     let mut matching_mode = MatchingMode::Normal;
     match PseudoElement::from_pseudo_type(pseudo_type, None) {
@@ -2778,14 +2783,14 @@ pub extern "C" fn Servo_StyleRule_SelectorMatchesElement(
                 Some(selector_pseudo) if *selector_pseudo == pseudo => {
                     matching_mode = MatchingMode::ForStatelessPseudoElement
                 },
-                _ => return false,
+                _ => return None,
             };
         },
         None => {
             // Do not attempt to match if a pseudo element is requested and
             // this is not a pseudo element selector, or vice versa.
             if selector.has_pseudo_element() {
-                return false;
+                return None;
             }
         },
     };
@@ -2808,7 +2813,7 @@ pub extern "C" fn Servo_StyleRule_SelectorMatchesElement(
         MatchingForInvalidation::No,
     );
     ctx.with_shadow_host(host, |ctx| match scopes.as_ref() {
-        None => matches_selector(selector, 0, None, &element, ctx),
+        None => matches_selector(selector, 0, None, &element, ctx).then(|| on_match(None)),
         Some(s) => {
             let id = ScopeConditionId::new((s.conditions.len() - 1) as u16);
             let candidates = scope_root_candidates(
@@ -2819,13 +2824,66 @@ pub extern "C" fn Servo_StyleRule_SelectorMatchesElement(
                 &s.subject_map,
                 ctx,
             );
-            candidates.candidates.iter().any(|candidate| {
+            let scope_root = candidates.candidates.iter().find_map(|candidate| {
                 ctx.nest_for_scope(Some(candidate.root), |ctx| {
-                    matches_selector(selector, 0, None, &element, ctx)
+                    matches_selector(selector, 0, None, &element, ctx).then(|| candidate)
                 })
-            })
+            });
+            scope_root.map(|root| on_match(Some(root)))
         },
     })
+}
+
+#[no_mangle]
+pub extern "C" fn Servo_StyleRule_SelectorMatchesElement(
+    rules: &nsTArray<&LockedStyleRule>,
+    scope_rules: &nsTArray<ScopeRuleData>,
+    element: &RawGeckoElement,
+    index: u32,
+    host: Option<&RawGeckoElement>,
+    pseudo_type: PseudoStyleType,
+    relevant_link_visited: bool,
+) -> bool {
+    selector_matches_element(
+        rules,
+        scope_rules,
+        GeckoElement(element),
+        index,
+        host,
+        pseudo_type,
+        relevant_link_visited,
+        |_| true,
+    )
+    .unwrap_or(false)
+}
+
+#[no_mangle]
+pub extern "C" fn Servo_StyleRule_GetScopeRootFor(
+    rules: &nsTArray<&LockedStyleRule>,
+    scope_rules: &nsTArray<ScopeRuleData>,
+    element: &RawGeckoElement,
+    index: u32,
+    host: Option<&RawGeckoElement>,
+    pseudo_type: PseudoStyleType,
+    relevant_link_visited: bool,
+) -> *const RawGeckoElement {
+    let element = GeckoElement(element);
+    selector_matches_element(
+        rules,
+        scope_rules,
+        element,
+        index,
+        host,
+        pseudo_type,
+        relevant_link_visited,
+        |candidate| {
+            candidate
+                .map(|c| c.get_scope_root_element(element))
+                .flatten()
+        },
+    )
+    .flatten()
+    .map_or(ptr::null(), |e| e.0)
 }
 
 pub type SelectorList = selectors::SelectorList<style::gecko::selector_parser::SelectorImpl>;
@@ -2943,6 +3001,75 @@ pub unsafe extern "C" fn Servo_SelectorList_QueryAll(
         &mut result,
         may_use_invalidation,
     );
+
+    if !result.is_empty() {
+        // NOTE(emilio): This relies on a slice of GeckoElement having the same
+        // memory representation than a slice of element pointers.
+        bindings::Gecko_ContentList_AppendAll(
+            content_list,
+            result.as_ptr() as *mut *const _,
+            result.len(),
+        )
+    }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn Servo_SelectorList_QueryAllWithScope(
+    node: &RawGeckoNode,
+    rules: &nsTArray<&LockedStyleRule>,
+    scope_rules: &nsTArray<ScopeRuleData>,
+    content_list: *mut structs::nsSimpleContentList,
+) {
+    let root = GeckoNode(node);
+    let quirks_mode = root.owner_doc().quirks_mode();
+    let (selectors, scopes) = desugared_selector_list_with_scope(quirks_mode, rules, scope_rules);
+    // This replicates the slow path of `querySelectorAll`.
+    // TODO(dshin): A tigher integration could be nicer - but it'd be for
+    // a very specific (DevTools-only) use case, since normal `querySelectorAll`
+    // JS calls can't use @scope.
+    let mut selector_caches = SelectorCaches::default();
+    let mut ctx = MatchingContext::new(
+        MatchingMode::Normal,
+        /* bloom_filter = */ None,
+        &mut selector_caches,
+        quirks_mode,
+        NeedsSelectorFlags::No,
+        MatchingForInvalidation::No,
+    );
+    let root_element = root.as_element();
+    ctx.current_host = match root_element {
+        Some(root) => root.containing_shadow_host().map(|host| host.opaque()),
+        None => root.as_shadow_root().map(|root| root.host().opaque()),
+    };
+    let mut result: SmallVec<[GeckoElement; 128]> = Default::default();
+    let may_match_shadow_host_for_part = selectors.slice().iter().any(|s| s.is_part());
+    for node in root.dom_descendants() {
+        let Some(element) = node.as_element() else {
+            continue;
+        };
+        let matches = match scopes.as_ref() {
+            None => matches_selector_list(&selectors, &element, &mut ctx),
+            Some(s) => {
+                let id = ScopeConditionId::new((s.conditions.len() - 1) as u16);
+                let candidates = scope_root_candidates(
+                    &s.conditions,
+                    id,
+                    &element,
+                    may_match_shadow_host_for_part,
+                    &s.subject_map,
+                    &mut ctx,
+                );
+                candidates.candidates.iter().any(|candidate| {
+                    ctx.nest_for_scope(Some(candidate.root), |ctx| {
+                        matches_selector_list(&selectors, &element, ctx)
+                    })
+                })
+            },
+        };
+        if matches {
+            result.push(element);
+        }
+    }
 
     if !result.is_empty() {
         // NOTE(emilio): This relies on a slice of GeckoElement having the same

@@ -4,7 +4,6 @@
 
 package org.mozilla.fenix.components.menu.compose.header
 
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
@@ -110,6 +109,13 @@ internal fun MenuNavHeader(
             onLongClick = { onForwardButtonClick(true) },
         )
 
+        MenuNavItem(
+            state = state,
+            painter = painterResource(id = R.drawable.mozac_ic_share_android_24),
+            label = stringResource(id = R.string.browser_menu_share),
+            onClick = onShareButtonClick,
+        )
+
         if (isSiteLoading) {
             MenuNavItem(
                 state = state,
@@ -126,17 +132,9 @@ internal fun MenuNavHeader(
                 onLongClick = { onRefreshButtonClick(true) },
             )
         }
-
-        MenuNavItem(
-            state = state,
-            painter = painterResource(id = R.drawable.mozac_ic_share_android_24),
-            label = stringResource(id = R.string.browser_menu_share),
-            onClick = onShareButtonClick,
-        )
     }
 }
 
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun MenuNavItem(
     state: MenuItemState = MenuItemState.ENABLED,

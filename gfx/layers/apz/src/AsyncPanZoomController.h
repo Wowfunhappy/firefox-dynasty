@@ -815,6 +815,21 @@ class AsyncPanZoomController {
   void ScrollByAndClamp(const CSSPoint& aOffset);
 
   /**
+   * A variant of ScrollByAndClamp() that can scroll either the visual
+   * or the layout viewport.
+   */
+  void ScrollByAndClamp(ViewportType aViewportToScroll,
+                        const CSSPoint& aOffset);
+
+  /**
+   * Similar to ScrollByAndClamp() but scrolls to a specified destination.
+   * Can also be thought of as a variant of ClampAndSetVisualScrollOffset()
+   * which can set either the layout or viewport viewport offse.
+   */
+  void ScrollToAndClamp(ViewportType aViewportToScroll,
+                        const CSSPoint& aDestination);
+
+  /**
    * Scales the viewport by an amount (note that it multiplies this scale in to
    * the current scale, it doesn't set it to |aScale|). Also considers a focus
    * point so that the page zooms inward/outward from that point.
@@ -1444,15 +1459,11 @@ class AsyncPanZoomController {
     ANIMATING_ZOOM,       /* animated zoom to a new rect */
     OVERSCROLL_ANIMATION, /* Spring-based animation used to relieve overscroll
                              once the finger is lifted. */
-    SMOOTH_SCROLL,        /* Smooth scrolling to destination, with physics
-                             controlled by prefs specific to the scroll origin. */
-    SMOOTHMSD_SCROLL,     /* SmoothMSD scrolling to destination. Used by
-                             CSSOM-View smooth scroll-behavior */
-    WHEEL_SCROLL,    /* Smooth scrolling to a destination for a wheel event. */
-    KEYBOARD_SCROLL, /* Smooth scrolling to a destination for a keyboard event.
-                      */
-    AUTOSCROLL,      /* Autoscroll animation. */
-    SCROLLBAR_DRAG   /* Async scrollbar drag. */
+    SMOOTH_SCROLL,        /* Smooth scrolling to destination. May be for a wheel
+                             event, keyboard event, scroll-behavior or scroll
+                             snapping. */
+    AUTOSCROLL,           /* Autoscroll animation. */
+    SCROLLBAR_DRAG        /* Async scrollbar drag. */
   };
   // This is in theory protected by |mRecursiveMutex|; that is, it should be
   // held whenever this is updated. In practice though... see bug 897017.
@@ -1477,6 +1488,12 @@ class AsyncPanZoomController {
    * Returns wheter a delayed transform end is queued.
    */
   void SetDelayedTransformEnd(bool aDelayedTransformEnd);
+
+  /**
+   * Check whether there is an ongoing smooth scroll animation of
+   * the specified kind.
+   */
+  bool InScrollAnimation(ScrollAnimationKind aKind) const;
 
   /**
    * Returns whether the specified PanZoomState does not need to be reset when
@@ -1654,18 +1671,16 @@ class AsyncPanZoomController {
   void StartOverscrollAnimation(const ParentLayerPoint& aVelocity,
                                 SideBits aOverscrollSideBits);
 
-  // Start a smooth-scrolling animation to the given destination, with physics
-  // based on the prefs for the indicated origin.
+  // Start a smooth-scrolling animation to the given destination.
+  // |aAnimationKind| must be |Smooth| or |SmoothMsd|
+  // |aOrigin| is only used with |Smooth| (for |SmoothMsd|,
+  // |ScrollOrigin::NotSpecified| may be passed).
   void SmoothScrollTo(CSSSnapDestination&& aDestination,
                       ScrollTriggeredByScript aTriggeredByScript,
-                      const ScrollOrigin& aOrigin);
+                      ScrollAnimationKind aAnimationKind,
+                      ViewportType aViewportToScroll, ScrollOrigin aOrigin);
 
   ParentLayerPoint ConvertDestinationToDelta(CSSPoint& aDestination) const;
-
-  // Start a smooth-scrolling animation to the given destination, with MSD
-  // physics that is suited for scroll-snapping.
-  void SmoothMsdScrollTo(CSSSnapDestination&& aDestination,
-                         ScrollTriggeredByScript aTriggeredByScript);
 
   // Returns whether overscroll is allowed during an event.
   bool AllowScrollHandoffInCurrentBlock() const;

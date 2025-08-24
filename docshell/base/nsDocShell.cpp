@@ -12523,34 +12523,19 @@ void nsDocShell::MaybeFireTraverseHistory(nsDocShellLoadState* aLoadState) {
     return;
   }
 
-  if (!mActiveEntry) {
+  if (!mActiveEntry || !aLoadState->GetLoadingSessionHistoryInfo()) {
+    return;
+  }
+  if (mActiveEntry->NavigationKey() ==
+      aLoadState->GetLoadingSessionHistoryInfo()->mInfo.NavigationKey()) {
     return;
   }
 
-  if (aLoadState->GetLoadingSessionHistoryInfo()->mInfo.SharedId() ==
-      mActiveEntry->SharedId()) {
-    return;
-  }
-
-  nsCOMPtr<nsIPrincipal> oldPrincipal =
-      aLoadState->GetLoadingSessionHistoryInfo()->mInfo.GetResultPrincipalURI()
-          ? BasePrincipal::CreateContentPrincipal(
-                aLoadState->GetLoadingSessionHistoryInfo()
-                    ->mInfo.GetResultPrincipalURI(),
-                OriginAttributes{})
-          : nullptr;
-
-  nsCOMPtr<nsIPrincipal> currentPrincipal =
-      mActiveEntry->GetResultPrincipalURI()
-          ? BasePrincipal::CreateContentPrincipal(
-                mActiveEntry->GetResultPrincipalURI(), OriginAttributes{})
-          : nullptr;
-  if (!oldPrincipal || !currentPrincipal) {
-    // TODO it's not clear why these can be null https://bugzil.la/1976017
-    return;
-  }
-
-  if (!oldPrincipal->Equals(currentPrincipal)) {
+  if (NS_FAILED(nsContentUtils::GetSecurityManager()->CheckSameOriginURI(
+          mActiveEntry->GetURI(),
+          aLoadState->GetLoadingSessionHistoryInfo()->mInfo.GetURI(),
+          /*reportError=*/true,
+          /*fromPrivateWindow=*/false))) {
     return;
   }
 
@@ -14279,6 +14264,24 @@ void nsDocShell::MoveLoadingToActiveEntry(bool aExpired, uint32_t aCacheKey,
         loadingEntry->mContiguousEntries.AppendElement(*mActiveEntry);
         navigation->InitializeHistoryEntries(loadingEntry->mContiguousEntries,
                                              mActiveEntry.get());
+
+        MOZ_LOG_FMT(gNavigationLog, LogLevel::Debug,
+                    "Before creating NavigationActivation, "
+                    "triggeringEntry={}, triggeringType={}",
+                    fmt::ptr(loadingEntry->mTriggeringEntry
+                                 .map([](auto& entry) { return &entry; })
+                                 .valueOr(nullptr)),
+                    loadingEntry->mTriggeringNavigationType
+                        .map([](NavigationType type) {
+                          return fmt::format(FMT_STRING("{}"), type);
+                        })
+                        .valueOr("none"));
+        if (loadingEntry->mTriggeringEntry &&
+            loadingEntry->mTriggeringNavigationType) {
+          navigation->CreateNavigationActivationFrom(
+              &*loadingEntry->mTriggeringEntry,
+              *loadingEntry->mTriggeringNavigationType);
+        }
       }
     }
   }

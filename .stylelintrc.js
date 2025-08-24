@@ -8,6 +8,7 @@
 
 const fs = require("fs");
 const path = require("path");
+const rollouts = require("./stylelint-rollouts.config");
 
 function readFile(filePath) {
   return fs
@@ -269,9 +270,11 @@ module.exports = {
       },
     ],
     "stylelint-plugin-mozilla/no-base-design-tokens": true,
+    "stylelint-plugin-mozilla/use-border-radius-tokens": true,
   },
 
   overrides: [
+    ...rollouts,
     {
       files: "*.scss",
       customSyntax: "postcss-scss",

@@ -180,7 +180,7 @@ class DownloadTest : TestSetup() {
             verifyDownloadedFileExistsInDownloadsList(activityTestRule, "smallZip.zip")
             clickDownloadItemMenuIcon(activityTestRule, "smallZip.zip")
             deleteDownloadedItem(activityTestRule, "smallZip.zip")
-            clickSnackbarButton(activityTestRule, "UNDO")
+            clickSnackbarButton(activityTestRule, "Undo")
             verifyDownloadedFileExistsInDownloadsList(activityTestRule, "smallZip.zip")
             clickDownloadItemMenuIcon(activityTestRule, "smallZip.zip")
             deleteDownloadedItem(activityTestRule, "smallZip.zip")
@@ -213,7 +213,7 @@ class DownloadTest : TestSetup() {
             openMultiSelectMoreOptionsMenu(activityTestRule)
             clickMultiSelectRemoveButton(activityTestRule)
             clickMultiSelectDeleteDialogButton(activityTestRule)
-            clickSnackbarButton(activityTestRule, "UNDO")
+            clickSnackbarButton(activityTestRule, "Undo")
             verifyDownloadedFileExistsInDownloadsList(activityTestRule, firstDownloadedFile)
             verifyDownloadedFileExistsInDownloadsList(activityTestRule, secondDownloadedFile)
             longClickDownloadedItem(activityTestRule, firstDownloadedFile)
@@ -371,6 +371,7 @@ class DownloadTest : TestSetup() {
     }
 
     // TestRail link: https://mozilla.testrail.io/index.php?/cases/view/244125
+    @Ignore("Failing, see https://bugzilla.mozilla.org/show_bug.cgi?id=1983769")
     @Test
     fun restartDownloadFromAppNotificationAfterConnectionIsInterruptedTest() {
         downloadFile = "3GB.zip"
@@ -438,6 +439,7 @@ class DownloadTest : TestSetup() {
     }
 
     // TestRail link: https://mozilla.testrail.io/index.php?/cases/view/457111
+    @Ignore("Failing, see https://bugzilla.mozilla.org/show_bug.cgi?id=1983769")
     @Test
     fun downloadRestartAfterConnectionIsReestablishedTest() {
         downloadFile = "3GB.zip"

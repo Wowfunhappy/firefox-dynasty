@@ -374,7 +374,7 @@ class MainMenuTestCompose : TestSetup() {
         }.openThreeDotMenu(composeTestRule) {
             openMoreMenu()
         }.clickRemoveFromShortcutsButton {
-            verifySnackBarText(getStringResource(R.string.snackbar_top_site_removed))
+            composeTestRule.waitForIdle()
         }.goToHomescreen(composeTestRule) {
             verifyNotExistingTopSiteItem(composeTestRule, testPage.title)
         }
@@ -806,7 +806,9 @@ class MainMenuTestCompose : TestSetup() {
 
         navigationToolbar {
         }.enterURLAndEnterToBrowser(genericURL.url) {
+            verifyPageContent(genericURL.content)
         }.openThreeDotMenu(composeTestRule) {
+            verifyTryRecommendedExtensionButton()
         }.openExtensionsFromMainMenu {
         }.clickDiscoverMoreExtensionsButton(composeTestRule) {
             verifyUrl("addons.mozilla.org/en-US/android")

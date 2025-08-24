@@ -20,8 +20,8 @@ android {
     useLibrary 'android.test.mock'
 
     defaultConfig {
-        targetSdkVersion = project.ext.targetSdkVersion
-        minSdkVersion = project.ext.minSdkVersion
+        targetSdkVersion project.ext.targetSdkVersion
+        minSdkVersion 21 // this will be updated to project.ext.minSdkVersion: https://bugzilla.mozilla.org/show_bug.cgi?id=1978592
         manifestPlaceholders = project.ext.manifestPlaceholders
 
         versionCode project.ext.versionCode
@@ -328,6 +328,11 @@ android.libraryVariants.all { variant ->
              variant.aidlCompileProvider.get().sourceOutputDir.asFile.get()
         )
         options.addStringOption("Xmaxwarns", "1000")
+        if (!project.hasProperty('android-lint')) {
+            // It's not helpful to produce 100s of lint warnings during regular
+            // builds.  (When linting, it is helpful.)
+            options.addBooleanOption("Xdoclint:-missing", true)
+        }
 
         classpath += files(android.getBootClasspath())
         classpath += variant.javaCompileProvider.get().classpath

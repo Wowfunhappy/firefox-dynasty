@@ -138,6 +138,10 @@ class Navigation final : public DOMEventTargetHelper {
   void AbortOngoingNavigation(
       JSContext* aCx, JS::Handle<JS::Value> aError = JS::UndefinedHandleValue);
 
+  void CreateNavigationActivationFrom(
+      SessionHistoryInfo* aPreviousEntryForActivation,
+      NavigationType aNavigationType);
+
  private:
   friend struct NavigationAPIMethodTracker;
   using UpcomingTraverseAPIMethodTrackers =
@@ -147,11 +151,6 @@ class Navigation final : public DOMEventTargetHelper {
 
   // https://html.spec.whatwg.org/multipage/nav-history-apis.html#has-entries-and-events-disabled
   bool HasEntriesAndEventsDisabled() const;
-
-  void ScheduleEventsFromNavigation(
-      NavigationType aType,
-      const RefPtr<NavigationHistoryEntry>& aPreviousEntry,
-      nsTArray<RefPtr<NavigationHistoryEntry>>&& aDisposedEntries);
 
   MOZ_CAN_RUN_SCRIPT
   nsresult FireEvent(const nsAString& aName);
@@ -238,5 +237,16 @@ class Navigation final : public DOMEventTargetHelper {
 };
 
 }  // namespace mozilla::dom
+
+template <>
+struct fmt::formatter<mozilla::dom::NavigationType, char>
+    : public formatter<nsLiteralCString> {
+  template <typename FmtContext>
+  constexpr auto format(const mozilla::dom::NavigationType& aNavigationType,
+                        FmtContext& aCtx) const {
+    return formatter<nsLiteralCString>::format(
+        mozilla::dom::GetEnumString(aNavigationType), aCtx);
+  }
+};
 
 #endif  // mozilla_dom_Navigation_h___

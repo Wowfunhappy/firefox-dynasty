@@ -207,6 +207,7 @@ if CONFIG["MOZ_WEBRTC"]:
 
 if CONFIG["MOZ_WIDGET_TOOLKIT"] == "cocoa":
     OS_LIBS += [
+        "-framework Accessibility",
         "-framework Foundation",
         "-framework CoreFoundation",
         "-framework CoreLocation",

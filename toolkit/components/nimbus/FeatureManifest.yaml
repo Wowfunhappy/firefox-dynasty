@@ -297,18 +297,12 @@ urlbar:
         setting the `quickSuggestExposureSuggestionTypes` variable. Keyword
         exposures are recorded in the `urlbar-keyword-exposure` ping. See that
         ping's description for more.
-    marketMinKeywordLength:
-      type: int
+    marketFeatureGate:
+      type: boolean
+      fallbackPref: browser.urlbar.market.featureGate
       description: >-
-        The minimum prefix length of a market keyword the user must type to
-        trigger the suggestion.
-    marketShowLessFrequentlyCap:
-      type: int
-      description: >-
-        If defined and non-zero, this is the maximum number of times the user
-        will be able to click the "Show less frequently" command for Market
-        suggestions. If undefined or zero, the user will be able to click the
-        command without any limit.
+        Feature gate that controls whether all aspects of the stock market
+        suggestions feature are exposed to the user.
     mdnFeatureGate:
       type: boolean
       setPref:
@@ -529,6 +523,18 @@ urlbar:
         * "Sponsored" label is shown as the group label.
         * Change the suggested index to 1.
         * Handle as top pick.
+    realtimeMinKeywordLength:
+      type: int
+      description: >-
+        The minimum prefix length of a realtime keyword the user must type to
+        trigger the suggestion.
+    realtimeShowLessFrequentlyCap:
+      type: int
+      description: >-
+        If defined and non-zero, this is the maximum number of times the user
+        will be able to click the "Show less frequently" command for realtime
+        suggestions. If undefined or zero, the user will be able to click the
+        command without any limit.
     recentSearchesFeatureGate:
       type: boolean
       setPref:
@@ -1393,6 +1399,11 @@ newtabInferredPersonalization:
       type: int
       description: >-
         Time to refresh interest vector in hours
+    iv_unary_dp_in_request:
+      type: boolean
+      description: >-
+        Whether to use Unary encoding with differential privacy in the interest vector. If false or not set, we default to laplace noise with real values
+
 
 newtabSmartShortcuts:
   description: about:newtab personalized shortcuts
@@ -1864,11 +1875,6 @@ pocketNewtab:
       type: string
       fallbackPref: >-
         browser.newtabpage.activity-stream.discoverystream.ctaButtonVariant
-    spocMessageVariant:
-      description: Adds some message dialogs explainging sponsored content to the user
-      type: string
-      fallbackPref: >-
-        browser.newtabpage.activity-stream.discoverystream.spocMessageVariant
     regionStoriesConfig:
       description: A comma-separated list of region to get stories for.
       type: string
@@ -4039,6 +4045,18 @@ jitHintsCache:
         branch: user
         pref: "javascript.options.jithints"
 
+asmjs:
+  description: Pref to toggle support for asm.js.
+  owner: dpalmeiro@mozilla.com
+  hasExposure: false
+  variables:
+    enabled:
+      description: True to enable the asm.js feature.
+      type: boolean
+      setPref:
+        branch: user
+        pref: "javascript.options.asmjs"
+
 raceCacheWithNetwork:
   description: Prefs to toggle the race cache with network.
   owner: dpalmeiro@mozilla.com, acreskey@mozilla.com
@@ -5047,18 +5065,6 @@ css-masonry:
       setPref:
         branch: user
         pref: "layout.css.grid-template-masonry-value.enabled"
-
-contextual-password-manager:
-  description: Enabling the contextual password manager feature
-  owner: issozi@mozilla.com
-  hasExposure: false
-  variables:
-    enabled:
-      type: boolean
-      setPref:
-        branch: user
-        pref: browser.contextual-password-manager.enabled
-      description: If true, we will allow user to add the contextual password manager feature to the sidebar.
 
 windowsUIAutomation:
   description: Support for the Windows UI Automation API

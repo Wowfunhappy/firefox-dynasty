@@ -552,9 +552,14 @@ newtab-trending-searches-dismiss = Hide trending searches
 
 ## Strings for task / to-do list productivity widget
 
-newtab-widget-lists-default-list-title = Task list
+newtab-widget-lists-name-label-default =
+    .label = Task list
+newtab-widget-lists-name-placeholder-default =
+    .placeholder = Task list
 # The placeholder value of the name field for a newly created list
-newtab-widget-lists-default-list-new = New list
+newtab-widget-lists-name-placeholder-new =
+    .placeholder = New list
+
 # "Add one" means adding a new task to the list (e.g., "Walk the dog")
 newtab-widget-lists-empty-cta = The possibilities are endless. Add one.
 # A simple label next to the default list name letting users know this is a new / beta feature
@@ -606,6 +611,10 @@ newtab-widget-timer-menu-learn-more = Learn more
 
 # Message that appears when widgets are full-height. This reminds users that there is more New Tab content to see if they scroll
 newtab-widget-keep-scrolling = Scroll for more
+
+newtab-widget-message-title = Stay focused with lists and a built-in timer
+# to-dos stands for "things to do".
+newtab-widget-message-copy = From quick reminders to daily to-dos, focus sessions to stretch breaks — stay on task and on time.
 
 # Strings for the default promo card
 
