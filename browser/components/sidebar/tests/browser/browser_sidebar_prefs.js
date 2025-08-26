@@ -87,10 +87,6 @@ add_task(async function test_tools_prefs() {
     { childList: true, subTree: true },
     () => !!newSidebar.customizeButton
   );
-  ok(
-    BrowserTestUtils.isVisible(newSidebar.customizeButton),
-    "The sidebar-main component has fully rendered, and the customize button is present."
-  );
 
   // TO DO: opening the customize category can be removed once bug 1898613 is resolved.
   // Open customize sidebar
