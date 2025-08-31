@@ -6,6 +6,7 @@ package mozilla.components.compose.base.snackbar
 
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.SnackbarDefaults
@@ -103,8 +104,9 @@ private fun SnackbarAction(actionLabel: String, onClick: () -> Unit) {
         text = actionLabel,
         onClick = onClick,
         modifier = Modifier.testTag(SNACKBAR_BUTTON_TEST_TAG),
-        textColor = SnackbarDefaults.actionColor,
-        upperCaseText = false,
+        colors = ButtonDefaults.textButtonColors(
+            contentColor = SnackbarDefaults.actionColor,
+        ),
     )
 }
 
@@ -148,10 +150,10 @@ class SnackbarData(
  *
  * @param message The primary text content of the Snackbar.
  * @param subMessage Optional secondary text displayed below the main message.
+ * @param subMessageTextOverflow How visual overflow for the subMessage should be handled.
  * @param actionLabel Optional label for the action button.
  * @param withDismissAction Whether to show a dismiss icon alongside the Snackbar.
  * @param duration The amount of time the Snackbar will be shown.
- * @param subMessageTextOverflow How visual overflow for the subMessage should be handled.
  */
 open class SnackbarVisuals(
     override val message: String,
@@ -160,7 +162,35 @@ open class SnackbarVisuals(
     override val actionLabel: String? = null,
     override val withDismissAction: Boolean = false,
     override val duration: SnackbarDuration = SnackbarDuration.Short,
-) : M3SnackbarVisuals
+) : M3SnackbarVisuals {
+
+    /**
+     * Creates a copy of this [SnackbarVisuals] with the option to override any of the existing values.
+     *
+     * @param message The updated primary text content.
+     * @param subMessage The updated sub-message.
+     * @param subMessageTextOverflow The updated overflow behavior for the sub-message.
+     * @param actionLabel The updated label for the action button.
+     * @param withDismissAction Whether to show a dismiss icon alongside the Snackbar.
+     * @param duration The updated display duration for the Snackbar.
+     * @return A new [SnackbarVisuals] instance with the provided values.
+     */
+    open fun copy(
+        message: String = this.message,
+        subMessage: String? = this.subMessage,
+        subMessageTextOverflow: TextOverflow = this.subMessageTextOverflow,
+        actionLabel: String? = this.actionLabel,
+        withDismissAction: Boolean = this.withDismissAction,
+        duration: SnackbarDuration = this.duration,
+    ): SnackbarVisuals = SnackbarVisuals(
+        message = message,
+        subMessage = subMessage,
+        subMessageTextOverflow = subMessageTextOverflow,
+        actionLabel = actionLabel,
+        withDismissAction = withDismissAction,
+        duration = duration,
+    )
+}
 
 private data class SnackbarPreviewState(
     override val message: String,

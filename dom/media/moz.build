@@ -240,7 +240,7 @@ EXPORTS.mozilla.dom += [
     "MediaDevices.h",
     "MediaStreamError.h",
     "MediaStreamTrack.h",
-    "MPSCQueue.h",
+    "UnboundedMPSCQueue.h",
     "VideoPlaybackQuality.h",
     "VideoStreamTrack.h",
     "VideoTrack.h",
@@ -331,6 +331,9 @@ if CONFIG["OS_TARGET"] == "Linux":
     UNIFIED_SOURCES += ["UnderrunHandlerLinux.cpp"]
 else:
     UNIFIED_SOURCES += ["UnderrunHandlerNoop.cpp"]
+
+if CONFIG["ENABLE_TESTS"] or CONFIG["FUZZING"]:
+    UNIFIED_SOURCES += ["MockCubeb.cpp"]
 
 # CubebUtils.cpp needs to be built separately due to what appears to be some kind
 # of compiler bug on Android 4.2 x86 opt. See bug 1408459.

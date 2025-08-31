@@ -87,7 +87,6 @@ import mozilla.components.support.base.feature.ViewBoundFeatureWrapper
 import mozilla.components.support.ktx.android.view.hideKeyboard
 import mozilla.components.ui.widgets.withCenterAlignedButtons
 import mozilla.telemetry.glean.private.NoExtras
-import org.mozilla.fenix.BrowserDirection
 import org.mozilla.fenix.HomeActivity
 import org.mozilla.fenix.NavHostActivity
 import org.mozilla.fenix.R
@@ -319,6 +318,8 @@ class HistoryFragment : LibraryPageFragment<History>(), UserInteractionHandler, 
 
         if (context?.components?.appStore?.state?.searchState?.isSearchActive != true) {
             (activity as NavHostActivity).getSupportActionBarAndInflateIfNecessary().show()
+        } else {
+            handleShowingSearchUX()
         }
     }
 
@@ -494,13 +495,15 @@ class HistoryFragment : LibraryPageFragment<History>(), UserInteractionHandler, 
             }
         }
         val appStore = requireComponents.appStore
-        val historySearchEngine = requireComponents.core.store.state.search.searchEngines.firstOrNull {
-            it.id == HISTORY_SEARCH_ENGINE_ID
+        if (!appStore.state.searchState.isSearchActive) {
+            val historySearchEngine = requireComponents.core.store.state.search.searchEngines.firstOrNull {
+                it.id == HISTORY_SEARCH_ENGINE_ID
+            }
+            historySearchEngine?.let {
+                appStore.dispatch(AppAction.SearchAction.SearchEngineSelected(it, false))
+            }
+            appStore.dispatch(AppAction.SearchAction.SearchStarted())
         }
-        historySearchEngine?.let {
-            appStore.dispatch(AppAction.SearchAction.SearchEngineSelected(it, false))
-        }
-        appStore.dispatch(AppAction.SearchAction.SearchStarted())
 
         showSearchUx()
     }
@@ -522,7 +525,7 @@ class HistoryFragment : LibraryPageFragment<History>(), UserInteractionHandler, 
         focusManager.clearFocus()
         keyboardController?.hide()
 
-        (activity as? AppCompatActivity)?.supportActionBar?.show()
+        (activity as NavHostActivity).getSupportActionBarAndInflateIfNecessary().show()
         binding.historyLayout.updateLayoutParams {
             (this as? ViewGroup.MarginLayoutParams)?.topMargin = 0
         }

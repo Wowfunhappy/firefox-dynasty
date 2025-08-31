@@ -1135,13 +1135,13 @@ class BrowserRobot {
             )
             Log.i(
                 TAG,
-                "verifyWebCompatReporterViewItems: Trying to verify that the \"Send more info\" link is displayed",
+                "verifyWebCompatReporterViewItems: Trying to verify that the \"Add more info\" link is displayed",
             )
-            composeTestRule.onNodeWithText(getStringResource(R.string.webcompat_reporter_send_more_info))
+            composeTestRule.onNodeWithText(getStringResource(R.string.webcompat_reporter_add_more_info))
                 .assertIsDisplayed()
             Log.i(
                 TAG,
-                "verifyWebCompatReporterViewItems: Verified that the \"Send more info\" link is displayed",
+                "verifyWebCompatReporterViewItems: Verified that the \"Add more info\" link is displayed",
             )
         }
         Log.i(TAG, "verifyWebCompatReporterViewItems: Trying to verify that the \"Cancel\" button is displayed")
@@ -1537,24 +1537,24 @@ class BrowserRobot {
             return SiteSecurityRobot.Transition()
         }
 
-        fun clickManageAddressButton(interact: SettingsSubMenuAutofillRobot.() -> Unit): SettingsSubMenuAutofillRobot.Transition {
+        fun clickManageAddressButton(composeTestRule: ComposeTestRule, interact: SettingsSubMenuAutofillRobot.() -> Unit): SettingsSubMenuAutofillRobot.Transition {
             Log.i(TAG, "clickManageAddressButton: Trying to click the manage address button and wait for $waitingTime ms for a new window")
             itemWithResId("$packageName:id/manage_addresses")
                 .clickAndWaitForNewWindow(waitingTime)
             Log.i(TAG, "clickManageAddressButton: Clicked the manage address button and waited for $waitingTime ms for a new window")
 
-            SettingsSubMenuAutofillRobot().interact()
-            return SettingsSubMenuAutofillRobot.Transition()
+            SettingsSubMenuAutofillRobot(composeTestRule).interact()
+            return SettingsSubMenuAutofillRobot.Transition(composeTestRule)
         }
 
-        fun clickManageCreditCardsButton(interact: SettingsSubMenuAutofillRobot.() -> Unit): SettingsSubMenuAutofillRobot.Transition {
+        fun clickManageCreditCardsButton(composeTestRule: ComposeTestRule, interact: SettingsSubMenuAutofillRobot.() -> Unit): SettingsSubMenuAutofillRobot.Transition {
             Log.i(TAG, "clickManageCreditCardsButton: Trying to click the manage credit cards button and wait for $waitingTime ms for a new window")
             itemWithResId("$packageName:id/manage_credit_cards")
                 .clickAndWaitForNewWindow(waitingTime)
             Log.i(TAG, "clickManageCreditCardsButton: Clicked the manage credit cards button and waited for $waitingTime ms for a new window")
 
-            SettingsSubMenuAutofillRobot().interact()
-            return SettingsSubMenuAutofillRobot.Transition()
+            SettingsSubMenuAutofillRobot(composeTestRule).interact()
+            return SettingsSubMenuAutofillRobot.Transition(composeTestRule)
         }
 
         fun clickOpenLinksInAppsGoToSettingsCFRButton(interact: SettingsRobot.() -> Unit): SettingsRobot.Transition {

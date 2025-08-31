@@ -271,8 +271,11 @@ void nsINode::AssertInvariantsOnNodeInfoChange() {
 
 #ifdef DEBUG
 void nsINode::AssertIsRootElementSlow(bool aIsRoot) const {
-  const bool isRootSlow = this == OwnerDoc()->GetRootElement();
-  MOZ_ASSERT(aIsRoot == isRootSlow);
+  auto* root = OwnerDoc()->GetRootElement();
+  const bool isRootSlow = this == root;
+  // If we're mid unbind of the root element, IsRootElement() might return true
+  // but the document might not be able to reach the root element anymore.
+  MOZ_ASSERT(aIsRoot == isRootSlow || !root);
 }
 #endif
 
@@ -3262,7 +3265,7 @@ class SelectorCache final : public nsExpirationTracker<SelectorCacheKey, 4> {
 
   SelectorCache()
       : nsExpirationTracker<SelectorCacheKey, 4>(
-            1000, "SelectorCache", GetMainThreadSerialEventTarget()) {}
+            1000, "SelectorCache"_ns, GetMainThreadSerialEventTarget()) {}
 
   void NotifyExpired(SelectorCacheKey* aSelector) final {
     MOZ_ASSERT(NS_IsMainThread());

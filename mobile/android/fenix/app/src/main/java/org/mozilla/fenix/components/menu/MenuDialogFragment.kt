@@ -108,7 +108,6 @@ import org.mozilla.fenix.utils.exitSubmenu
 import org.mozilla.fenix.utils.lastSavedFolderCache
 import org.mozilla.fenix.utils.slideDown
 import org.mozilla.fenix.webcompat.DefaultWebCompatReporterMoreInfoSender
-import org.mozilla.fenix.webcompat.middleware.DefaultNimbusExperimentsProvider
 import org.mozilla.fenix.webcompat.middleware.DefaultWebCompatReporterRetrievalService
 import org.mozilla.fenix.webcompat.middleware.WebCompatInfoDeserializer
 
@@ -242,9 +241,6 @@ class MenuDialogFragment : BottomSheetDialogFragment() {
                                         useAlternativeNames = false
                                     },
                                 ),
-                                nimbusExperimentsProvider = DefaultNimbusExperimentsProvider(
-                                    nimbusApi = requireComponents.nimbus.sdk,
-                                ),
                             ),
                     )
 
@@ -353,8 +349,8 @@ class MenuDialogFragment : BottomSheetDialogFragment() {
                         .width(32.dp),
                     onRequestDismiss = ::dismiss,
                     handlebarContentDescription = handlebarContentDescription,
-                    isExtensionsExpanded = isExtensionsExpanded,
-                    isMoreMenuExpanded = isMoreMenuExpanded,
+                    isMenuDragBarDark = !settings.shouldUseBottomToolbar &&
+                            (isExtensionsExpanded || isMoreMenuExpanded),
                     cornerShape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
                     handleColor = FirefoxTheme.colors.borderInverted.copy(0.4f),
                     handleCornerRadius = CornerRadius(100f, 100f),
@@ -480,8 +476,6 @@ class MenuDialogFragment : BottomSheetDialogFragment() {
                     var shouldShowMenuBanner by
                     remember { mutableStateOf(settings.shouldShowMenuBanner) }
 
-                    var showBanner = shouldShowMenuBanner && !defaultBrowser
-
                     BackHandler {
                         this@MenuDialogFragment.dismissAllowingStateLoss()
                     }
@@ -553,6 +547,7 @@ class MenuDialogFragment : BottomSheetDialogFragment() {
                                     account = account,
                                     accountState = accountState,
                                     showQuitMenu = settings.shouldDeleteBrowsingDataOnQuit,
+                                    isBottomToolbar = settings.shouldUseBottomToolbar,
                                     isSiteLoading = isSiteLoading,
                                     isExtensionsProcessDisabled = isExtensionsProcessDisabled,
                                     isExtensionsExpanded = isExtensionsExpanded,
@@ -566,7 +561,7 @@ class MenuDialogFragment : BottomSheetDialogFragment() {
                                     canGoForward = selectedTab?.content?.canGoForward ?: true,
                                     extensionsMenuItemDescription = extensionsMenuItemDescription,
                                     scrollState = scrollState,
-                                    showBanner = showBanner,
+                                    showBanner = shouldShowMenuBanner && !defaultBrowser,
                                     webExtensionMenuCount = webExtensionsCount,
                                     allWebExtensionsDisabled = allWebExtensionsDisabled,
                                     onMozillaAccountButtonClick = {
@@ -603,8 +598,6 @@ class MenuDialogFragment : BottomSheetDialogFragment() {
                                     onBannerClick = {
                                         store.dispatch(MenuAction.MenuBanner)
                                         (context as? Activity)?.openSetDefaultBrowserOption()
-                                        showBanner = false
-                                        shouldShowMenuBanner = false
                                     },
                                     onBannerDismiss = {
                                         store.dispatch(MenuAction.DismissMenuBanner)
@@ -767,6 +760,7 @@ class MenuDialogFragment : BottomSheetDialogFragment() {
                                 CustomTabMenu(
                                     canGoBack = customTab?.content?.canGoBack ?: true,
                                     canGoForward = customTab?.content?.canGoForward ?: true,
+                                    isBottomToolbar = settings.shouldUseBottomToolbar,
                                     isSiteLoading = isSiteLoading,
                                     scrollState = scrollState,
                                     isPdf = customTab?.content?.isPdf == true,

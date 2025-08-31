@@ -12,6 +12,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import mozilla.appservices.places.BookmarkRoot
+import mozilla.components.concept.engine.EngineSession
 import mozilla.components.concept.storage.BookmarkInfo
 import mozilla.components.concept.storage.BookmarkNode
 import mozilla.components.concept.storage.BookmarkNodeType
@@ -32,12 +33,13 @@ import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.mockito.ArgumentMatchers.anyList
 import org.mockito.Mockito.never
 import org.mockito.Mockito.times
 import org.mockito.Mockito.verify
 import org.mockito.Mockito.`when`
-import org.mozilla.fenix.R
 import org.mozilla.fenix.browser.browsingmode.BrowsingMode
+import org.mozilla.fenix.components.usecases.FenixBrowserUseCases
 import org.mozilla.fenix.utils.LastSavedFolderCache
 
 @RunWith(AndroidJUnit4::class)
@@ -49,15 +51,15 @@ class BookmarksMiddlewareTest {
     private lateinit var bookmarksStorage: BookmarksStorage
     private lateinit var clipboardManager: ClipboardManager
     private lateinit var addNewTabUseCase: TabsUseCases.AddNewTabUseCase
+    private lateinit var fenixBrowserUseCases: FenixBrowserUseCases
     private lateinit var navController: NavController
-    private lateinit var navigateToSignIntoSync: () -> Unit
     private lateinit var exitBookmarks: () -> Unit
-    private lateinit var wasPreviousAppDestinationHome: () -> Boolean
+    private lateinit var navigateToBrowser: () -> Unit
     private lateinit var navigateToSearch: () -> Unit
+    private lateinit var navigateToSignIntoSync: () -> Unit
     private lateinit var shareBookmarks: (List<BookmarkItem.Bookmark>) -> Unit
     private lateinit var showTabsTray: (Boolean) -> Unit
     private lateinit var getBrowsingMode: () -> BrowsingMode
-    private lateinit var openTab: (String, Boolean) -> Unit
     private lateinit var lastSavedFolderCache: LastSavedFolderCache
     private lateinit var saveSortOrder: suspend (BookmarksListSortOrder) -> Unit
     private val resolveFolderTitle = { node: BookmarkNode ->
@@ -80,15 +82,15 @@ class BookmarksMiddlewareTest {
         bookmarksStorage = mock()
         clipboardManager = mock()
         addNewTabUseCase = mock()
+        fenixBrowserUseCases = mock()
         navController = mock()
-        navigateToSignIntoSync = { }
         exitBookmarks = { }
-        wasPreviousAppDestinationHome = { false }
+        navigateToBrowser = { }
         navigateToSearch = { }
+        navigateToSignIntoSync = { }
         shareBookmarks = { }
         showTabsTray = { _ -> }
         getBrowsingMode = { BrowsingMode.Normal }
-        openTab = { _, _ -> }
         lastSavedFolderCache = mock()
         saveSortOrder = { }
     }
@@ -232,19 +234,15 @@ class BookmarksMiddlewareTest {
     }
 
     @Test
-    fun `GIVEN last destination was home fragment and in normal browsing mode WHEN a bookmark is clicked THEN open it as a new tab`() {
+    fun `GIVEN bookmarks should be open in a new tab WHEN a bookmark is clicked THEN open it as a new tab`() {
         val url = "url"
         val bookmarkItem = BookmarkItem.Bookmark(url, "title", url, guid = "", position = null)
+        val openBookmarksInNewTab = true
         getBrowsingMode = { BrowsingMode.Normal }
-        var capturedUrl = ""
-        var capturedNewTab = false
-        openTab = { urlCalled, newTab ->
-            capturedUrl = urlCalled
-            capturedNewTab = newTab
-        }
-        wasPreviousAppDestinationHome = { true }
+        var navigated = false
+        navigateToBrowser = { navigated = true }
 
-        val middleware = buildMiddleware()
+        val middleware = buildMiddleware(openBookmarksInNewTab = openBookmarksInNewTab)
         val store = middleware.makeStore(
             initialState = BookmarksState.default.copy(
                 bookmarkItems = listOf(bookmarkItem),
@@ -253,25 +251,27 @@ class BookmarksMiddlewareTest {
 
         store.dispatch(BookmarkClicked(bookmarkItem))
 
-        assertEquals(url, capturedUrl)
-        assertTrue(capturedNewTab)
+        verify(fenixBrowserUseCases).loadUrlOrSearch(
+            searchTermOrURL = url,
+            newTab = openBookmarksInNewTab,
+            private = false,
+            flags = EngineSession.LoadUrlFlags.select(
+                EngineSession.LoadUrlFlags.ALLOW_JAVASCRIPT_URL,
+            ),
+        )
+        assertTrue(navigated)
     }
 
     @Test
-    fun `GIVEN last destination was browser fragment and in normal browsing mode WHEN a bookmark is clicked THEN open it in current tab`() {
+    fun `GIVEN bookmarks should not be open in a new tab WHEN a bookmark is clicked THEN open it in the existing tab`() {
         val url = "url"
         val bookmarkItem = BookmarkItem.Bookmark(url, "title", url, guid = "", position = null)
-        navController.mockBackstack(R.id.browserFragment)
+        val openBookmarksInNewTab = false
         getBrowsingMode = { BrowsingMode.Normal }
-        var capturedUrl = ""
-        var capturedNewTab = true
-        openTab = { urlCalled, newTab ->
-            capturedUrl = urlCalled
-            capturedNewTab = newTab
-        }
-        wasPreviousAppDestinationHome = { false }
+        var navigated = false
+        navigateToBrowser = { navigated = true }
 
-        val middleware = buildMiddleware()
+        val middleware = buildMiddleware(openBookmarksInNewTab = openBookmarksInNewTab)
         val store = middleware.makeStore(
             initialState = BookmarksState.default.copy(
                 bookmarkItems = listOf(bookmarkItem),
@@ -280,60 +280,15 @@ class BookmarksMiddlewareTest {
 
         store.dispatch(BookmarkClicked(bookmarkItem))
 
-        assertEquals(url, capturedUrl)
-        assertFalse(capturedNewTab)
-    }
-
-    @Test
-    fun `GIVEN in private browsing mode and last destination was home fragment WHEN a bookmark is clicked THEN open it in new tab`() {
-        val url = "url"
-        val bookmarkItem = BookmarkItem.Bookmark(url, "title", url, guid = "", position = null)
-        navController.mockBackstack(R.id.homeFragment)
-        getBrowsingMode = { BrowsingMode.Private }
-        var capturedUrl = ""
-        var capturedNewTab = false
-        openTab = { urlCalled, newTab ->
-            capturedUrl = urlCalled
-            capturedNewTab = newTab
-        }
-
-        val middleware = buildMiddleware()
-        val store = middleware.makeStore(
-            initialState = BookmarksState.default.copy(
-                bookmarkItems = listOf(bookmarkItem),
+        verify(fenixBrowserUseCases).loadUrlOrSearch(
+            searchTermOrURL = url,
+            newTab = openBookmarksInNewTab,
+            private = false,
+            flags = EngineSession.LoadUrlFlags.select(
+                EngineSession.LoadUrlFlags.ALLOW_JAVASCRIPT_URL,
             ),
         )
-
-        store.dispatch(BookmarkClicked(bookmarkItem))
-
-        assertEquals(url, capturedUrl)
-        assertTrue(capturedNewTab)
-    }
-
-    @Test
-    fun `GIVEN in private browsing mode and last destination was browser fragment WHEN a bookmark is clicked THEN open it in new tab`() {
-        val url = "url"
-        val bookmarkItem = BookmarkItem.Bookmark(url, "title", url, guid = "", position = null)
-        navController.mockBackstack(R.id.browserFragment)
-        getBrowsingMode = { BrowsingMode.Private }
-        var capturedUrl = ""
-        var capturedNewTab = false
-        openTab = { urlCalled, newTab ->
-            capturedUrl = urlCalled
-            capturedNewTab = newTab
-        }
-
-        val middleware = buildMiddleware()
-        val store = middleware.makeStore(
-            initialState = BookmarksState.default.copy(
-                bookmarkItems = listOf(bookmarkItem),
-            ),
-        )
-
-        store.dispatch(BookmarkClicked(bookmarkItem))
-
-        assertEquals(url, capturedUrl)
-        assertTrue(capturedNewTab)
+        assertTrue(navigated)
     }
 
     @Test
@@ -758,10 +713,57 @@ class BookmarksMiddlewareTest {
                 ),
             ),
         )
+        `when`(bookmarksStorage.countBookmarksInTrees(anyList())).thenReturn(0u)
+        store.dispatch(BookmarksListMenuAction.SelectAll)
+        store.waitUntilIdle()
+        val bookmarkCount = store.state.selectedItems.size
+        store.dispatch(BookmarksListMenuAction.MultiSelect.OpenInNormalTabsClicked)
+        store.waitUntilIdle()
+        assertEquals(bookmarkCount, store.state.bookmarksSelectFolderState?.folders?.count())
+    }
 
-        store.dispatch(SelectFolderAction.ViewAppeared)
+    @Test
+    fun `GIVEN selected folder WHEN OpenInNormalTabsClicked THEN urls opened as normal tabs`() = runTest {
+        val bookmarkFolder = BookmarkItem.Folder(title = "folder", guid = "1234", position = 0u)
+        val bookmarkItem = BookmarkItem.Bookmark(url = "url", title = "title", previewImageUrl = "string", guid = "guid", position = bookmarkFolder.position)
 
-        assertEquals(0, store.state.bookmarksSelectFolderState?.folders?.count())
+        var trayShown = false
+        showTabsTray = { trayShown = true }
+        val middleware = buildMiddleware()
+        val store = middleware.makeStore(
+            initialState =
+            BookmarksState.default.copy(
+                bookmarkItems = listOf(bookmarkFolder, bookmarkItem),
+                selectedItems = listOf(bookmarkFolder, bookmarkItem),
+            ),
+        )
+
+        store.dispatch(BookmarksListMenuAction.MultiSelect.OpenInNormalTabsClicked)
+        advanceUntilIdle()
+        verify(addNewTabUseCase).invoke(url = "url", private = false)
+        assertTrue(trayShown)
+    }
+
+    @Test
+    fun `GIVEN selected folder WHEN OpenInPrivateTabsClicked THEN urls opened as private tabs`() = runTest {
+        val bookmarkFolder = BookmarkItem.Folder(title = "folder", guid = "1234", position = 0u)
+        val bookmarkItem = BookmarkItem.Bookmark(url = "url", title = "title", previewImageUrl = "string", guid = "guid", position = bookmarkFolder.position)
+
+        var trayShown = false
+        showTabsTray = { trayShown = true }
+        val middleware = buildMiddleware()
+        val store = middleware.makeStore(
+            initialState =
+            BookmarksState.default.copy(
+                bookmarkItems = listOf(bookmarkFolder, bookmarkItem),
+                selectedItems = listOf(bookmarkFolder, bookmarkItem),
+            ),
+        )
+
+        store.dispatch(BookmarksListMenuAction.MultiSelect.OpenInPrivateTabsClicked)
+        advanceUntilIdle()
+        verify(addNewTabUseCase).invoke(url = "url", private = true)
+        assertTrue(trayShown)
     }
 
     @Test
@@ -1476,21 +1478,23 @@ class BookmarksMiddlewareTest {
 
     private fun buildMiddleware(
         useNewSearchUX: Boolean = false,
+        openBookmarksInNewTab: Boolean = false,
     ) = BookmarksMiddleware(
         bookmarksStorage = bookmarksStorage,
         clipboardManager = clipboardManager,
         addNewTabUseCase = addNewTabUseCase,
+        fenixBrowserUseCases = fenixBrowserUseCases,
+        useNewSearchUX = useNewSearchUX,
+        openBookmarksInNewTab = openBookmarksInNewTab,
         getNavController = { navController },
         exitBookmarks = exitBookmarks,
-        wasPreviousAppDestinationHome = wasPreviousAppDestinationHome,
-        useNewSearchUX = useNewSearchUX,
+        navigateToBrowser = navigateToBrowser,
         navigateToSearch = navigateToSearch,
         navigateToSignIntoSync = navigateToSignIntoSync,
         shareBookmarks = shareBookmarks,
         showTabsTray = showTabsTray,
         resolveFolderTitle = resolveFolderTitle,
         getBrowsingMode = getBrowsingMode,
-        openTab = openTab,
         ioDispatcher = coroutineRule.testDispatcher,
         saveBookmarkSortOrder = saveSortOrder,
         lastSavedFolderCache = lastSavedFolderCache,

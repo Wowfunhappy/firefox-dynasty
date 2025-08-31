@@ -1755,10 +1755,11 @@ const MESSAGES = () => [
     },
   },
   {
-    id: "FXA_ACCOUNTS_APPMENU_PROTECT_BROWSING_DATA",
+    id: "FXA_ACCOUNTS_PXIMENU_ROW_LAYOUT",
     template: "menu_message",
     content: {
       messageType: "fxa_cta",
+      layout: "row",
       primaryText: "Bounce between devices",
       secondaryText:
         "Sync and encrypt your bookmarks, passwords, and more on all your devices.",
@@ -1782,15 +1783,17 @@ const MESSAGES = () => [
           id: "FXA_ACCOUNTS_APPMENU_PROTECT_BROWSING_DATA",
         },
       },
-      imageURL:
-        "chrome://browser/content/asrouter/assets/fox-with-box-on-cloud.svg",
-      imageVerticalTopOffset: -20,
+      imageURL: "chrome://browser/content/asrouter/assets/fox-with-devices.svg",
+      imageVerticalBottomOffset: -32,
+      imageVerticalTopOffset: -4,
+      containerVerticalBottomOffset: 20,
+      imageWidth: 100,
     },
     skip_in_tests: "TODO",
     trigger: {
       id: "menuOpened",
     },
-    testingTriggerContext: "app_menu",
+    testingTriggerContext: "pxi_menu",
   },
   {
     id: "TEST_NEWTAB_MESSAGE",
@@ -1875,9 +1878,8 @@ const MESSAGES = () => [
     },
     template: "spotlight",
     profileScope: "single",
-    priority: 2,
     frequency: {
-      lifetime: 100,
+      lifetime: 1,
     },
     content: {
       template: "multistage",
@@ -1911,6 +1913,103 @@ const MESSAGES = () => [
         },
       ],
       transitions: true,
+    },
+  },
+  {
+    id: "TEST_NEW_TAB_DIV_FEATURE_TOUR",
+    groups: [],
+    template: "feature_callout",
+    content: {
+      id: "TEST_NEW_TAB_MESSAGE_FEATURE_TOUR",
+      template: "multistage",
+      backdrop: "transparent",
+      transitions: true,
+      disableHistoryUpdates: true,
+      screens: [
+        {
+          id: "FIRST_NEW_TAB_SCREEN",
+          force_hide_steps_indicator: true,
+          anchors: [
+            {
+              selector: "hbox#browser",
+              hide_arrow: true,
+              absolute_position: {
+                right: "20px",
+                bottom: "20px",
+              },
+            },
+          ],
+          content: {
+            position: "callout",
+            width: "320px",
+            padding: "0 16px 16px 16px",
+            title: {
+              raw: "Test Message",
+            },
+            logo: null,
+            subtitle: {
+              raw: "Test Screen message",
+            },
+            secondary_button: {
+              label: {
+                raw: "Next",
+              },
+              style: "primary",
+              action: {
+                type: "MULTI_ACTION",
+                advance_screens: {
+                  id: "SECOND_NEW_TAB_SCREEN",
+                },
+                data: {
+                  actions: [],
+                },
+              },
+            },
+          },
+        },
+        {
+          id: "SECOND_NEW_TAB_SCREEN",
+          force_hide_steps_indicator: true,
+          anchors: [
+            {
+              selector: "hbox#browser",
+              hide_arrow: true,
+              absolute_position: {
+                right: "20px",
+                bottom: "20px",
+              },
+            },
+          ],
+          content: {
+            position: "callout",
+            width: "320px",
+            padding: "0 16px 16px 16px",
+            title: {
+              raw: "Test Message ",
+            },
+            logo: null,
+            subtitle: {
+              raw: "Test Screen 2 message.",
+            },
+            secondary_button: {
+              label: {
+                raw: "Done",
+              },
+              style: "primary",
+              action: {
+                dismiss: true,
+              },
+            },
+          },
+        },
+      ],
+    },
+    frequency: {
+      lifetime: 1,
+    },
+    targeting: "!activeNotifications",
+    trigger: {
+      id: "newtabFeatureCalloutCheck",
     },
   },
 ];

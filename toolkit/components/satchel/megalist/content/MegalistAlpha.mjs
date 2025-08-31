@@ -90,7 +90,9 @@ export class MegalistAlpha extends MozLitElement {
           const { BrowserWindowTracker } = ChromeUtils.importESModule(
             "resource:///modules/BrowserWindowTracker.sys.mjs"
           );
-          const window = BrowserWindowTracker.getTopWindow();
+          const window = BrowserWindowTracker.getTopWindow({
+            allowFromInactiveWorkspace: true,
+          });
           window.SidebarController.hide();
         }
       }
@@ -380,9 +382,9 @@ export class MegalistAlpha extends MozLitElement {
           this.shadowRoot.querySelector(".passwords-list").focus();
         } else if (e.key === "Tab") {
           e.preventDefault();
-          const webContent =
-            lazy.BrowserWindowTracker.getTopWindow().gBrowser.selectedTab
-              .linkedBrowser;
+          const webContent = lazy.BrowserWindowTracker.getTopWindow({
+            allowFromInactiveWorkspace: true,
+          }).gBrowser.selectedTab.linkedBrowser;
           webContent.focus();
         }
       }}
@@ -890,15 +892,24 @@ export class MegalistAlpha extends MozLitElement {
         rel="stylesheet"
         href="chrome://global/content/megalist/megalist.css"
       />
-      <div class="container" aria-labelledby="sidebar-menu-cpm-header">
+      <link
+        rel="stylesheet"
+        href="chrome://browser/content/sidebar/sidebar.css"
+      />
+      <div
+        class="container sidebar-panel"
+        aria-labelledby="sidebar-menu-cpm-header"
+      >
         <sidebar-panel-header
           data-l10n-id="sidebar-menu-cpm-header"
           data-l10n-attrs="heading"
           view="viewCPMSidebar"
         ></sidebar-panel-header>
-        ${!this.shouldShowPrimaryPasswordAuth
-          ? this.renderAuthenticatedView()
-          : this.renderReauthPrimaryPassword()}
+        <div class="sidebar-panel-scrollable-content">
+          ${!this.shouldShowPrimaryPasswordAuth
+            ? this.renderAuthenticatedView()
+            : this.renderReauthPrimaryPassword()}
+        </div>
       </div>
     `;
   }

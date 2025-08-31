@@ -87,16 +87,10 @@ class MediaDevice final {
    */
   enum class OsPromptable { No, Yes };
 
-  /**
-   * Whether source device is just a placeholder
-   */
-  enum class IsPlaceholder { No, Yes };
-
   MediaDevice(MediaEngine* aEngine, dom::MediaSourceEnum aMediaSource,
               const nsString& aRawName, const nsString& aRawID,
               const nsString& aRawGroupID, IsScary aIsScary,
-              const OsPromptable canRequestOsLevelPrompt,
-              const IsPlaceholder aIsPlaceholder = IsPlaceholder::No);
+              const OsPromptable canRequestOsLevelPrompt);
 
   MediaDevice(MediaEngine* aEngine,
               const RefPtr<AudioDeviceInfo>& aAudioDeviceInfo,
@@ -118,7 +112,6 @@ class MediaDevice final {
   const bool mScary;
   const bool mCanRequestOsLevelPrompt;
   const bool mIsFake;
-  const bool mIsPlaceholder;
   const nsString mType;
   const nsString mRawID;
   const nsString mRawGroupID;
@@ -395,10 +388,10 @@ class MediaManager final : public nsIMediaManagerService,
       const dom::MediaStreamConstraints& aConstraints,
       dom::CallerType aCallerType, RefPtr<LocalMediaDeviceSetRefCnt> aDevices);
 
-  void GetPref(nsIPrefBranch* aBranch, const char* aPref, const char* aData,
-               int32_t* aVal);
-  void GetPrefBool(nsIPrefBranch* aBranch, const char* aPref, const char* aData,
-                   bool* aVal);
+  nsresult GetPref(nsIPrefBranch* aBranch, const char* aPref, const char* aData,
+                   int32_t* aVal);
+  nsresult GetPrefBool(nsIPrefBranch* aBranch, const char* aPref,
+                       const char* aData, bool* aVal);
   void GetPrefs(nsIPrefBranch* aBranch, const char* aData);
 
   // Make private because we want only one instance of this class

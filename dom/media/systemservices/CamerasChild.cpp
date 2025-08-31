@@ -285,13 +285,10 @@ mozilla::ipc::IPCResult CamerasChild::RecvReplyGetCaptureCapability(
   return IPC_OK();
 }
 
-int CamerasChild::GetCaptureDevice(CaptureEngine aCapEngine,
-                                   unsigned int list_number,
-                                   char* device_nameUTF8,
-                                   const unsigned int device_nameUTF8Length,
-                                   char* unique_idUTF8,
-                                   const unsigned int unique_idUTF8Length,
-                                   bool* scary, bool* device_is_placeholder) {
+int CamerasChild::GetCaptureDevice(
+    CaptureEngine aCapEngine, unsigned int list_number, char* device_nameUTF8,
+    const unsigned int device_nameUTF8Length, char* unique_idUTF8,
+    const unsigned int unique_idUTF8Length, bool* scary) {
   LOG(("%s", __PRETTY_FUNCTION__));
   nsCOMPtr<nsIRunnable> runnable =
       mozilla::NewRunnableMethod<CaptureEngine, unsigned int>(
@@ -305,9 +302,6 @@ int CamerasChild::GetCaptureDevice(CaptureEngine aCapEngine,
     if (scary) {
       *scary = mReplyScary;
     }
-    if (device_is_placeholder) {
-      *device_is_placeholder = mReplyDeviceIsPlaceholder;
-    }
     LOG(("Got %s name %s id", device_nameUTF8, unique_idUTF8));
   }
   return dispatcher.ReturnValue();
@@ -315,7 +309,7 @@ int CamerasChild::GetCaptureDevice(CaptureEngine aCapEngine,
 
 mozilla::ipc::IPCResult CamerasChild::RecvReplyGetCaptureDevice(
     const nsACString& device_name, const nsACString& device_id,
-    const bool& scary, const bool& device_is_placeholder) {
+    const bool& scary) {
   LOG(("%s", __PRETTY_FUNCTION__));
   MonitorAutoLock monitor(mReplyMonitor);
   mReceivedReply = true;
@@ -323,7 +317,6 @@ mozilla::ipc::IPCResult CamerasChild::RecvReplyGetCaptureDevice(
   mReplyDeviceName = device_name;
   mReplyDeviceID = device_id;
   mReplyScary = scary;
-  mReplyDeviceIsPlaceholder = device_is_placeholder;
   monitor.Notify();
   return IPC_OK();
 }
@@ -395,6 +388,8 @@ void CamerasChild::RemoveCallback(const int capture_id) {
 
 int CamerasChild::StartCapture(CaptureEngine aCapEngine, const int capture_id,
                                const webrtc::VideoCaptureCapability& webrtcCaps,
+                               const NormalizedConstraints& constraints,
+                               const dom::VideoResizeModeEnum& resize_mode,
                                FrameRelay* cb) {
   LOG(("%s", __PRETTY_FUNCTION__));
   AddCallback(capture_id, cb);
@@ -402,9 +397,12 @@ int CamerasChild::StartCapture(CaptureEngine aCapEngine, const int capture_id,
       webrtcCaps.width, webrtcCaps.height, webrtcCaps.maxFPS,
       static_cast<int>(webrtcCaps.videoType), webrtcCaps.interlaced);
   nsCOMPtr<nsIRunnable> runnable =
-      mozilla::NewRunnableMethod<CaptureEngine, int, VideoCaptureCapability>(
+      mozilla::NewRunnableMethod<CaptureEngine, int, VideoCaptureCapability,
+                                 NormalizedConstraints,
+                                 dom::VideoResizeModeEnum>(
           "camera::PCamerasChild::SendStartCapture", this,
-          &CamerasChild::SendStartCapture, aCapEngine, capture_id, capCap);
+          &CamerasChild::SendStartCapture, aCapEngine, capture_id, capCap,
+          constraints, resize_mode);
   LockAndDispatch<> dispatcher(this, __func__, runnable, -1, mZero);
   return dispatcher.ReturnValue();
 }

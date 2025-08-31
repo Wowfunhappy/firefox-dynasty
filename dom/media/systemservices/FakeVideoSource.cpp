@@ -54,7 +54,7 @@ int32_t FakeVideoSource::StartCapture(int32_t aWidth, int32_t aHeight,
         capturer->GenerateImage();
       },
       this, aFrameInterval, nsITimer::TYPE_REPEATING_PRECISE_CAN_SKIP,
-      "FakeVideoSource::GenerateFrame");
+      "FakeVideoSource::GenerateFrame"_ns);
 
   return 0;
 }
@@ -138,6 +138,8 @@ static void ReleaseFrame(layers::PlanarYCbCrData& aData) {
 void FakeVideoSource::GenerateImage() {
   mTarget.AssertOnCurrentThread();
 
+  const TimeStamp now = TimeStamp::Now();
+
   if (mTrackingId) {
     mCaptureRecorder.Start(0, "FakeVideoSource"_ns, *mTrackingId, mWidth,
                            mHeight, CaptureStage::ImageType::I420);
@@ -192,7 +194,7 @@ void FakeVideoSource::GenerateImage() {
     return;
   }
 
-  mGeneratedImageEvent.Notify(ycbcr_image);
+  mGeneratedImageEvent.Notify(ycbcr_image, now);
   mCaptureRecorder.Record(0);
 }
 

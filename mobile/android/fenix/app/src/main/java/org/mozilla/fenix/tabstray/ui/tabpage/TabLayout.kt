@@ -4,6 +4,7 @@
 
 package org.mozilla.fenix.tabstray.ui.tabpage
 
+import android.content.res.Configuration
 import androidx.compose.animation.core.DecayAnimationSpec
 import androidx.compose.animation.rememberSplineBasedDecay
 import androidx.compose.foundation.background
@@ -36,9 +37,11 @@ import androidx.compose.runtime.toMutableStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.tooling.preview.PreviewLightDark
 import androidx.compose.ui.tooling.preview.PreviewParameter
@@ -393,11 +396,12 @@ private val numberOfGridColumns: Int
     @Composable
     @ReadOnlyComposable
     get() {
-        val context = LocalContext.current
-        val displayMetrics = context.resources.displayMetrics
-        val screenWidthDp = displayMetrics.widthPixels / displayMetrics.density
+        val configuration = LocalConfiguration.current
+        val screenWidthDp = with(LocalDensity.current) {
+                LocalWindowInfo.current.containerSize.width.toDp().value
+            }
 
-        return if (context.isLandscape()) {
+        return if (configuration.orientation == Configuration.ORIENTATION_LANDSCAPE) {
             numberOfGridColumnsLandscape(screenWidthDp = screenWidthDp)
         } else {
             numberOfGridColumnsPortrait(screenWidthDp = screenWidthDp)

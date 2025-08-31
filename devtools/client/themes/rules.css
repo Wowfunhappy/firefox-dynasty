@@ -198,16 +198,16 @@
 
 .ruleview-computedlist,
 [hidden]:is(
-    .ruleview-expandable-container,
-    .ruleview-overridden-items,
-    .ruleview-overridden-rule-filter,
-    .ruleview-warning,
-    .ruleview-inactive-css-warning,
-    .ruleview-compatibility-warning,
-    .ruleview-used,
-    .ruleview-invalid-at-computed-value-time-warning,
+  .ruleview-expandable-container,
+  .ruleview-overridden-items,
+  .ruleview-overridden-rule-filter,
+  .ruleview-warning,
+  .ruleview-inactive-css-warning,
+  .ruleview-compatibility-warning,
+  .ruleview-used,
+  .ruleview-invalid-at-computed-value-time-warning,
 
-  ),
+),
 .ruleview-overridden .inspector-grid {
   display: none;
 }
@@ -574,6 +574,11 @@
 .ruleview-propertycontainer .ruleview-expander:dir(rtl)[aria-expanded="false"] {
   /* for preventing .theme-twisty's wrong direction in rtl; Bug 1296648 */
   transform: rotate(-90deg);
+}
+
+.ruleview-propertycontainer .ruleview-variable-link {
+  /* Prevent line break when copy/pasting an entire rule */
+  user-select: auto;
 }
 
 .ruleview-newproperty {

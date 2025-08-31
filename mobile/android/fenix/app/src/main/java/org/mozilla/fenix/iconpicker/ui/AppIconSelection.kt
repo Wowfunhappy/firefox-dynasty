@@ -7,7 +7,6 @@ package org.mozilla.fenix.iconpicker.ui
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -249,7 +248,10 @@ private fun RestartWarningDialog(
                 },
         text = {
             Text(
-                text = stringResource(R.string.restart_warning_dialog_body),
+                text = stringResource(
+                    id = R.string.restart_warning_dialog_body_2,
+                    stringResource(R.string.app_name),
+                ),
                 color = FirefoxTheme.colors.textPrimary,
                 style = FirefoxTheme.typography.body2,
             )
@@ -257,15 +259,13 @@ private fun RestartWarningDialog(
         onDismissRequest = { onDismiss() },
         confirmButton = {
             TextButton(
-                text = stringResource(id = R.string.restart_warning_dialog_button_positive),
-                upperCaseText = false,
+                text = stringResource(id = R.string.restart_warning_dialog_button_positive_2),
                 onClick = { onConfirm() },
             )
         },
         dismissButton = {
             TextButton(
                 text = stringResource(id = R.string.restart_warning_dialog_button_negative),
-                upperCaseText = false,
                 onClick = { onDismiss() },
             )
         },

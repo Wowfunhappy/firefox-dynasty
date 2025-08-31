@@ -572,12 +572,19 @@ async function checkTip(win, expectedTip, closeView = true) {
   }
 }
 
-function makeTipResult({ buttonUrl, helpUrl = undefined }) {
+function makeTipResult({
+  buttonUrl,
+  helpUrl = undefined,
+  descriptionL10n = undefined,
+  descriptionLearnMoreTopic = undefined,
+}) {
   return new UrlbarResult(
     UrlbarUtils.RESULT_TYPE.TIP,
     UrlbarUtils.RESULT_SOURCE.OTHER_LOCAL,
     {
       helpUrl,
+      descriptionL10n,
+      descriptionLearnMoreTopic,
       type: "test",
       titleL10n: { id: "urlbar-search-tips-confirm" },
       buttons: [
@@ -698,7 +705,9 @@ function resetSearchTipsProvider() {
   Services.prefs.clearUserPref(
     `browser.urlbar.tipShownCount.${UrlbarProviderSearchTips.TIP_TYPE.REDIRECT}`
   );
-  UrlbarProviderSearchTips.disableTipsForCurrentSession = false;
+  UrlbarProvidersManager.getProvider(
+    "UrlbarProviderSearchTips"
+  ).disableTipsForCurrentSession = false;
 }
 
 async function setDefaultEngine(name) {

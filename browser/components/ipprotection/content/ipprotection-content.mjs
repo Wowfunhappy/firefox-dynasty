@@ -140,7 +140,7 @@ export default class IPProtectionContentElement extends MozLitElement {
    */
   #getFormattedTime(startMS) {
     let duration = window.Temporal.Duration.from({
-      milliseconds: Math.ceil(Cu.now() - startMS),
+      milliseconds: Math.ceil(ChromeUtils.now() - startMS),
     }).round({ smallestUnit: "seconds", largestUnit: "hours" });
 
     let formatter = new Intl.DurationFormat("en-US", {
@@ -295,6 +295,12 @@ export default class IPProtectionContentElement extends MozLitElement {
       : null;
   }
 
+  animationRingsTemplate() {
+    return html` <div id="status-card-animation">
+      <div id="animation-rings"></div>
+    </div>`;
+  }
+
   statusCardTemplate() {
     let protectionEnabled = this.state.isProtectionEnabled;
     const statusCardL10nId = protectionEnabled
@@ -311,12 +317,8 @@ export default class IPProtectionContentElement extends MozLitElement {
     let time =
       this.canShowConnectionTime && this._timeString ? this._timeString : "";
 
-    return html`<moz-box-group class="vpn-status-group">
-      ${this.showAnimation
-        ? html` <div id="status-card-animation">
-            <div id="animation-rings"></div>
-          </div>`
-        : null}
+    return html` <moz-box-group class="vpn-status-group">
+      ${this.showAnimation ? this.animationRingsTemplate() : null}
       <moz-box-item
         id="status-card"
         class=${classMap({

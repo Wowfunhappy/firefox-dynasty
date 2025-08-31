@@ -24,6 +24,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
@@ -55,6 +56,7 @@ import mozilla.components.compose.base.button.FloatingActionButton
 import mozilla.components.compose.base.menu.DropdownMenu
 import mozilla.components.compose.base.menu.MenuItem
 import mozilla.components.compose.base.modifier.thenConditional
+import mozilla.components.compose.base.snackbar.displaySnackbar
 import mozilla.components.compose.base.text.Text
 import mozilla.components.lib.state.ext.observeAsState
 import org.mozilla.fenix.R
@@ -544,9 +546,9 @@ private fun getToolbarConfig(mode: Mode): ToolbarConfig {
                 R.string.download_multi_select_title,
                 mode.selectedItems.size,
             ),
-            backgroundColor = FirefoxTheme.colors.layerAccent,
-            textColor = FirefoxTheme.colors.textOnColorPrimary,
-            iconColor = FirefoxTheme.colors.iconOnColor,
+            backgroundColor = MaterialTheme.colorScheme.primary,
+            textColor = MaterialTheme.colorScheme.inverseOnSurface,
+            iconColor = MaterialTheme.colorScheme.inverseOnSurface,
         )
 
         is Mode.Normal -> ToolbarConfig(
@@ -566,14 +568,11 @@ private fun showDeleteSnackbar(
     undoAction: () -> Unit,
 ) {
     coroutineScope.launch {
-        val snackbarResult = snackbarHostState.showSnackbar(
+        snackbarHostState.displaySnackbar(
             message = getDeleteSnackBarMessage(selectedItems, context),
             actionLabel = context.getString(R.string.download_undo_delete_snackbar_action),
-            duration = SnackbarDuration.Short,
+            onActionPerformed = { undoAction.invoke() },
         )
-        if (snackbarResult == SnackbarResult.ActionPerformed) {
-            undoAction.invoke()
-        }
     }
 }
 
@@ -723,14 +722,14 @@ private fun DownloadsScreenPreviews(
                 downloadsStore = downloadsStore,
                 onItemClick = {
                     scope.launch {
-                        snackbarHostState.showSnackbar(
+                        snackbarHostState.displaySnackbar(
                             message = "Item ${it.fileName} clicked",
                         )
                     }
                 },
                 onNavigationIconClick = {
                     scope.launch {
-                        snackbarHostState.showSnackbar(
+                        snackbarHostState.displaySnackbar(
                             message = "Navigation Icon clicked",
                         )
                     }

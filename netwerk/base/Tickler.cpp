@@ -12,6 +12,10 @@
 #  include "nsServiceManagerUtils.h"
 #  include "nsThreadUtils.h"
 #  include "prnetdb.h"
+#  include "nsXULAppAPI.h"
+#  include "nsIPrefService.h"
+#  include "nsIPrefBranch.h"
+
 #  include "mozilla/java/GeckoAppShellWrappers.h"
 #  include "mozilla/jni/Utils.h"
 #  include "nsXULAppAPI.h"
@@ -200,8 +204,8 @@ void Tickler::StartTickler() {
   MOZ_ASSERT(!mActive);
   MOZ_ASSERT(mTimer);
 
-  if (NS_SUCCEEDED(mTimer->InitWithCallback(new TicklerTimer(this),
-                                            mEnabled ? mDelay : 1000,
+  auto tickler = MakeRefPtr<TicklerTimer>(this);
+  if (NS_SUCCEEDED(mTimer->InitWithCallback(tickler, mEnabled ? mDelay : 1000,
                                             nsITimer::TYPE_REPEATING_SLACK)))
     mActive = true;
 }

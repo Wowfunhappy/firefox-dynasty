@@ -49,7 +49,6 @@ import mozilla.components.concept.fetch.Response
 import mozilla.components.concept.storage.PageVisit
 import mozilla.components.concept.storage.VisitType
 import mozilla.components.support.test.any
-import mozilla.components.support.test.argumentCaptor
 import mozilla.components.support.test.eq
 import mozilla.components.support.test.mock
 import mozilla.components.support.test.robolectric.shadow.PixelCopyShadow
@@ -633,91 +632,7 @@ class SystemEngineViewTest {
     }
 
     @Test
-    @Suppress("Deprecation")
-    fun `WebViewClient calls interceptor from deprecated onReceivedError API`() {
-        val engineSession = spy(SystemEngineSession(testContext))
-        val engineView = SystemEngineView(testContext)
-        engineView.render(engineSession)
-        doNothing().`when`(engineSession).initSettings()
-
-        val requestInterceptor: RequestInterceptor = mock()
-        val webViewClient = engineSession.webView.webViewClient
-
-        // No session or interceptor attached.
-        webViewClient.onReceivedError(
-            engineSession.webView,
-            WebViewClient.ERROR_UNKNOWN,
-            null,
-            "http://failed.random",
-        )
-        verifyNoInteractions(requestInterceptor)
-
-        // Session attached, but not interceptor.
-        engineView.render(engineSession)
-        webViewClient.onReceivedError(
-            engineSession.webView,
-            WebViewClient.ERROR_UNKNOWN,
-            null,
-            "http://failed.random",
-        )
-        verifyNoInteractions(requestInterceptor)
-
-        // Session and interceptor.
-        engineSession.settings.requestInterceptor = requestInterceptor
-        webViewClient.onReceivedError(
-            engineSession.webView,
-            WebViewClient.ERROR_UNKNOWN,
-            null,
-            "http://failed.random",
-        )
-        verify(requestInterceptor).onErrorRequest(engineSession, ErrorType.UNKNOWN, "http://failed.random")
-
-        val webView = mock<WebView>()
-        val settings = mock<WebSettings>()
-        whenever(webView.settings).thenReturn(settings)
-
-        engineSession.webView = webView
-        val errorResponse = RequestInterceptor.ErrorResponse("about:fail")
-        webViewClient.onReceivedError(
-            engineSession.webView,
-            WebViewClient.ERROR_UNKNOWN,
-            null,
-            "http://failed.random",
-        )
-        verify(webView, never()).loadUrl(ArgumentMatchers.anyString())
-
-        whenever(requestInterceptor.onErrorRequest(engineSession, ErrorType.UNKNOWN, "http://failed.random"))
-            .thenReturn(errorResponse)
-        webViewClient.onReceivedError(
-            engineSession.webView,
-            WebViewClient.ERROR_UNKNOWN,
-            null,
-            "http://failed.random",
-        )
-        verify(webView).loadUrl("about:fail")
-
-        val errorResponse2 = RequestInterceptor.ErrorResponse("about:fail2")
-        webViewClient.onReceivedError(
-            engineSession.webView,
-            WebViewClient.ERROR_UNKNOWN,
-            null,
-            "http://failed.random",
-        )
-        verify(webView, never()).loadUrl("about:fail2")
-
-        whenever(requestInterceptor.onErrorRequest(engineSession, ErrorType.UNKNOWN, "http://failed.random"))
-            .thenReturn(errorResponse2)
-        webViewClient.onReceivedError(
-            engineSession.webView,
-            WebViewClient.ERROR_UNKNOWN,
-            null,
-            "http://failed.random",
-        )
-        verify(webView).loadUrl("about:fail2")
-    }
-
-    @Test
-    fun `WebViewClient calls interceptor from new onReceivedError API`() {
+    fun `WebViewClient calls interceptor from onReceivedError API`() {
         val engineSession = spy(SystemEngineSession(testContext))
         val engineView = SystemEngineView(testContext)
         engineView.render(engineSession)

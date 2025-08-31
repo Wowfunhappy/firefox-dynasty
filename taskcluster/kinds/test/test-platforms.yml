@@ -91,6 +91,7 @@ linux2404-64-shippable/opt:
         - linux-tests
         - web-platform-tests
         - web-platform-tests-backlog
+        - newtab-trainhop-tests
 
 linux2404-64/debug:
     build-platform: linux64/debug
@@ -287,6 +288,7 @@ windows11-64-24h2-shippable/opt:
         - windows-talos
         - browsertime
         - windows-talos-webgl
+        - newtab-trainhop-tests
 
 windows11-64-24h2-devedition/opt:
     build-platform: win64-devedition/opt
@@ -350,6 +352,7 @@ macosx1470-64-shippable/opt:
         - macosx1470-64-tests
         - webgpu
         - web-platform-tests-backlog
+        - newtab-trainhop-tests
 
 macosx1470-64-devedition/opt:
     build-platform: macosx64-devedition/opt
@@ -430,11 +433,6 @@ android-em-7.0-x86_64-qr/debug-isolated-process:
     build-platform: android-x86_64/debug-isolated-process
     test-sets:
         - android-x86_64-tests
-
-android-em-7.0-x86-qr/opt:
-    build-platform: android-x86/opt
-    test-sets:
-        - android-x86-tests
 
 # new android 14 emulator- will run in parallel for a few weeks
 android-em-14-x86_64/opt:

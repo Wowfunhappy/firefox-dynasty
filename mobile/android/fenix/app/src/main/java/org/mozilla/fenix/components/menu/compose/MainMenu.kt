@@ -58,14 +58,12 @@ import androidx.compose.ui.tooling.preview.PreviewLightDark
 import androidx.compose.ui.tooling.preview.PreviewParameter
 import androidx.compose.ui.tooling.preview.PreviewParameterProvider
 import androidx.compose.ui.unit.dp
+import mozilla.components.compose.base.Divider
 import mozilla.components.feature.addons.Addon
 import mozilla.components.feature.addons.ui.displayName
 import mozilla.components.feature.addons.ui.summary
 import mozilla.components.service.fxa.manager.AccountState
-import mozilla.components.service.fxa.manager.AccountState.Authenticated
-import mozilla.components.service.fxa.manager.AccountState.Authenticating
 import mozilla.components.service.fxa.manager.AccountState.AuthenticationProblem
-import mozilla.components.service.fxa.manager.AccountState.NotAuthenticated
 import mozilla.components.service.fxa.store.Account
 import org.mozilla.fenix.R
 import org.mozilla.fenix.components.menu.MenuAccessPoint
@@ -74,7 +72,8 @@ import org.mozilla.fenix.components.menu.MenuDialogTestTag.DESKTOP_SITE_ON
 import org.mozilla.fenix.components.menu.MenuDialogTestTag.EXTENSIONS
 import org.mozilla.fenix.components.menu.MenuDialogTestTag.EXTENSIONS_OPTION_CHEVRON
 import org.mozilla.fenix.components.menu.MenuDialogTestTag.MORE_OPTION_CHEVRON
-import org.mozilla.fenix.components.menu.compose.header.MenuNavHeader
+import org.mozilla.fenix.components.menu.compose.MenuNavigation
+import org.mozilla.fenix.components.menu.compose.header.MozillaAccountMenuItem
 import org.mozilla.fenix.components.menu.store.WebExtensionMenuItem
 import org.mozilla.fenix.theme.FirefoxTheme
 import org.mozilla.fenix.theme.Theme
@@ -88,6 +87,7 @@ import org.mozilla.fenix.utils.DURATION_MS_MAIN_MENU_ITEM
  * @param accountState The [AccountState] of a Mozilla account.
  * @param showQuitMenu Whether or not the button to delete browsing data and quit
  * should be visible.
+ * @param isBottomToolbar Whether or not the browser toolbar is at the bottom.
  * @param isSiteLoading Whether or not the tab is loading.
  * @param isExtensionsExpanded Whether or not the extensions menu is expanded.
  * @param isMoreMenuExpanded Whether or not the more menu is expanded.
@@ -129,13 +129,14 @@ import org.mozilla.fenix.utils.DURATION_MS_MAIN_MENU_ITEM
  * @param extensionSubmenu The content of extensions menu item to avoid configuration during animation.
  * @param extensionsMenuItemDescription The label of extensions menu item description.
  */
-@Suppress("LongParameterList", "LongMethod")
+@Suppress("LongParameterList", "LongMethod", "CyclomaticComplexMethod")
 @Composable
 fun MainMenu(
     accessPoint: MenuAccessPoint,
     account: Account?,
     accountState: AccountState,
     showQuitMenu: Boolean,
+    isBottomToolbar: Boolean,
     isSiteLoading: Boolean,
     isExtensionsExpanded: Boolean,
     isMoreMenuExpanded: Boolean,
@@ -177,20 +178,43 @@ fun MainMenu(
     extensionsMenuItemDescription: String?,
 ) {
     MenuFrame(
+        contentModifier = Modifier
+            .padding(
+                start = 8.dp,
+                top = if (isBottomToolbar && accessPoint != MenuAccessPoint.Home) 0.dp else 8.dp,
+                end = 8.dp,
+                bottom = if (isBottomToolbar && accessPoint != MenuAccessPoint.Home) 84.dp else 16.dp,
+            ),
+        scrollState = scrollState,
         header = {
-            if (accessPoint != MenuAccessPoint.Home) {
-                MenuNavHeader(
+            if (accessPoint != MenuAccessPoint.Home && !isBottomToolbar) {
+                MenuNavigation(
                     state = MenuItemState.ENABLED,
-                    goBackState = if (canGoBack) {
-                        MenuItemState.ENABLED
-                    } else {
-                        MenuItemState.DISABLED
-                    },
-                    goForwardState = if (canGoForward) {
-                        MenuItemState.ENABLED
-                    } else {
-                        MenuItemState.DISABLED
-                    },
+                    goBackState = if (canGoBack) MenuItemState.ENABLED else MenuItemState.DISABLED,
+                    goForwardState = if (canGoForward) MenuItemState.ENABLED else MenuItemState.DISABLED,
+                    isSiteLoading = isSiteLoading,
+                    onBackButtonClick = onBackButtonClick,
+                    onForwardButtonClick = onForwardButtonClick,
+                    onRefreshButtonClick = onRefreshButtonClick,
+                    onStopButtonClick = onStopButtonClick,
+                    onShareButtonClick = onShareButtonClick,
+                    isExtensionsExpanded = isExtensionsExpanded,
+                    isMoreMenuExpanded = isMoreMenuExpanded,
+                )
+                if (scrollState.value != 0) {
+                    Divider(color = FirefoxTheme.colors.borderPrimary)
+                }
+            }
+        },
+        footer = {
+            if (accessPoint != MenuAccessPoint.Home && isBottomToolbar) {
+                if (scrollState.value != 0) {
+                    Divider(color = FirefoxTheme.colors.borderPrimary)
+                }
+                MenuNavigation(
+                    state = MenuItemState.ENABLED,
+                    goBackState = if (canGoBack) MenuItemState.ENABLED else MenuItemState.DISABLED,
+                    goForwardState = if (canGoForward) MenuItemState.ENABLED else MenuItemState.DISABLED,
                     isSiteLoading = isSiteLoading,
                     onBackButtonClick = onBackButtonClick,
                     onForwardButtonClick = onForwardButtonClick,
@@ -202,7 +226,6 @@ fun MainMenu(
                 )
             }
         },
-        scrollState = scrollState,
     ) {
         if (isReaderViewActive && accessPoint != MenuAccessPoint.Home) {
             MenuGroup {
@@ -272,8 +295,8 @@ fun MainMenu(
             MozillaAccountMenuItem(
                 account = account,
                 accountState = accountState,
-                onClick = onMozillaAccountButtonClick,
                 isPrivate = isPrivate,
+                onClick = onMozillaAccountButtonClick,
             )
 
             MenuItem(
@@ -549,10 +572,11 @@ private fun ToolsAndActionsMenuGroup(
             extensionsMenuItemDescription = extensionsMenuItemDescription,
         )
 
-        MoreMenuButtonGroup(
-            moreMenuExpanded = moreMenuExpanded,
-            onMoreMenuClick = onMoreMenuClick,
-        )
+        if (!moreMenuExpanded) {
+            MoreMenuButtonGroup(
+                onMoreMenuClick = onMoreMenuClick,
+            )
+        }
 
         MenuItemAnimation(
             isExpanded = moreMenuExpanded,
@@ -563,20 +587,11 @@ private fun ToolsAndActionsMenuGroup(
 
 @Composable
 private fun MoreMenuButtonGroup(
-    moreMenuExpanded: Boolean,
     onMoreMenuClick: () -> Unit,
 ) {
     MenuItem(
-        label = if (moreMenuExpanded) {
-            stringResource(id = R.string.browser_menu_less_settings)
-        } else {
-            stringResource(id = R.string.browser_menu_more_settings)
-        },
-        stateDescription = if (moreMenuExpanded) {
-            "Expanded"
-        } else {
-            "Collapsed"
-        },
+        label = stringResource(id = R.string.browser_menu_more_settings),
+        stateDescription = "Collapsed",
         beforeIconPainter = painterResource(id = R.drawable.mozac_ic_ellipsis_horizontal_24),
         onClick = onMoreMenuClick,
     ) {
@@ -591,11 +606,7 @@ private fun MoreMenuButtonGroup(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(
-                painter = if (moreMenuExpanded) {
-                    painterResource(id = R.drawable.mozac_ic_chevron_up_20)
-                } else {
-                    painterResource(id = R.drawable.mozac_ic_chevron_down_20)
-                },
+                painter = painterResource(id = R.drawable.mozac_ic_chevron_down_20),
                 contentDescription = null,
                 tint = FirefoxTheme.colors.iconPrimary,
                 modifier = Modifier.semantics {
@@ -717,64 +728,6 @@ private fun HomepageMenuGroup(
             extensionsMenuItemDescription = extensionsMenuItemDescription,
         )
     }
-}
-
-@Composable
-internal fun MozillaAccountMenuItem(
-    account: Account?,
-    accountState: AccountState,
-    onClick: () -> Unit,
-    isPrivate: Boolean,
-) {
-    val label: String
-    val description: String?
-
-    when (accountState) {
-        NotAuthenticated -> {
-            label = stringResource(id = R.string.browser_menu_sign_in)
-            description = stringResource(id = R.string.browser_menu_sign_in_caption_3)
-        }
-
-        AuthenticationProblem -> {
-            label = account?.displayName ?: account?.email
-                    ?: stringResource(id = R.string.browser_menu_sign_back_in_to_sync)
-            description = stringResource(id = R.string.browser_menu_syncing_paused_caption)
-        }
-
-        Authenticated -> {
-            label = account?.displayName ?: account?.email
-                ?: stringResource(id = R.string.browser_menu_account_settings)
-            description = stringResource(id = R.string.browser_menu_signed_in_caption)
-        }
-
-        is Authenticating -> {
-            label = ""
-            description = null
-        }
-    }
-
-    MenuItem(
-        label = label,
-        beforeIconPainter = if (accountState is AuthenticationProblem && isPrivate) {
-            painterResource(id = R.drawable.mozac_ic_avatar_warning_circle_fill_critical_private_24)
-        } else if (accountState is AuthenticationProblem) {
-            painterResource(id = R.drawable.mozac_ic_avatar_warning_circle_fill_critical_24)
-        } else {
-            painterResource(id = R.drawable.mozac_ic_avatar_circle_24)
-        },
-        description = description,
-        state = if (accountState is AuthenticationProblem) {
-            MenuItemState.CRITICAL
-        } else {
-            MenuItemState.ENABLED
-        },
-        descriptionState = if (accountState is AuthenticationProblem) {
-            MenuItemState.WARNING
-        } else {
-            MenuItemState.ENABLED
-        },
-        onClick = onClick,
-    )
 }
 
 @Suppress("LongParameterList")
@@ -962,6 +915,7 @@ private fun MenuDialogPreview() {
                 accountState = AuthenticationProblem,
                 isPrivate = false,
                 showQuitMenu = true,
+                isBottomToolbar = false,
                 isSiteLoading = false,
                 isExtensionsExpanded = false,
                 isMoreMenuExpanded = true,
@@ -1022,6 +976,7 @@ private fun MenuDialogPrivatePreview(
                 accountState = AuthenticationProblem,
                 isPrivate = false,
                 showQuitMenu = true,
+                isBottomToolbar = true,
                 isSiteLoading = isSiteLoading,
                 isExtensionsExpanded = true,
                 isMoreMenuExpanded = true,

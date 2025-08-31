@@ -13,7 +13,7 @@ namespace mozilla {
 namespace gfx {
 
 void FilterProcessing::ExtractAlpha_Scalar(const IntSize& size,
-                                           uint8_t* sourceData,
+                                           const uint8_t* sourceData,
                                            int32_t sourceStride,
                                            uint8_t* alphaData,
                                            int32_t alphaStride) {
@@ -34,7 +34,7 @@ already_AddRefed<DataSourceSurface> FilterProcessing::ConvertToB8G8R8A8_Scalar(
 
 template <MorphologyOperator Operator>
 static void ApplyMorphologyHorizontal_Scalar(
-    uint8_t* aSourceData, int32_t aSourceStride, uint8_t* aDestData,
+    const uint8_t* aSourceData, int32_t aSourceStride, uint8_t* aDestData,
     int32_t aDestStride, const IntRect& aDestRect, int32_t aRadius) {
   static_assert(Operator == MORPHOLOGY_OPERATOR_ERODE ||
                     Operator == MORPHOLOGY_OPERATOR_DILATE,
@@ -47,12 +47,12 @@ static void ApplyMorphologyHorizontal_Scalar(
          x++, startX++, endX++) {
       int32_t sourceIndex = y * aSourceStride + 4 * startX;
       uint8_t u[4];
-      for (size_t i = 0; i < 4; i++) {
+      for (int32_t i = 0; i < int32_t(std::size(u)); i++) {
         u[i] = aSourceData[sourceIndex + i];
       }
       sourceIndex += 4;
       for (int32_t ix = startX + 1; ix <= endX; ix++, sourceIndex += 4) {
-        for (size_t i = 0; i < 4; i++) {
+        for (int32_t i = 0; i < int32_t(std::size(u)); i++) {
           if (Operator == MORPHOLOGY_OPERATOR_ERODE) {
             u[i] = umin(u[i], aSourceData[sourceIndex + i]);
           } else {
@@ -62,7 +62,7 @@ static void ApplyMorphologyHorizontal_Scalar(
       }
 
       int32_t destIndex = y * aDestStride + 4 * x;
-      for (size_t i = 0; i < 4; i++) {
+      for (int32_t i = 0; i < int32_t(std::size(u)); i++) {
         aDestData[destIndex + i] = u[i];
       }
     }
@@ -70,7 +70,7 @@ static void ApplyMorphologyHorizontal_Scalar(
 }
 
 void FilterProcessing::ApplyMorphologyHorizontal_Scalar(
-    uint8_t* aSourceData, int32_t aSourceStride, uint8_t* aDestData,
+    const uint8_t* aSourceData, int32_t aSourceStride, uint8_t* aDestData,
     int32_t aDestStride, const IntRect& aDestRect, int32_t aRadius,
     MorphologyOperator aOp) {
   if (aOp == MORPHOLOGY_OPERATOR_ERODE) {
@@ -84,7 +84,7 @@ void FilterProcessing::ApplyMorphologyHorizontal_Scalar(
 
 template <MorphologyOperator Operator>
 static void ApplyMorphologyVertical_Scalar(
-    uint8_t* aSourceData, int32_t aSourceStride, uint8_t* aDestData,
+    const uint8_t* aSourceData, int32_t aSourceStride, uint8_t* aDestData,
     int32_t aDestStride, const IntRect& aDestRect, int32_t aRadius) {
   static_assert(Operator == MORPHOLOGY_OPERATOR_ERODE ||
                     Operator == MORPHOLOGY_OPERATOR_DILATE,
@@ -97,13 +97,13 @@ static void ApplyMorphologyVertical_Scalar(
     for (int32_t x = aDestRect.X(); x < aDestRect.XMost(); x++) {
       int32_t sourceIndex = startY * aSourceStride + 4 * x;
       uint8_t u[4];
-      for (size_t i = 0; i < 4; i++) {
+      for (int32_t i = 0; i < int32_t(std::size(u)); i++) {
         u[i] = aSourceData[sourceIndex + i];
       }
       sourceIndex += aSourceStride;
       for (int32_t iy = startY + 1; iy <= endY;
            iy++, sourceIndex += aSourceStride) {
-        for (size_t i = 0; i < 4; i++) {
+        for (int32_t i = 0; i < int32_t(std::size(u)); i++) {
           if (Operator == MORPHOLOGY_OPERATOR_ERODE) {
             u[i] = umin(u[i], aSourceData[sourceIndex + i]);
           } else {
@@ -113,7 +113,7 @@ static void ApplyMorphologyVertical_Scalar(
       }
 
       int32_t destIndex = y * aDestStride + 4 * x;
-      for (size_t i = 0; i < 4; i++) {
+      for (int32_t i = 0; i < int32_t(std::size(u)); i++) {
         aDestData[destIndex + i] = u[i];
       }
     }
@@ -121,7 +121,7 @@ static void ApplyMorphologyVertical_Scalar(
 }
 
 void FilterProcessing::ApplyMorphologyVertical_Scalar(
-    uint8_t* aSourceData, int32_t aSourceStride, uint8_t* aDestData,
+    const uint8_t* aSourceData, int32_t aSourceStride, uint8_t* aDestData,
     int32_t aDestStride, const IntRect& aDestRect, int32_t aRadius,
     MorphologyOperator aOp) {
   if (aOp == MORPHOLOGY_OPERATOR_ERODE) {
@@ -147,7 +147,7 @@ void FilterProcessing::ApplyComposition_Scalar(DataSourceSurface* aSource,
 }
 
 void FilterProcessing::SeparateColorChannels_Scalar(
-    const IntSize& size, uint8_t* sourceData, int32_t sourceStride,
+    const IntSize& size, const uint8_t* sourceData, int32_t sourceStride,
     uint8_t* channel0Data, uint8_t* channel1Data, uint8_t* channel2Data,
     uint8_t* channel3Data, int32_t channelStride) {
   for (int32_t y = 0; y < size.height; y++) {
@@ -180,7 +180,7 @@ void FilterProcessing::CombineColorChannels_Scalar(
 
 void FilterProcessing::DoPremultiplicationCalculation_Scalar(
     const IntSize& aSize, uint8_t* aTargetData, int32_t aTargetStride,
-    uint8_t* aSourceData, int32_t aSourceStride) {
+    const uint8_t* aSourceData, int32_t aSourceStride) {
   for (int32_t y = 0; y < aSize.height; y++) {
     for (int32_t x = 0; x < aSize.width; x++) {
       int32_t inputIndex = y * aSourceStride + 4 * x;
@@ -205,7 +205,7 @@ void FilterProcessing::DoPremultiplicationCalculation_Scalar(
 
 void FilterProcessing::DoUnpremultiplicationCalculation_Scalar(
     const IntSize& aSize, uint8_t* aTargetData, int32_t aTargetStride,
-    uint8_t* aSourceData, int32_t aSourceStride) {
+    const uint8_t* aSourceData, int32_t aSourceStride) {
   for (int32_t y = 0; y < aSize.height; y++) {
     for (int32_t x = 0; x < aSize.width; x++) {
       int32_t inputIndex = y * aSourceStride + 4 * x;
@@ -239,7 +239,7 @@ void FilterProcessing::DoUnpremultiplicationCalculation_Scalar(
 
 void FilterProcessing::DoOpacityCalculation_Scalar(
     const IntSize& aSize, uint8_t* aTargetData, int32_t aTargetStride,
-    uint8_t* aSourceData, int32_t aSourceStride, Float aValue) {
+    const uint8_t* aSourceData, int32_t aSourceStride, Float aValue) {
   uint8_t alpha = uint8_t(roundf(255.f * aValue));
   for (int32_t y = 0; y < aSize.height; y++) {
     for (int32_t x = 0; x < aSize.width; x++) {
@@ -263,7 +263,7 @@ void FilterProcessing::DoOpacityCalculation_Scalar(
 
 void FilterProcessing::DoOpacityCalculationA8_Scalar(
     const IntSize& aSize, uint8_t* aTargetData, int32_t aTargetStride,
-    uint8_t* aSourceData, int32_t aSourceStride, Float aValue) {
+    const uint8_t* aSourceData, int32_t aSourceStride, Float aValue) {
   uint8_t alpha = uint8_t(255.f * aValue);
   for (int32_t y = 0; y < aSize.height; y++) {
     for (int32_t x = 0; x < aSize.width; x++) {

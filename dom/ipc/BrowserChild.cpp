@@ -28,6 +28,7 @@
 #include "mozilla/IMEStateManager.h"
 #include "mozilla/LookAndFeel.h"
 #include "mozilla/MediaFeatureChange.h"
+#include "mozilla/MiscEvents.h"
 #include "mozilla/MouseEvents.h"
 #include "mozilla/NativeKeyBindingsType.h"
 #include "mozilla/NullPrincipal.h"
@@ -3407,7 +3408,7 @@ BrowserChild::GetChromeOuterWindowID(uint64_t* aId) {
 
 bool BrowserChild::DoSendBlockingMessage(
     const nsAString& aMessage, StructuredCloneData& aData,
-    nsTArray<StructuredCloneData>* aRetVal) {
+    nsTArray<UniquePtr<StructuredCloneData>>* aRetVal) {
   ClonedMessageData data;
   if (!BuildClonedMessageData(aData, data)) {
     return false;

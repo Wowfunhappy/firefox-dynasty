@@ -1639,7 +1639,7 @@ uint32_t MacroAssembler::pushFakeReturnAddress(Register scratch) {
 }
 
 bool MacroAssemblerCompat::buildOOLFakeExitFrame(void* fakeReturnAddr) {
-  asMasm().PushFrameDescriptor(FrameType::IonJS);
+  asMasm().Push(FrameDescriptor(FrameType::IonJS));
   asMasm().Push(ImmPtr(fakeReturnAddr));
   asMasm().Push(FramePointer);
   return true;
@@ -3023,7 +3023,7 @@ void MacroAssembler::patchNearAddressMove(CodeLocationLabel loc,
   Instruction* cur = reinterpret_cast<Instruction*>(loc.raw());
   MOZ_ASSERT(cur->IsADR());
 
-  vixl::Register rd = vixl::Register::XRegFromCode(cur->Rd());
+  vixl::Register rd = vixl::XRegister(cur->Rd());
   adr(cur, rd, off);
 }
 
