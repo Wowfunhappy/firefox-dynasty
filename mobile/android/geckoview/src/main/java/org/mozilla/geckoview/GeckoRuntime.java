@@ -441,8 +441,7 @@ public final class GeckoRuntime implements Parcelable {
       final File minidumps = new File(context.getFilesDir(), "minidumps");
       context.bindService(
           i,
-          CrashHelper.createConnection(
-              pipes.mBreakpadServer, minidumps.getPath(), pipes.mListener, pipes.mServer),
+          CrashHelper.createConnection(pipes.mBreakpadServer, minidumps.getPath(), pipes.mServer),
           Context.BIND_AUTO_CREATE);
     } catch (final ClassNotFoundException e) {
       Log.w(LOGTAG, "Couldn't find the crash helper class");
@@ -464,6 +463,10 @@ public final class GeckoRuntime implements Parcelable {
 
     if (!settings.getLowMemoryDetection()) {
       flags |= GeckoThread.FLAG_DISABLE_LOW_MEMORY_DETECTION;
+    }
+
+    if (settings.getIsolatedProcessEnabled()) {
+      flags |= GeckoThread.FLAG_CONTENT_ISOLATED;
     }
 
     final Class<?> crashHandler = settings.getCrashHandler();

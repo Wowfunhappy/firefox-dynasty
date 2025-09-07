@@ -32,39 +32,6 @@ namespace mozilla {
 
 namespace detail {
 
-struct HasPointerTypeHelper {
-  template <class U>
-  static double Test(...);
-  template <class U>
-  static char Test(typename U::pointer* = 0);
-};
-
-template <class T>
-class HasPointerType
-    : public std::integral_constant<bool, sizeof(HasPointerTypeHelper::Test<T>(
-                                              0)) == 1> {};
-
-template <class T, class D, bool = HasPointerType<D>::value>
-struct PointerTypeImpl {
-  typedef typename D::pointer Type;
-};
-
-template <class T, class D>
-struct PointerTypeImpl<T, D, false> {
-  typedef T* Type;
-};
-
-template <class T, class D>
-struct PointerType {
-  typedef typename PointerTypeImpl<T, std::remove_reference_t<D>>::Type Type;
-};
-
-}  // namespace detail
-
-// No operator<, operator>, operator<=, operator>= for now because simplicity.
-
-namespace detail {
-
 template <typename T>
 struct UniqueSelector {
   typedef UniquePtr<T> SingleObject;
@@ -137,20 +104,9 @@ struct UniqueSelector<T[N]> {
  */
 
 template <typename T, typename... Args>
-typename detail::UniqueSelector<T>::SingleObject MakeUnique(Args&&... aArgs) {
-  return UniquePtr<T>(new T(std::forward<Args>(aArgs)...));
+auto MakeUnique(Args&&... aArgs) {
+  return std::make_unique<T>(std::forward<Args>(aArgs)...);
 }
-
-template <typename T>
-typename detail::UniqueSelector<T>::UnknownBound MakeUnique(
-    decltype(sizeof(int)) aN) {
-  using ArrayType = std::remove_extent_t<T>;
-  return UniquePtr<T>(new ArrayType[aN]());
-}
-
-template <typename T, typename... Args>
-typename detail::UniqueSelector<T>::KnownBound MakeUnique(Args&&... aArgs) =
-    delete;
 
 /**
  * WrapUnique is a helper function to transfer ownership from a raw pointer
@@ -256,6 +212,8 @@ auto TempPtrToSetter(UniquePtr<T, Deleter>* const p) {
 }  // namespace mozilla
 
 namespace std {
+
+// No operator<, operator>, operator<=, operator>= for now because simplicity.
 
 template <typename T, class D>
 bool operator==(const mozilla::UniquePtr<T, D>& aX, const T* aY) {

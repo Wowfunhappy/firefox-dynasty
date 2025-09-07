@@ -1532,8 +1532,7 @@ void LIRGenerator::visitStrictConstantCompareBoolean(
     MStrictConstantCompareBoolean* ins) {
   MDefinition* value = ins->value();
 
-  auto* lir =
-      new (alloc()) LStrictConstantCompareBoolean(useBox(value), temp());
+  auto* lir = new (alloc()) LStrictConstantCompareBoolean(useBox(value));
   define(lir, ins);
 }
 
@@ -1908,6 +1907,21 @@ void LIRGenerator::visitNearbyInt(MNearbyInt* ins) {
     lir = new (alloc()) LNearbyInt(useRegisterAtStart(ins->input()));
   } else {
     lir = new (alloc()) LNearbyIntF(useRegisterAtStart(ins->input()));
+  }
+
+  define(lir, ins);
+}
+
+void LIRGenerator::visitRoundToDouble(MRoundToDouble* ins) {
+  MIRType inputType = ins->input()->type();
+  MOZ_ASSERT(IsFloatingPointType(inputType));
+  MOZ_ASSERT(ins->type() == inputType);
+
+  LInstructionHelper<1, 1, 0>* lir;
+  if (inputType == MIRType::Double) {
+    lir = new (alloc()) LRoundToDouble(useRegister(ins->input()));
+  } else {
+    lir = new (alloc()) LRoundToFloat32(useRegister(ins->input()));
   }
 
   define(lir, ins);

@@ -1648,20 +1648,18 @@ void CodeGenerator::visitStrictConstantCompareBoolean(
   JSOp op = comp->mir()->jsop();
   Register output = ToRegister(comp->output());
 
-  Label fail, pass, done;
-  Register boolUnboxed = ToRegister(comp->temp0());
-  masm.fallibleUnboxBoolean(value, boolUnboxed,
-                            op == JSOp::StrictEq ? &fail : &pass);
-  masm.branch32(JSOpToCondition(op, true), boolUnboxed, Imm32(constantVal),
-                &pass);
+  masm.move32(Imm32(op == JSOp::StrictNe), output);
 
-  masm.bind(&fail);
-  masm.move32(Imm32(0), output);
-  masm.jump(&done);
-
-  masm.bind(&pass);
-  masm.move32(Imm32(1), output);
-
+  Label done;
+  masm.fallibleUnboxBoolean(value, output, &done);
+  {
+    // Prefer comparison against zero because most architectures can optimize
+    // this case more efficiently.
+    if (constantVal) {
+      op = NegateCompareOp(op);
+    }
+    masm.cmp32Set(JSOpToCondition(op, true), output, Imm32(0), output);
+  }
   masm.bind(&done);
 }
 
@@ -11495,19 +11493,22 @@ void CodeGenerator::visitMinMaxI(LMinMaxI* ins) {
 
   MOZ_ASSERT(first == output);
 
-  Assembler::Condition cond =
-      ins->mir()->isMax() ? Assembler::GreaterThan : Assembler::LessThan;
-
   if (ins->second()->isConstant()) {
     auto second = Imm32(ToInt32(ins->second()));
 
-    Label done;
-    masm.branch32(cond, first, second, &done);
-    masm.move32(second, output);
-    masm.bind(&done);
+    if (ins->mir()->isMax()) {
+      masm.max32(first, second, output);
+    } else {
+      masm.min32(first, second, output);
+    }
   } else {
     Register second = ToRegister(ins->second());
-    masm.cmp32Move32(cond, second, first, second, output);
+
+    if (ins->mir()->isMax()) {
+      masm.max32(first, second, output);
+    } else {
+      masm.min32(first, second, output);
+    }
   }
 }
 
@@ -11517,19 +11518,22 @@ void CodeGenerator::visitMinMaxIntPtr(LMinMaxIntPtr* ins) {
 
   MOZ_ASSERT(first == output);
 
-  Assembler::Condition cond =
-      ins->mir()->isMax() ? Assembler::GreaterThan : Assembler::LessThan;
-
   if (ins->second()->isConstant()) {
     auto second = ImmWord(ToIntPtr(ins->second()));
 
-    Label done;
-    masm.branchPtr(cond, first, second, &done);
-    masm.movePtr(second, output);
-    masm.bind(&done);
+    if (ins->mir()->isMax()) {
+      masm.maxPtr(first, second, output);
+    } else {
+      masm.minPtr(first, second, output);
+    }
   } else {
     Register second = ToRegister(ins->second());
-    masm.cmpPtrMovePtr(cond, second, first, second, output);
+
+    if (ins->mir()->isMax()) {
+      masm.maxPtr(first, second, output);
+    } else {
+      masm.minPtr(first, second, output);
+    }
   }
 }
 
@@ -12601,6 +12605,36 @@ void CodeGenerator::visitTruncF(LTruncF* lir) {
   Label bail;
   masm.truncFloat32ToInt32(input, output, &bail);
   bailoutFrom(&bail, lir->snapshot());
+}
+
+void CodeGenerator::visitNearbyInt(LNearbyInt* lir) {
+  FloatRegister input = ToFloatRegister(lir->input());
+  FloatRegister output = ToFloatRegister(lir->output());
+
+  RoundingMode roundingMode = lir->mir()->roundingMode();
+  masm.nearbyIntDouble(roundingMode, input, output);
+}
+
+void CodeGenerator::visitNearbyIntF(LNearbyIntF* lir) {
+  FloatRegister input = ToFloatRegister(lir->input());
+  FloatRegister output = ToFloatRegister(lir->output());
+
+  RoundingMode roundingMode = lir->mir()->roundingMode();
+  masm.nearbyIntFloat32(roundingMode, input, output);
+}
+
+void CodeGenerator::visitRoundToDouble(LRoundToDouble* lir) {
+  FloatRegister input = ToFloatRegister(lir->input());
+  FloatRegister output = ToFloatRegister(lir->output());
+
+  masm.roundDouble(input, output);
+}
+
+void CodeGenerator::visitRoundToFloat32(LRoundToFloat32* lir) {
+  FloatRegister input = ToFloatRegister(lir->input());
+  FloatRegister output = ToFloatRegister(lir->output());
+
+  masm.roundFloat32(input, output);
 }
 
 void CodeGenerator::visitCompareS(LCompareS* lir) {

@@ -52,8 +52,8 @@ import mozilla.components.compose.base.textfield.TextFieldStyle
 import mozilla.components.compose.base.theme.AcornTheme
 import mozilla.components.lib.state.ext.observeAsState
 import org.mozilla.fenix.R
-import org.mozilla.fenix.compose.list.TextListItem
 import org.mozilla.fenix.theme.FirefoxTheme
+import mozilla.components.ui.icons.R as iconsR
 
 @Composable
 internal fun LoginDetailsScreen(store: LoginsStore) {
@@ -141,7 +141,7 @@ private fun LoginDetailTopBar(
         navigationIcon = {
             androidx.compose.material3.IconButton(onClick = onBackClick) {
                 Icon(
-                    painter = painterResource(R.drawable.mozac_ic_back_24),
+                    painter = painterResource(iconsR.drawable.mozac_ic_back_24),
                     contentDescription = stringResource(
                         R.string.login_details_navigate_back_button_content_description,
                     ),
@@ -160,7 +160,7 @@ private fun LoginDetailTopBar(
                         .padding(horizontal = FirefoxTheme.layout.space.static50),
                 ) {
                     Icon(
-                        painter = painterResource(R.drawable.mozac_ic_ellipsis_vertical_24),
+                        painter = painterResource(iconsR.drawable.mozac_ic_ellipsis_vertical_24),
                         contentDescription = null,
                         tint = FirefoxTheme.colors.iconPrimary,
                     )
@@ -221,15 +221,33 @@ private fun LoginDetailsUrl(store: LoginsStore, url: String) {
             .width(FirefoxTheme.layout.size.containerMaxWidth),
     )
 
-    TextListItem(
-        label = url,
+    TextField(
+        value = url,
+        onValueChange = {},
+        isEnabled = false,
+        placeholder = "",
+        errorText = "",
         modifier = Modifier
-            .padding(start = 16.dp)
+            .padding(horizontal = FirefoxTheme.layout.space.static200)
             .wrapContentHeight()
             .width(FirefoxTheme.layout.size.containerMaxWidth),
-        iconPainter = painterResource(R.drawable.ic_open_in_new),
-        iconDescription = stringResource(R.string.saved_login_open_site),
-        onIconClick = { store.dispatch(DetailLoginAction.GoToSiteClicked(url)) },
+        trailingIcons = {
+            IconButton(
+                modifier = Modifier
+                    .padding(horizontal = FirefoxTheme.layout.space.static50)
+                    .size(48.dp),
+                onClick = {
+                    store.dispatch(DetailLoginAction.GoToSiteClicked(url))
+                },
+                contentDescription = stringResource(R.string.saved_login_open_site),
+            ) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_open_in_new),
+                    contentDescription = null,
+                    tint = AcornTheme.colors.textPrimary,
+                )
+            }
+        },
     )
 }
 
@@ -247,25 +265,41 @@ private fun LoginDetailsUsername(
         style = TextFieldStyle.default().labelStyle,
         color = TextFieldColors.default().labelColor,
         modifier = Modifier
-            .padding(start = 16.dp)
+            .padding(horizontal = FirefoxTheme.layout.space.static200)
             .width(FirefoxTheme.layout.size.containerMaxWidth),
     )
 
-    TextListItem(
-        label = username,
+    TextField(
+        value = username,
+        onValueChange = {},
+        isEnabled = false,
+        placeholder = "",
+        errorText = "",
         modifier = Modifier
-            .padding(start = 16.dp)
+            .padding(horizontal = FirefoxTheme.layout.space.static200)
             .wrapContentHeight()
             .width(FirefoxTheme.layout.size.containerMaxWidth),
-        iconPainter = painterResource(R.drawable.ic_copy),
-        iconDescription = stringResource(R.string.saved_login_copy_username),
-        onIconClick = {
-            store.dispatch(DetailLoginAction.CopyUsernameClicked(username))
-            showTextCopiedSnackbar(
-                message = usernameSnackbarText,
-                coroutineScope = coroutineScope,
-                snackbarHostState = snackbarHostState,
-            )
+        trailingIcons = {
+            IconButton(
+                modifier = Modifier
+                    .padding(horizontal = FirefoxTheme.layout.space.static50)
+                    .size(48.dp),
+                onClick = {
+                    store.dispatch(DetailLoginAction.CopyUsernameClicked(username))
+                    showTextCopiedSnackbar(
+                        message = usernameSnackbarText,
+                        coroutineScope = coroutineScope,
+                        snackbarHostState = snackbarHostState,
+                    )
+                },
+                contentDescription = stringResource(R.string.saved_login_copy_username),
+            ) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_copy),
+                    contentDescription = null,
+                    tint = AcornTheme.colors.textPrimary,
+                )
+            }
         },
     )
 }
@@ -285,7 +319,7 @@ private fun LoginDetailsPassword(
         style = TextFieldStyle.default().labelStyle,
         color = TextFieldColors.default().labelColor,
         modifier = Modifier
-            .padding(start = 16.dp)
+            .padding(horizontal = FirefoxTheme.layout.space.static200)
             .width(FirefoxTheme.layout.size.containerMaxWidth),
     )
     TextField(
@@ -295,7 +329,8 @@ private fun LoginDetailsPassword(
         placeholder = "",
         errorText = "",
         modifier = Modifier
-            .padding(start = 32.dp)
+            .padding(horizontal = FirefoxTheme.layout.space.static200)
+            .wrapContentHeight()
             .width(FirefoxTheme.layout.size.containerMaxWidth),
         trailingIcons = {
             EyePasswordIconButton(
