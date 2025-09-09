@@ -149,16 +149,14 @@ MOZ_PROGRAM_LDFLAGS += -Wl,-rpath -Wl,@executable_path/Frameworks
 endif
 endif
 
-## this is part of commit https://hg.mozilla.org/mozilla-unified/rev/1bc4ee894015268a6be66950b80705e73f17147e
-# which is being removed for backwards compatibility purcpoases
-## For Mac executables, set the @rpath to be @executable_path by default so that
-## shared libraries built with an @rpath install name in the same directory
-## as the executable can be resolved. Executables not in the same directory
-## should override the @rpath with a relative path such as @executable_path/../
-## depending on their install location.
-#ifeq ($(OS_ARCH),Darwin)
-#MOZ_PROGRAM_LDFLAGS += -Wl,-rpath,@executable_path
-#endif
+# For Mac executables, set the @rpath to be @executable_path by default so that
+# shared libraries built with an @rpath install name in the same directory
+# as the executable can be resolved. Executables not in the same directory
+# should override the @rpath with a relative path such as @executable_path/../
+# depending on their install location.
+ifeq ($(OS_ARCH),Darwin)
+MOZ_PROGRAM_LDFLAGS += -Wl,-rpath,@executable_path
+endif
 
 ifeq ($(OS_ARCH),WINNT)
 ifeq ($(CC_TYPE),clang)
@@ -281,7 +279,7 @@ endif
 # for why we are setting loader path back to executable path
 ifeq ($(OS_ARCH),Darwin)
 ifneq (,$(SHARED_LIBRARY))
-_LOADER_PATH := @executable_path
+_LOADER_PATH := @rpath
 EXTRA_DSO_LDOPTS	+= -dynamiclib -install_name $(_LOADER_PATH)/$(@F) -compatibility_version 1 -current_version 1
 endif
 endif
@@ -432,9 +430,6 @@ endif # WINNT && clang-cl
 ifdef ENABLE_STRIP
 	$(STRIP) $(STRIP_FLAGS) $@
 endif
-ifdef MOZ_POST_PROGRAM_COMMAND
-	$(MOZ_POST_PROGRAM_COMMAND) $@
-endif
 	$(call BUILDSTATUS,END_Program $(@F))
 
 $(HOST_PROGRAM): $(HOST_PROGOBJS) $(HOST_LIBS) $(HOST_EXTRA_DEPS) $(GLOBAL_DEPS) $(call mkdir_deps,$(DEPTH)/dist/host/bin)
@@ -476,9 +471,6 @@ endif # WINNT && clang-cl
 
 ifdef ENABLE_STRIP
 	$(STRIP) $(STRIP_FLAGS) $@
-endif
-ifdef MOZ_POST_PROGRAM_COMMAND
-	$(MOZ_POST_PROGRAM_COMMAND) $@
 endif
 	$(call BUILDSTATUS,END_Program $(@F))
 
