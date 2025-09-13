@@ -139,7 +139,7 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
                 initBrowserToolbarComposableUpdates(view)
             }
         }
-        initTranslationsUpdates(view)
+        initTranslationsUpdates(context = context, rootView = view)
 
         thumbnailsFeature.set(
             feature = BrowserThumbnails(context, binding.engineView, components.core.store),
@@ -284,10 +284,11 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
         )
     }
 
-    private fun initTranslationsUpdates(rootView: View) {
+    private fun initTranslationsUpdates(context: Context, rootView: View) {
         if (Config.channel.isDebug) {
             translationsBannerIntegration.set(
                 feature = TranslationsBannerIntegration(
+                    browserStore = context.components.core.store,
                     browserScreenStore = browserScreenStore,
                     binding = binding,
                     onExpand = {
@@ -707,7 +708,7 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
             isNewCollection: Boolean = false,
         ) {
             val messageResId = when {
-                isNewCollection -> R.string.create_collection_tabs_saved_new_collection
+                isNewCollection -> R.string.create_collection_tabs_saved_new_collection_2
                 tabSize == 1 -> R.string.create_collection_tab_saved
                 else -> return // Don't show snackbar for multiple tabs
             }
@@ -762,9 +763,7 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
          */
         const val READER_MODE_WEIGHT = 1
         const val TRANSLATIONS_WEIGHT = 2
-        const val REVIEW_QUALITY_CHECK_WEIGHT = 3
         const val SHARE_WEIGHT = 4
-        const val RELOAD_WEIGHT = 5
         const val OPEN_IN_ACTION_WEIGHT = 6
     }
 }

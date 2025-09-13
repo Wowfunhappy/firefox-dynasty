@@ -43,7 +43,8 @@ dependencies = [
 
 [[package]]
 name = "allocator-api2"
-version = "0.2.999"
+version = "0.2.21"
+source = "git+https://github.com/glandium/allocator-api2?rev=ad5f3d56a5a4519eff52af4ff85293431466ef5c#ad5f3d56a5a4519eff52af4ff85293431466ef5c"
 dependencies = [
  "serde",
 ]
@@ -419,7 +420,7 @@ name = "bench-collections-gtest"
 version = "0.1.0"
 dependencies = [
  "fnv",
- "fxhash",
+ "rustc-hash 2.1.1",
 ]
 
 [[package]]
@@ -2373,15 +2374,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "fxhash"
-version = "0.2.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c31b6d751ae2c7f11320402d34e41349dd1016f8d5d45e48c4312bc8625af50c"
-dependencies = [
- "byteorder",
-]
-
-[[package]]
 name = "gecko-fuzz-targets"
 version = "0.1.0"
 dependencies = [
@@ -3690,6 +3682,54 @@ name = "libc"
 version = "0.2.171"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c19937216e9d3aa9956d9bb8dfc0b0c8beb6058fc4f7a4dc4d850edf86a237d6"
+
+[[package]]
+name = "libcrux-hacl-rs"
+version = "0.0.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1134af11da3f24ae8d1a7e2b60ee871c9e3ffd3d8857deaeebab8088b005addd"
+dependencies = [
+ "libcrux-macros",
+]
+
+[[package]]
+name = "libcrux-macros"
+version = "0.0.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ffd6aa2dcd5be681662001b81d493f1569c6d49a32361f470b0c955465cd0338"
+dependencies = [
+ "quote",
+ "syn",
+]
+
+[[package]]
+name = "libcrux-p256"
+version = "0.0.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b00d21690ebcc7ce1f242e6c4bdadfd8529f9cf2d7b961c0344c9bcb2c82f78f"
+dependencies = [
+ "libcrux-hacl-rs",
+ "libcrux-macros",
+ "libcrux-sha2",
+]
+
+[[package]]
+name = "libcrux-sha2"
+version = "0.0.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "91eed3bb0ae073f46ae03c83318013fba6e3302bf3292639417b68e908fec4bf"
+dependencies = [
+ "libcrux-hacl-rs",
+ "libcrux-macros",
+ "libcrux-traits",
+]
+
+[[package]]
+name = "libcrux-traits"
+version = "0.0.3"
+dependencies = [
+ "rand",
+]
 
 [[package]]
 name = "libdbus-sys"
@@ -5260,8 +5300,14 @@ dependencies = [
 name = "pkcs11testmodule-static"
 version = "0.1.0"
 dependencies = [
+ "base64 0.22.1",
+ "libcrux-p256",
  "mozilla-central-workspace-hack",
+ "num-bigint",
+ "num-integer",
  "pkcs11-bindings",
+ "rand",
+ "rsclientcerts",
 ]
 
 [[package]]
@@ -5516,9 +5562,9 @@ dependencies = [
 
 [[package]]
 name = "quote"
-version = "1.0.35"
+version = "1.0.40"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "291ec9ab5efd934aaf503a6466c5d5251535d108ee747472c3977cc5acc868ef"
+checksum = "1885c039570dc00dcb4ff087a89e185fd56bae234ddc7f056a945bf36467248d"
 dependencies = [
  "proc-macro2",
 ]
@@ -5995,12 +6041,12 @@ dependencies = [
  "bitflags 2.9.0",
  "cssparser",
  "derive_more",
- "fxhash",
  "log",
  "new_debug_unreachable",
  "phf",
  "phf_codegen",
  "precomputed-hash",
+ "rustc-hash 2.1.1",
  "servo_arc",
  "smallvec",
  "to_shmem",
@@ -6373,7 +6419,6 @@ dependencies = [
  "derive_more",
  "dom",
  "euclid",
- "fxhash",
  "gecko-profiler",
  "icu_segmenter",
  "indexmap",
@@ -6396,6 +6441,7 @@ dependencies = [
  "rayon",
  "rayon-core",
  "regex",
+ "rustc-hash 2.1.1",
  "selectors",
  "serde",
  "servo_arc",
@@ -7577,7 +7623,6 @@ dependencies = [
  "etagere",
  "euclid",
  "firefox-on-glean",
- "fxhash",
  "gleam",
  "glean",
  "glslopt",
@@ -7589,6 +7634,7 @@ dependencies = [
  "plane-split",
  "rayon",
  "ron",
+ "rustc-hash 2.1.1",
  "serde",
  "smallvec",
  "svg_fmt",
@@ -7632,7 +7678,6 @@ dependencies = [
  "dwrote",
  "euclid",
  "foreign-types",
- "fxhash",
  "gecko-profiler",
  "gleam",
  "log",
@@ -7641,6 +7686,7 @@ dependencies = [
  "objc",
  "rayon",
  "remove_dir_all",
+ "rustc-hash 2.1.1",
  "static_prefs",
  "swgl",
  "thin-vec",
@@ -7992,7 +8038,6 @@ dependencies = [
  "euclid",
  "firefox-on-glean",
  "freetype",
- "fxhash",
  "glean",
  "lazy_static",
  "libc",
@@ -8000,6 +8045,7 @@ dependencies = [
  "malloc_size_of_derive",
  "objc",
  "rayon",
+ "rustc-hash 2.1.1",
  "serde",
  "smallvec",
  "tracy-rs",

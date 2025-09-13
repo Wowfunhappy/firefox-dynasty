@@ -9,47 +9,97 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.compose.ui.res.stringResource
+import androidx.coordinatorlayout.widget.CoordinatorLayout
 import androidx.core.view.isVisible
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChangedBy
+import kotlinx.coroutines.flow.map
+import mozilla.components.browser.state.selector.selectedTab
+import mozilla.components.browser.state.store.BrowserStore
+import mozilla.components.lib.state.ext.flowScoped
 import mozilla.components.lib.state.ext.observeAsComposableState
 import mozilla.components.lib.state.helpers.AbstractBinding
 import org.mozilla.fenix.R
 import org.mozilla.fenix.browser.store.BrowserScreenState
 import org.mozilla.fenix.browser.store.BrowserScreenStore
 import org.mozilla.fenix.databinding.FragmentBrowserBinding
+import org.mozilla.fenix.ext.settings
 import org.mozilla.fenix.theme.FirefoxTheme
 import org.mozilla.fenix.translations.TranslationToolbar
 
 /**
  * Helper for showing the translations banner.
  *
+ * @param browserStore [BrowserStore] to sync browser state changes from.
  * @param browserScreenStore [BrowserScreenStore] to sync the current translations status from.
  * @param binding [FragmentBrowserBinding] to inflate the banner into when needed.
  * @param onExpand invoked when user wants to expand the translations controls.
  */
 class TranslationsBannerIntegration(
+    private val browserStore: BrowserStore,
     private val browserScreenStore: BrowserScreenStore,
     private val binding: FragmentBrowserBinding,
     private val onExpand: () -> Unit = {},
 ) : AbstractBinding<BrowserScreenState>(browserScreenStore) {
+
+    private var browserFlowScope: CoroutineScope? = null
+
+    private val translationsBanner: ComposeView?
+        get() = (binding.root.findViewById<View>(R.id.translationsBanner) as? ComposeView)
+
+    override fun stop() {
+        super.stop()
+        closeBrowserFlowScope()
+    }
+
     override suspend fun onState(flow: Flow<BrowserScreenState>) {
         flow.distinctUntilChangedBy { it.pageTranslationStatus.isTranslated }
             .collect {
                 if (it.pageTranslationStatus.isTranslated) {
-                    getViewOrInflate().apply {
-                        isVisible = true
+                    observeFullScreenMediaState()
+                    getViewOrInflate().let { banner ->
+                        banner.isVisible = true
+                        banner.behavior = TranslationsBannerBehavior<View>(
+                            context = banner.context,
+                            isAddressBarAtBottom = banner.settings().shouldUseBottomToolbar,
+                            isNavBarShown = banner.context.settings().shouldUseExpandedToolbar,
+                        )
                     }
                 } else {
+                    closeBrowserFlowScope()
                     // Ensure we're not inflating the stub just to hide it.
                     dismissBanner()
                 }
             }
     }
 
+    private fun observeFullScreenMediaState() {
+        browserFlowScope = browserStore.flowScoped { flow ->
+            flow.map { state -> state.selectedTab?.mediaSessionState }
+                .distinctUntilChangedBy { it?.fullscreen }
+                .collect { mediaSessionState ->
+                    val isInFullScreen = mediaSessionState?.fullscreen == true
+                    translationsBanner?.apply {
+                            isVisible = !isInFullScreen
+                            if (!isInFullScreen) {
+                                (behavior as TranslationsBannerBehavior).forceExpand(this)
+                            }
+                        }
+                }
+        }
+    }
+
+    private fun closeBrowserFlowScope() {
+        browserFlowScope?.cancel()
+        browserFlowScope = null
+    }
+
     private fun dismissBanner() {
-        (binding.root.findViewById<View>(R.id.translationsBanner) as? ComposeView)?.apply {
+        translationsBanner?.apply {
             isVisible = false
+            behavior = null
             disposeComposition()
         }
     }
@@ -71,7 +121,10 @@ class TranslationsBannerIntegration(
                     targetLanguage,
                 ),
                 onExpand = onExpand,
-                onClose = { dismissBanner() },
+                onClose = {
+                    closeBrowserFlowScope()
+                    dismissBanner()
+                  },
             )
         }
     }
@@ -82,5 +135,11 @@ class TranslationsBannerIntegration(
                 setContent { TranslationsBannerHost() }
                 setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
             }
+        }
+
+    private var View.behavior: CoordinatorLayout.Behavior<View>?
+        get() = (layoutParams as? CoordinatorLayout.LayoutParams)?.behavior
+        set(value) {
+            (layoutParams as? CoordinatorLayout.LayoutParams)?.behavior = value
         }
 }

@@ -2528,12 +2528,6 @@
   value: true
   mirror: always
 
-# Block sandboxed BrowsingContexts from navigating to external protocols.
-- name: dom.block_external_protocol_navigation_from_sandbox
-  type: bool
-  value: true
-  mirror: always
-
 # Block Insecure downloads from Secure Origins
 - name: dom.block_download_insecure
   type: bool
@@ -3592,6 +3586,17 @@
   value: @IS_NIGHTLY_BUILD@
   mirror: always
 
+# WebCodecs API - Batch encoding size
+- name: dom.media.webcodecs.batch-encoding-size
+  type: RelaxedAtomicUint32
+#if defined(XP_WIN)
+  value: 4294967295 # max value of uint32_t
+#else
+  # Bug 1984936: Batch encoding is not optimized on non-Windows platforms yet.
+  value: 1
+#endif
+  mirror: always
+
 # Number of seconds of very quiet or silent audio before considering the audio
 # inaudible.
 - name: dom.media.silence_duration_for_audibility
@@ -4604,6 +4609,12 @@
   value: 120000
   mirror: always
 
+# Restrict top-level navigations from cross-origin frames.
+- name: dom.security.framebusting_intervention.enabled
+  type: bool
+  value: true
+  mirror: always
+
 # Whether or not selection events on text controls are enabled.
 - name: dom.select_events.textcontrols.selectionchange.enabled
   type: bool
@@ -5513,6 +5524,9 @@
   mirror: always
 
 # Is support for the WebGPU API enabled?
+#
+# When this condition changes, be sure to update the `run-if` / `skip-if`
+# conditions in `dom/webgpu/tests/mochitest/*.toml` accordingly.
 - name: dom.webgpu.enabled
   type: RelaxedAtomicBool
 #ifdef XP_WIN
@@ -8868,6 +8882,13 @@
   mirror: always
   set_spidermonkey_pref: startup
 
+  # Experimental support for upsert in JavaScript.
+- name: javascript.options.experimental.upsert
+  type: bool
+  value: true
+  mirror: always
+  set_spidermonkey_pref: startup
+
 #ifdef NIGHTLY_BUILD
   # Experimental support for Async Iterator Helpers in JavaScript.
 -   name: javascript.options.experimental.async_iterator_helpers
@@ -8899,13 +8920,6 @@
 
   # Experimental support for Iterator Sequencing in JavaScript.
 -   name: javascript.options.experimental.iterator_sequencing
-    type: bool
-    value: false
-    mirror: always
-    set_spidermonkey_pref: startup
-
-  # Experimental support for upsert in JavaScript.
--   name: javascript.options.experimental.upsert
     type: bool
     value: false
     mirror: always
@@ -12141,6 +12155,12 @@
 - name: media.av1.enabled
   type: RelaxedAtomicBool
   value: true
+  mirror: always
+
+# Matroska
+- name: media.mkv.enabled
+  type: RelaxedAtomicBool
+  value: @IS_NIGHTLY_BUILD@
   mirror: always
 
 - name: media.av1.use-dav1d
@@ -16965,8 +16985,8 @@
 # Cancel outgoing requests from privileged about pages:
 # but only with scheme http(s) and contentpolicytype script
 - name: security.disallow_privilegedabout_remote_script_loads
-  type: bool
-  value: true
+  type: RelaxedAtomicBool
+  value: false
   mirror: always
 
 # Enable preloaded static key pins by default.

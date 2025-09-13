@@ -1603,6 +1603,25 @@ export var Policies = {
     },
   },
 
+  GenerativeAI: {
+    onBeforeAddons(manager, param) {
+      const defaultValue = "Enabled" in param ? param.Enabled : undefined;
+
+      const features = [
+        ["Chatbot", "browser.ml.chat.enabled"],
+        ["LinkPreviews", "browser.ml.linkPreview.optin"],
+        ["TabGroups", "browser.tabs.groups.smart.userEnabled"],
+      ];
+
+      for (const [key, pref] of features) {
+        const value = key in param ? param[key] : defaultValue;
+        if (value !== undefined) {
+          PoliciesUtils.setDefaultPref(pref, value, param.Locked);
+        }
+      }
+    },
+  },
+
   GoToIntranetSiteForSingleWordEntryInAddressBar: {
     onBeforeAddons(manager, param) {
       setAndLockPref("browser.fixup.dns_first_for_single_words", param);
@@ -2809,6 +2828,12 @@ export var Policies = {
   UseSystemPrintDialog: {
     onBeforeAddons(manager, param) {
       setAndLockPref("print.prefer_system_dialog", param);
+    },
+  },
+
+  VisualSearchEnabled: {
+    onBeforeAddons(manager, param) {
+      setAndLockPref("browser.search.visualSearch.featureGate", param);
     },
   },
 
