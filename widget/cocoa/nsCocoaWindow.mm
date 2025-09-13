@@ -5701,8 +5701,6 @@ bool nsCocoaWindow::ShouldUseOffMainThreadCompositing() {
     // Use main-thread BasicLayerManager for drawing menus.
     return false;
   }
-  if(!nsCocoaFeatures::OnMountainLionOrLater())
-    return false;
   return nsBaseWidget::ShouldUseOffMainThreadCompositing();
 }
 
