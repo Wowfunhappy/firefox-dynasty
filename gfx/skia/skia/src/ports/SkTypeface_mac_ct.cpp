@@ -741,9 +741,8 @@ CFArrayRef SkTypeface_Mac::getVariationAxes() const {
               cf.release();
               return;
           }
-          fVariationAxes.reset(CTFontCopyVariationAxes(fFontRef.get()));
-        } else
-        return;
+        } 
+        fVariationAxes.reset(CTFontCopyVariationAxes(fFontRef.get()));
     });
     return fVariationAxes.get();
 }
