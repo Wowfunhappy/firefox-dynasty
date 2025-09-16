@@ -415,6 +415,21 @@ let SETTINGS_CONFIG = {
       },
     ],
   },
+  securityPrivacyStatus: {
+    items: [
+      {
+        id: "privacyCard",
+        control: "security-privacy-card",
+      },
+      {
+        id: "securityWarningsGroup",
+        control: "moz-box-group",
+        controlAttrs: {
+          type: "list",
+        },
+      },
+    ],
+  },
 };
 
 function initSettingGroup(id) {
@@ -761,13 +776,6 @@ var gMainPane = {
 
     if (Services.policies && !Services.policies.isAllowed("profileImport")) {
       document.getElementById("dataMigrationGroup").remove();
-    }
-
-    if (
-      Services.prefs.getBoolPref("browser.backup.preferences.ui.enabled", false)
-    ) {
-      let backupGroup = document.getElementById("dataBackupGroup");
-      backupGroup.removeAttribute("data-hidden-from-search");
     }
 
     if (!SelectableProfileService.isEnabled) {

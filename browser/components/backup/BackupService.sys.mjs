@@ -20,6 +20,7 @@ import {
 import { BackupError } from "resource:///modules/backup/BackupError.mjs";
 
 const BACKUP_DIR_PREF_NAME = "browser.backup.location";
+const BACKUP_ERROR_CODE_PREF_NAME = "browser.backup.errorCode";
 const SCHEDULED_BACKUPS_ENABLED_PREF_NAME = "browser.backup.scheduled.enabled";
 const IDLE_THRESHOLD_SECONDS_PREF_NAME =
   "browser.backup.scheduled.idle-threshold-seconds";
@@ -907,6 +908,22 @@ export class BackupService extends EventTarget {
   }
 
   /**
+   * The user's personal OneDrive folder, or null if none exists.
+   *
+   * @returns {nsIFile|null} The OneDrive folder or null
+   */
+  static get oneDriveFolderPath() {
+    try {
+      let oneDriveDir = Services.dirsvc.get("OneDrPD", Ci.nsIFile);
+      // This check should be redundant -- the OneDrive folder should exist.
+      return oneDriveDir.exists() ? oneDriveDir : null;
+    } catch {
+      // Ignore exceptions.  The OneDrive folder not existing is an exception.
+    }
+    return null;
+  }
+
+  /**
    * Returns a reference to a BackupService singleton. If this is the first time
    * that this getter is accessed, this causes the BackupService singleton to be
    * be instantiated.
@@ -1035,7 +1052,6 @@ export class BackupService extends EventTarget {
     } catch (e) {
       lazy.logConsole.warn("Could not create configured destination path: ", e);
     }
-
     lazy.logConsole.warn(
       "The destination directory was invalid. Attempting to fall back to " +
         "default parent folder: ",
@@ -1072,9 +1088,9 @@ export class BackupService extends EventTarget {
       return homeDirPath;
     } catch (e) {
       lazy.logConsole.warn("Could not create Home destination path: ", e);
-      throw new Error(
+      throw new BackupError(
         "Could not resolve to a writable destination folder path.",
-        { cause: ERRORS.FILE_SYSTEM_ERROR }
+        ERRORS.FILE_SYSTEM_ERROR
       );
     }
   }
@@ -1404,7 +1420,14 @@ export class BackupService extends EventTarget {
             error_code: String(e.cause || ERRORS.UNKNOWN),
             backup_step: String(currentStep),
           });
-          return null;
+
+          // TODO: show more specific error messages to the user
+          Services.prefs.setIntPref(
+            BACKUP_ERROR_CODE_PREF_NAME,
+            ERRORS.UNKNOWN
+          );
+
+          throw e;
         } finally {
           this.#backupInProgress = false;
         }
@@ -2911,6 +2934,11 @@ export class BackupService extends EventTarget {
       SCHEDULED_BACKUPS_ENABLED_PREF_NAME,
       shouldEnableScheduledBackups
     );
+
+    if (shouldEnableScheduledBackups) {
+      // reset the error states when reenabling backup
+      Services.prefs.setIntPref(BACKUP_ERROR_CODE_PREF_NAME, 0);
+    }
   }
 
   /**
@@ -3452,7 +3480,11 @@ export class BackupService extends EventTarget {
       lazy.logConsole.debug(
         "idleDispatch fired. Attempting to create a backup."
       );
-      this.createBackup();
+      try {
+        this.createBackup();
+      } catch (e) {
+        lazy.logConsole.error("There was an error creating backup: ", e);
+      }
     });
   }
 
