@@ -100,6 +100,9 @@ const COMMON_PREFERENCES = new Map([
   // (bug 1176798, bug 1177018, bug 1210465)
   ["apz.content_response_timeout", 60000],
 
+  // Disable the profile backup service.
+  ["browser.backup.enabled", false],
+
   // Don't show the content blocking introduction panel.
   // We use a larger number than the default 22 to have some buffer
   // This can be removed once Firefox 69 and 68 ESR and are no longer supported.
@@ -341,6 +344,10 @@ const COMMON_PREFERENCES = new Map([
 
   // Make sure SNTP requests do not hit the network
   ["network.sntp.pools", "%(server)s"],
+
+  // Turn off semantic history search as it triggers network connections to
+  // download ML models.
+  ["places.semanticHistory.featureGate", false],
 
   // Privacy and Tracking Protection
   ["privacy.trackingprotection.enabled", false],

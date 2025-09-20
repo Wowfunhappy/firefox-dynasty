@@ -684,7 +684,11 @@ pref("browser.urlbar.contextualSearch.enabled", true);
 pref("browser.urlbar.addons.featureGate", false);
 
 // Feature gate pref for semanticHistory
+#if defined(EARLY_BETA_OR_EARLIER) || defined(MOZ_DEV_EDITION)
+pref("places.semanticHistory.featureGate", true);
+#else
 pref("places.semanticHistory.featureGate", false);
+#endif
 
 // Minimum length threshold for semantic history search
 pref("browser.urlbar.suggest.semanticHistory.minLength", 5);
@@ -1050,6 +1054,7 @@ pref("browser.tabs.groups.smart.optin", false);
 pref("browser.tabs.dragDrop.createGroup.delayMS", 240);
 pref("browser.tabs.dragDrop.expandGroup.delayMS", 350);
 pref("browser.tabs.dragDrop.selectTab.delayMS", 350);
+pref("browser.tabs.dragDrop.pinInteractionCue.delayMS", 500);
 pref("browser.tabs.dragDrop.moveOverThresholdPercent", 80);
 
 pref("browser.tabs.firefox-view.logLevel", "Warn");
@@ -1389,6 +1394,9 @@ pref("browser.sessionstore.loglevel", "Warn");
 #endif
 // How old can a log file be before it gets deleted?
 pref("browser.sessionstore.log.appender.file.maxErrorAge", 864000); // 10 days
+
+// Max time to wait between flushing any log messages to disk (defaults to 1hr.)
+pref("browser.sessionstore.logFlushIntervalSeconds", 3600);
 
 // on which sites to save text data, POSTDATA and cookies
 // 0 = everywhere, 1 = unencrypted sites, 2 = nowhere
@@ -2210,6 +2218,7 @@ pref("browser.ml.linkPreview.shift", false);
 pref("browser.ml.linkPreview.shiftAlt", false);
 
 pref("browser.ml.pageAssist.enabled", false);
+pref("browser.ml.smartAssist.enabled", false);
 
 // Block insecure active content on https pages
 pref("security.mixed_content.block_active_content", true);
@@ -3479,3 +3488,6 @@ pref("toolkit.rust-components.logging.crates", "");
 
 // Log level for the internal logs in `AppServicesTracing.sys.mjs`
 pref("toolkit.rust-components.logging.internal-level", "Warn");
+
+// Settings Redesign 2025 prefs
+pref("browser.settings-redesign.enabled", false);

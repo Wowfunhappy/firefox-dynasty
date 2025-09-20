@@ -74,6 +74,7 @@ import org.mozilla.fenix.components.appstate.AppAction.SearchAction.SearchStarte
 import org.mozilla.fenix.components.appstate.AppState
 import org.mozilla.fenix.components.appstate.OrientationMode.Landscape
 import org.mozilla.fenix.components.appstate.OrientationMode.Portrait
+import org.mozilla.fenix.components.appstate.SupportedMenuNotifications
 import org.mozilla.fenix.components.appstate.search.SearchState
 import org.mozilla.fenix.components.appstate.search.SelectedSearchEngine
 import org.mozilla.fenix.components.menu.MenuAccessPoint
@@ -137,6 +138,7 @@ class BrowserToolbarMiddlewareTest {
         assertEquals(expectedMenuButton(), menuButton)
     }
 
+    @Suppress("NoStaticMocking") // https://bugzilla.mozilla.org/show_bug.cgi?id=1988538
     @Test
     fun `WHEN initializing the toolbar AND should use expanded toolbar THEN add browser end actions`() = runTest {
         every { testContext.settings().shouldUseExpandedToolbar } returns true
@@ -151,6 +153,7 @@ class BrowserToolbarMiddlewareTest {
         }
     }
 
+    @Suppress("NoStaticMocking") // https://bugzilla.mozilla.org/show_bug.cgi?id=1988538
     @Test
     fun `WHEN initializing the navigation bar AND should use expanded toolbar THEN add navigation bar actions`() = runTest {
         every { testContext.settings().shouldUseExpandedToolbar } returns true
@@ -174,7 +177,7 @@ class BrowserToolbarMiddlewareTest {
                 expectedToolbarButton(source = Source.NavigationBar),
                 tabCounterButton,
             )
-            assertEquals(expectedMenuButton(Source.NavigationBar), menuButton)
+            assertEquals(expectedMenuButton(source = Source.NavigationBar), menuButton)
         }
     }
 
@@ -655,6 +658,50 @@ class BrowserToolbarMiddlewareTest {
         assertNull(action.onLongClick)
     }
 
+    @Test
+    fun `GIVEN the menu button is not highlighted WHEN a menu item is highlighted THEN highlight menu button`() = runTest {
+        val appStore = AppStore()
+        val middleware = BrowserToolbarMiddleware(appStore, browserStore, mockk(), mockk())
+        val toolbarStore = buildStore(middleware)
+
+        mainLooperRule.idle()
+        val initialMenuButton = toolbarStore.state.displayState.browserActionsEnd[1] as ActionButtonRes
+        assertEquals(expectedMenuButton(), initialMenuButton)
+
+        appStore.dispatch(
+            AppAction.MenuNotification.AddMenuNotification(
+                SupportedMenuNotifications.Downloads,
+            ),
+        ).joinBlocking()
+        mainLooperRule.idle()
+        val updatedMenuButton = toolbarStore.state.displayState.browserActionsEnd[1] as ActionButtonRes
+        assertEquals(expectedMenuButton(true), updatedMenuButton)
+    }
+
+    @Test
+    fun `GIVEN the menu button is highlighted WHEN no menu item is highlighted THEN remove highlight from menu button`() = runTest {
+        val appStore = AppStore(
+            initialState = AppState(
+                supportedMenuNotifications = setOf(SupportedMenuNotifications.Downloads),
+            ),
+        )
+        val middleware = BrowserToolbarMiddleware(appStore, browserStore, mockk(), mockk())
+        val toolbarStore = buildStore(middleware)
+
+        mainLooperRule.idle()
+        val initialMenuButton = toolbarStore.state.displayState.browserActionsEnd[1] as ActionButtonRes
+        assertEquals(expectedMenuButton(true), initialMenuButton)
+
+        appStore.dispatch(
+            AppAction.MenuNotification.RemoveMenuNotification(
+                SupportedMenuNotifications.Downloads,
+            ),
+        ).joinBlocking()
+        mainLooperRule.idle()
+        val updatedMenuButton = toolbarStore.state.displayState.browserActionsEnd[1] as ActionButtonRes
+        assertEquals(expectedMenuButton(), updatedMenuButton)
+    }
+
     private fun buildStore(
         middleware: BrowserToolbarMiddleware,
         context: Context = testContext,
@@ -752,9 +799,13 @@ class BrowserToolbarMiddlewareTest {
         },
     )
 
-    private fun expectedMenuButton(source: Source = Source.AddressBar) = ActionButtonRes(
+    private fun expectedMenuButton(
+        highlighted: Boolean = false,
+        source: Source = Source.AddressBar,
+    ) = ActionButtonRes(
         drawableResId = iconsR.drawable.mozac_ic_ellipsis_vertical_24,
         contentDescription = R.string.content_description_menu,
+        highlighted = highlighted,
         onClick = MenuClicked(source),
     )
 

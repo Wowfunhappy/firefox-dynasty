@@ -35,9 +35,9 @@ git = "https://github.com/franziskuskiefer/cose-rust"
 rev = "43c22248d136c8b38fe42ea709d08da6355cf04b"
 replace-with = "vendored-sources"
 
-[source."git+https://github.com/gfx-rs/wgpu?rev=c488bbe60447d28736c26c82a32cd87794b3bf1d"]
+[source."git+https://github.com/gfx-rs/wgpu?rev=1791064a306881c7ddf218e69b4ffdafdae1be0d"]
 git = "https://github.com/gfx-rs/wgpu"
-rev = "c488bbe60447d28736c26c82a32cd87794b3bf1d"
+rev = "1791064a306881c7ddf218e69b4ffdafdae1be0d"
 replace-with = "vendored-sources"
 
 [source."git+https://github.com/glandium/allocator-api2?rev=ad5f3d56a5a4519eff52af4ff85293431466ef5c"]
@@ -100,9 +100,9 @@ git = "https://github.com/mozilla/mp4parse-rust"
 rev = "f955be5d2a04a631c0f1777d6f35370ea1a99e2d"
 replace-with = "vendored-sources"
 
-[source."git+https://github.com/mozilla/neqo?tag=v0.15.0"]
+[source."git+https://github.com/mozilla/neqo?tag=v0.16.1"]
 git = "https://github.com/mozilla/neqo"
-tag = "v0.15.0"
+tag = "v0.16.1"
 replace-with = "vendored-sources"
 
 [source."git+https://github.com/rust-lang/rust-bindgen?rev=9366e0af8da529c958b4cd4fcbe492d951c86f5c"]

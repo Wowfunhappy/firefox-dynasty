@@ -66,10 +66,6 @@
         "issue": "broken-interactive-elements",
         "matches": ["*://*.lafoodbank.org/*"]
       },
-      "1944013": {
-        "issue": "broken-interactive-elements",
-        "matches": ["*://*.lamudi.co.id/*"]
-      },
       "1944015": {
         "issue": "broken-interactive-elements",
         "matches": ["*://*.lawnmowerpartsworld.com/*"]
@@ -121,6 +117,10 @@
       "1982801": {
         "issue": "broken-interactive-elements",
         "matches": ["*://www.linguee.de/*"]
+      },
+      "1986875": {
+        "issue": "broken-interactive-elements",
+        "matches": ["*://www.electrosport.com/*"]
       }
     },
     "interventions": [
@@ -1084,23 +1084,6 @@
       }
     ]
   },
-  "1827678_119017": {
-    "label": "nppes.cms.hhs.gov",
-    "bugs": {
-      "1898955": {
-        "issue": "unsupported-warning",
-        "matches": ["*://nppes.cms.hhs.gov/*"]
-      }
-    },
-    "interventions": [
-      {
-        "platforms": ["all"],
-        "content_scripts": {
-          "css": ["bug1819678-nppes.cms.hhs.gov-unsupported-banner.css"]
-        }
-      }
-    ]
-  },
   "1827678_119402": {
     "label": "oirsa.org",
     "bugs": {
@@ -1917,6 +1900,22 @@
       }
     ]
   },
+  "1892073": {
+    "label": "snapchat.com",
+    "bugs": {
+      "1892073": {
+        "issue": "firefox-blocked-completely",
+        "matches": ["*://*.snapchat.com/*"]
+      }
+    },
+    "interventions": [
+      {
+        "platforms": ["desktop"],
+        "only_channels": ["nightly"],
+        "ua_string": ["Chrome"]
+      }
+    ]
+  },
   "1899048": {
     "label": "datanyze.com",
     "bugs": {
@@ -1929,23 +1928,6 @@
       {
         "platforms": ["desktop"],
         "ua_string": ["Chrome"]
-      }
-    ]
-  },
-  "1892898": {
-    "label": "investopedia.com",
-    "bugs": {
-      "1892898": {
-        "issue": "broken-layout",
-        "matches": ["*://*.investopedia.com/*"]
-      }
-    },
-    "interventions": [
-      {
-        "platforms": ["desktop"],
-        "content_scripts": {
-          "css": ["bug1892898-investopedia.com-fix-card-height.css"]
-        }
       }
     ]
   },
@@ -2041,6 +2023,7 @@
     "interventions": [
       {
         "platforms": ["all"],
+        "pref_check": { "layout.css.webkit-fill-available.enabled": false },
         "content_scripts": {
           "css": ["bug1896571-gracobaby.ca-unlock-scrolling.css"]
         }
@@ -3046,25 +3029,6 @@
       }
     ]
   },
-  "1902402": {
-    "label": "myaccount.flypeach.com",
-    "bugs": {
-      "1902402": {
-        "issue": "unsupported-warning",
-        "matches": ["*://myaccount.flypeach.com/login*"]
-      }
-    },
-    "interventions": [
-      {
-        "platforms": ["all"],
-        "content_scripts": {
-          "css": [
-            "bug1902402-myaccount.flypeach.com-hide-unsupported-message.css"
-          ]
-        }
-      }
-    ]
-  },
   "1902403": {
     "label": "musicstore.auone.jp",
     "bugs": {
@@ -3607,7 +3571,7 @@
     "bugs": {
       "1913720": {
         "issue": "firefox-blocked-completely",
-        "matches": ["*://h2breeze.com/*", "https://is-sets.com/*"]
+        "matches": ["*://cotota.app/*", "https://is-sets.com/*"]
       }
     },
     "interventions": [
@@ -4349,7 +4313,7 @@
         "issue": "broken-scrolling",
         "matches": ["*://app.powerbi.com/view*"]
       },
-      "1919263": {
+      "1911423": {
         "issue": "broken-zooming",
         "matches": ["*://app.powerbi.com/view*"]
       }
@@ -4357,7 +4321,11 @@
     "interventions": [
       {
         "platforms": ["mac"],
-        "ua_string": ["add_Chrome"]
+        "ua_string": ["add_Chrome"],
+        "content_scripts": {
+          "all_frames": true,
+          "css": ["bug1944518-app.powerbi.com-webkit-scrollbar-css-fixes.css"]
+        }
       },
       {
         "platforms": ["desktop"],
@@ -4379,6 +4347,7 @@
     "interventions": [
       {
         "platforms": ["android"],
+        "pref_check": { "layout.css.webkit-fill-available.enabled": false },
         "content_scripts": {
           "css": ["bug1944727-www.linkedin.com-fix-dark-overlay.css"]
         }
@@ -4418,6 +4387,21 @@
         "content_scripts": {
           "css": ["bug1945438-www.tiktok.com-hide-extra-scrollbars.css"]
         }
+      }
+    ]
+  },
+  "1945561": {
+    "label": "webex.com",
+    "bugs": {
+      "1945561": {
+        "issue": "firefox-blocked-completely",
+        "matches": ["*://*.webex.com/*"]
+      }
+    },
+    "interventions": [
+      {
+        "platforms": ["android"],
+        "ua_string": ["Chrome"]
       }
     ]
   },
@@ -4482,25 +4466,6 @@
       {
         "platforms": ["desktop"],
         "ua_string": ["add_Chrome"]
-      }
-    ]
-  },
-  "1948047": {
-    "label": "lovers.cacaushow.com.br",
-    "bugs": {
-      "1948047": {
-        "issue": "broken-layout",
-        "matches": ["*://lovers.cacaushow.com.br/*"]
-      }
-    },
-    "interventions": [
-      {
-        "platforms": ["all"],
-        "content_scripts": {
-          "css": [
-            "bug1948047-lovers.cacaushow.com.br-nudge-login-popup-onscreen.css"
-          ]
-        }
       }
     ]
   },
@@ -4882,40 +4847,6 @@
       }
     ]
   },
-  "1960595": {
-    "label": "de.pons.com",
-    "bugs": {
-      "1960595": {
-        "issue": "unsupported-warning",
-        "matches": ["*://de.pons.com/*"]
-      }
-    },
-    "interventions": [
-      {
-        "platforms": ["android"],
-        "content_scripts": {
-          "js": ["bug1960595-de.pons.com-hide-unsupported-banner.js"]
-        }
-      }
-    ]
-  },
-  "1962353": {
-    "label": "cartlow.com",
-    "bugs": {
-      "1962353": {
-        "issue": "firefox-blocked-completely",
-        "matches": ["*://www.cartlow.com/uae/*"]
-      }
-    },
-    "interventions": [
-      {
-        "platforms": ["all"],
-        "content_scripts": {
-          "js": ["bug1962353-cartlow.com-fix-product-filters.js"]
-        }
-      }
-    ]
-  },
   "1962587": {
     "label": "virtualvisit.telushealth.com",
     "bugs": {
@@ -5038,6 +4969,7 @@
     "interventions": [
       {
         "platforms": ["all"],
+        "pref_check": { "layout.css.webkit-fill-available.enabled": false },
         "content_scripts": {
           "all_frames": true,
           "css": ["bug1966389-boots.com-align-element-widths.css"]
@@ -5412,36 +5344,6 @@
       {
         "platforms": ["android"],
         "ua_string": ["Chrome_with_FxQuantum"]
-      }
-    ]
-  },
-  "1983558": {
-    "label": "filmyworlds.boutique",
-    "bugs": {
-      "1983558": {
-        "issue": "firefox-blocked-completely",
-        "matches": ["*://filmyworlds.boutique/*"]
-      }
-    },
-    "interventions": [
-      {
-        "platforms": ["all"],
-        "ua_string": ["change_Firefox_to_FireFox"]
-      }
-    ]
-  },
-  "1983778": {
-    "label": "daotranslate.com",
-    "bugs": {
-      "1983778": {
-        "issue": "firefox-blocked-completely",
-        "matches": ["*://daotranslate.com/*"]
-      }
-    },
-    "interventions": [
-      {
-        "platforms": ["all"],
-        "ua_string": ["change_Firefox_to_FireFox"]
       }
     ]
   },

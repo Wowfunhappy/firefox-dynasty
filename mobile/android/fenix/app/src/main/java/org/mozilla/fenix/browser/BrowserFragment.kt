@@ -35,7 +35,6 @@ import mozilla.components.support.base.feature.UserInteractionHandler
 import mozilla.components.support.base.feature.ViewBoundFeatureWrapper
 import mozilla.components.support.ktx.kotlin.isContentUrl
 import mozilla.telemetry.glean.private.NoExtras
-import org.mozilla.fenix.Config
 import org.mozilla.fenix.GleanMetrics.ReaderMode
 import org.mozilla.fenix.R
 import org.mozilla.fenix.browser.store.BrowserScreenAction.ReaderModeStatusUpdated
@@ -77,21 +76,17 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
     private val translationsBinding = ViewBoundFeatureWrapper<TranslationsBinding>()
     private val translationsBannerIntegration = ViewBoundFeatureWrapper<TranslationsBannerIntegration>()
 
-    private val qrScanFenixFeature by lazy(LazyThreadSafetyMode.NONE) {
+    private var qrScanFenixFeature: ViewBoundFeatureWrapper<QrScanFenixFeature>? =
         ViewBoundFeatureWrapper<QrScanFenixFeature>()
-    }
-
     private val qrScanLauncher: ActivityResultLauncher<Intent> =
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-            qrScanFenixFeature.get()?.handleToolbarQrScanResults(result.resultCode, result.data)
+            qrScanFenixFeature?.get()?.handleToolbarQrScanResults(result.resultCode, result.data)
         }
-
-    private val voiceSearchFeature by lazy(LazyThreadSafetyMode.NONE) {
+    private var voiceSearchFeature: ViewBoundFeatureWrapper<VoiceSearchFeature>? =
         ViewBoundFeatureWrapper<VoiceSearchFeature>()
-    }
     private val voiceSearchLauncher: ActivityResultLauncher<Intent> =
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-            voiceSearchFeature.get()?.handleVoiceSearchResult(result.resultCode, result.data)
+            voiceSearchFeature?.get()?.handleVoiceSearchResult(result.resultCode, result.data)
         }
 
     private var readerModeAvailable = false
@@ -184,8 +179,8 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
 
     private fun initBrowserToolbarComposableUpdates(rootView: View) {
         initReaderModeUpdates(rootView.context, rootView)
-        initQrScannerSupport(rootView.context)
-        initVoiceSearchSupport(rootView.context)
+        qrScanFenixFeature = QrScanFenixFeature.register(this, qrScanLauncher)
+        voiceSearchFeature = VoiceSearchFeature.register(this, voiceSearchLauncher)
     }
 
     private fun initSharePageAction(context: Context) {
@@ -292,22 +287,20 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
     }
 
     private fun initTranslationsUpdates(context: Context, rootView: View) {
-        if (Config.channel.isDebug) {
-            translationsBannerIntegration.set(
-                feature = TranslationsBannerIntegration(
-                    browserStore = context.components.core.store,
-                    browserScreenStore = browserScreenStore,
-                    binding = binding,
-                    onExpand = {
-                        val directions =
-                            BrowserFragmentDirections.actionBrowserFragmentToTranslationsDialogFragment()
-                        findNavController().navigateSafe(R.id.browserFragment, directions)
-                    },
-                ),
-                owner = this,
-                view = rootView,
-            )
-        }
+        translationsBannerIntegration.set(
+            feature = TranslationsBannerIntegration(
+                browserStore = context.components.core.store,
+                browserScreenStore = browserScreenStore,
+                binding = binding,
+                onExpand = {
+                    val directions =
+                        BrowserFragmentDirections.actionBrowserFragmentToTranslationsDialogFragment()
+                    findNavController().navigateSafe(R.id.browserFragment, directions)
+                },
+            ),
+            owner = this,
+            view = rootView,
+        )
 
         if (FxNimbus.features.translations.value().mainFlowToolbarEnabled) {
             translationsBinding.set(
@@ -325,30 +318,6 @@ class BrowserFragment : BaseBrowserFragment(), UserInteractionHandler {
                 view = rootView,
             )
         }
-    }
-
-    private fun initVoiceSearchSupport(context: Context) {
-        voiceSearchFeature.set(
-            feature = VoiceSearchFeature(
-                context = context,
-                appStore = context.components.appStore,
-                voiceSearchLauncher = voiceSearchLauncher,
-            ),
-            owner = viewLifecycleOwner,
-            view = binding.root,
-        )
-    }
-
-    private fun initQrScannerSupport(context: Context) {
-        qrScanFenixFeature.set(
-            feature = QrScanFenixFeature(
-                context = context,
-                appStore = context.components.appStore,
-                qrScanActivityLauncher = qrScanLauncher,
-            ),
-            owner = viewLifecycleOwner,
-            view = binding.root,
-        )
     }
 
     private fun initReaderMode(context: Context, view: View) {

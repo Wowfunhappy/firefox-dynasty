@@ -7,7 +7,10 @@
 /* import-globals-from head_cache.js */
 /* import-globals-from head_cookies.js */
 /* import-globals-from head_channels.js */
-/* import-globals-from head_servers.js */
+
+const { NodeHTTP2Server } = ChromeUtils.importESModule(
+  "resource://testing-common/NodeServer.sys.mjs"
+);
 
 function makeChan(uri, loadingUrl) {
   let principal = Services.scriptSecurityManager.createContentPrincipal(
@@ -58,11 +61,6 @@ class AuthRequestor {
  */
 add_task(async function test_http2_auth_retry_twice() {
   Services.prefs.setIntPref("network.auth.subresource-http-auth-allow", 2);
-
-  let certdb = Cc["@mozilla.org/security/x509certdb;1"].getService(
-    Ci.nsIX509CertDB
-  );
-  addCertFromFile(certdb, "http2-ca.pem", "CTu,u,u");
 
   let server = new NodeHTTP2Server();
   await server.start();

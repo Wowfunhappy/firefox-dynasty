@@ -355,6 +355,7 @@ impl<S: Side> PositionComponent<S> {
     ToCss,
     ToResolvedValue,
     ToShmem,
+    ToTyped,
 )]
 #[css(comma)]
 pub struct AnchorName(
@@ -407,6 +408,7 @@ impl Parse for AnchorName {
     ToCss,
     ToResolvedValue,
     ToShmem,
+    ToTyped,
 )]
 #[repr(u8)]
 pub enum AnchorScope {
@@ -471,6 +473,7 @@ impl Parse for AnchorScope {
     ToCss,
     ToResolvedValue,
     ToShmem,
+    ToTyped,
 )]
 #[repr(u8)]
 pub enum PositionAnchor {
@@ -670,6 +673,7 @@ pub enum PositionTryFallbacksItem {
     ToCss,
     ToResolvedValue,
     ToShmem,
+    ToTyped,
 )]
 #[css(comma)]
 #[repr(C)]
@@ -727,6 +731,7 @@ impl Parse for PositionTryFallbacks {
     ToCss,
     ToResolvedValue,
     ToShmem,
+    ToTyped,
 )]
 #[repr(u8)]
 pub enum PositionTryOrder {
@@ -770,6 +775,7 @@ impl PositionTryOrder {
     ToCss,
     ToResolvedValue,
     ToShmem,
+    ToTyped,
 )]
 #[css(bitflags(single = "always", mixed = "anchors-valid,anchors-visible,no-overflow"))]
 #[repr(C)]
@@ -839,76 +845,94 @@ pub enum PositionAreaType {
 )]
 #[allow(missing_docs)]
 #[repr(u8)]
-/// Possible values for the `position-area` preperty's keywords.
+/// Possible values for the `position-area` property's keywords.
 /// https://drafts.csswg.org/css-anchor-position-1/#propdef-position-area
 pub enum PositionAreaKeyword {
     #[default]
-    None,
+    None = 0,
 
     // Common (shared) keywords:
-    Center,
-    SpanAll,
+    Center = 1,
+    SpanAll = 2,
 
-    // Horizontal keywords:
-    Left,
-    Right,
-    SpanLeft,
-    SpanRight,
-    XStart,
-    XEnd,
-    SpanXStart,
-    SpanXEnd,
-    XSelfStart,
-    XSelfEnd,
-    SpanXSelfStart,
-    SpanXSelfEnd,
-    // Vertical keywords:
-    Top,
-    Bottom,
-    SpanTop,
-    SpanBottom,
-    YStart,
-    YEnd,
-    SpanYStart,
-    SpanYEnd,
-    YSelfStart,
-    YSelfEnd,
-    SpanYSelfStart,
-    SpanYSelfEnd,
+    // Purely physical edges:
+    Left = 3,
+    Right = 4,
+    Top = 5,
+    Bottom = 6,
 
-    // Block keywords:
-    BlockStart,
-    BlockEnd,
-    SpanBlockStart,
-    SpanBlockEnd,
-    // Inline keywords:
-    InlineStart,
-    InlineEnd,
-    SpanInlineStart,
-    SpanInlineEnd,
+    // Flow-relative physical-axis edges:
+    XStart = 7,
+    XEnd = 8,
+    YStart = 9,
+    YEnd = 10,
 
-    // "Self" block keywords:
-    SelfBlockStart,
-    SelfBlockEnd,
-    SpanSelfBlockStart,
-    SpanSelfBlockEnd,
-    // "Self" inline keywords:
-    SelfInlineStart,
-    SelfInlineEnd,
-    SpanSelfInlineStart,
-    SpanSelfInlineEnd,
+    // Logical edges:
+    BlockStart = 11,
+    BlockEnd = 12,
+    InlineStart = 13,
+    InlineEnd = 14,
 
-    // Inferred axis keywords:
-    Start,
-    End,
-    SpanStart,
-    SpanEnd,
+    // Inferred-axis edges:
+    Start = 15,
+    End = 16,
 
-    // "Self" inferred axis keywords:
-    SelfStart,
-    SelfEnd,
-    SpanSelfStart,
-    SpanSelfEnd,
+    // Flags that modify the above edge values. We require these to be separate
+    // bits in the underlying u8 value, so that they can be individually tested
+    // and masked independently of the rest of the value.
+    // These are not exposed to CSS, they only function as part of the composite
+    // values defined below.
+    #[css(skip)]
+    Span = 1u8 << 5,
+    #[css(skip)]
+    SelfWM = 1u8 << 6,  // use target's writing-mode to resolve logical edges
+
+    // Composite values with Span:
+    SpanLeft = PositionAreaKeyword::Span as u8 | PositionAreaKeyword::Left as u8,
+    SpanRight = PositionAreaKeyword::Span as u8 | PositionAreaKeyword::Right as u8,
+    SpanTop = PositionAreaKeyword::Span as u8 | PositionAreaKeyword::Top as u8,
+    SpanBottom = PositionAreaKeyword::Span as u8 | PositionAreaKeyword::Bottom as u8,
+
+    SpanXStart = PositionAreaKeyword::Span as u8 | PositionAreaKeyword::XStart as u8,
+    SpanXEnd = PositionAreaKeyword::Span as u8 | PositionAreaKeyword::XEnd as u8,
+    SpanYStart = PositionAreaKeyword::Span as u8 | PositionAreaKeyword::YStart as u8,
+    SpanYEnd = PositionAreaKeyword::Span as u8 | PositionAreaKeyword::YEnd as u8,
+
+    SpanBlockStart = PositionAreaKeyword::Span as u8 | PositionAreaKeyword::BlockStart as u8,
+    SpanBlockEnd = PositionAreaKeyword::Span as u8 | PositionAreaKeyword::BlockEnd as u8,
+    SpanInlineStart = PositionAreaKeyword::Span as u8 | PositionAreaKeyword::InlineStart as u8,
+    SpanInlineEnd = PositionAreaKeyword::Span as u8 | PositionAreaKeyword::InlineEnd as u8,
+
+    SpanStart = PositionAreaKeyword::Span as u8 | PositionAreaKeyword::Start as u8,
+    SpanEnd = PositionAreaKeyword::Span as u8 | PositionAreaKeyword::End as u8,
+
+    // Values using the Self element's writing-mode:
+    XSelfStart = PositionAreaKeyword::SelfWM as u8 | PositionAreaKeyword::XStart as u8,
+    XSelfEnd = PositionAreaKeyword::SelfWM as u8 | PositionAreaKeyword::XEnd as u8,
+    YSelfStart = PositionAreaKeyword::SelfWM as u8 | PositionAreaKeyword::YStart as u8,
+    YSelfEnd = PositionAreaKeyword::SelfWM as u8 | PositionAreaKeyword::YEnd as u8,
+
+    SelfBlockStart = PositionAreaKeyword::SelfWM as u8 | PositionAreaKeyword::BlockStart as u8,
+    SelfBlockEnd = PositionAreaKeyword::SelfWM as u8 | PositionAreaKeyword::BlockEnd as u8,
+    SelfInlineStart = PositionAreaKeyword::SelfWM as u8 | PositionAreaKeyword::InlineStart as u8,
+    SelfInlineEnd = PositionAreaKeyword::SelfWM as u8 | PositionAreaKeyword::InlineEnd as u8,
+
+    SelfStart = PositionAreaKeyword::SelfWM as u8 | PositionAreaKeyword::Start as u8,
+    SelfEnd = PositionAreaKeyword::SelfWM as u8 | PositionAreaKeyword::End as u8,
+
+    // Values with Span and SelfWM:
+    SpanXSelfStart = PositionAreaKeyword::Span as u8 | PositionAreaKeyword::SelfWM as u8 | PositionAreaKeyword::XStart as u8,
+    SpanXSelfEnd = PositionAreaKeyword::Span as u8 | PositionAreaKeyword::SelfWM as u8 | PositionAreaKeyword::XEnd as u8,
+    SpanYSelfStart = PositionAreaKeyword::Span as u8 | PositionAreaKeyword::SelfWM as u8 | PositionAreaKeyword::YStart as u8,
+    SpanYSelfEnd = PositionAreaKeyword::Span as u8 | PositionAreaKeyword::SelfWM as u8 | PositionAreaKeyword::YEnd as u8,
+
+    SpanSelfBlockStart = PositionAreaKeyword::Span as u8 | PositionAreaKeyword::SelfWM as u8 | PositionAreaKeyword::BlockStart as u8,
+    SpanSelfBlockEnd = PositionAreaKeyword::Span as u8 | PositionAreaKeyword::SelfWM as u8 | PositionAreaKeyword::BlockEnd as u8,
+    SpanSelfInlineStart = PositionAreaKeyword::Span as u8 | PositionAreaKeyword::SelfWM as u8 | PositionAreaKeyword::InlineStart as u8,
+    SpanSelfInlineEnd = PositionAreaKeyword::Span as u8 | PositionAreaKeyword::SelfWM as u8 | PositionAreaKeyword::InlineEnd as u8,
+
+    SpanSelfStart = PositionAreaKeyword::Span as u8 | PositionAreaKeyword::SelfWM as u8 | PositionAreaKeyword::Start as u8,
+    SpanSelfEnd = PositionAreaKeyword::Span as u8 | PositionAreaKeyword::SelfWM as u8 | PositionAreaKeyword::End as u8,
 }
 
 #[allow(missing_docs)]
@@ -960,6 +984,9 @@ impl PositionAreaKeyword {
             Center | SpanAll => PositionAreaType::Common,
 
             None => PositionAreaType::None,
+
+            // Flag bits that cannot occur by themselves
+            SelfWM | Span => panic!("invalid PositionAreaKeyword value"),
         }
     }
 
@@ -1035,6 +1062,7 @@ impl PositionAreaKeyword {
     ToCss,
     ToResolvedValue,
     ToShmem,
+    ToTyped,
 )]
 #[repr(C)]
 /// https://drafts.csswg.org/css-anchor-position-1/#propdef-position-area
@@ -1224,6 +1252,7 @@ impl Side for VerticalPositionKeyword {
     ToComputedValue,
     ToResolvedValue,
     ToShmem,
+    ToTyped,
 )]
 #[css(bitflags(
     mixed = "row,column,dense",
@@ -1335,6 +1364,7 @@ pub enum MasonryItemOrder {
     ToCss,
     ToResolvedValue,
     ToShmem,
+    ToTyped,
 )]
 #[repr(C)]
 /// Controls how the Masonry layout algorithm works
@@ -1701,6 +1731,7 @@ fn is_name_code_point(c: char) -> bool {
     ToCss,
     ToResolvedValue,
     ToShmem,
+    ToTyped,
 )]
 pub enum GridTemplateAreas {
     /// The `none` value.

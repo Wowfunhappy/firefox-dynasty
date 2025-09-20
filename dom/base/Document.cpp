@@ -2285,7 +2285,22 @@ void Document::RecordPageLoadEventTelemetry() {
 
   // Sending a glean ping must be done on the parent process.
   if (ContentChild* cc = ContentChild::GetSingleton()) {
-    cc->SendRecordPageLoadEvent(mPageloadEventData);
+    if (GetNavigationTiming()) {
+      uint64_t androidAppLinkLoadIdentifier = 0;
+#ifdef ANDROID
+      if (BrowsingContext* bc = GetBrowsingContext()) {
+        Maybe<uint64_t> contextAppLinkLoadIdentifier =
+            bc->GetAndroidAppLinkLoadIdentifier();
+        if (contextAppLinkLoadIdentifier.isSome()) {
+          androidAppLinkLoadIdentifier = contextAppLinkLoadIdentifier.value();
+        }
+      }
+#endif
+      cc->SendRecordPageLoadEvent(
+          mPageloadEventData,
+          GetNavigationTiming()->GetNavigationStartTimeStamp(),
+          androidAppLinkLoadIdentifier);
+    }
   }
 }
 
@@ -17286,12 +17301,6 @@ void Document::ReportLCP() {
 
   mozilla::glean::perf::largest_contentful_paint.AccumulateRawDuration(
       lcpTime - timing->GetNavigationStartTimeStamp());
-  // GLAM EXPERIMENT
-  // This metric is temporary, disabled by default, and will be enabled only
-  // for the purpose of experimenting with client-side sampling of data for
-  // GLAM use. See Bug 1947604 for more information.
-  mozilla::glean::glam_experiment::largest_contentful_paint
-      .AccumulateRawDuration(lcpTime - timing->GetNavigationStartTimeStamp());
 
   if (!GetChannel()) {
     return;

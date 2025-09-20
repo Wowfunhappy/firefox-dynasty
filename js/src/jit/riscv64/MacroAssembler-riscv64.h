@@ -329,8 +329,6 @@ class MacroAssemblerRiscv64 : public Assembler {
   void ma_sub32TestOverflow(Register rd, Register rj, Imm32 imm,
                             Label* overflow);
 
-  void MulOverflow32(Register dst, Register left, const Operand& right,
-                     Register overflow);
   // multiplies.  For now, there are only few that we care about.
   void ma_mul32TestOverflow(Register rd, Register rj, Register rk,
                             Label* overflow);
@@ -865,8 +863,12 @@ class MacroAssemblerRiscv64Compat : public MacroAssemblerRiscv64 {
 
   // boxing code
   void boxDouble(FloatRegister src, const ValueOperand& dest, FloatRegister);
-  void boxNonDouble(JSValueType type, Register src, const ValueOperand& dest);
-  void boxNonDouble(Register type, Register src, const ValueOperand& dest);
+  void boxNonDouble(JSValueType type, Register src, const ValueOperand& dest) {
+    boxValue(type, src, dest.valueReg());
+  }
+  void boxNonDouble(Register type, Register src, const ValueOperand& dest) {
+    boxValue(type, src, dest.valueReg());
+  }
 
   // Extended unboxing API. If the payload is already in a register, returns
   // that register. Otherwise, provides a move to the given scratch register,

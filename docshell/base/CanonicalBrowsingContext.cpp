@@ -746,11 +746,20 @@ CanonicalBrowsingContext::CreateLoadingSessionHistoryEntryForLoad(
     [[maybe_unused]] auto pred = [&](auto& entry) {
       return entry.NavigationKey() == loadingInfo->mInfo.NavigationKey();
     };
-    MOZ_DIAGNOSTIC_ASSERT(
-        mozilla::AnyOf(loadingInfo->mContiguousEntries.begin(),
-                       loadingInfo->mContiguousEntries.end(), pred),
-        "The target entry now needs to be a part of the contiguous list of "
-        "entries.");
+    if (StaticPrefs::dom_navigation_api_strict_enabled()) {
+      // https://bugzil.la/1989045
+      MOZ_DIAGNOSTIC_ASSERT(
+          mozilla::AnyOf(loadingInfo->mContiguousEntries.begin(),
+                         loadingInfo->mContiguousEntries.end(), pred),
+          "The target entry now needs to be a part of the contiguous list of "
+          "entries.");
+    } else {
+      MOZ_ASSERT(
+          mozilla::AnyOf(loadingInfo->mContiguousEntries.begin(),
+                         loadingInfo->mContiguousEntries.end(), pred),
+          "The target entry now needs to be a part of the contiguous list of "
+          "entries.");
+    }
   }
 
   MOZ_ASSERT(SessionHistoryEntry::GetByLoadId(loadingInfo->mLoadId)->mEntry ==
@@ -1208,7 +1217,7 @@ void CanonicalBrowsingContext::SessionHistoryCommit(
               }
             }
           }
-          if (Navigation::IsAPIEnabled()) {
+          if (Navigation::IsAPIEnabled() && !newActiveEntry->isInList()) {
             mActiveEntryList.insertBack(newActiveEntry);
           }
           mActiveEntry = newActiveEntry;
@@ -1223,15 +1232,14 @@ void CanonicalBrowsingContext::SessionHistoryCommit(
           MOZ_LOG_FMT(gSHLog, LogLevel::Verbose, "IsTop: Adding new entry");
 
           if (Navigation::IsAPIEnabled() && mActiveEntry->isInList()) {
-            bool isTransient = false;
-            mActiveEntry->IsTransient(&isTransient);
-
-            RefPtr entry =
-                isTransient ? mActiveEntry.get() : mActiveEntry->getNext();
+            RefPtr entry = mActiveEntry->getNext();
             while (entry) {
               entry = entry->removeAndGetNext();
             }
-            mActiveEntryList.insertBack(newActiveEntry);
+            // TODO(avandolder): Can this check ever actually be false?
+            if (!newActiveEntry->isInList()) {
+              mActiveEntryList.insertBack(newActiveEntry);
+            }
           }
           mActiveEntry = newActiveEntry;
         } else if (!mActiveEntry) {

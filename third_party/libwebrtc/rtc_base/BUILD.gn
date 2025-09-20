@@ -1938,7 +1938,12 @@ rtc_library("cpu_info") {
   deps = [
     ":checks",
     ":logging",
+    "system:arch",
+    "system:unused",
   ]
+  if (is_android) {
+    deps += [ "//third_party/cpu_features:ndk_compat" ]
+  }
 }
 
 if (rtc_include_tests) {

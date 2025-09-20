@@ -5,8 +5,8 @@ android-lint = "31.13.0"
 
 # Kotlin
 coroutines = "1.10.2"
-kotlin = "2.2.10" # remember to change ksp-plugin
-ksp-plugin = "2.2.10-2.0.2"
+kotlin = "2.2.20" # remember to change ksp-plugin
+ksp-plugin = "2.2.20-2.0.3"
 serialization = "1.9.0"
 
 # AndroidX
@@ -49,7 +49,6 @@ work = "2.10.4"
 
 # Google other
 accompanist = "0.37.3"
-desugar-jdk-libs = "2.1.5"
 firebase-messaging = "25.0.0"
 installreferrer = "2.2"
 material = "1.13.0"
@@ -58,15 +57,15 @@ play-review = "2.0.2"
 play-services-ads-id = "18.2.0"
 play-services-base = "18.8.0"
 play-services-fido = "21.2.0"
-protobuf = "4.32.0" # Keep Protobuf in sync with the version used by AppServices.
+protobuf = "4.32.1" # Keep Protobuf in sync with the version used by AppServices.
 
 # Gradle plugins
 jacoco = "0.8.13"
 kotlin-dsl = "5.2.0"
 protobuf-plugin = "0.9.5"
 python-envs-plugin = "0.0.31"
-semanticdb-javac = "0.11.0"
-semanticdb-kotlinc = "0.6.0"
+semanticdb-javac = "0.11.1"
+semanticdb-kotlinc = "0.7.0"
 tomlj = "1.1.1"
 
 # Linters
@@ -76,7 +75,7 @@ ktlint = "1.7.1"
 spotless = "7.2.1"
 
 # Mozilla
-glean = "65.0.2"
+glean = "65.1.1"
 
 # Testing libraries
 androidx-test = "1.7.0"
@@ -201,7 +200,6 @@ androidx-compose-ui-tooling-preview = { group = "androidx.compose.ui", name = "u
 
 # Google other
 accompanist-drawablepainter = { group = "com.google.accompanist", name = "accompanist-drawablepainter", version.ref = "accompanist" }
-desugar-jdk-libs = { group = "com.android.tools", name = "desugar_jdk_libs", version.ref = "desugar-jdk-libs" }
 firebase-messaging = { group = "com.google.firebase", name = "firebase-messaging", version.ref = "firebase-messaging" }
 installreferrer = { group = "com.android.installreferrer", name = "installreferrer", version.ref = "installreferrer" }
 google-material = { group = "com.google.android.material", name = "material", version.ref = "material" }

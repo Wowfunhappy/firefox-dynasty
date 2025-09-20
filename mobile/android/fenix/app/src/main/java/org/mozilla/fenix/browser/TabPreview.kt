@@ -91,7 +91,7 @@ class TabPreview @JvmOverloads constructor(
         val isVisible: () -> Boolean = { true },
     )
 
-    @Suppress("LongMethod")
+    @Suppress("LongMethod", "CyclomaticComplexMethod")
     private fun buildAction(
         toolbarAction: ToolbarAction,
         tab: TabSessionState?,
@@ -141,6 +141,7 @@ class TabPreview @JvmOverloads constructor(
             ToolbarAction.Menu -> ActionButtonRes(
                 drawableResId = iconsR.drawable.mozac_ic_ellipsis_vertical_24,
                 contentDescription = R.string.content_description_menu,
+                highlighted = context.components.appStore.state.supportedMenuNotifications.isNotEmpty(),
                 onClick = object : BrowserToolbarEvent {},
             )
 
@@ -166,6 +167,7 @@ class TabPreview @JvmOverloads constructor(
                     drawableResId = iconsR.drawable.mozac_ic_bookmark_fill_24,
                     contentDescription = R.string.browser_menu_edit_bookmark,
                     onClick = object : BrowserToolbarEvent {},
+                    state = ActionButton.State.ACTIVE,
                 )
             }
 
@@ -182,7 +184,11 @@ class TabPreview @JvmOverloads constructor(
                         contentDescription = toolbarR.string.mozac_browser_toolbar_content_description_site_info,
                         onClick = object : BrowserToolbarEvent {},
                     )
-                } else if (tab?.content?.securityInfo?.secure == true) {
+                } else if (
+                    tab?.content?.securityInfo?.secure == true &&
+                    tab.trackingProtection.enabled &&
+                    !tab.trackingProtection.ignoredOnTrackingProtection
+                ) {
                     ActionButtonRes(
                         drawableResId = iconsR.drawable.mozac_ic_shield_checkmark_24,
                         contentDescription = toolbarR.string.mozac_browser_toolbar_content_description_site_info,
@@ -446,8 +452,10 @@ class TabPreview @JvmOverloads constructor(
     }
 
     private suspend fun buildNavigationActions(tab: TabSessionState): List<Action> {
-        val isBookmarked =
-            context.components.core.bookmarksStorage.getBookmarksWithUrl(tab.content.url).isNotEmpty()
+        val isBookmarked = context.components.core.bookmarksStorage
+            .getBookmarksWithUrl(tab.content.url)
+            .getOrDefault(listOf())
+            .isNotEmpty()
 
         val isExpandedAndPortrait = context.settings().shouldUseExpandedToolbar &&
                 context.components.appStore.state.orientation == OrientationMode.Portrait

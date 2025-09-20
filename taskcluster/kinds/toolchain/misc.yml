@@ -794,11 +794,18 @@ talos-pdfs:
 win64-dxc:
     description: "DirectX Shader Compiler (x86_64)"
     attributes:
+        dxc-crash-symbols: true
+        enable-full-crashsymbols: true
         local-toolchain: true
     treeherder:
         symbol: TW64(dxc)
+    worker:
+        env:
+            MACH_BUILD_PYTHON_NATIVE_PACKAGE_SOURCE: system
+            MAKECAB: /builds/worker/fetches/makecab/makecab
     run:
         script: build-dxc.sh
+        sparse-profile: null
         arguments:
             - "x86_64"
         toolchain-artifact: public/build/dxc-x86_64-pc-windows-msvc.tar.zst
@@ -806,6 +813,8 @@ win64-dxc:
     fetches:
         toolchain:
             - linux64-clang-toolchain
+            - linux64-dump_syms
+            - linux64-makecab
             - vs-toolchain
         fetch:
             - dxc-src
@@ -813,11 +822,18 @@ win64-dxc:
 win64-aarch64-dxc:
     description: "DirectX Shader Compiler (aarch64)"
     attributes:
+        dxc-crash-symbols: true
+        enable-full-crashsymbols: true
         local-toolchain: true
     treeherder:
         symbol: TWA64(dxc)
+    worker:
+        env:
+            MACH_BUILD_PYTHON_NATIVE_PACKAGE_SOURCE: system
+            MAKECAB: /builds/worker/fetches/makecab/makecab
     run:
         script: build-dxc.sh
+        sparse-profile: null
         arguments:
             - "aarch64"
         toolchain-artifact: public/build/dxc-aarch64-pc-windows-msvc.tar.zst
@@ -825,6 +841,22 @@ win64-aarch64-dxc:
     fetches:
         toolchain:
             - linux64-clang-toolchain
+            - linux64-dump_syms
+            - linux64-makecab
             - vs-toolchain
         fetch:
             - dxc-src
+
+symbolicator-cli:
+    description: "symbolicator-cli from firefox profiler"
+    treeherder:
+        symbol: TL(symbolicator-cli)
+    run:
+        script: build-symbolicator-cli.sh
+        toolchain-artifact: public/build/symbolicator-cli.tar.zst
+    run-on-projects: []
+    fetches:
+        fetch:
+            - firefox-profiler
+        toolchain:
+            - linux64-node

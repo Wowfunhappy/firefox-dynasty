@@ -3292,6 +3292,14 @@ static int js_fgets(char* buf, int size, FILE* file) {
 static bool ReadLine(JSContext* cx, unsigned argc, Value* vp) {
   CallArgs args = CallArgsFromVp(argc, vp);
 
+  // Don't support readline() on worker threads because js_fgets is not
+  // thread-safe. This also avoids non-deterministic behavior for fuzzers that
+  // use readline() for communication.
+  if (GetShellContext(cx)->isWorker) {
+    JS_ReportErrorASCII(cx, "readline() is not supported on worker threads");
+    return false;
+  }
+
   static constexpr size_t BUFSIZE = 256;
   FILE* from = stdin;
   size_t buflength = 0;
@@ -8150,12 +8158,11 @@ static bool SetSharedObject(JSContext* cx, unsigned argc, Value* vp) {
             cx, &obj->as<WasmMemoryObject>()
                      .buffer()
                      .as<SharedArrayBufferObject>());
-        MOZ_ASSERT(!sab->isGrowable(), "unexpected growable shared buffer");
         tag = MailboxTag::WasmMemory;
         value.sarb.buffer = sab->rawBufferObject();
         value.sarb.length = sab->byteLength();
         value.sarb.isHugeMemory = obj->as<WasmMemoryObject>().isHuge();
-        value.sarb.isGrowable = false;
+        value.sarb.isGrowable = sab->isGrowable();
         if (!value.sarb.buffer->addReference()) {
           JS_ReportErrorASCII(cx,
                               "Reference count overflow on SharedArrayBuffer");

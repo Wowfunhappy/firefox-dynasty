@@ -42,6 +42,7 @@
 #include "mozilla/DebugOnly.h"
 #include "mozilla/FOGIPC.h"
 #include "mozilla/GeckoArgs.h"
+#include "mozilla/GeckoTrace.h"
 #include "mozilla/GlobalStyleSheetCache.h"
 #include "mozilla/HangDetails.h"
 #include "mozilla/LookAndFeel.h"
@@ -6253,9 +6254,55 @@ static bool WebdriverRunning() {
   return false;
 }
 
+void ContentParent::RecordAndroidAppLinkTelemetry(
+    mozilla::performance::pageload_event::PageloadEventData* aPageloadData,
+    const TimeStamp& aNavStartTime, uint64_t aAndroidAppLinkLoadIdentifier) {
+  MOZ_ASSERT(aPageloadData);
+  int32_t appLinkLaunchType =
+      GetAndroidAppLinkLaunchType(aAndroidAppLinkLoadIdentifier);
+  if (appLinkLaunchType < 0) {
+    return;
+  }
+  ClearAndroidAppLinkLaunchType(aAndroidAppLinkLoadIdentifier);
+
+  aPageloadData->set_androidAppLinkLaunchType(appLinkLaunchType);
+
+  //  ProcessStart to navigationStart is only meaningful for cold applink
+  //  launches
+  if (appLinkLaunchType !=
+      1 /* mozilla::dom::LoadURIConstants::APPLINK_COLD */) {
+    return;
+  }
+
+  const TimeStamp parentProcessCreationTime = TimeStamp::ProcessCreation();
+  if (parentProcessCreationTime.IsNull() || aNavStartTime.IsNull()) {
+    return;
+  }
+
+  const TimeDuration delta = aNavStartTime - parentProcessCreationTime;
+  if (delta.IsZero()) {
+    return;
+  }
+
+  aPageloadData->set_androidAppLinkToNavigationStart(
+      static_cast<uint32_t>(delta.ToMilliseconds()));
+
+  if (profiler_thread_is_being_profiled_for_markers()) {
+    PROFILER_MARKER_FMT("Applink Startup", NETWORK,
+                        MarkerOptions(MarkerTiming::Interval(
+                            parentProcessCreationTime, aNavStartTime)),
+                        "ContentParent::RecordAndroidAppLinkTelemetry - Parent "
+                        "Process Start To "
+                        "Navigation Start for appLinkLaunchType {}",
+                        appLinkLaunchType);
+  }
+}
+
 mozilla::ipc::IPCResult ContentParent::RecvRecordPageLoadEvent(
     mozilla::performance::pageload_event::PageloadEventData&&
-        aPageloadEventData) {
+        aPageloadEventData,
+    const TimeStamp& aNavigationStartTime,
+    uint64_t aAndroidAppLinkLaunchTypeIdentifier) {
   // Check whether a webdriver is running.
   aPageloadEventData.set_usingWebdriver(WebdriverRunning());
 
@@ -6278,6 +6325,11 @@ mozilla::ipc::IPCResult ContentParent::RecvRecordPageLoadEvent(
   if (NS_SUCCEEDED(rv)) {
     aPageloadEventData.set_hasSsd(hasSSD);
   }
+#endif
+
+#ifdef ANDROID
+  RecordAndroidAppLinkTelemetry(&aPageloadEventData, aNavigationStartTime,
+                                aAndroidAppLinkLaunchTypeIdentifier);
 #endif
 
   // If the etld information exists, then we need to send it using a special
@@ -7930,6 +7982,11 @@ IPCResult ContentParent::RecvFOGData(ByteBuf&& buf) {
   return IPC_OK();
 }
 
+mozilla::ipc::IPCResult ContentParent::RecvGeckoTraceExport(ByteBuf&& aBuf) {
+  recv_gecko_trace_export(aBuf.mData, aBuf.mLen);
+  return IPC_OK();
+}
+
 mozilla::ipc::IPCResult ContentParent::RecvSetContainerFeaturePolicy(
     const MaybeDiscardedBrowsingContext& aContainerContext,
     MaybeFeaturePolicyInfo&& aContainerFeaturePolicyInfo) {
@@ -8035,6 +8092,23 @@ ThreadsafeContentParentHandle::TryAddKeepAlive(uint64_t aBrowserId) {
   ++mKeepAlivesPerBrowserId.LookupOrInsert(aBrowserId, 0);
   return UniqueThreadsafeContentParentKeepAlive{do_AddRef(this).take(),
                                                 {.mBrowserId = aBrowserId}};
+}
+
+void ContentParent::SetAndroidAppLinkLaunchType(uint64_t aLoadIdentifier,
+                                                int32_t aAppLinkLaunchType) {
+  mAndroidLoadIdentifierToAppLinkLaunchType.InsertOrUpdate(aLoadIdentifier,
+                                                           aAppLinkLaunchType);
+}
+
+int32_t ContentParent::GetAndroidAppLinkLaunchType(uint64_t aLoadIdentifier) {
+  int32_t appLinkLaunchType = -1;
+  Unused << mAndroidLoadIdentifierToAppLinkLaunchType.Get(aLoadIdentifier,
+                                                          &appLinkLaunchType);
+  return appLinkLaunchType;
+}
+
+void ContentParent::ClearAndroidAppLinkLaunchType(uint64_t aLoadIdentifier) {
+  mAndroidLoadIdentifierToAppLinkLaunchType.Remove(aLoadIdentifier);
 }
 
 }  // namespace dom

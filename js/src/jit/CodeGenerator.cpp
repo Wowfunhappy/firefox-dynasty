@@ -19,6 +19,7 @@
 #include "mozilla/ScopeExit.h"
 #include "mozilla/SIMD.h"
 
+#include <cmath>
 #include <limits>
 #include <type_traits>
 #include <utility>
@@ -11779,17 +11780,18 @@ void CodeGenerator::visitMathFunctionF(LMathFunctionF* ins) {
   CheckUnsafeCallWithABI check = CheckUnsafeCallWithABI::Check;
   switch (ins->mir()->function()) {
     case UnaryMathFunction::Floor:
-      funptr = floorf;
+      funptr = std::floor;
       check = CheckUnsafeCallWithABI::DontCheckOther;
       break;
     case UnaryMathFunction::Round:
       funptr = math_roundf_impl;
       break;
     case UnaryMathFunction::Trunc:
-      funptr = math_truncf_impl;
+      funptr = std::trunc;
+      check = CheckUnsafeCallWithABI::DontCheckOther;
       break;
     case UnaryMathFunction::Ceil:
-      funptr = ceilf;
+      funptr = std::ceil;
       check = CheckUnsafeCallWithABI::DontCheckOther;
       break;
     default:
@@ -21609,21 +21611,18 @@ void CodeGenerator::visitBuiltinObject(LBuiltinObject* lir) {
   callVM<Fn, js::BuiltinObjectOperation>(lir);
 }
 
-void CodeGenerator::visitSuperFunction(LSuperFunction* lir) {
-  Register callee = ToRegister(lir->callee());
-  ValueOperand out = ToOutValue(lir);
-  Register temp = ToRegister(lir->temp0());
-
+static void EmitLoadSuperFunction(MacroAssembler& masm, Register callee,
+                                  Register dest) {
 #ifdef DEBUG
   Label classCheckDone;
-  masm.branchTestObjIsFunction(Assembler::Equal, callee, temp, callee,
+  masm.branchTestObjIsFunction(Assembler::Equal, callee, dest, callee,
                                &classCheckDone);
   masm.assumeUnreachable("Unexpected non-JSFunction callee in JSOp::SuperFun");
   masm.bind(&classCheckDone);
 #endif
 
   // Load prototype of callee
-  masm.loadObjProto(callee, temp);
+  masm.loadObjProto(callee, dest);
 
 #ifdef DEBUG
   // We won't encounter a lazy proto, because |callee| is guaranteed to be a
@@ -21631,10 +21630,18 @@ void CodeGenerator::visitSuperFunction(LSuperFunction* lir) {
   MOZ_ASSERT(uintptr_t(TaggedProto::LazyProto) == 1);
 
   Label proxyCheckDone;
-  masm.branchPtr(Assembler::NotEqual, temp, ImmWord(1), &proxyCheckDone);
+  masm.branchPtr(Assembler::NotEqual, dest, ImmWord(1), &proxyCheckDone);
   masm.assumeUnreachable("Unexpected lazy proto in JSOp::SuperFun");
   masm.bind(&proxyCheckDone);
 #endif
+}
+
+void CodeGenerator::visitSuperFunction(LSuperFunction* lir) {
+  Register callee = ToRegister(lir->callee());
+  ValueOperand out = ToOutValue(lir);
+  Register temp = out.scratchReg();
+
+  EmitLoadSuperFunction(masm, callee, temp);
 
   Label nullProto, done;
   masm.branchPtr(Assembler::Equal, temp, ImmWord(0), &nullProto);
@@ -21647,6 +21654,15 @@ void CodeGenerator::visitSuperFunction(LSuperFunction* lir) {
   masm.moveValue(NullValue(), out);
 
   masm.bind(&done);
+}
+
+void CodeGenerator::visitSuperFunctionAndUnbox(LSuperFunctionAndUnbox* lir) {
+  Register callee = ToRegister(lir->callee());
+  Register output = ToRegister(lir->output());
+
+  EmitLoadSuperFunction(masm, callee, output);
+
+  bailoutCmpPtr(Assembler::Equal, output, ImmWord(0), lir->snapshot());
 }
 
 void CodeGenerator::visitInitHomeObject(LInitHomeObject* lir) {

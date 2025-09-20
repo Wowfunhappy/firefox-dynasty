@@ -368,18 +368,7 @@ void LIRGenerator::visitCreateInlinedArgumentsObject(
 }
 
 void LIRGenerator::visitGetInlinedArgument(MGetInlinedArgument* ins) {
-#if defined(JS_PUNBOX64)
-  // On 64-bit architectures, we don't support boxing a typed register
-  // in-place without using a scratch register, so the result register
-  // can't be the same as any of the inputs. Fortunately, those
-  // architectures have registers to spare.
-  const bool useAtStart = false;
-#else
-  const bool useAtStart = true;
-#endif
-
-  LAllocation index =
-      useAtStart ? useRegisterAtStart(ins->index()) : useRegister(ins->index());
+  LAllocation index = useRegisterAtStart(ins->index());
   uint32_t numActuals = ins->numActuals();
   uint32_t numOperands =
       numActuals * BOX_PIECES + LGetInlinedArgument::NumNonArgumentOperands;
@@ -394,26 +383,15 @@ void LIRGenerator::visitGetInlinedArgument(MGetInlinedArgument* ins) {
   for (uint32_t i = 0; i < numActuals; i++) {
     MDefinition* arg = ins->getArg(i);
     uint32_t index = LGetInlinedArgument::ArgIndex(i);
-    lir->setBoxOperand(
-        index, useBoxOrTypedOrConstant(arg,
-                                       /*useConstant = */ true, useAtStart));
+    lir->setBoxOperand(index, useBoxOrTypedOrConstant(arg,
+                                                      /*useConstant = */ true,
+                                                      /*useAtStart = */ true));
   }
   defineBox(lir, ins);
 }
 
 void LIRGenerator::visitGetInlinedArgumentHole(MGetInlinedArgumentHole* ins) {
-#if defined(JS_PUNBOX64)
-  // On 64-bit architectures, we don't support boxing a typed register
-  // in-place without using a scratch register, so the result register
-  // can't be the same as any of the inputs. Fortunately, those
-  // architectures have registers to spare.
-  const bool useAtStart = false;
-#else
-  const bool useAtStart = true;
-#endif
-
-  LAllocation index =
-      useAtStart ? useRegisterAtStart(ins->index()) : useRegister(ins->index());
+  LAllocation index = useRegisterAtStart(ins->index());
   uint32_t numActuals = ins->numActuals();
   uint32_t numOperands =
       numActuals * BOX_PIECES + LGetInlinedArgumentHole::NumNonArgumentOperands;
@@ -428,9 +406,9 @@ void LIRGenerator::visitGetInlinedArgumentHole(MGetInlinedArgumentHole* ins) {
   for (uint32_t i = 0; i < numActuals; i++) {
     MDefinition* arg = ins->getArg(i);
     uint32_t index = LGetInlinedArgumentHole::ArgIndex(i);
-    lir->setBoxOperand(
-        index, useBoxOrTypedOrConstant(arg,
-                                       /*useConstant = */ true, useAtStart));
+    lir->setBoxOperand(index, useBoxOrTypedOrConstant(arg,
+                                                      /*useConstant = */ true,
+                                                      /*useAtStart = */ true));
   }
   assignSnapshot(lir, ins->bailoutKind());
   defineBox(lir, ins);
@@ -7626,8 +7604,17 @@ void LIRGenerator::visitSuperFunction(MSuperFunction* ins) {
   MOZ_ASSERT(ins->callee()->type() == MIRType::Object);
   MOZ_ASSERT(ins->type() == MIRType::Value);
 
-  auto* lir = new (alloc()) LSuperFunction(useRegister(ins->callee()), temp());
+  auto* lir = new (alloc()) LSuperFunction(useRegister(ins->callee()));
   defineBox(lir, ins);
+}
+
+void LIRGenerator::visitSuperFunctionAndUnbox(MSuperFunctionAndUnbox* ins) {
+  MOZ_ASSERT(ins->callee()->type() == MIRType::Object);
+  MOZ_ASSERT(ins->type() == MIRType::Object);
+
+  auto* lir = new (alloc()) LSuperFunctionAndUnbox(useRegister(ins->callee()));
+  assignSnapshot(lir, ins->bailoutKind());
+  define(lir, ins);
 }
 
 void LIRGenerator::visitInitHomeObject(MInitHomeObject* ins) {

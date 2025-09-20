@@ -1187,7 +1187,9 @@ class ContentParent final : public PContentParent,
       const DiscardedData& aDiscardedData);
   mozilla::ipc::IPCResult RecvRecordPageLoadEvent(
       mozilla::performance::pageload_event::PageloadEventData&&
-          aPageloadEventData);
+          aPageLoadEventData,
+      const TimeStamp& aNavigationStartTime,
+      uint64_t aAndroidAppLinkLoadIdentifier);
   mozilla::ipc::IPCResult RecvRecordOrigin(const uint32_t& aMetricId,
                                            const nsACString& aOrigin);
   mozilla::ipc::IPCResult RecvReportContentBlockingLog(
@@ -1392,6 +1394,8 @@ class ContentParent final : public PContentParent,
 
   mozilla::ipc::IPCResult RecvFOGData(ByteBuf&& buf);
 
+  mozilla::ipc::IPCResult RecvGeckoTraceExport(ByteBuf&& aBuf);
+
   mozilla::ipc::IPCResult RecvSetContainerFeaturePolicy(
       const MaybeDiscardedBrowsingContext& aContainerContext,
       MaybeFeaturePolicyInfo&& aContainerFeaturePolicyInfo);
@@ -1450,6 +1454,11 @@ class ContentParent final : public PContentParent,
     return mRemoteWorkerServiceActor;
   }
 
+  void SetAndroidAppLinkLaunchType(uint64_t aLoadIdentifier,
+                                   int32_t aAppLinkLaunchType);
+  int32_t GetAndroidAppLinkLaunchType(uint64_t aLoadIdentifier);
+  void ClearAndroidAppLinkLaunchType(uint64_t aLoadIdentifier);
+
  private:
   // Return an existing ContentParent if possible. Otherwise, `nullptr`.
   static UniqueContentParentKeepAlive GetUsedBrowserProcess(
@@ -1466,6 +1475,11 @@ class ContentParent final : public PContentParent,
   void AssertAlive();
 
   void StartRemoteWorkerService();
+
+  void RecordAndroidAppLinkTelemetry(
+      mozilla::performance::pageload_event::PageloadEventData*
+          aPageLoadEventData,
+      const TimeStamp& aNavStartTime, uint64_t aAppLinkLaunchTypeIdentifier);
 
  private:
   // If you add strong pointers to cycle collected objects here, be sure to
@@ -1590,6 +1604,10 @@ class ContentParent final : public PContentParent,
   // viewed as an acceptable side-channel leak. In the future bug 1491018 will
   // moot the need for this structure.
   nsTArray<uint64_t> mLoadedOriginHashes;
+
+  // Map from android load identifier to app link launch type
+  // We do this to avoid sending the app link launch type to the content process
+  nsTHashMap<uint64_t, int32_t> mAndroidLoadIdentifierToAppLinkLaunchType;
 
   UniquePtr<mozilla::ipc::CrashReporterHost> mCrashReporter;
 

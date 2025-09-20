@@ -1221,6 +1221,12 @@ criteria = "safe-to-deploy"
 delta = "1.1.4 -> 1.1.2"
 notes = "Older version, just lacks a few APIs and tests from the newer version."
 
+[[audits.canonical_json]]
+who = "Ben Dean-Kawamura <bdk@mozilla.com>"
+criteria = "safe-to-deploy"
+version = "0.5.0"
+notes = "Maintained by the Mozilla developers."
+
 [[audits.cargo_metadata]]
 who = "Jan-Erik Rediger <jrediger@mozilla.com>"
 criteria = "safe-to-deploy"
@@ -2160,6 +2166,12 @@ who = "Mike Hommey <mh+mozilla@glandium.org>"
 criteria = "safe-to-deploy"
 delta = "0.2.3 -> 0.2.4"
 
+[[audits.dissimilar]]
+who = "Ben Dean-Kawamura <bdk@mozilla.com>"
+criteria = "safe-to-run"
+version = "1.0.10"
+notes = "dtolnay crate that will generate diffs for testing purposes.  No IO or unsafe code."
+
 [[audits.document-features]]
 who = "Erich Gubler <erichdongubler@gmail.com>"
 criteria = "safe-to-deploy"
@@ -2300,6 +2312,15 @@ who = "Chris Martin <cmartin@mozilla.com>"
 criteria = "safe-to-deploy"
 version = "0.1.1"
 notes = "This code was written and reviewed by Mozilla employees"
+
+[[audits.expect-test]]
+who = "Ben Dean-Kawamura <bdk@mozilla.com>"
+criteria = "safe-to-run"
+version = "1.4.1"
+notes = """
+Expectation testing/management library.  This will read/write the Rust test files, but that's
+expected.  It should only change string literals and any changes will be visible in code review.
+"""
 
 [[audits.extend]]
 who = "Ben Dean-Kawamura <bdk@mozilla.com>"
@@ -4087,6 +4108,15 @@ criteria = "safe-to-deploy"
 delta = "0.15.0 -> 0.15.0@git:b747d7efb85a776b97ad8afa8d1b32893fa5efa3"
 importable = false
 
+[[audits.mockito]]
+who = "Ben Dean-Kawamura <bdk@mozilla.com>"
+criteria = "safe-to-run"
+version = "0.31.0"
+notes = """
+Used to setup mock HTTP servers for unit tests. I quickly scanned the code and it seems safe to me.
+It's also popular enough that I would expect any issues to have been uncovered by the public.
+"""
+
 [[audits.moz_cbor]]
 who = "Bobby Holley <bobbyholley@gmail.com>"
 criteria = "safe-to-deploy"
@@ -4203,7 +4233,7 @@ who = [
     "Erich Gubler <erichdongubler@gmail.com>",
 ]
 criteria = "safe-to-deploy"
-delta = "26.0.0 -> 26.0.0@git:c488bbe60447d28736c26c82a32cd87794b3bf1d"
+delta = "26.0.0 -> 26.0.0@git:1791064a306881c7ddf218e69b4ffdafdae1be0d"
 importable = false
 
 [[audits.net2]]
@@ -5718,16 +5748,6 @@ criteria = "safe-to-deploy"
 delta = "0.2.12 -> 0.2.14"
 notes = "Minor API additions, trivial no-std support, and minor inlining tweaks."
 
-[[audits.thin-vec]]
-who = "Emilio Cobos Álvarez <emilio@crisal.io>"
-criteria = "safe-to-deploy"
-delta = "0.2.14 -> 0.2.14@git:3b4d5c838eacf5e2156d89bfdb559b6377bd6c39"
-importable = false
-notes = """
-Main changes are Gecko specific, reviewed in bug 1978229. Other changes are
-minor and look good as well.
-"""
-
 [[audits.thiserror]]
 who = "Mike Hommey <mh+mozilla@glandium.org>"
 criteria = "safe-to-deploy"
@@ -6688,7 +6708,7 @@ who = [
     "Erich Gubler <erichdongubler@gmail.com>",
 ]
 criteria = "safe-to-deploy"
-delta = "26.0.0 -> 26.0.0@git:c488bbe60447d28736c26c82a32cd87794b3bf1d"
+delta = "26.0.0 -> 26.0.0@git:1791064a306881c7ddf218e69b4ffdafdae1be0d"
 importable = false
 
 [[audits.wgpu-core-deps-apple]]
@@ -6709,7 +6729,7 @@ who = [
     "Erich Gubler <erichdongubler@gmail.com>",
 ]
 criteria = "safe-to-deploy"
-delta = "26.0.0 -> 26.0.0@git:c488bbe60447d28736c26c82a32cd87794b3bf1d"
+delta = "26.0.0 -> 26.0.0@git:1791064a306881c7ddf218e69b4ffdafdae1be0d"
 importable = false
 
 [[audits.wgpu-core-deps-windows-linux-android]]
@@ -6730,7 +6750,7 @@ who = [
     "Erich Gubler <erichdongubler@gmail.com>",
 ]
 criteria = "safe-to-deploy"
-delta = "26.0.0 -> 26.0.0@git:c488bbe60447d28736c26c82a32cd87794b3bf1d"
+delta = "26.0.0 -> 26.0.0@git:1791064a306881c7ddf218e69b4ffdafdae1be0d"
 importable = false
 
 [[audits.wgpu-hal]]
@@ -6829,7 +6849,7 @@ who = [
     "Erich Gubler <erichdongubler@gmail.com>",
 ]
 criteria = "safe-to-deploy"
-delta = "26.0.0 -> 26.0.0@git:c488bbe60447d28736c26c82a32cd87794b3bf1d"
+delta = "26.0.0 -> 26.0.0@git:1791064a306881c7ddf218e69b4ffdafdae1be0d"
 importable = false
 
 [[audits.wgpu-types]]
@@ -6923,7 +6943,7 @@ who = [
     "Erich Gubler <erichdongubler@gmail.com>",
 ]
 criteria = "safe-to-deploy"
-delta = "26.0.0 -> 26.0.0@git:c488bbe60447d28736c26c82a32cd87794b3bf1d"
+delta = "26.0.0 -> 26.0.0@git:1791064a306881c7ddf218e69b4ffdafdae1be0d"
 importable = false
 
 [[audits.whatsys]]

@@ -71,7 +71,7 @@ uniffi_pipeline = "0.29.3"
 # Shared across multiple application-services consumers.
 rusqlite = "0.37"
 # Shared across multiple glean consumers.
-glean = "=65.0.2"
+glean = "=65.1.1"
 
 # Explicitly specify what our profiles use.  The opt-level setting here is
 # a total fiction; see the setup of MOZ_RUST_DEFAULT_FLAGS for what the
@@ -273,9 +273,3 @@ zip = { path = "third_party/rust/zip" }
 
 # Patch libcrux-traits to avoid unnecessary unused dependencies and conflicts.
 libcrux-traits = { path = "build/rust/libcrux-traits" }
-
-# Patch neqo-crypto (and neqo-common to avoid duplicating it) to cherry-pick
-# https://github.com/mozilla/neqo/pull/2913
-[patch."https://github.com/mozilla/neqo"]
-neqo-crypto = { path = "third_party/rust/neqo-crypto" }
-neqo-common = { path = "third_party/rust/neqo-common" }

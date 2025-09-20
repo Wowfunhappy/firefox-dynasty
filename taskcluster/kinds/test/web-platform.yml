@@ -307,7 +307,7 @@ web-platform-tests-webgpu:
     tier:
         by-test-platform:
             android.*: 2  # https://bugzilla.mozilla.org/show_bug.cgi?id=1849914
-            macosx.*: 2  # https://bugzilla.mozilla.org/show_bug.cgi?id=1849913
+            macosx.*: default
             linux2204.*-64.*: 2  # https://bugzilla.mozilla.org/show_bug.cgi?id=1849912
             windows.*-64.*: default
             default: 2
@@ -318,7 +318,7 @@ web-platform-tests-webgpu:
     # 50% overhead, so let's aim for 15m (20m debug)
     chunks:
         by-test-platform:
-            linux2204.*/debug.*: 22
+            linux2204.*/debug.*: 24
             linux2204.*: 20
             windows.*-64.*/opt.*: 14
             default: 14

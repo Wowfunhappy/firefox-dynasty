@@ -23,6 +23,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -33,6 +35,7 @@ import androidx.coordinatorlayout.widget.CoordinatorLayout
 import androidx.core.content.ContextCompat.getColor
 import androidx.core.graphics.drawable.toDrawable
 import androidx.core.view.isVisible
+import androidx.core.view.updateLayoutParams
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.Observer
@@ -88,10 +91,13 @@ import org.mozilla.fenix.components.appstate.AppAction.MessagingAction.Microsurv
 import org.mozilla.fenix.components.appstate.AppAction.ReviewPromptAction.CheckIfEligibleForReviewPrompt
 import org.mozilla.fenix.components.appstate.AppAction.ReviewPromptAction.ReviewPromptShown
 import org.mozilla.fenix.components.appstate.AppState
+import org.mozilla.fenix.components.appstate.OrientationMode
 import org.mozilla.fenix.components.components
 import org.mozilla.fenix.components.toolbar.BottomToolbarContainerView
 import org.mozilla.fenix.compose.snackbar.Snackbar
 import org.mozilla.fenix.compose.snackbar.SnackbarState
+import org.mozilla.fenix.compose.utils.KeyboardState
+import org.mozilla.fenix.compose.utils.keyboardAsState
 import org.mozilla.fenix.databinding.FragmentHomeBinding
 import org.mozilla.fenix.ext.components
 import org.mozilla.fenix.ext.hideToolbar
@@ -250,23 +256,17 @@ class HomeFragment : Fragment() {
     private val searchSelectorBinding = ViewBoundFeatureWrapper<SearchSelectorBinding>()
     private val searchSelectorMenuBinding = ViewBoundFeatureWrapper<SearchSelectorMenuBinding>()
     private val thumbnailsFeature = ViewBoundFeatureWrapper<HomepageThumbnailIntegration>()
-
-    private val voiceSearchFeature by lazy(LazyThreadSafetyMode.NONE) {
-        ViewBoundFeatureWrapper<VoiceSearchFeature>()
-    }
-
-    private val qrScanFenixFeature by lazy(LazyThreadSafetyMode.NONE) {
+    private var qrScanFenixFeature: ViewBoundFeatureWrapper<QrScanFenixFeature>? =
         ViewBoundFeatureWrapper<QrScanFenixFeature>()
-    }
-
-    private val voiceSearchLauncher: ActivityResultLauncher<Intent> =
-        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-            voiceSearchFeature.get()?.handleVoiceSearchResult(result.resultCode, result.data)
-        }
-
     private val qrScanLauncher: ActivityResultLauncher<Intent> =
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-            qrScanFenixFeature.get()?.handleToolbarQrScanResults(result.resultCode, result.data)
+            qrScanFenixFeature?.get()?.handleToolbarQrScanResults(result.resultCode, result.data)
+        }
+    private var voiceSearchFeature: ViewBoundFeatureWrapper<VoiceSearchFeature>? =
+        ViewBoundFeatureWrapper<VoiceSearchFeature>()
+    private val voiceSearchLauncher: ActivityResultLauncher<Intent> =
+        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+            voiceSearchFeature?.get()?.handleVoiceSearchResult(result.resultCode, result.data)
         }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -610,16 +610,6 @@ class HomeFragment : Fragment() {
                     hideWhenKeyboardShown = true,
                 )
 
-                voiceSearchFeature.set(
-                    feature = VoiceSearchFeature(
-                        context = activity,
-                        appStore = activity.components.appStore,
-                        voiceSearchLauncher = voiceSearchLauncher,
-                    ),
-                    owner = viewLifecycleOwner,
-                    view = binding.root,
-                )
-
                 HomeToolbarComposable(
                     context = activity,
                     homeBinding = binding,
@@ -916,15 +906,8 @@ class HomeFragment : Fragment() {
         }
 
         if (requireContext().settings().shouldUseComposableToolbar) {
-            qrScanFenixFeature.set(
-                feature = QrScanFenixFeature(
-                    context = requireContext(),
-                    appStore = requireContext().components.appStore,
-                    qrScanActivityLauncher = qrScanLauncher,
-                ),
-                owner = viewLifecycleOwner,
-                view = binding.root,
-            )
+            qrScanFenixFeature = QrScanFenixFeature.register(this, qrScanLauncher)
+            voiceSearchFeature = VoiceSearchFeature.register(this, voiceSearchLauncher)
         }
 
         (toolbarView as? HomeToolbarView)?.let {
@@ -978,6 +961,19 @@ class HomeFragment : Fragment() {
                             // Without this, transient states can cause visual glitches (e.g., incorrect theme/frame)
                             flow().distinctUntilChanged { old, new -> old.mode != new.mode }
                         }.collectAsState(state)
+                    }
+                    val isInPortrait by remember {
+                        derivedStateOf {
+                            appState.value.orientation == OrientationMode.Portrait
+                        }
+                    }
+                    val keyboardState by keyboardAsState()
+
+                    LaunchedEffect(isInPortrait, keyboardState) {
+                        updateLayoutParams<ViewGroup.MarginLayoutParams> {
+                            topMargin = settings().getTopToolbarHeight()
+                            bottomMargin = settings().getBottomToolbarHeight(keyboardState == KeyboardState.Closed)
+                        }
                     }
 
                     if (settings.enableHomepageSearchBar) {

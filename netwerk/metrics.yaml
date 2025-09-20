@@ -106,16 +106,18 @@ networking:
       - https://bugzilla.mozilla.org/show_bug.cgi?id=1828942
       - https://bugzilla.mozilla.org/show_bug.cgi?id=1892158
       - https://bugzilla.mozilla.org/show_bug.cgi?id=1922606
+      - https://bugzilla.mozilla.org/show_bug.cgi?id=1989180
     data_reviews:
       - https://bugzilla.mozilla.org/show_bug.cgi?id=1828942#TDB
       - https://bugzilla.mozilla.org/show_bug.cgi?id=1892158
       - https://bugzilla.mozilla.org/show_bug.cgi?id=1922606
+      - https://bugzilla.mozilla.org/show_bug.cgi?id=1989180
     data_sensitivity:
       - technical
     notification_emails:
       - necko@mozilla.com
       - edgul@mozilla.com
-    expires: 146
+    expires: 157
 
   cookie_count_partitioned:
     type: custom_distribution
@@ -130,16 +132,18 @@ networking:
       - https://bugzilla.mozilla.org/show_bug.cgi?id=1828942
       - https://bugzilla.mozilla.org/show_bug.cgi?id=1892158
       - https://bugzilla.mozilla.org/show_bug.cgi?id=1922606
+      - https://bugzilla.mozilla.org/show_bug.cgi?id=1989180
     data_reviews:
       - https://bugzilla.mozilla.org/show_bug.cgi?id=1828942#TDB
       - https://bugzilla.mozilla.org/show_bug.cgi?id=1892158
       - https://bugzilla.mozilla.org/show_bug.cgi?id=1922606
+      - https://bugzilla.mozilla.org/show_bug.cgi?id=1989180
     data_sensitivity:
       - technical
     notification_emails:
       - necko@mozilla.com
       - edgul@mozilla.com
-    expires: 146
+    expires: 157
 
   cookie_count_unpartitioned:
     type: custom_distribution
@@ -154,16 +158,18 @@ networking:
       - https://bugzilla.mozilla.org/show_bug.cgi?id=1828942
       - https://bugzilla.mozilla.org/show_bug.cgi?id=1892158
       - https://bugzilla.mozilla.org/show_bug.cgi?id=1922606
+      - https://bugzilla.mozilla.org/show_bug.cgi?id=1989180
     data_reviews:
       - https://bugzilla.mozilla.org/show_bug.cgi?id=1828942#TDB
       - https://bugzilla.mozilla.org/show_bug.cgi?id=1892158
       - https://bugzilla.mozilla.org/show_bug.cgi?id=1922606
+      - https://bugzilla.mozilla.org/show_bug.cgi?id=1989180
     data_sensitivity:
       - technical
     notification_emails:
       - necko@mozilla.com
       - edgul@mozilla.com
-    expires: 146
+    expires: 157
 
   cookie_count_part_by_key:
     type: custom_distribution
@@ -179,16 +185,18 @@ networking:
       - https://bugzilla.mozilla.org/show_bug.cgi?id=1828942
       - https://bugzilla.mozilla.org/show_bug.cgi?id=1892158
       - https://bugzilla.mozilla.org/show_bug.cgi?id=1922606
+      - https://bugzilla.mozilla.org/show_bug.cgi?id=1989180
     data_reviews:
       - https://bugzilla.mozilla.org/show_bug.cgi?id=1828942#TDB
       - https://bugzilla.mozilla.org/show_bug.cgi?id=1892158
       - https://bugzilla.mozilla.org/show_bug.cgi?id=1922606
+      - https://bugzilla.mozilla.org/show_bug.cgi?id=1989180
     data_sensitivity:
       - technical
     notification_emails:
       - necko@mozilla.com
       - edgul@mozilla.com
-    expires: 146
+    expires: 157
 
   cookie_count_unpart_by_key:
     type: custom_distribution
@@ -204,46 +212,18 @@ networking:
       - https://bugzilla.mozilla.org/show_bug.cgi?id=1828942
       - https://bugzilla.mozilla.org/show_bug.cgi?id=1892158
       - https://bugzilla.mozilla.org/show_bug.cgi?id=1922606
+      - https://bugzilla.mozilla.org/show_bug.cgi?id=1989180
     data_reviews:
       - https://bugzilla.mozilla.org/show_bug.cgi?id=1828942#TDB
       - https://bugzilla.mozilla.org/show_bug.cgi?id=1892158
       - https://bugzilla.mozilla.org/show_bug.cgi?id=1922606
+      - https://bugzilla.mozilla.org/show_bug.cgi?id=1989180
     data_sensitivity:
       - technical
     notification_emails:
       - necko@mozilla.com
       - edgul@mozilla.com
-    expires: 146
-
-  cookie_count_invalid_first_party_partitioned_in_db:
-    type: counter
-    description: >
-      This counts the number of invalid first-party partitioned cookies that
-      don't have the partitioned cookie attribution(CHIPS).
-    bugs:
-      - https://bugzilla.mozilla.org/1922193
-    data_reviews:
-      - https://bugzilla.mozilla.org/1922193
-    notification_emails:
-      - bvandersloot@mozilla.com
-      - tihuang@mozilla.com
-      - edgul@mozilla.com
-    expires: 146
-
-  set_invalid_first_party_partitioned_cookie:
-    type: counter
-    description: >
-      This counts the number of times we set an invalid first-party partitioned
-      cookie.
-    bugs:
-      - https://bugzilla.mozilla.org/1922193
-    data_reviews:
-      - https://bugzilla.mozilla.org/1922193
-    notification_emails:
-      - bvandersloot@mozilla.com
-      - tihuang@mozilla.com
-      - edgul@mozilla.com
-    expires: 146
+    expires: 157
 
   cookie_purge_max:
     type: custom_distribution
@@ -260,16 +240,18 @@ networking:
       - https://bugzilla.mozilla.org/show_bug.cgi?id=1828942
       - https://bugzilla.mozilla.org/show_bug.cgi?id=1892158
       - https://bugzilla.mozilla.org/show_bug.cgi?id=1922606
+      - https://bugzilla.mozilla.org/show_bug.cgi?id=1989180
     data_reviews:
       - https://bugzilla.mozilla.org/show_bug.cgi?id=1828942#TDB
       - https://bugzilla.mozilla.org/show_bug.cgi?id=1892158
       - https://bugzilla.mozilla.org/show_bug.cgi?id=1922606
+      - https://bugzilla.mozilla.org/show_bug.cgi?id=1989180
     data_sensitivity:
       - technical
     notification_emails:
       - necko@mozilla.com
       - edgul@mozilla.com
-    expires: 146
+    expires: 157
 
   cookie_purge_entry_max:
     type: custom_distribution
@@ -286,16 +268,18 @@ networking:
       - https://bugzilla.mozilla.org/show_bug.cgi?id=1828942
       - https://bugzilla.mozilla.org/show_bug.cgi?id=1892158
       - https://bugzilla.mozilla.org/show_bug.cgi?id=1922606
+      - https://bugzilla.mozilla.org/show_bug.cgi?id=1989180
     data_reviews:
       - https://bugzilla.mozilla.org/show_bug.cgi?id=1828942#TDB
       - https://bugzilla.mozilla.org/show_bug.cgi?id=1892158
       - https://bugzilla.mozilla.org/show_bug.cgi?id=1922606
+      - https://bugzilla.mozilla.org/show_bug.cgi?id=1989180
     data_sensitivity:
       - technical
     notification_emails:
       - necko@mozilla.com
       - edgul@mozilla.com
-    expires: 146
+    expires: 157
 
   cookie_chips_partition_limit_overflow:
     type: custom_distribution
@@ -309,15 +293,17 @@ networking:
     bugs:
       - https://bugzilla.mozilla.org/show_bug.cgi?id=1878391
       - https://bugzilla.mozilla.org/show_bug.cgi?id=1922606
+      - https://bugzilla.mozilla.org/show_bug.cgi?id=1989180
     data_reviews:
       - https://bugzilla.mozilla.org/show_bug.cgi?id=1878391
       - https://bugzilla.mozilla.org/show_bug.cgi?id=1922606
+      - https://bugzilla.mozilla.org/show_bug.cgi?id=1989180
     data_sensitivity:
       - technical
     notification_emails:
       - necko@mozilla.com
       - edgul@mozilla.com
-    expires: 146
+    expires: 157
 
   cookie_db_validation:
     type: labeled_counter
@@ -3169,50 +3155,6 @@ predictor:
       - necko@mozilla.com
     expires: never
     telemetry_mirror: PREDICTOR_PREFETCH_IGNORE_REASON
-
-glam_experiment:
-  http_content_html5parser_ondatafinished_to_onstop_delay:
-    type: timing_distribution
-    disabled: true
-    time_unit: millisecond
-    description: >
-      Duplicate of:
-      `networking.http_content_html5parser_ondatafinished_to_onstop_delay`
-
-      Intended for the purpose of testing client side sampling of data. This
-      metric is disabled by default and will be enabled only for the purpose
-      of the experiment. See Bug 1947604 for more information.
-    bugs:
-      - https://bugzilla.mozilla.org/show_bug.cgi?id=1947604
-    data_reviews:
-      - https://bugzilla.mozilla.org/show_bug.cgi?id=1857926
-      - https://bugzilla.mozilla.org/show_bug.cgi?id=1902188
-    data_sensitivity:
-      - technical
-    notification_emails:
-      - tlong@mozilla.com
-      - efilho@mozilla.com
-    expires: 146
-  os_socket_limit_reached:
-    type: counter
-    disabled: true
-    description: >
-      Duplicate of:
-      `networking.os_socket_limit_reached`
-
-      Intended for the purpose of testing client side sampling of data. This
-      metric is disabled by default and will be enabled only for the purpose
-      of the experiment. See Bug 1947604 for more information.
-    bugs:
-      - https://bugzilla.mozilla.org/show_bug.cgi?id=1947604
-    data_reviews:
-      - https://bugzilla.mozilla.org/show_bug.cgi?id=1901855#c1
-    data_sensitivity:
-      - technical
-    notification_emails:
-      - tlong@mozilla.com
-      - efilho@mozilla.com
-    expires: 146
 
 network.cookies:
   sqlite_open_readahead:

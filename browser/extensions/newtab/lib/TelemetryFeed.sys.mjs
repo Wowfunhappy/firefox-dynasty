@@ -14,6 +14,10 @@
 const { XPCOMUtils } = ChromeUtils.importESModule(
   "resource://gre/modules/XPCOMUtils.sys.mjs"
 );
+// eslint-disable-next-line mozilla/use-static-import
+const { AppConstants } = ChromeUtils.importESModule(
+  "resource://gre/modules/AppConstants.sys.mjs"
+);
 
 import {
   actionTypes as at,
@@ -84,10 +88,12 @@ export const USER_PREFS_ENCODING = {
   [PREF_SHOW_SPONSORED_TOPSITES]: 1 << 8,
 };
 
-const SURFACE_COUNTRY_MAP = {
+const PRIVATE_PING_SURFACE_COUNTRY_MAP = {
   // This will be expanded to other surfaces as we expand the reach of the private content ping
   NEW_TAB_EN_US: ["US", "CA"],
   NEW_TAB_DE_DE: ["DE", "CH", "AT"],
+  NEW_TAB_EN_GB: ["GB", "IE"],
+  NEW_TAB_FR_FR: ["FR", "BE"],
 };
 
 // Used as the missing value for timestamps in the session ping
@@ -338,6 +344,25 @@ export class TelemetryFeed {
   }
 
   /**
+   * Removes fields for users with a 143 major version of firefox
+   * This should be removed once 143 lands in release
+   * @param {*} pingDict
+   * @returns {*} possibly redacted pingDict
+   */
+  redactPingFor143(pingDict) {
+    const isMajor143 =
+      Services.vc.compare(AppConstants.MOZ_APP_VERSION, "143.0a1") >= 0 &&
+      Services.vc.compare(AppConstants.MOZ_APP_VERSION, "144.0a1") < 0;
+    if (isMajor143) {
+      // eslint-disable-next-line no-unused-vars
+      const { is_pinned, layout_name, visible_topsites, ...rest } = pingDict;
+      return rest;
+    }
+
+    return pingDict;
+  }
+
+  /**
    * Removes fields that link to any user content preference.
    * Redactions only occur if the appropriate pref is enabled.
    * @param {*} pingDict Input dictionary
@@ -567,6 +592,7 @@ export class TelemetryFeed {
       source,
       advertiser: advertiser_name,
       tile_id,
+      visible_topsites,
     } = data;
     // Legacy telemetry expects 1-based tile positions.
     const legacyTelemetryPosition = position + 1;
@@ -576,21 +602,24 @@ export class TelemetryFeed {
     );
 
     let pingType;
-
     const session = this.sessions.get(au.getPortIdOfSender(action));
+
     if (type === "impression") {
       pingType = "topsites-impression";
       Glean.contextualServicesTopsites.impression[
         `${source}_${legacyTelemetryPosition}`
       ].add(1);
       if (session) {
-        Glean.topsites.impression.record({
-          advertiser_name,
-          tile_id,
-          newtab_visit_id: session.session_id,
-          is_sponsored: true,
-          position,
-        });
+        Glean.topsites.impression.record(
+          this.redactPingFor143({
+            advertiser_name,
+            tile_id,
+            newtab_visit_id: session.session_id,
+            is_sponsored: true,
+            position,
+            visible_topsites,
+          })
+        );
       }
     } else if (type === "click") {
       pingType = "topsites-click";
@@ -598,13 +627,16 @@ export class TelemetryFeed {
         `${source}_${legacyTelemetryPosition}`
       ].add(1);
       if (session) {
-        Glean.topsites.click.record({
-          advertiser_name,
-          tile_id,
-          newtab_visit_id: session.session_id,
-          is_sponsored: true,
-          position,
-        });
+        Glean.topsites.click.record(
+          this.redactPingFor143({
+            advertiser_name,
+            tile_id,
+            newtab_visit_id: session.session_id,
+            is_sponsored: true,
+            position,
+            visible_topsites,
+          })
+        );
       }
     } else {
       console.error("Unknown ping type for sponsored TopSites impression");
@@ -636,24 +668,31 @@ export class TelemetryFeed {
     if (!session) {
       return;
     }
+    const visible_topsites = action.data?.visible_topsites;
 
     switch (action.data?.type) {
       case "impression":
-        Glean.topsites.impression.record({
-          newtab_visit_id: session.session_id,
-          is_sponsored: false,
-          position: action.data.position,
-          is_pinned: !!action.data.isPinned,
-        });
+        Glean.topsites.impression.record(
+          this.redactPingFor143({
+            newtab_visit_id: session.session_id,
+            is_sponsored: false,
+            position: action.data.position,
+            is_pinned: !!action.data.isPinned,
+            visible_topsites,
+          })
+        );
         break;
 
       case "click":
-        Glean.topsites.click.record({
-          newtab_visit_id: session.session_id,
-          is_sponsored: false,
-          position: action.data.position,
-          is_pinned: !!action.data.isPinned,
-        });
+        Glean.topsites.click.record(
+          this.redactPingFor143({
+            newtab_visit_id: session.session_id,
+            is_sponsored: false,
+            position: action.data.position,
+            is_pinned: !!action.data.isPinned,
+            visible_topsites,
+          })
+        );
         break;
 
       default:
@@ -797,9 +836,11 @@ export class TelemetryFeed {
                   recommendation_id,
                 }),
           };
-
           Glean.pocket.click.record({
-            ...this.redactNewTabPing(gleanData, is_sponsored),
+            ...this.redactNewTabPing(
+              this.redactPingFor143(gleanData),
+              is_sponsored
+            ),
             newtab_visit_id: session.session_id,
           });
 
@@ -1117,20 +1158,18 @@ export class TelemetryFeed {
    */
   async configureContentPing() {
     let privateMetrics = {};
-
+    const prefs = this.store.getState()?.Prefs.values; // Needed for experimenter configs
     const inferredInterests =
       this.privatePingInferredInterestsEnabled && this.inferredInterests;
     if (inferredInterests) {
       privateMetrics.inferredInterests = inferredInterests;
     }
-
     // When we have a coarse interest vector we want to make sure there isn't
     // anything additionaly identifable as a unique identifier. Therefore,
     // when interest vectors are used we reduce our context profile somewhat.
     const reduceTrackingInformation = !!inferredInterests;
 
     if (!reduceTrackingInformation) {
-      privateMetrics.coarseOs = lazy.NewTabUtils.normalizeOs();
       const followed = this.getFollowedSections();
       privateMetrics.followedSections = followed;
     }
@@ -1138,20 +1177,24 @@ export class TelemetryFeed {
     privateMetrics.surfaceId = surfaceId;
 
     const curCountry = lazy.Region.home;
-    if (
-      SURFACE_COUNTRY_MAP[surfaceId] &&
-      SURFACE_COUNTRY_MAP[surfaceId].includes(curCountry)
-    ) {
-      // Only include supported current countries for the surface to reduce identifiability
-      privateMetrics.country = curCountry;
+    if (PRIVATE_PING_SURFACE_COUNTRY_MAP[surfaceId]) {
+      // This is a market that supports inferred
+      // Only include supported current countries for the surface to reduce identifiability.
+      // Default to first country on the list
+      privateMetrics.country = PRIVATE_PING_SURFACE_COUNTRY_MAP[
+        surfaceId
+      ].includes(curCountry)
+        ? curCountry
+        : PRIVATE_PING_SURFACE_COUNTRY_MAP[surfaceId][0];
     }
-    privateMetrics.utcOffset = lazy.NewTabUtils.getUtcOffset(surfaceId);
 
-    // To prevent fingerprinting we only send current experiment / branch
+    if (prefs.inferredPersonalizationConfig?.normalized_time_zone_offset) {
+      privateMetrics.utcOffset = lazy.NewTabUtils.getUtcOffset(surfaceId);
+    }
+    // To prevent fingerprinting we only send one current experiment / branch
     const experimentMetadata =
       lazy.NimbusFeatures.pocketNewtab.getEnrollmentMetadata();
     privateMetrics.experimentName = experimentMetadata?.slug ?? "";
-
     privateMetrics.experimentBranch = experimentMetadata?.branch ?? "";
     privateMetrics.pingVersion = CONTENT_PING_VERSION;
     this.newtabContentPing.scheduleSubmission(privateMetrics);
@@ -1494,21 +1537,24 @@ export class TelemetryFeed {
           }
           break;
         case "CARD_SECTION_IMPRESSION":
-          Glean.newtab.sectionsImpression.record(
-            this.redactNewTabPing({
+          {
+            const gleanData = this.redactPingFor143({
               newtab_visit_id: session.session_id,
               section,
               section_position,
               is_section_followed,
               layout_name,
-            })
-          );
-          if (this.privatePingEnabled) {
-            this.newtabContentPing.recordEvent("sectionsImpression", {
-              section,
-              section_position,
-              is_section_followed,
             });
+            Glean.newtab.sectionsImpression.record(
+              this.redactNewTabPing(gleanData)
+            );
+            if (this.privatePingEnabled) {
+              this.newtabContentPing.recordEvent("sectionsImpression", {
+                section,
+                section_position,
+                is_section_followed,
+              });
+            }
           }
           break;
         case "FOLLOW_SECTION": {
@@ -1847,7 +1893,10 @@ export class TelemetryFeed {
               }),
         };
         Glean.pocket.impression.record({
-          ...this.redactNewTabPing(gleanData, is_sponsored),
+          ...this.redactNewTabPing(
+            this.redactPingFor143(gleanData),
+            is_sponsored
+          ),
           newtab_visit_id: session.session_id,
         });
         if (this.privatePingEnabled) {

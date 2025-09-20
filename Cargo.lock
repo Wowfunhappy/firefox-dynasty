@@ -2397,6 +2397,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "gecko-trace"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "cstr",
+ "firefox-on-glean",
+ "hex",
+ "log",
+ "moz_task",
+ "mozbuild",
+ "nserror",
+ "once_cell",
+ "prost",
+ "xpcom",
+]
+
+[[package]]
 name = "gecko_logger"
 version = "0.1.0"
 dependencies = [
@@ -2582,6 +2599,7 @@ dependencies = [
  "fluent-langneg-ffi",
  "fog_control",
  "gecko-profiler",
+ "gecko-trace",
  "gecko_logger",
  "gecko_tracing",
  "geckoservo",
@@ -2695,9 +2713,9 @@ dependencies = [
 
 [[package]]
 name = "glean"
-version = "65.0.2"
+version = "65.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c164f2581a679ecc27e242027124319dc6f60a0e8d116025234781c93d3a625f"
+checksum = "18f1a13cfbaad722ac13043573a6a9ebb7afaa799ced80ae816b26d4037bfd9c"
 dependencies = [
  "crossbeam-channel",
  "glean-core",
@@ -2710,9 +2728,9 @@ dependencies = [
 
 [[package]]
 name = "glean-core"
-version = "65.0.2"
+version = "65.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3164939bb79fc5e578b03cc55764399ec9ca778208482f050961c2c770c9f7ef"
+checksum = "59c554057934fd0f31d68d8e9485134609c1e6d7373e8adfcd59e612f2d507f4"
 dependencies = [
  "android_logger",
  "bincode",
@@ -4622,8 +4640,7 @@ dependencies = [
 [[package]]
 name = "mtu"
 version = "0.2.9"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3e3124fb16267c5a77ce8cd015bcb5bb3f8aab28ec32d89d65f6a31c5c1306a0"
+source = "git+https://github.com/mozilla/neqo?tag=v0.16.1#b3d8f0d21db5657ebafb14f9b60c8892d2eb3aa9"
 dependencies = [
  "bindgen 0.69.999",
  "cfg_aliases",
@@ -4642,7 +4659,7 @@ checksum = "a2983372caf4480544083767bf2d27defafe32af49ab4df3a0b7fc90793a3664"
 [[package]]
 name = "naga"
 version = "26.0.0"
-source = "git+https://github.com/gfx-rs/wgpu?rev=c488bbe60447d28736c26c82a32cd87794b3bf1d#c488bbe60447d28736c26c82a32cd87794b3bf1d"
+source = "git+https://github.com/gfx-rs/wgpu?rev=1791064a306881c7ddf218e69b4ffdafdae1be0d#1791064a306881c7ddf218e69b4ffdafdae1be0d"
 dependencies = [
  "arrayvec",
  "bit-set",
@@ -4667,8 +4684,8 @@ dependencies = [
 
 [[package]]
 name = "neqo-bin"
-version = "0.15.0"
-source = "git+https://github.com/mozilla/neqo?tag=v0.15.0#01e855911c2edf9745dafc02cf5156182d4fb1aa"
+version = "0.16.1"
+source = "git+https://github.com/mozilla/neqo?tag=v0.16.1#b3d8f0d21db5657ebafb14f9b60c8892d2eb3aa9"
 dependencies = [
  "clap",
  "clap-verbosity-flag",
@@ -4684,25 +4701,29 @@ dependencies = [
  "quinn-udp",
  "regex",
  "rustc-hash 2.1.1",
+ "thiserror 2.0.12",
  "tokio",
  "url",
 ]
 
 [[package]]
 name = "neqo-common"
-version = "0.15.0"
+version = "0.16.1"
+source = "git+https://github.com/mozilla/neqo?tag=v0.16.1#b3d8f0d21db5657ebafb14f9b60c8892d2eb3aa9"
 dependencies = [
  "enum-map",
  "env_logger",
  "log",
  "qlog",
  "strum",
+ "thiserror 2.0.12",
  "windows",
 ]
 
 [[package]]
 name = "neqo-crypto"
-version = "0.15.0"
+version = "0.16.1"
+source = "git+https://github.com/mozilla/neqo?tag=v0.16.1#b3d8f0d21db5657ebafb14f9b60c8892d2eb3aa9"
 dependencies = [
  "bindgen 0.69.999",
  "enum-map",
@@ -4713,13 +4734,14 @@ dependencies = [
  "serde",
  "serde_derive",
  "strum",
+ "thiserror 2.0.12",
  "toml",
 ]
 
 [[package]]
 name = "neqo-http3"
-version = "0.15.0"
-source = "git+https://github.com/mozilla/neqo?tag=v0.15.0#01e855911c2edf9745dafc02cf5156182d4fb1aa"
+version = "0.16.1"
+source = "git+https://github.com/mozilla/neqo?tag=v0.16.1#b3d8f0d21db5657ebafb14f9b60c8892d2eb3aa9"
 dependencies = [
  "enumset",
  "log",
@@ -4731,13 +4753,14 @@ dependencies = [
  "rustc-hash 2.1.1",
  "sfv",
  "strum",
+ "thiserror 2.0.12",
  "url",
 ]
 
 [[package]]
 name = "neqo-qpack"
-version = "0.15.0"
-source = "git+https://github.com/mozilla/neqo?tag=v0.15.0#01e855911c2edf9745dafc02cf5156182d4fb1aa"
+version = "0.16.1"
+source = "git+https://github.com/mozilla/neqo?tag=v0.16.1#b3d8f0d21db5657ebafb14f9b60c8892d2eb3aa9"
 dependencies = [
  "log",
  "neqo-common",
@@ -4745,12 +4768,13 @@ dependencies = [
  "qlog",
  "rustc-hash 2.1.1",
  "static_assertions",
+ "thiserror 2.0.12",
 ]
 
 [[package]]
 name = "neqo-transport"
-version = "0.15.0"
-source = "git+https://github.com/mozilla/neqo?tag=v0.15.0#01e855911c2edf9745dafc02cf5156182d4fb1aa"
+version = "0.16.1"
+source = "git+https://github.com/mozilla/neqo?tag=v0.16.1#b3d8f0d21db5657ebafb14f9b60c8892d2eb3aa9"
 dependencies = [
  "enum-map",
  "enumset",
@@ -4764,12 +4788,13 @@ dependencies = [
  "smallvec",
  "static_assertions",
  "strum",
+ "thiserror 2.0.12",
 ]
 
 [[package]]
 name = "neqo-udp"
-version = "0.15.0"
-source = "git+https://github.com/mozilla/neqo?tag=v0.15.0#01e855911c2edf9745dafc02cf5156182d4fb1aa"
+version = "0.16.1"
+source = "git+https://github.com/mozilla/neqo?tag=v0.16.1#b3d8f0d21db5657ebafb14f9b60c8892d2eb3aa9"
 dependencies = [
  "cfg_aliases",
  "libc",
@@ -4811,6 +4836,7 @@ dependencies = [
  "nserror",
  "nsstring",
  "thin-vec",
+ "windows-sys",
 ]
 
 [[package]]
@@ -7728,7 +7754,7 @@ dependencies = [
 [[package]]
 name = "wgpu-core"
 version = "26.0.0"
-source = "git+https://github.com/gfx-rs/wgpu?rev=c488bbe60447d28736c26c82a32cd87794b3bf1d#c488bbe60447d28736c26c82a32cd87794b3bf1d"
+source = "git+https://github.com/gfx-rs/wgpu?rev=1791064a306881c7ddf218e69b4ffdafdae1be0d#1791064a306881c7ddf218e69b4ffdafdae1be0d"
 dependencies = [
  "arrayvec",
  "bit-set",
@@ -7758,7 +7784,7 @@ dependencies = [
 [[package]]
 name = "wgpu-core-deps-apple"
 version = "26.0.0"
-source = "git+https://github.com/gfx-rs/wgpu?rev=c488bbe60447d28736c26c82a32cd87794b3bf1d#c488bbe60447d28736c26c82a32cd87794b3bf1d"
+source = "git+https://github.com/gfx-rs/wgpu?rev=1791064a306881c7ddf218e69b4ffdafdae1be0d#1791064a306881c7ddf218e69b4ffdafdae1be0d"
 dependencies = [
  "wgpu-hal",
 ]
@@ -7766,7 +7792,7 @@ dependencies = [
 [[package]]
 name = "wgpu-core-deps-windows-linux-android"
 version = "26.0.0"
-source = "git+https://github.com/gfx-rs/wgpu?rev=c488bbe60447d28736c26c82a32cd87794b3bf1d#c488bbe60447d28736c26c82a32cd87794b3bf1d"
+source = "git+https://github.com/gfx-rs/wgpu?rev=1791064a306881c7ddf218e69b4ffdafdae1be0d#1791064a306881c7ddf218e69b4ffdafdae1be0d"
 dependencies = [
  "wgpu-hal",
 ]
@@ -7774,7 +7800,7 @@ dependencies = [
 [[package]]
 name = "wgpu-hal"
 version = "26.0.0"
-source = "git+https://github.com/gfx-rs/wgpu?rev=c488bbe60447d28736c26c82a32cd87794b3bf1d#c488bbe60447d28736c26c82a32cd87794b3bf1d"
+source = "git+https://github.com/gfx-rs/wgpu?rev=1791064a306881c7ddf218e69b4ffdafdae1be0d#1791064a306881c7ddf218e69b4ffdafdae1be0d"
 dependencies = [
  "android_system_properties",
  "arrayvec",
@@ -7811,7 +7837,7 @@ dependencies = [
 [[package]]
 name = "wgpu-types"
 version = "26.0.0"
-source = "git+https://github.com/gfx-rs/wgpu?rev=c488bbe60447d28736c26c82a32cd87794b3bf1d#c488bbe60447d28736c26c82a32cd87794b3bf1d"
+source = "git+https://github.com/gfx-rs/wgpu?rev=1791064a306881c7ddf218e69b4ffdafdae1be0d#1791064a306881c7ddf218e69b4ffdafdae1be0d"
 dependencies = [
  "bitflags 2.9.0",
  "bytemuck",

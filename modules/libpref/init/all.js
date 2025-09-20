@@ -56,11 +56,7 @@ pref("security.remote_settings.intermediates.enabled", true);
 pref("security.remote_settings.intermediates.downloads_per_poll", 5000);
 pref("security.remote_settings.intermediates.parallel_downloads", 8);
 
-#if !defined(MOZ_WIDGET_ANDROID)
-  pref("security.remote_settings.crlite_filters.enabled", true);
-#else
-  pref("security.remote_settings.crlite_filters.enabled", false);
-#endif
+pref("security.remote_settings.crlite_filters.enabled", true);
 
 pref("security.osreauthenticator.blank_password", false);
 pref("security.osreauthenticator.password_last_changed_lo", 0);
@@ -2492,7 +2488,6 @@ pref("font.size.monospace.x-math", 13);
   // XP_MACOSX changes to default font sizes
   pref("font.minimum-size.th", 10);
 
-  // Apple's Symbol is Unicode so use it
   pref("font.name-list.serif.x-math", "Latin Modern Math, STIX Two Math, XITS Math, Cambria Math, Libertinus Math, DejaVu Math TeX Gyre, TeX Gyre Bonum Math, TeX Gyre Pagella Math, TeX Gyre Schola, TeX Gyre Termes Math, STIX Math, Asana Math, STIXGeneral, DejaVu Serif, DejaVu Sans, Symbol, Times");
   pref("font.name-list.sans-serif.x-math", "Helvetica");
   pref("font.name-list.monospace.x-math", "Menlo");
@@ -3406,9 +3401,14 @@ pref("browser.safebrowsing.provider.google4.dataSharing.enabled", false);
 
 // Google Safe Browsing V5 prefs.
 pref("browser.safebrowsing.provider.google5.enabled", false);
+pref("browser.safebrowsing.provider.google5.lists", "goog-phish-proto,googpub-phish-proto,goog-malware-proto,goog-unwanted-proto,goog-harmful-proto");
 pref("browser.safebrowsing.provider.google5.updateURL", "https://safebrowsing.googleapis.com/v5/hashLists:batchGet?key=%GOOGLE_SAFEBROWSING_API_KEY%");
 pref("browser.safebrowsing.provider.google5.gethashURL", "https://safebrowsing.googleapis.com/v5/hashes:search?key=%GOOGLE_SAFEBROWSING_API_KEY%");
-pref("browser.safebrowsing.provider.google5.lists", "");
+pref("browser.safebrowsing.provider.google5.reportURL", "https://safebrowsing.google.com/safebrowsing/diagnostic?site=");
+pref("browser.safebrowsing.provider.google5.reportPhishMistakeURL", "https://%LOCALE%.phish-error.mozilla.com/?url=");
+pref("browser.safebrowsing.provider.google5.reportMalwareMistakeURL", "https://%LOCALE%.malware-error.mozilla.com/?url=");
+pref("browser.safebrowsing.provider.google5.advisoryURL", "https://developers.google.com/safe-browsing/v4/advisory");
+pref("browser.safebrowsing.provider.google5.advisoryName", "Google Safe Browsing");
 
 #endif // ifndef MOZ_WIDGET_ANDROID
 

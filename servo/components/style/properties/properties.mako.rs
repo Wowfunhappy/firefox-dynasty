@@ -23,7 +23,7 @@ use crate::media_queries::Device;
 use crate::parser::ParserContext;
 use crate::selector_parser::PseudoElement;
 use crate::stylist::Stylist;
-use style_traits::{CssWriter, KeywordsCollectFn, ParseError, SpecifiedValueInfo, StyleParseErrorKind, ToCss};
+use style_traits::{CssWriter, KeywordsCollectFn, ParseError, SpecifiedValueInfo, StyleParseErrorKind, ToCss, TypedValue, ToTyped};
 use crate::stylesheets::{CssRuleType, CssRuleTypes, Origin};
 use crate::logical_geometry::{LogicalAxis, LogicalCorner, LogicalSide};
 use crate::use_counters::UseCounters;
@@ -404,6 +404,19 @@ impl PropertyDeclaration {
             % for ty, vs in groupby(variants, key=lambda x: x["type"]):
             ${" | ".join("{}(ref value)".format(v["name"]) for v in vs)} => {
                 value.to_css(&mut dest)
+            }
+            % endfor
+        }
+    }
+
+    /// Like the method on ToTyped.
+    pub fn to_typed(&self) -> Option<TypedValue> {
+        use self::PropertyDeclaration::*;
+
+        match *self {
+            % for ty, vs in groupby(variants, key=lambda x: x["type"]):
+            ${" | ".join("{}(ref value)".format(v["name"]) for v in vs)} => {
+                value.to_typed()
             }
             % endfor
         }
@@ -1289,7 +1302,7 @@ impl PropertyId {
 impl PropertyDeclaration {
     /// Given a property declaration, return the property declaration id.
     #[inline]
-    pub fn id(&self) -> PropertyDeclarationId {
+    pub fn id(&self) -> PropertyDeclarationId<'_> {
         match *self {
             PropertyDeclaration::Custom(ref declaration) => {
                 return PropertyDeclarationId::Custom(&declaration.name)
@@ -1578,7 +1591,7 @@ pub mod style_structs {
                 /// Iterate over the values of ${longhand.name}.
                 #[allow(non_snake_case)]
                 #[inline]
-                pub fn ${longhand.ident}_iter(&self) -> ${longhand.camel_case}Iter {
+                pub fn ${longhand.ident}_iter(&self) -> ${longhand.camel_case}Iter<'_> {
                     ${longhand.camel_case}Iter {
                         style_struct: self,
                         current: 0,

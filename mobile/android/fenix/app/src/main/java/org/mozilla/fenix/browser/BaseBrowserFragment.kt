@@ -699,12 +699,13 @@ abstract class BaseBrowserFragment :
             view = binding.root,
         )
 
+        val allowScreenshotsInPrivateMode = context.settings().allowScreenshotsInPrivateMode
         secureWindowFeature.set(
             feature = SecureWindowFeature(
                 window = requireActivity().window,
                 store = store,
                 customTabId = customTabSessionId,
-                isSecure = { it.content.private && !requireContext().settings().allowScreenshotsInPrivateMode },
+                isSecure = { !allowScreenshotsInPrivateMode && it.content.private },
                 clearFlagOnStop = false,
             ),
             owner = this,
@@ -877,7 +878,9 @@ abstract class BaseBrowserFragment :
             )
         }
 
-        val bottomToolbarHeight = context.settings().getBottomToolbarHeight()
+        val bottomToolbarHeight = context.settings().getBottomToolbarHeight(
+            includeNavBarIfEnabled = customTabSessionId == null,
+        )
 
         downloadFeature.onDownloadStopped = { downloadState, _, downloadJobStatus ->
             handleOnDownloadFinished(
@@ -1126,7 +1129,7 @@ abstract class BaseBrowserFragment :
                 components = requireComponents,
                 settings = context.settings(),
                 navController = findNavController(),
-                sessionId = customTabSessionId,
+                customTabSessionId = customTabSessionId,
             ).apply {
                 viewProvider = {
                     view.findViewById(R.id.crash_reporter_view)
@@ -1292,7 +1295,7 @@ abstract class BaseBrowserFragment :
 
         initializeEngineView(
             topToolbarHeight = context.settings().getTopToolbarHeight(
-                includeTabStrip = customTabSessionId == null && context.settings().isTabStripEnabled,
+                includeTabStripIfAvailable = customTabSessionId == null,
             ),
             bottomToolbarHeight = bottomToolbarHeight,
         )
@@ -2041,9 +2044,11 @@ abstract class BaseBrowserFragment :
         if (fullScreenFeature.get()?.isFullScreen == true) return 0 to 0
 
         val topToolbarHeight = context.settings().getTopToolbarHeight(
-            includeTabStrip = customTabSessionId == null && context.settings().isTabStripEnabled,
+            includeTabStripIfAvailable = customTabSessionId == null,
         )
-        val bottomToolbarHeight = context.settings().getBottomToolbarHeight()
+        val bottomToolbarHeight = context.settings().getBottomToolbarHeight(
+            includeNavBarIfEnabled = customTabSessionId == null,
+        )
 
         return topToolbarHeight to bottomToolbarHeight
     }
@@ -2100,8 +2105,11 @@ abstract class BaseBrowserFragment :
 
     private suspend fun bookmarkTapped(sessionUrl: String, sessionTitle: String) = withContext(IO) {
         val bookmarksStorage = requireComponents.core.bookmarksStorage
-        val existing =
-            bookmarksStorage.getBookmarksWithUrl(sessionUrl).firstOrNull { it.url == sessionUrl }
+        val existing = bookmarksStorage
+            .getBookmarksWithUrl(sessionUrl)
+            .getOrDefault(listOf())
+            .firstOrNull { it.url == sessionUrl }
+
         if (existing != null) {
             // Bookmark exists, go to edit fragment
             withContext(Main) {
@@ -2116,11 +2124,12 @@ abstract class BaseBrowserFragment :
                 val parentNode = Result.runCatching {
                     val parentGuid = bookmarksStorage
                         .getRecentBookmarks(1)
+                        .getOrDefault(listOf())
                         .firstOrNull()
                         ?.parentGuid
                         ?: BookmarkRoot.Mobile.id
 
-                    bookmarksStorage.getBookmark(parentGuid)!!
+                    bookmarksStorage.getBookmark(parentGuid).getOrNull()!!
                 }.getOrElse {
                     // this should be a temporary hack until the menu redesign is completed
                     // see MenuDialogMiddleware for the updated version
@@ -2132,7 +2141,7 @@ abstract class BaseBrowserFragment :
                     url = sessionUrl,
                     title = sessionTitle,
                     position = null,
-                )
+                ).getOrThrow()
 
                 MetricsUtils.recordBookmarkAddMetric(Source.PAGE_ACTION_MENU, requireComponents.nimbus.events)
                 showBookmarkSavedSnackbar(
@@ -2322,9 +2331,11 @@ abstract class BaseBrowserFragment :
         val isFullscreen = fullScreenFeature.get()?.isFullScreen == true
         val shouldToolbarsBeHidden = isFullscreen || !webAppToolbarShouldBeVisible
         val topToolbarHeight = requireContext().settings().getTopToolbarHeight(
-            includeTabStrip = customTabSessionId == null && requireContext().settings().isTabStripEnabled,
+            includeTabStripIfAvailable = customTabSessionId == null,
         )
-        val bottomToolbarHeight = requireContext().settings().getBottomToolbarHeight()
+        val bottomToolbarHeight = requireContext().settings().getBottomToolbarHeight(
+            includeNavBarIfEnabled = customTabSessionId == null,
+        )
 
         initializeEngineView(
             topToolbarHeight = if (shouldToolbarsBeHidden) 0 else topToolbarHeight,

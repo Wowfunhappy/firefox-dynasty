@@ -4407,40 +4407,39 @@ static bool NeedsKeepAlive(MInstruction* slotsOrElements, MInstruction* use) {
     return true;
   }
 
-  // Allocating a BigInt can GC, so we have to keep the object alive.
-  if (use->type() == MIRType::BigInt) {
-    return true;
-  }
-  if (use->isLoadTypedArrayElementHole() &&
-      Scalar::isBigIntType(use->toLoadTypedArrayElementHole()->arrayType())) {
-    return true;
-  }
-
   MBasicBlock* block = use->block();
   MInstructionIterator iter(block->begin(slotsOrElements));
   MOZ_ASSERT(*iter == slotsOrElements);
   ++iter;
 
   while (true) {
-    if (*iter == use) {
-      return false;
-    }
-
-    switch (iter->op()) {
+    MInstruction* ins = *iter;
+    switch (ins->op()) {
       case MDefinition::Opcode::Nop:
       case MDefinition::Opcode::Constant:
       case MDefinition::Opcode::KeepAliveObject:
       case MDefinition::Opcode::Unbox:
       case MDefinition::Opcode::LoadDynamicSlot:
+      case MDefinition::Opcode::LoadDynamicSlotAndUnbox:
       case MDefinition::Opcode::StoreDynamicSlot:
       case MDefinition::Opcode::LoadFixedSlot:
+      case MDefinition::Opcode::LoadFixedSlotAndUnbox:
       case MDefinition::Opcode::StoreFixedSlot:
       case MDefinition::Opcode::LoadElement:
       case MDefinition::Opcode::LoadElementAndUnbox:
       case MDefinition::Opcode::LoadElementHole:
       case MDefinition::Opcode::StoreElement:
       case MDefinition::Opcode::StoreHoleValueElement:
+      case MDefinition::Opcode::LoadUnboxedScalar:
+      case MDefinition::Opcode::StoreUnboxedScalar:
+      case MDefinition::Opcode::StoreTypedArrayElementHole:
+      case MDefinition::Opcode::LoadDataViewElement:
+      case MDefinition::Opcode::StoreDataViewElement:
+      case MDefinition::Opcode::AtomicTypedArrayElementBinop:
+      case MDefinition::Opcode::AtomicExchangeTypedArrayElement:
+      case MDefinition::Opcode::CompareExchangeTypedArrayElement:
       case MDefinition::Opcode::InitializedLength:
+      case MDefinition::Opcode::SetInitializedLength:
       case MDefinition::Opcode::ArrayLength:
       case MDefinition::Opcode::BoundsCheck:
       case MDefinition::Opcode::GuardElementNotHole:
@@ -4449,11 +4448,25 @@ static bool NeedsKeepAlive(MInstruction* slotsOrElements, MInstruction* use) {
       case MDefinition::Opcode::SpectreMaskIndex:
       case MDefinition::Opcode::DebugEnterGCUnsafeRegion:
       case MDefinition::Opcode::DebugLeaveGCUnsafeRegion:
-        iter++;
         break;
+      case MDefinition::Opcode::LoadTypedArrayElementHole: {
+        // Allocating a BigInt can GC, so we have to keep the object alive.
+        auto* loadIns = ins->toLoadTypedArrayElementHole();
+        if (Scalar::isBigIntType(loadIns->arrayType())) {
+          return true;
+        }
+        break;
+      }
       default:
         return true;
     }
+
+    if (ins == use) {
+      // We didn't find any instructions in range [slotsOrElements, use] that
+      // can GC.
+      return false;
+    }
+    iter++;
   }
 
   MOZ_CRASH("Unreachable");
@@ -4512,13 +4525,6 @@ bool jit::AddKeepAliveInstructions(MIRGraph& graph) {
 
         if (!NeedsKeepAlive(ins, use)) {
 #ifdef DEBUG
-          // These two instructions don't start a GC unsafe region, because they
-          // overwrite their elements register at the very start. This ensures
-          // there's no invalidated elements value kept on the stack.
-          if (use->isApplyArray() || use->isConstructArray()) {
-            continue;
-          }
-
           if (!graph.alloc().ensureBallast()) {
             return false;
           }
@@ -4869,7 +4875,7 @@ bool jit::FoldLoadsWithUnbox(const MIRGenerator* mir, MIRGraph& graph) {
 
       // We're only interested in loads producing a Value.
       if (!ins->isLoadFixedSlot() && !ins->isLoadDynamicSlot() &&
-          !ins->isLoadElement()) {
+          !ins->isLoadElement() && !ins->isSuperFunction()) {
         continue;
       }
       if (ins->type() != MIRType::Value) {
@@ -4915,6 +4921,16 @@ bool jit::FoldLoadsWithUnbox(const MIRGenerator* mir, MIRGraph& graph) {
         continue;
       }
 
+      // If this is a SuperFunction, we only support folding the load when the
+      // unbox is fallible and its type is Object.
+      //
+      // SuperFunction is currently only used for `super()` constructor calls
+      // in classes, which always use fallible unbox to Object.
+      if (load->isSuperFunction() &&
+          !(unbox->type() == MIRType::Object && unbox->fallible())) {
+        continue;
+      }
+
       // Combine the load and unbox into a single MIR instruction.
       if (!graph.alloc().ensureBallast()) {
         return false;
@@ -4954,6 +4970,14 @@ bool jit::FoldLoadsWithUnbox(const MIRGenerator* mir, MIRGraph& graph) {
               !optimizedElements.append(loadIns->elements()->toInstruction())) {
             return false;
           }
+          break;
+        }
+        case MDefinition::Opcode::SuperFunction: {
+          auto* loadIns = load->toSuperFunction();
+          MOZ_ASSERT(unbox->fallible());
+          MOZ_ASSERT(unbox->type() == MIRType::Object);
+          replacement =
+              MSuperFunctionAndUnbox::New(graph.alloc(), loadIns->callee());
           break;
         }
         default:
