@@ -27,9 +27,9 @@ namespace {
 // Note that updating a kqueue timer from one thread while another thread is
 // waiting in a kevent64 invocation is still (inherently) racy.
 bool KqueueTimersSpuriouslyWakeUp() {
-#ifdef XP_DARWIN
-  static const bool kqueue_needs_port_set = !nsCocoaFeatures::OnSierraOrLater();
-  return kqueue_needs_port_set;
+#ifdef XP_DARWIN 
+  static const bool kqueue_timers_spuriously_wakeup = !nsCocoaFeatures::OnMojaveOrLater();
+  return kqueue_timers_spuriously_wakeup;
 #else
   // This still happens on iOS15.
   return true;
@@ -130,11 +130,11 @@ MessagePumpKqueue::MessagePumpKqueue() : kqueue_(kqueue()) {
   // of the kevent64() syscall.
   kevent64_s event{};
   if (KqueueTimersSpuriouslyWakeUp()) {
-    mach_port_t set_port;
+    mach_port_t compat_port;
     kr = mach_port_allocate(mach_task_self(), MACH_PORT_RIGHT_PORT_SET,
-                            &set_port);
+                            &compat_port);
     CHECK(kr == KERN_SUCCESS) << "mach_port_allocate PORT_SET";
-    port_set_.reset(set_port);
+    port_set_.reset(compat_port);
     kr = mach_port_insert_member(mach_task_self(), wakeup_.get(),
                                  port_set_.get());
     CHECK(kr == KERN_SUCCESS) << "mach_port_insert_member";
@@ -424,13 +424,24 @@ bool MessagePumpKqueue::ProcessEvents(Delegate* delegate, int count) {
         }
       }
     } else if (event->filter == EVFILT_MACHPORT) {
-      mach_port_t port = KqueueTimersSpuriouslyWakeUp() ? static_cast<mach_port_t>(event->data) : static_cast<mach_port_t>(event->ident);
+      mach_port_t port = KqueueTimersSpuriouslyWakeUp() ? event->data : event->ident;
 
       if (port == wakeup_.get()) {
         // The wakeup event has been received, do not treat this as "doing
         // work", this just wakes up the pump.
+        if (KqueueTimersSpuriouslyWakeUp()) {
+          // When using the kqueue directly, the message can be received
+          // straight into a buffer that was created when adding the event.
+          // But when using a port set, the message must be drained manually.
+          wakeup_buffer_.header.msgh_local_port = port;
+          wakeup_buffer_.header.msgh_size = sizeof(wakeup_buffer_);
+          kern_return_t kr = mach_msg_receive(&wakeup_buffer_.header);
+          DLOG_IF(ERROR, kr != KERN_SUCCESS)
+              << "mach_msg_receive wakeup" << mach_error_string(kr);
+        }
         continue;
       }
+
       did_work = true;
 
       MachPortWatchController* controller = port_controllers_.Get(port);
