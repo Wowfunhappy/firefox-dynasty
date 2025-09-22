@@ -34,6 +34,7 @@
 #include "mozilla/StaticPresData.h"
 #include "mozilla/TextEditor.h"
 #include "mozilla/TextEvents.h"
+#include "mozilla/TextUtils.h"
 #include "mozilla/Unused.h"
 #include "mozilla/dom/CharacterDataBuffer.h"
 #include "mozilla/dom/PerformanceMainThread.h"
@@ -111,11 +112,8 @@ static bool NeedsToMaskPassword(const nsTextFrame* aFrame) {
   if (!aFrame->GetContent()->HasFlag(NS_MAYBE_MASKED)) {
     return false;
   }
-  // TODO: can we completely const-ify GetClosestFrameOfType? It doesn't modify
-  // anything, but currently some callers expect a non-const return value; it
-  // would be nice to propagate const-ness if possible.
-  const nsIFrame* frame = nsLayoutUtils::GetClosestFrameOfType(
-      const_cast<nsTextFrame*>(aFrame), LayoutFrameType::TextInput);
+  const nsIFrame* frame =
+      nsLayoutUtils::GetClosestFrameOfType(aFrame, LayoutFrameType::TextInput);
   MOZ_ASSERT(frame, "How do we have a masked text node without a text input?");
   return !frame || !frame->GetContent()->AsElement()->State().HasState(
                        ElementState::REVEALED);
@@ -206,13 +204,9 @@ bool TextAutospace::IsIdeograph(char32_t aChar) {
     return !intl::UnicodeProperties::IsPunctuation(aChar);
   }
 
-  // CJK Strokes (U+31C0 to U+31EF).
-  if (0x31C0 <= aChar && aChar <= 0x31EF) {
-    return true;
-  }
-
-  // Katakana Phonetic Extensions (U+31F0 to U+31FF).
-  if (0x31F0 <= aChar && aChar <= 0x31FF) {
+  // CJK Strokes (U+31C0 to U+31EF) and Katakana Phonetic Extensions (U+31F0 to
+  // U+31FF).
+  if (0x31C0 <= aChar && aChar <= 0x31FF) {
     return true;
   }
 
@@ -225,6 +219,14 @@ bool TextAutospace::IsIdeograph(char32_t aChar) {
 }
 
 TextAutospace::CharClass TextAutospace::GetCharClass(char32_t aChar) {
+  if (IsAsciiAlpha(aChar)) {
+    return CharClass::NonIdeographicLetter;
+  }
+
+  if (IsAsciiDigit(aChar)) {
+    return CharClass::NonIdeographicNumeral;
+  }
+
   if (IsIdeograph(aChar)) {
     return CharClass::Ideograph;
   }

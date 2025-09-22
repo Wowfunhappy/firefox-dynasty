@@ -3546,10 +3546,10 @@ pref("reader.content_width", 3);
 pref("reader.line_height", 4);
 
 // The default character spacing in reader mode (1-9)
-pref("reader.character_spacing", 0);
+pref("reader.character_spacing", 1);
 
 // The default word spacing in reader mode (1-9)
-pref("reader.word_spacing", 0);
+pref("reader.word_spacing", 1);
 
 // The default text alignment direction in reader mode
 pref("reader.text_alignment", "start");
@@ -3587,6 +3587,9 @@ pref("narrate.voice", " { \"default\": \"automatic\" }");
 pref("narrate.filter-voices", true);
 
 pref("memory.report_concurrency", 10);
+
+// Enable logging downloads operations to the Console.
+pref("toolkit.download.loglevel", "Error");
 
 pref("toolkit.pageThumbs.screenSizeDivisor", 7);
 pref("toolkit.pageThumbs.minWidth", 0);
