@@ -260,7 +260,5 @@ tracing-support = { git = "https://github.com/mozilla/application-services", bra
 viaduct = { git = "https://github.com/mozilla/application-services", branch = "desktop-143" }
 webext-storage = { git = "https://github.com/mozilla/application-services", branch = "desktop-143" }
 
-allocator-api2 = { path = "third_party/rust/allocator-api2" }
-
 # Patched version of zip 2.4.2 to allow for reading omnijars.
 zip = { path = "third_party/rust/zip" }
