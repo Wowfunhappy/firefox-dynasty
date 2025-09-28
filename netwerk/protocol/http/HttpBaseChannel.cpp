@@ -2359,6 +2359,19 @@ HttpBaseChannel::SetIsMainDocumentChannel(bool aValue) {
 }
 
 NS_IMETHODIMP
+HttpBaseChannel::GetIsUserAgentHeaderOutdated(bool* aValue) {
+  NS_ENSURE_ARG_POINTER(aValue);
+  *aValue = LoadIsUserAgentHeaderOutdated();
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+HttpBaseChannel::SetIsUserAgentHeaderOutdated(bool aValue) {
+  StoreIsUserAgentHeaderOutdated(aValue);
+  return NS_OK;
+}
+
+NS_IMETHODIMP
 HttpBaseChannel::GetProtocolVersion(nsACString& aProtocolVersion) {
   // Try to use ALPN if available and if it is not for a proxy, i.e if an
   // https proxy was not used or if https proxy was used but the connection to
@@ -6498,10 +6511,13 @@ void HttpBaseChannel::MaybeFlushConsoleReports() {
 void HttpBaseChannel::DoDiagnosticAssertWhenOnStopNotCalledOnDestroy() {}
 
 bool HttpBaseChannel::Http3Allowed() const {
-  bool isDirectOrNoProxy =
-      mProxyInfo ? static_cast<nsProxyInfo*>(mProxyInfo.get())->IsDirect()
+  bool allowedProxyInfo =
+      mProxyInfo ? (static_cast<nsProxyInfo*>(mProxyInfo.get())->IsDirect() ||
+                    static_cast<nsProxyInfo*>(mProxyInfo.get())->IsHttp3Proxy())
                  : true;
-  return !mUpgradeProtocolCallback && isDirectOrNoProxy &&
+  // TODO: When mUpgradeProtocolCallback is not null, we should allow HTTP/3 for
+  // connect-udp.
+  return !mUpgradeProtocolCallback && allowedProxyInfo &&
          !(mCaps & NS_HTTP_BE_CONSERVATIVE) && !LoadBeConservative() &&
          LoadAllowHttp3();
 }

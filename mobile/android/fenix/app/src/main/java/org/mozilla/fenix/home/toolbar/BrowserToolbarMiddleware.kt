@@ -4,7 +4,6 @@
 
 package org.mozilla.fenix.home.toolbar
 
-import android.content.Context
 import androidx.annotation.VisibleForTesting
 import androidx.lifecycle.Lifecycle.State.RESUMED
 import androidx.lifecycle.lifecycleScope
@@ -52,6 +51,7 @@ import mozilla.components.lib.state.Store
 import mozilla.components.lib.state.ext.flow
 import mozilla.components.support.base.log.logger.Logger
 import mozilla.components.support.utils.ClipboardHandler
+import org.mozilla.fenix.GleanMetrics.Events
 import org.mozilla.fenix.NavGraphDirections
 import org.mozilla.fenix.R
 import org.mozilla.fenix.browser.browsingmode.BrowsingMode
@@ -62,6 +62,7 @@ import org.mozilla.fenix.components.UseCases
 import org.mozilla.fenix.components.appstate.AppAction.SearchAction.SearchStarted
 import org.mozilla.fenix.components.menu.MenuAccessPoint
 import org.mozilla.fenix.components.toolbar.BrowserToolbarEnvironment
+import org.mozilla.fenix.ext.isTallWindow
 import org.mozilla.fenix.ext.nav
 import org.mozilla.fenix.ext.settings
 import org.mozilla.fenix.home.HomeFragmentDirections
@@ -79,8 +80,6 @@ import mozilla.components.lib.state.Action as MVIAction
 import mozilla.components.ui.icons.R as iconsR
 import mozilla.components.ui.tabcounter.R as tabcounterR
 
-private const val TALL_SCREEN_HEIGHT_DP = 480
-
 @VisibleForTesting
 internal sealed class DisplayActions : BrowserToolbarEvent {
     data class MenuClicked(override val source: Source) : DisplayActions()
@@ -96,20 +95,6 @@ internal sealed class TabCounterInteractions : BrowserToolbarEvent {
 
 internal sealed class PageOriginInteractions : BrowserToolbarEvent {
     data object OriginClicked : PageOriginInteractions()
-}
-
-/**
- * Helper function to determine whether the app's current window height
- * is at least more than [TALL_SCREEN_HEIGHT_DP].
- *
- * This is useful when navigation bar should only be enabled on
- * taller screens (e.g., to avoid crowding content vertically).
- *
- * @return true if the window height size is more than [TALL_SCREEN_HEIGHT_DP].
- */
-@VisibleForTesting
-internal fun Context.isTallWindow(): Boolean {
-    return resources.configuration.screenHeightDp > TALL_SCREEN_HEIGHT_DP
 }
 
 /**
@@ -222,6 +207,7 @@ class BrowserToolbarMiddleware(
             }
 
             is OriginClicked -> {
+                Events.searchBarTapped.record(Events.SearchBarTappedExtra("HOME"))
                 appStore.dispatch(SearchStarted())
             }
             is PasteFromClipboardClicked -> {
@@ -332,7 +318,7 @@ class BrowserToolbarMiddleware(
     private fun buildEndBrowserActions(): List<Action> {
         val environment = environment ?: return emptyList()
         val isExpandedAndTallScreen = environment.context.settings().shouldUseExpandedToolbar &&
-                environment.context.isTallWindow()
+                environment.fragment.isTallWindow()
 
         return listOf(
             HomeToolbarActionConfig(HomeToolbarAction.TabCounter) {
@@ -354,10 +340,18 @@ class BrowserToolbarMiddleware(
         )
     }
 
+    /**
+     * - Devices taller than 480dp:
+     *   - The navigation bar is always shown (if the user enabled it).
+     *
+     * - Devices shorter than 480dp:
+     *   - The navigation bar is hidden (even if the user enabled it).
+     *   - The toolbar redesign customization option is also hidden.
+     */
     private fun buildNavigationActions(): List<Action> {
         val environment = environment ?: return emptyList()
         val isExpandedAndTallScreen = environment.context.settings().shouldUseExpandedToolbar &&
-                environment.context.isTallWindow()
+                environment.fragment.isTallWindow()
 
         return listOf(
             HomeToolbarActionConfig(HomeToolbarAction.FakeBookmark) { isExpandedAndTallScreen },
@@ -434,7 +428,7 @@ class BrowserToolbarMiddleware(
 
     private inline fun <S : State, A : MVIAction> Store<S, A>.observeWhileActive(
         crossinline observe: suspend (Flow<S>.() -> Unit),
-    ): Job? = environment?.viewLifecycleOwner?.run {
+    ): Job? = environment?.fragment?.viewLifecycleOwner?.run {
         lifecycleScope.launch {
             repeatOnLifecycle(RESUMED) {
                 flow().observe()

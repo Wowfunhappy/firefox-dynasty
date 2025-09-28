@@ -435,6 +435,13 @@ namespace ChromeUtils {
   boolean isJSIdentifier(DOMString str);
 
   /**
+   * Given an URI string, replaces html whitespace with the relevant
+   * url-encoded characters, so that it can be used as part of a srcset without
+   * changing its meaning.
+   */
+  UTF8String encodeURIForSrcset(UTF8String uri);
+
+  /**
    * IF YOU ADD NEW METHODS HERE, MAKE SURE THEY ARE THREAD-SAFE.
    */
 };
@@ -630,13 +637,19 @@ partial namespace ChromeUtils {
 
   /**
    * Set the collection of specific detailed performance timing information.
-   * Selecting 0 for the mask will end existing collection. All metrics that
-   * are chosen will be cleared after updating the mask.
+   * Passing an empty array will end existing collection. All metrics that
+   * are chosen will be cleared after updating the features.
    *
-   * @param aCollectionMask A bitmask where each bit corresponds to a metric
-   *        to be collected as listed in PerfStats::Metric.
+   * @param aMetrics An array of metric names corresponding to the Metric enum
+   *        values in PerfStats::Metric.
    */
-  undefined setPerfStatsCollectionMask(unsigned long long aCollectionMask);
+  undefined setPerfStatsFeatures(sequence<DOMString> aMetrics);
+
+  /**
+   * Enables the collection of all perf stats features.  Will override the features
+   * enabled by setPerfStatsFeatures.
+   */
+  undefined enableAllPerfStatsFeatures();
 
   /**
    * Collect results of detailed performance timing information.

@@ -315,6 +315,13 @@ export class UrlbarInput {
 
     this.editor.newlineHandling =
       Ci.nsIEditor.eNewlinesStripSurroundingWhitespace;
+
+    if (isAddressbar) {
+      let searchContainersPref = lazy.UrlbarPrefs.get(
+        "switchTabs.searchAllContainers"
+      );
+      Glean.urlbar.prefSwitchTabsSearchAllContainers.set(searchContainersPref);
+    }
   }
 
   #lazy = XPCOMUtils.declareLazy({
@@ -5661,7 +5668,7 @@ class AddSearchEngineHelper {
       "search-one-offs-add-engine-menu"
     );
     if (engine.icon) {
-      elt.setAttribute("image", encodeURI(engine.icon));
+      elt.setAttribute("image", ChromeUtils.encodeURIForSrcset(engine.icon));
     }
     let popup = this.input.document.createXULElement("menupopup");
     elt.appendChild(popup);

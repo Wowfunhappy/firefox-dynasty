@@ -75,6 +75,8 @@ const PREF_USER_INFERRED_PERSONALIZATION =
   "discoverystream.sections.personalization.inferred.user.enabled";
 const PREF_SYSTEM_INFERRED_PERSONALIZATION =
   "discoverystream.sections.personalization.inferred.enabled";
+const PREF_SECTIONS_PERSONALIZATION_ENABLED =
+  "discoverystream.sections.personalization.enabled";
 
 // This is a mapping table between the user preferences and its encoding code
 export const USER_PREFS_ENCODING = {
@@ -124,7 +126,6 @@ const NEWTAB_PING_PREFS = {
 const TOP_SITES_BLOCKED_SPONSORS_PREF = "browser.topsites.blockedSponsors";
 const TOPIC_SELECTION_SELECTED_TOPICS_PREF =
   "browser.newtabpage.activity-stream.discoverystream.topicSelection.selectedTopics";
-
 export class TelemetryFeed {
   constructor() {
     this.sessions = new Map();
@@ -172,6 +173,10 @@ export class TelemetryFeed {
       this._prefs.get(PREF_USER_INFERRED_PERSONALIZATION) &&
       this._prefs.get(PREF_SYSTEM_INFERRED_PERSONALIZATION)
     );
+  }
+
+  get sectionsPersonalizationEnabled() {
+    return this._prefs.get(PREF_SECTIONS_PERSONALIZATION_ENABLED);
   }
 
   get inferredInterests() {
@@ -813,7 +818,9 @@ export class TelemetryFeed {
               ? {
                   section,
                   section_position,
-                  is_section_followed,
+                  ...(this.sectionsPersonalizationEnabled
+                    ? { is_section_followed: !!is_section_followed }
+                    : {}),
                   layout_name,
                 }
               : {}),
@@ -877,6 +884,7 @@ export class TelemetryFeed {
           corpus_item_id,
           format,
           is_section_followed,
+          action_position,
           received_rank,
           recommendation_id,
           recommended_at,
@@ -888,8 +896,14 @@ export class TelemetryFeed {
           tile_id,
           topic,
         } = action.data.value ?? {};
+
+        const is145AndUp =
+          Services.vc.compare(AppConstants.MOZ_APP_VERSION, "145.0a1") >= 0;
+
         const gleanData = {
           tile_id,
+          // Bug 1990626 - Remove version check after 145 has shipped
+          ...(is145AndUp ? { position: action_position } : {}),
           // We conditionally add in a few props.
           ...(corpus_item_id ? { corpus_item_id } : {}),
           ...(scheduled_corpus_item_id ? { scheduled_corpus_item_id } : {}),
@@ -909,7 +923,9 @@ export class TelemetryFeed {
             ? {
                 section,
                 section_position,
-                is_section_followed,
+                ...(this.sectionsPersonalizationEnabled
+                  ? { is_section_followed: !!is_section_followed }
+                  : {}),
               }
             : {}),
         };
@@ -1093,9 +1109,7 @@ export class TelemetryFeed {
         newtabCategory = "enabled";
         if (
           lazy.AboutNewTab.newTabURLOverridden &&
-          ((Object.hasOwn(lazy.ExtensionUtils, "isExtensionUrl") &&
-            !lazy.ExtensionUtils.isExtensionUrl(lazy.AboutNewTab.newTabURL)) ||
-            !lazy.AboutNewTab.newTabURL.startsWith("moz-extension://"))
+          !lazy.ExtensionUtils.isExtensionUrl(lazy.AboutNewTab.newTabURL)
         ) {
           value.newtab_url_category = await this._classifySite(
             lazy.AboutNewTab.newTabURL
@@ -1119,9 +1133,7 @@ export class TelemetryFeed {
         !["about:home", "about:blank", BLANK_HOMEPAGE_URL].includes(
           homePageURL
         ) &&
-        ((Object.hasOwn(lazy.ExtensionUtils, "isExtensionUrl") &&
-          !lazy.ExtensionUtils.isExtensionUrl(homePageURL)) ||
-          !homePageURL.startsWith("moz-extension://"))
+        !lazy.ExtensionUtils.isExtensionUrl(homePageURL)
       ) {
         value.home_url_category = await this._classifySite(homePageURL);
         homeAffected = true;
@@ -1542,7 +1554,9 @@ export class TelemetryFeed {
               newtab_visit_id: session.session_id,
               section,
               section_position,
-              is_section_followed,
+              ...(this.sectionsPersonalizationEnabled
+                ? { is_section_followed: !!is_section_followed }
+                : {}),
               layout_name,
             });
             Glean.newtab.sectionsImpression.record(
@@ -1552,7 +1566,9 @@ export class TelemetryFeed {
               this.newtabContentPing.recordEvent("sectionsImpression", {
                 section,
                 section_position,
-                is_section_followed,
+                ...(this.sectionsPersonalizationEnabled
+                  ? { is_section_followed: !!is_section_followed }
+                  : {}),
               });
             }
           }
@@ -1772,18 +1788,21 @@ export class TelemetryFeed {
     const { data } = action;
     for (const datum of data) {
       const { corpus_item_id, scheduled_corpus_item_id } = datum;
+
       if (datum.is_pocket_card) {
         const gleanData = {
           is_sponsored: datum.card_type === "spoc",
           ...(datum.format ? { format: datum.format } : {}),
-          position: datum.pos,
+          position: datum.position,
           tile_id: datum.id || datum.tile_id,
           is_list_card: datum.is_list_card,
           ...(datum.section
             ? {
                 section: datum.section,
                 section_position: datum.section_position,
-                is_section_followed: datum.is_section_followed,
+                ...(this.sectionsPersonalizationEnabled
+                  ? { is_section_followed: !!datum.is_section_followed }
+                  : {}),
               }
             : {}),
           // We conditionally add in a few props.
@@ -1871,7 +1890,9 @@ export class TelemetryFeed {
             ? {
                 section: tile.section,
                 section_position: tile.section_position,
-                is_section_followed: tile.is_section_followed,
+                ...(this.sectionsPersonalizationEnabled
+                  ? { is_section_followed: !!tile.is_section_followed }
+                  : {}),
                 layout_name: tile.layout_name,
               }
             : {}),

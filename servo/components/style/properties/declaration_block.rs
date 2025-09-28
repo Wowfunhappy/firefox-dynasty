@@ -24,7 +24,6 @@ use crate::rule_cache::RuleCacheConditions;
 use crate::selector_map::PrecomputedHashSet;
 use crate::selector_parser::SelectorImpl;
 use crate::shared_lock::Locked;
-use crate::str::{CssString, CssStringWriter};
 use crate::stylesheets::container_rule::ContainerSizeQuery;
 use crate::stylesheets::{CssRuleType, Origin, UrlExtraData};
 use crate::stylist::Stylist;
@@ -42,7 +41,10 @@ use smallvec::SmallVec;
 use std::fmt::{self, Write};
 use std::iter::Zip;
 use std::slice::Iter;
-use style_traits::{CssWriter, ParseError, ParsingMode, StyleParseErrorKind, ToCss, TypedValue};
+use style_traits::{
+    CssString, CssStringWriter, CssWriter, ParseError, ParsingMode, StyleParseErrorKind, ToCss,
+    TypedValue,
+};
 use thin_vec::ThinVec;
 
 /// A set of property declarations including animations and transitions.
@@ -118,7 +120,6 @@ impl Importance {
 /// While `TypedValue` is property-agnostic, this enum represents the outcome
 /// of reifying a specific property inside a `PropertyDeclarationBlock`.
 #[derive(Clone, Debug)]
-#[repr(C)]
 pub enum PropertyTypedValue {
     /// The property is not present in the declaration block.
     None,

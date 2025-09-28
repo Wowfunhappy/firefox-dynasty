@@ -37,10 +37,40 @@ enum LoadStoreSize {
 enum LoadStoreExtension { ZeroExtend = 0, SignExtend = 1 };
 enum JumpKind { LongJump = 0, ShortJump = 1 };
 enum FloatFormat { SingleFloat, DoubleFloat };
-class ScratchTagScope : public ScratchRegisterScope {
+class ScratchTagScope {
+  UseScratchRegisterScope temps_;
+  Register scratch_;
+  bool owned_;
+  mozilla::DebugOnly<bool> released_;
+
  public:
-  ScratchTagScope(MacroAssembler& masm, const ValueOperand&)
-      : ScratchRegisterScope(masm) {}
+  ScratchTagScope(Assembler& masm, const ValueOperand&)
+      : temps_(masm), owned_(true), released_(false) {
+    scratch_ = temps_.Acquire();
+  }
+
+  operator Register() {
+    MOZ_ASSERT(!released_);
+    return scratch_;
+  }
+
+  void release() {
+    MOZ_ASSERT(!released_);
+    released_ = true;
+    if (owned_) {
+      temps_.Release(scratch_);
+      owned_ = false;
+    }
+  }
+
+  void reacquire() {
+    MOZ_ASSERT(released_);
+    released_ = false;
+    if (!owned_) {
+      scratch_ = temps_.Acquire();
+      owned_ = true;
+    }
+  }
 };
 
 class ScratchTagScopeRelease {
@@ -248,9 +278,9 @@ class MacroAssemblerRiscv64 : public Assembler {
   void ma_b(Register lhs, ImmGCPtr imm, Label* l, Condition c,
             JumpKind jumpKind = LongJump) {
     UseScratchRegisterScope temps(this);
-    Register ScratchRegister = temps.Acquire();
-    ma_li(ScratchRegister, imm);
-    ma_b(lhs, ScratchRegister, l, c, jumpKind);
+    Register scratch = temps.Acquire();
+    ma_li(scratch, imm);
+    ma_b(lhs, scratch, l, c, jumpKind);
   }
   void ma_b(Register lhs, Address addr, Label* l, Condition c,
             JumpKind jumpKind = LongJump);
@@ -746,8 +776,6 @@ class MacroAssemblerRiscv64Compat : public MacroAssemblerRiscv64 {
   }
 
   void moveIfZero(Register dst, Register src, Register cond) {
-    ScratchRegisterScope scratch(asMasm());
-    MOZ_ASSERT(dst != scratch && cond != scratch);
     Label done;
     ma_branch(&done, NotEqual, cond, zero);
     mv(dst, src);
@@ -755,8 +783,6 @@ class MacroAssemblerRiscv64Compat : public MacroAssemblerRiscv64 {
   }
 
   void moveIfNotZero(Register dst, Register src, Register cond) {
-    ScratchRegisterScope scratch(asMasm());
-    MOZ_ASSERT(dst != scratch && cond != scratch);
     Label done;
     ma_branch(&done, Equal, cond, zero);
     mv(dst, src);
@@ -801,7 +827,8 @@ class MacroAssemblerRiscv64Compat : public MacroAssemblerRiscv64 {
   }
 
   void unboxWasmAnyRefGCThingForGCBarrier(const Address& src, Register dest) {
-    ScratchRegisterScope scratch(asMasm());
+    UseScratchRegisterScope temps(this);
+    Register scratch = temps.Acquire();
     MOZ_ASSERT(scratch != dest);
     movePtr(ImmWord(wasm::AnyRef::GCThingMask), scratch);
     loadPtr(src, dest);
@@ -816,7 +843,8 @@ class MacroAssemblerRiscv64Compat : public MacroAssemblerRiscv64 {
 
   // Like unboxGCThingForGCBarrier, but loads the GC thing's chunk base.
   void getGCThingValueChunk(const Address& src, Register dest) {
-    ScratchRegisterScope scratch(asMasm());
+    UseScratchRegisterScope temps(this);
+    Register scratch = temps.Acquire();
     MOZ_ASSERT(scratch != dest);
     loadPtr(src, dest);
     movePtr(ImmWord(JS::detail::ValueGCThingPayloadChunkMask), scratch);

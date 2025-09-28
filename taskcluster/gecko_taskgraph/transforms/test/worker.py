@@ -6,6 +6,7 @@ from taskgraph.transforms.base import TransformSequence
 
 # default worker types keyed by instance-size
 LINUX_WORKER_TYPES = {
+    "large-legacy": "t-linux-docker",
     "large": "t-linux-docker-amd",
     "large-noscratch": "t-linux-docker-noscratch-amd",
     "xlarge": "t-linux-docker-amd",
@@ -211,4 +212,5 @@ def set_wayland_env(config, tasks):
         env = task.setdefault("worker", {}).setdefault("env", {})
         env["MOZ_ENABLE_WAYLAND"] = "1"
         env["WAYLAND_DISPLAY"] = "wayland-0"
+        env["NEED_GNOME_KEYRING"] = "true"
         yield task

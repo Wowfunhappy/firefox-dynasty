@@ -351,6 +351,39 @@ bool IsAcceptableAnchorElement(
 
 }  // namespace
 
+AnchorPosReferenceData::Result AnchorPosReferenceData::InsertOrModify(
+    const nsAtom* aAnchorName, bool aNeedOffset) {
+  bool exists = true;
+  auto* result = &mMap.LookupOrInsertWith(aAnchorName, [&exists]() {
+    exists = false;
+    return Nothing{};
+  });
+
+  if (!exists) {
+    return {false, result};
+  }
+
+  // We tried to resolve before.
+  if (result->isNothing()) {
+    // We know this reference is invalid.
+    return {true, result};
+  }
+  // Previous resolution found a valid anchor.
+  if (!aNeedOffset) {
+    // Size is guaranteed to be populated on resolution.
+    return {true, result};
+  }
+
+  // Previous resolution may have been for size only, in which case another
+  // anchor resolution is still required.
+  return {result->ref().mOrigin.isSome(), result};
+}
+
+const AnchorPosReferenceData::Value* AnchorPosReferenceData::Lookup(
+    const nsAtom* aAnchorName) const {
+  return mMap.Lookup(aAnchorName).DataPtrOrNull();
+}
+
 nsIFrame* AnchorPositioningUtils::FindFirstAcceptableAnchor(
     const nsAtom* aName, const nsIFrame* aPositionedFrame,
     const nsTArray<nsIFrame*>& aPossibleAnchorFrames) {
@@ -399,7 +432,8 @@ Maybe<AnchorPosInfo> AnchorPositioningUtils::GetAnchorPosRect(
     Maybe<AnchorPosResolutionData>* aReferencedAnchorsEntry) {
   auto rect = [&]() -> Maybe<nsRect> {
     if (aCBRectIsvalid) {
-      const nsRect result = aAnchor->GetRectRelativeToSelf();
+      const nsRect result =
+          nsLayoutUtils::GetCombinedFragmentRects(aAnchor, true);
       const auto offset = aAnchor->GetOffsetTo(aAbsoluteContainingBlock);
       // Easy, just use the existing function.
       return Some(result + offset);
@@ -417,12 +451,13 @@ Maybe<AnchorPosInfo> AnchorPositioningUtils::GetAnchorPosRect(
 
     if (aAnchor == containerChild) {
       // Anchor is the direct child of anchor's CBWM.
-      return Some(aAnchor->GetRect());
+      return Some(nsLayoutUtils::GetCombinedFragmentRects(aAnchor, false));
     }
 
     // TODO(dshin): Already traversed up to find `containerChild`, and we're
     // going to do it again here, which feels a little wasteful.
-    const nsRect rectToContainerChild = aAnchor->GetRectRelativeToSelf();
+    const nsRect rectToContainerChild =
+        nsLayoutUtils::GetCombinedFragmentRects(aAnchor, true);
     const auto offset = aAnchor->GetOffsetTo(containerChild);
     return Some(rectToContainerChild + offset + containerChild->GetPosition());
   }();
@@ -495,7 +530,6 @@ static inline StylePositionArea MakeMissingSecondExplicit(
  *   [ top | center | bottom | span-top | span-bottom | span-all]
  * ]
  */
-[[maybe_unused]]
 static StylePositionArea ToPhysicalPositionArea(StylePositionArea aPosArea,
                                                 WritingMode aCbWM,
                                                 WritingMode aPosWM) {
@@ -606,6 +640,122 @@ static StylePositionArea ToPhysicalPositionArea(StylePositionArea aPosArea,
   }
 
   return pa;
+}
+
+nsRect AnchorPositioningUtils::AdjustAbsoluteContainingBlockRectForPositionArea(
+    nsIFrame* aPositionedFrame, nsIFrame* aContainingBlock,
+    const nsRect& aCBRect, AnchorPosReferenceData* aAnchorPosReferenceData) {
+  // TODO: We need a single, unified way of getting the anchor, unifying
+  // GetUsedAnchorName etc.
+  const auto& defaultAnchor =
+      aPositionedFrame->StylePosition()->mPositionAnchor;
+  if (!defaultAnchor.IsIdent()) {
+    return aCBRect;
+  }
+  const nsAtom* anchorName = defaultAnchor.AsIdent().AsAtom();
+
+  nsRect anchorRect;
+  const auto result = aAnchorPosReferenceData->InsertOrModify(anchorName, true);
+  if (result.mAlreadyResolved) {
+    MOZ_ASSERT(result.mEntry, "Entry exists but null?");
+    if (result.mEntry->isNothing()) {
+      return aCBRect;
+    }
+    const auto& data = result.mEntry->value();
+    MOZ_ASSERT(data.mOrigin, "Missing anchor offset resolution.");
+    anchorRect = nsRect{data.mOrigin.ref(), data.mSize};
+  } else {
+    Maybe<AnchorPosResolutionData>* entry = result.mEntry;
+    PresShell* presShell = aPositionedFrame->PresShell();
+    const auto* anchor =
+        presShell->GetAnchorPosAnchor(anchorName, aPositionedFrame);
+    if (!anchor) {
+      // If we have a cached entry, just check that it resolved to nothing last
+      // time as well.
+      MOZ_ASSERT_IF(entry, entry->isNothing());
+      return aCBRect;
+    }
+    const auto info = AnchorPositioningUtils::GetAnchorPosRect(
+        aContainingBlock, anchor, false, entry);
+    if (info.isNothing()) {
+      return aCBRect;
+    }
+    anchorRect = info.ref().mRect;
+  }
+
+  // Get the boundaries of 3x3 grid in CB's frame space. The edges of the
+  // default anchor box are clamped to the bounds of the CB, even if that
+  // results in zero width/height cells.
+  //
+  //          ltrEdges[0]  ltrEdges[1]  ltrEdges[2]  ltrEdges[3]
+  //              |            |            |            |
+  // ttbEdges[0]  +------------+------------+------------+
+  //              |            |            |            |
+  // ttbEdges[1]  +------------+------------+------------+
+  //              |            |            |            |
+  // ttbEdges[2]  +------------+------------+------------+
+  //              |            |            |            |
+  // ttbEdges[3]  +------------+------------+------------+
+
+  nscoord ltrEdges[4] = {aCBRect.x, anchorRect.x,
+                         anchorRect.x + anchorRect.width,
+                         aCBRect.x + aCBRect.width};
+  nscoord ttbEdges[4] = {aCBRect.y, anchorRect.y,
+                         anchorRect.y + anchorRect.height,
+                         aCBRect.y + aCBRect.height};
+  ltrEdges[1] = std::clamp(ltrEdges[1], ltrEdges[0], ltrEdges[3]);
+  ltrEdges[2] = std::clamp(ltrEdges[2], ltrEdges[0], ltrEdges[3]);
+  ttbEdges[1] = std::clamp(ttbEdges[1], ttbEdges[0], ttbEdges[3]);
+  ttbEdges[2] = std::clamp(ttbEdges[2], ttbEdges[0], ttbEdges[3]);
+
+  WritingMode cbWM = aContainingBlock->GetWritingMode();
+  WritingMode posWM = aPositionedFrame->GetWritingMode();
+
+  nsRect res = aCBRect;
+
+  // PositionArea, resolved to only contain Left/Right/Top/Bottom values.
+  auto posArea = ToPhysicalPositionArea(
+      aPositionedFrame->StylePosition()->mPositionArea, cbWM, posWM);
+
+  nscoord right = ltrEdges[3];
+  if (posArea.first == StylePositionAreaKeyword::Left) {
+    right = ltrEdges[1];
+  } else if (posArea.first == StylePositionAreaKeyword::SpanLeft) {
+    right = ltrEdges[2];
+  } else if (posArea.first == StylePositionAreaKeyword::Center) {
+    res.x = ltrEdges[1];
+    right = ltrEdges[2];
+  } else if (posArea.first == StylePositionAreaKeyword::SpanRight) {
+    res.x = ltrEdges[1];
+  } else if (posArea.first == StylePositionAreaKeyword::Right) {
+    res.x = ltrEdges[2];
+  } else if (posArea.first == StylePositionAreaKeyword::SpanAll) {
+    // no adjustment
+  } else {
+    MOZ_ASSERT_UNREACHABLE("Bad value from ToPhysicalPositionArea");
+  }
+  res.width = right - res.x;
+
+  nscoord bottom = ttbEdges[3];
+  if (posArea.second == StylePositionAreaKeyword::Top) {
+    bottom = ttbEdges[1];
+  } else if (posArea.second == StylePositionAreaKeyword::SpanTop) {
+    bottom = ttbEdges[2];
+  } else if (posArea.second == StylePositionAreaKeyword::Center) {
+    res.y = ttbEdges[1];
+    bottom = ttbEdges[2];
+  } else if (posArea.second == StylePositionAreaKeyword::SpanBottom) {
+    res.y = ttbEdges[1];
+  } else if (posArea.second == StylePositionAreaKeyword::Bottom) {
+    res.y = ttbEdges[2];
+  } else if (posArea.second == StylePositionAreaKeyword::SpanAll) {
+    // no adjustment
+  } else {
+    MOZ_ASSERT_UNREACHABLE("Bad value from ToPhysicalPositionArea");
+  }
+  res.height = bottom - res.y;
+
+  return res;
 }
 
 }  // namespace mozilla

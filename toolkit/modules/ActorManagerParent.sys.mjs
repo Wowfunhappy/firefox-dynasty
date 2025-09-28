@@ -119,26 +119,6 @@ let JSWINDOWACTORS = {
     allFrames: true,
   },
 
-  AboutTranslations: {
-    parent: {
-      esModuleURI: "resource://gre/actors/AboutTranslationsParent.sys.mjs",
-    },
-    child: {
-      esModuleURI: "resource://gre/actors/AboutTranslationsChild.sys.mjs",
-      events: {
-        // Run the actor before any content of the page appears to inject functions.
-        DOMDocElementInserted: {},
-        DOMContentLoaded: {},
-        // Used to show and hide the translations button.
-        pageshow: { mozSystemGroup: true },
-        pagehide: { mozSystemGroup: true },
-      },
-    },
-    matches: ["about:translations"],
-    remoteTypes: ["privilegedabout"],
-    enablePreference: "browser.translations.enable",
-  },
-
   AudioPlayback: {
     parent: {
       esModuleURI: "resource://gre/actors/AudioPlaybackParent.sys.mjs",
@@ -596,16 +576,7 @@ let JSWINDOWACTORS = {
         DOMContentLoaded: {},
       },
     },
-    matches: [
-      "http://*/*",
-      "https://*/*",
-      "file:///*",
-      "moz-extension://*",
-
-      // The actor is explicitly loaded by this page,
-      // so it needs to be allowed for it.
-      "about:translations",
-    ],
+    matches: ["http://*/*", "https://*/*", "file:///*", "moz-extension://*"],
     messageManagerGroups: ["browsers"],
     enablePreference: "browser.translations.enable",
   },
@@ -710,7 +681,7 @@ if (AppConstants.platform != "android") {
         MozTogglePictureInPicture: { capture: true },
       },
     },
-
+    messageManagerGroups: ["browsers"],
     allFrames: true,
   };
 
@@ -721,7 +692,7 @@ if (AppConstants.platform != "android") {
     child: {
       esModuleURI: "resource://gre/actors/PictureInPictureChild.sys.mjs",
     },
-
+    messageManagerGroups: ["browsers", "pip-player"],
     allFrames: true,
   };
 
@@ -736,8 +707,28 @@ if (AppConstants.platform != "android") {
         contextmenu: { capture: true },
       },
     },
-
+    messageManagerGroups: ["browsers"],
     allFrames: true,
+  };
+
+  JSWINDOWACTORS.AboutTranslations = {
+    parent: {
+      esModuleURI: "resource://gre/actors/AboutTranslationsParent.sys.mjs",
+    },
+    child: {
+      esModuleURI: "resource://gre/actors/AboutTranslationsChild.sys.mjs",
+      events: {
+        // Run the actor before any content of the page appears to inject functions.
+        DOMDocElementInserted: {},
+        DOMContentLoaded: {},
+        // Used to show and hide the translations button.
+        pageshow: { mozSystemGroup: true },
+        pagehide: { mozSystemGroup: true },
+      },
+    },
+    matches: ["about:translations"],
+    remoteTypes: ["privilegedabout"],
+    enablePreference: "browser.translations.enable",
   };
 }
 

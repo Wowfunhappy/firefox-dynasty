@@ -252,6 +252,7 @@ void Navigation::UpdateCurrentEntry(
   // null.
   RefPtr event = NavigationCurrentEntryChangeEvent::Constructor(
       this, u"currententrychange"_ns, init);
+  event->SetTrusted(true);
   DispatchEvent(*event);
 }
 
@@ -375,6 +376,7 @@ void Navigation::UpdateEntriesForSameDocumentNavigation(
     init.mNavigationType.SetValue(aNavigationType);
     RefPtr event = NavigationCurrentEntryChangeEvent::Constructor(
         this, u"currententrychange"_ns, init);
+    event->SetTrusted(true);
     DispatchEvent(*event);
 
     for (const auto& entry : disposedEntries) {
@@ -662,7 +664,7 @@ void Navigation::PerformNavigationTraversal(JSContext* aCx, const nsID& aKey,
 
   // 12. Append the following session history traversal steps to traversable:
   auto* childSHistory = traversable->GetChildSessionHistory();
-  auto performNaviationTraversalSteps =
+  auto performNavigationTraversalSteps =
       [finished =
            RefPtr(apiMethodTracker->FinishedPromise())](nsresult aResult) {
         switch (aResult) {
@@ -706,7 +708,8 @@ void Navigation::PerformNavigationTraversal(JSContext* aCx, const nsID& aKey,
   //      navigable, and "none".
   childSHistory->AsyncGo(aKey, navigable, /*aRequireUserInteraction=*/false,
                          /*aUserActivation=*/false,
-                         performNaviationTraversalSteps);
+                         /*aCheckForCancelation=*/true,
+                         performNavigationTraversalSteps);
 }
 
 // https://html.spec.whatwg.org/#dom-navigation-reload
@@ -938,22 +941,15 @@ bool Navigation::FireTraverseNavigateEvent(
 // https://html.spec.whatwg.org/#fire-a-push/replace/reload-navigate-event
 bool Navigation::FirePushReplaceReloadNavigateEvent(
     JSContext* aCx, NavigationType aNavigationType, nsIURI* aDestinationURL,
-    bool aIsSameDocument, bool aIsSync,
-    Maybe<UserNavigationInvolvement> aUserInvolvement, Element* aSourceElement,
-    already_AddRefed<FormData> aFormDataEntryList,
+    bool aIsSameDocument, Maybe<UserNavigationInvolvement> aUserInvolvement,
+    Element* aSourceElement, already_AddRefed<FormData> aFormDataEntryList,
     nsIStructuredCloneContainer* aNavigationAPIState,
     nsIStructuredCloneContainer* aClassicHistoryAPIState) {
   // To not unnecessarily create an event that's never used, step 1 and step 2
   // in #fire-a-push/replace/reload-navigate-event have been moved to after step
   // 25 in #inner-navigate-event-firing-algorithm in our implementation.
 
-  // This is currently not how spec handles this.
-  // See https://github.com/whatwg/html/issues/11184
-  if (aIsSync) {
-    while (HasOngoingNavigateEvent()) {
-      AbortOngoingNavigation(aCx);
-    }
-  }
+  InnerInformAboutAbortingNavigation(aCx);
 
   // Step 3 to step 7
   RefPtr<NavigationDestination> destination =
@@ -1146,6 +1142,20 @@ NS_INTERFACE_MAP_END
 NS_IMPL_CYCLE_COLLECTING_ADDREF(NavigationWaitForAllScope)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(NavigationWaitForAllScope)
 
+// https://html.spec.whatwg.org/#resume-applying-the-traverse-history-step
+static void ResumeApplyTheHistoryStep(
+    SessionHistoryInfo* aTarget, BrowsingContext* aTraversable,
+    UserNavigationInvolvement aUserInvolvement) {
+  MOZ_DIAGNOSTIC_ASSERT(aTraversable->IsTop());
+  auto* childSHistory = aTraversable->GetChildSessionHistory();
+  // Since we've already called #checking-if-unloading-is-canceled, we here pass
+  // checkForCancelation set to false.
+  childSHistory->AsyncGo(aTarget->NavigationKey(), aTraversable,
+                         /* aRequireUserInteraction */ false,
+                         /* aUserActivation */ false,
+                         /* aCheckForCancelation */ false, [](auto) {});
+}
+
 // https://html.spec.whatwg.org/#inner-navigate-event-firing-algorithm
 bool Navigation::InnerFireNavigateEvent(
     JSContext* aCx, NavigationType aNavigationType,
@@ -1327,6 +1337,23 @@ bool Navigation::InnerFireNavigateEvent(
       case NavigationType::Traverse:
         // Step 33.6
         mSuppressNormalScrollRestorationDuringOngoingNavigation = true;
+        // The following steps are from after the precommit handler re-write.
+        // Numbering is a bit messed up, but will be fixed when precommit
+        // handlers are implemented.
+        // Step 32.7.1, case "traverse"
+        if (auto* entry = aDestination->GetEntry()) {
+          // 32.7.1.2
+          UserNavigationInvolvement userInvolvement =
+              UserNavigationInvolvement::None;
+          // 32.7.1.3
+          if (event->UserInitiated()) {
+            userInvolvement = UserNavigationInvolvement::Activation;
+          }
+          // 32.7.1.4
+          ResumeApplyTheHistoryStep(entry->SessionHistoryInfo(),
+                                    navigable->Top(), userInvolvement);
+        }
+
         break;
       case NavigationType::Push:
       case NavigationType::Replace:
@@ -1589,6 +1616,16 @@ void Navigation::PromoteUpcomingAPIMethodTrackerToOngoing(
   navigation->mUpcomingTraverseAPIMethodTrackers.Remove(*key);
 }
 
+// https://html.spec.whatwg.org/#inform-the-navigation-api-about-aborting-navigation
+void Navigation::InnerInformAboutAbortingNavigation(JSContext* aCx) {
+  // As per https://github.com/whatwg/html/issues/11579, we should abort all
+  // ongoing navigate events within "inform the navigation API about aborting
+  // navigation".
+  while (HasOngoingNavigateEvent()) {
+    AbortOngoingNavigation(aCx);
+  }
+}
+
 // https://html.spec.whatwg.org/#abort-the-ongoing-navigation
 void Navigation::AbortOngoingNavigation(JSContext* aCx,
                                         JS::Handle<JS::Value> aError) {
@@ -1847,8 +1884,10 @@ void Navigation::CreateNavigationActivationFrom(
     // navigation's relevant realm, whose session history entry is
     // previousEntryForActivation.
 
-    nsIURI* previousURI = aPreviousEntryForActivation->GetURI();
-    nsIURI* currentURI = currentEntry->SessionHistoryInfo()->GetURI();
+    nsCOMPtr previousURI =
+        aPreviousEntryForActivation->GetURIOrInheritedForAboutBlank();
+    nsCOMPtr currentURI =
+        currentEntry->SessionHistoryInfo()->GetURIOrInheritedForAboutBlank();
     if (NS_SUCCEEDED(nsContentUtils::GetSecurityManager()->CheckSameOriginURI(
             currentURI, previousURI, false, false))) {
       oldEntry = MakeRefPtr<NavigationHistoryEntry>(

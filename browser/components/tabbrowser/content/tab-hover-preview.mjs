@@ -42,16 +42,10 @@ export default class TabHoverPanelSet {
       "ui.popup.disable_autohide",
       false
     );
-    XPCOMUtils.defineLazyPreferenceGetter(
-      this,
-      "_prefPreviewDelay",
-      "ui.tooltip.delay_ms"
-    );
 
     this.#win = win;
 
     this.panelOpener = new TabPreviewPanelTimedFunction(
-      this._prefPreviewDelay,
       ZERO_DELAY_ACTIVATION_TIME,
       this.#win
     );
@@ -192,9 +186,6 @@ class TabPanel extends Panel {
   /** @type {DOMElement|null} */
   #thumbnailElement;
 
-  /** @type {MutationObserver} */
-  #tabObserver;
-
   constructor(panel, panelSet) {
     super();
 
@@ -217,24 +208,15 @@ class TabPanel extends Panel {
 
     this.#tab = null;
     this.#thumbnailElement = null;
-
-    // Observe changes to this tab's DOM, and
-    // update the preview if the tab title changes
-    this.#tabObserver = new this.win.MutationObserver(
-      (mutationList, _observer) => {
-        for (const mutation of mutationList) {
-          if (mutation.attributeName === "label") {
-            this.#updatePreview();
-          }
-        }
-      }
-    );
   }
 
   handleEvent(e) {
     switch (e.type) {
       case "popupshowing":
         this.#updatePreview();
+        break;
+      case "TabAttrModified":
+        this.#updatePreview(e.target);
         break;
       case "TabSelect":
         this.deactivate();
@@ -244,9 +226,6 @@ class TabPanel extends Panel {
 
   activate(tab) {
     this.#tab = tab;
-    this.#tabObserver.observe(this.#tab, {
-      attributes: true,
-    });
 
     // Calling `moveToAnchor` in advance of the call to `openPopup` ensures
     // that race conditions can be avoided in cases where the user hovers
@@ -273,6 +252,7 @@ class TabPanel extends Panel {
     });
     this.win.addEventListener("TabSelect", this);
     this.panelElement.addEventListener("popupshowing", this);
+    this.#tab.addEventListener("TabAttrModified", this);
   }
 
   deactivate(leavingTab = null) {
@@ -287,8 +267,8 @@ class TabPanel extends Panel {
       });
       return;
     }
+    this.#tab?.removeEventListener("TabAttrModified", this);
     this.#tab = null;
-    this.#tabObserver.disconnect();
     this.#thumbnailElement = null;
     this.panelElement.removeEventListener("popupshowing", this);
     this.win.removeEventListener("TabSelect", this);
@@ -399,7 +379,11 @@ class TabPanel extends Panel {
       : "";
   }
 
-  #updatePreview() {
+  #updatePreview(tab = null) {
+    if (tab) {
+      this.#tab = tab;
+    }
+
     this.panelElement.querySelector(".tab-preview-title").textContent =
       this.#displayTitle;
     this.panelElement.querySelector(".tab-preview-uri").textContent =
@@ -484,6 +468,16 @@ class TabGroupPanel extends Panel {
   /** @type {number | null} */
   #deactivateTimer;
 
+  static PANEL_UPDATE_EVENTS = [
+    "TabAttrModified",
+    "TabClose",
+    "TabGrouped",
+    "TabMove",
+    "TabOpen",
+    "TabSelect",
+    "TabUngrouped",
+  ];
+
   constructor(panel, panelSet) {
     super();
 
@@ -538,6 +532,10 @@ class TabGroupPanel extends Panel {
 
     if (this.#group) {
       this.#group.hoverPreviewPanelActive = false;
+
+      for (let event of TabGroupPanel.PANEL_UPDATE_EVENTS) {
+        this.#group.removeEventListener(event, this);
+      }
     }
 
     this.panelElement.hidePopup();
@@ -556,6 +554,10 @@ class TabGroupPanel extends Panel {
     this.panelElement.addEventListener("command", this);
 
     this.#group.hoverPreviewPanelActive = true;
+
+    for (let event of TabGroupPanel.PANEL_UPDATE_EVENTS) {
+      this.#group.addEventListener(event, this);
+    }
 
     this.panelElement.openPopup(this.#popupTarget, this.popupOptions);
 
@@ -585,10 +587,10 @@ class TabGroupPanel extends Panel {
   handleEvent(event) {
     if (event.type == "command") {
       this.win.gBrowser.selectedTab = event.target.tab;
-    }
-
-    if (event.type == "mouseout" && event.target == this.panelElement) {
+    } else if (event.type == "mouseout" && event.target == this.panelElement) {
       this.deactivate();
+    } else if (TabGroupPanel.PANEL_UPDATE_EVENTS.includes(event.type)) {
+      this.#updatePanelContents();
     }
   }
 
@@ -637,9 +639,6 @@ class TabGroupPanel extends Panel {
  */
 class TabPreviewPanelTimedFunction {
   /** @type {number} */
-  #delay;
-
-  /** @type {number} */
   #zeroDelayTime;
 
   /** @type {Window} */
@@ -651,8 +650,13 @@ class TabPreviewPanelTimedFunction {
   /** @type {boolean} */
   #useZeroDelay;
 
-  constructor(delay, zeroDelayTime, win) {
-    this.#delay = delay;
+  constructor(zeroDelayTime, win) {
+    XPCOMUtils.defineLazyPreferenceGetter(
+      this,
+      "_prefPreviewDelay",
+      "ui.tooltip.delay_ms"
+    );
+
     this.#zeroDelayTime = zeroDelayTime;
     this.#win = win;
 
@@ -673,7 +677,7 @@ class TabPreviewPanelTimedFunction {
         this.#timer = null;
         target();
       },
-      this.#useZeroDelay ? 0 : this.#delay
+      this.#useZeroDelay ? 0 : this._prefPreviewDelay
     );
   }
 

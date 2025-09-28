@@ -17,6 +17,7 @@ const PROFILES_PREF_NAME = "browser.profiles.enabled";
 const GROUPID_PREF_NAME = "toolkit.telemetry.cachedProfileGroupID";
 const DEFAULT_THEME_ID = "default-theme@mozilla.org";
 const PROFILES_CREATED_PREF_NAME = "browser.profiles.created";
+const DAU_GROUPID_PREF_NAME = "datareporting.dau.cachedUsageProfileGroupID";
 
 ChromeUtils.defineESModuleGetters(lazy, {
   ClientID: "resource://gre/modules/ClientID.sys.mjs",
@@ -184,6 +185,7 @@ class SelectableProfileServiceClass extends EventEmitter {
     "browser.discovery.enabled",
     "browser.shell.checkDefaultBrowser",
     "browser.urlbar.quicksuggest.dataCollection.enabled",
+    DAU_GROUPID_PREF_NAME,
     "datareporting.healthreport.uploadEnabled",
     "datareporting.policy.currentPolicyVersion",
     "datareporting.policy.dataSubmissionEnabled",
@@ -264,6 +266,35 @@ class SelectableProfileServiceClass extends EventEmitter {
 
   get isEnabled() {
     return this.#isEnabled;
+  }
+
+  #setOverlayIcon({ win }) {
+    if (!this.#badge || !("nsIWinTaskbar" in Ci)) {
+      return;
+    }
+
+    let iconController = null;
+    if (!TASKBAR_ICON_CONTROLLERS.has(win)) {
+      iconController = Cc["@mozilla.org/windows-taskbar;1"]
+        .getService(Ci.nsIWinTaskbar)
+        .getOverlayIconController(win.docShell);
+      TASKBAR_ICON_CONTROLLERS.set(win, iconController);
+    } else {
+      iconController = TASKBAR_ICON_CONTROLLERS.get(win);
+    }
+
+    if (this.#currentProfile.hasCustomAvatar) {
+      iconController?.setOverlayIcon(
+        this.#badge.image,
+        this.#badge.description
+      );
+    } else {
+      iconController?.setOverlayIcon(
+        this.#badge.image,
+        this.#badge.description,
+        this.#badge.iconPaintContext
+      );
+    }
   }
 
   async #attemptFlushProfileService() {
@@ -441,6 +472,9 @@ class SelectableProfileServiceClass extends EventEmitter {
     if (this.#currentProfile) {
       // Assume that settings in the database may have changed while we weren't running.
       await this.databaseChanged("startup");
+
+      // We only need to migrate if we are in an existing profile group.
+      await this.#maybeAddDAUGroupIDToDB();
     }
   }
 
@@ -472,18 +506,7 @@ class SelectableProfileServiceClass extends EventEmitter {
     lazy.EveryWindow.registerCallback(
       this.#everyWindowCallbackId,
       window => {
-        if (this.#badge && "nsIWinTaskbar" in Ci) {
-          let iconController = Cc["@mozilla.org/windows-taskbar;1"]
-            .getService(Ci.nsIWinTaskbar)
-            .getOverlayIconController(window.docShell);
-          TASKBAR_ICON_CONTROLLERS.set(window, iconController);
-
-          iconController.setOverlayIcon(
-            this.#badge.image,
-            this.#badge.description,
-            this.#badge.iconPaintContext
-          );
-        }
+        this.#setOverlayIcon({ win: window });
 
         // Update the window title because the currentProfile, needed in the
         // .*-with-profile titles, didn't exist when the title was initially set.
@@ -513,15 +536,7 @@ class SelectableProfileServiceClass extends EventEmitter {
     switch (event.type) {
       case "activate": {
         this.#windowActivated.arm();
-        if ("nsIWinTaskbar" in Ci && this.#badge) {
-          let iconController = TASKBAR_ICON_CONTROLLERS.get(event.target);
-
-          iconController?.setOverlayIcon(
-            this.#badge.image,
-            this.#badge.description,
-            this.#badge.iconPaintContext
-          );
-        }
+        this.#setOverlayIcon({ win: event.target });
         break;
       }
     }
@@ -672,23 +687,7 @@ class SelectableProfileServiceClass extends EventEmitter {
             .setBadgeImage(this.#badge.image, this.#badge.iconPaintContext);
         } else if ("nsIWinTaskbar" in Ci) {
           for (let win of lazy.EveryWindow.readyWindows) {
-            let iconController = Cc["@mozilla.org/windows-taskbar;1"]
-              .getService(Ci.nsIWinTaskbar)
-              .getOverlayIconController(win.docShell);
-            TASKBAR_ICON_CONTROLLERS.set(win, iconController);
-
-            if (this.#currentProfile.hasCustomAvatar) {
-              iconController.setOverlayIcon(
-                this.#badge.image,
-                this.#badge.description
-              );
-            } else {
-              iconController.setOverlayIcon(
-                this.#badge.image,
-                this.#badge.description,
-                this.#badge.iconPaintContext
-              );
-            }
+            this.#setOverlayIcon({ win });
           }
         }
       } else if (count <= 1 && this.#badge) {
@@ -762,7 +761,7 @@ class SelectableProfileServiceClass extends EventEmitter {
     let themeBgColor = computedStyles.getPropertyValue("--toolbar-bgcolor");
 
     let bg = window.InspectorUtils.colorToRGBA(themeBgColor);
-    let themeBg = `rgba(${bg.r}, ${bg.r}, ${bg.b}, ${bg.a})`;
+    let themeBg = `rgba(${bg.r}, ${bg.g}, ${bg.b}, ${bg.a})`;
 
     let fg = window.InspectorUtils.colorToRGBA(themeFgColor);
     let themeFg = `rgba(${fg.r}, ${fg.g}, ${fg.b}, ${fg.a})`;
@@ -892,6 +891,69 @@ class SelectableProfileServiceClass extends EventEmitter {
   }
 
   /**
+   * The "datareporting.dau.cachedUsageProfileGroupID" pref is different in
+   * every profile before this migration was created. We now need the entire
+   * group of profiles to share one group id. To migrate to one shared
+   * group id, we need to get the pref into the db for existing group. This
+   * function handles this by adding the pref to the db if it doesn't
+   * already exist OR if our pref value is better than the value from the db.
+   * Consolidation on one group id is also handled in `#maybeSetDAUGroupID`
+   * where we overwrite the pref value if the db value is better.
+   *
+   * New profile groups will automatically start tracking this pref and keep
+   * the UUID from the original profile. We need to migrate because the db in
+   * existing profile groups will not contain the pref and every profile will
+   * have a different group id.
+   */
+  async #maybeAddDAUGroupIDToDB() {
+    let writeToDB = false;
+    let prefValue = Services.prefs.getStringPref(DAU_GROUPID_PREF_NAME, "");
+    try {
+      let dbValue = await this.getDBPref(DAU_GROUPID_PREF_NAME);
+
+      // We found a DAU group id in the db. If our pref value is smaller
+      // alphanumerically, we will overwrite the db value.
+      if (prefValue < dbValue) {
+        // Pref value is smaller alphanumerically so overwrite the db.
+        writeToDB = true;
+      }
+    } catch {
+      // The pref is not in the db
+      writeToDB = true;
+    } finally {
+      if (writeToDB) {
+        // The pref is not in the db
+        // OR
+        // our pref value is better so overwrite the db.
+        this.#setDBPref(DAU_GROUPID_PREF_NAME, prefValue);
+      }
+    }
+  }
+
+  /**
+   * To consolidate on one group id, we compare the pref value from the db and
+   * this profiles pref value alphanumerically to converge on the smallest
+   * alphanumeric UUID. The `#maybeAddDAUGroupIDToDB` function handles the
+   * initial tracking of the "datareporting.dau.cachedUsageProfileGroupID" pref
+   * for an existing profile group. New profile groups will keep the original
+   * profiles group id.
+   *
+   * @param {string} dbValue The pref value of
+   *   "datareporting.dau.cachedUsageProfileGroupID" from the db
+   */
+  async #maybeSetDAUGroupID(dbValue) {
+    if (dbValue < Services.prefs.getStringPref(DAU_GROUPID_PREF_NAME, "")) {
+      try {
+        // The value from the db is better so we overwrite our group id.
+        await lazy.ClientID.setUsageProfileGroupID(dbValue); // Sets the pref for us.
+      } catch (e) {
+        // This may throw if the group ID is invalid. This happens in some tests.
+        console.error(e);
+      }
+    }
+  }
+
+  /**
    * Fetch all prefs from the DB and write to the current instance.
    */
   async loadSharedPrefsFromDatabase() {
@@ -918,6 +980,14 @@ class SelectableProfileServiceClass extends EventEmitter {
           // This may throw if the group ID is invalid. This happens in some tests.
           console.error(e);
         }
+        continue;
+      }
+
+      if (name === DAU_GROUPID_PREF_NAME) {
+        await this.#maybeSetDAUGroupID(value);
+
+        Services.prefs.addObserver(name, this.prefObserver);
+        this.#observedPrefs.add(name);
         continue;
       }
 
@@ -1073,6 +1143,9 @@ class SelectableProfileServiceClass extends EventEmitter {
     prefsJs.push(`user_pref("browser.profiles.enabled", true);`);
     prefsJs.push(`user_pref("browser.profiles.created", true);`);
     prefsJs.push(`user_pref("toolkit.profiles.storeID", "${this.storeID}");`);
+    prefsJs.push(
+      `user_pref("${DAU_GROUPID_PREF_NAME}", "${await this.getDBPref(DAU_GROUPID_PREF_NAME)}");`
+    );
 
     const LINEBREAK = AppConstants.platform === "win" ? "\r\n" : "\n";
     await IOUtils.writeUTF8(
@@ -1131,7 +1204,7 @@ class SelectableProfileServiceClass extends EventEmitter {
       avatar: this.#defaultAvatars[randomIndex],
       themeId: DEFAULT_THEME_ID,
       themeFg: isDark ? "rgb(255,255,255)" : "rgb(21,20,26)",
-      themeBg: isDark ? "rgb(28, 27, 34)" : "rgb(240, 240, 244)",
+      themeBg: isDark ? "rgb(28,27,34)" : "rgb(240,240,244)",
     };
 
     let path =
@@ -1216,18 +1289,23 @@ class SelectableProfileServiceClass extends EventEmitter {
     });
     if (missing.length) {
       throw new Error(
-        "Unable to insertProfile due to missing keys: ",
-        missing.join(",")
+        `Unable to insertProfile due to missing keys: ${missing.join(",")}`
       );
     }
-    await this.#connection.execute(
-      `INSERT INTO Profiles VALUES (NULL, :path, :name, :avatar, :themeId, :themeFg, :themeBg);`,
+    const rows = await this.#connection.execute(
+      `INSERT INTO Profiles
+       VALUES (NULL, :path, :name, :avatar, :themeId, :themeFg, :themeBg)
+       RETURNING id;`,
       profileData
     );
+    const profileId = rows[0].getResultByName("id");
+    if (!profileId) {
+      throw new Error(`Unable to insertProfile with values: ${profileData}`);
+    }
 
     ProfilesDatastoreService.notify();
 
-    return this.getProfileByName(profileData.name);
+    return this.getProfile(profileId);
   }
 
   async deleteProfile(aProfile) {
@@ -1238,7 +1316,7 @@ class SelectableProfileServiceClass extends EventEmitter {
     }
 
     // First attempt to remove the profile's directories. This will attempt to
-    // local the directories and so will throw an exception if the profile is
+    // locate the directories and so will throw an exception if the profile is
     // currently in use.
     await this.#profileService.removeProfileFilesByPath(
       await aProfile.rootDir,
@@ -1511,6 +1589,14 @@ class SelectableProfileServiceClass extends EventEmitter {
     }
 
     return this.getPrefValueFromRow(rows[0]);
+  }
+
+  async setDBPref(aPrefName, aPrefValue) {
+    if (!Cu.isInAutomation) {
+      return;
+    }
+
+    await this.#setDBPref(aPrefName, aPrefValue);
   }
 
   /**

@@ -94,6 +94,7 @@
 #include "nsNameSpaceManager.h"
 #include "nsNodeInfoManager.h"
 #include "nsPresContext.h"
+#include "nsPresContextInlines.h"
 #include "nsRefreshDriver.h"
 #include "nsScrollbarFrame.h"
 #include "nsSliderFrame.h"
@@ -3408,6 +3409,7 @@ void ScrollContainerFrame::AppendScrollPartsTo(nsDisplayListBuilder* aBuilder,
                                                const nsDisplayListSet& aLists,
                                                bool aCreateLayer,
                                                bool aPositioned) {
+  MOZ_ASSERT(!HidesContent());
   const bool overlayScrollbars = UsesOverlayScrollbars();
 
   AutoTArray<nsIFrame*, 3> scrollParts;
@@ -3833,6 +3835,9 @@ void ScrollContainerFrame::BuildDisplayList(nsDisplayListBuilder* aBuilder,
   }
 
   DisplayBorderBackgroundOutline(aBuilder, aLists);
+  if (HidesContent()) {
+    return;
+  }
 
   const bool isRootContent =
       mIsRoot && PresContext()->IsRootContentDocumentCrossProcess();
@@ -5957,17 +5962,13 @@ void ScrollContainerFrame::PostOverflowEvent() {
 }
 
 nsIFrame* ScrollContainerFrame::GetFrameForStyle() const {
-  nsIFrame* styleFrame = nullptr;
   if (mIsRoot) {
-    if (const Element* rootElement =
-            PresContext()->Document()->GetRootElement()) {
-      styleFrame = rootElement->GetPrimaryFrame();
+    if (auto* rootFrame =
+            PresContext()->FrameConstructor()->GetRootElementStyleFrame()) {
+      return rootFrame;
     }
-  } else {
-    styleFrame = const_cast<ScrollContainerFrame*>(this);
   }
-
-  return styleFrame;
+  return const_cast<ScrollContainerFrame*>(this);
 }
 
 bool ScrollContainerFrame::NeedsScrollSnap() const {

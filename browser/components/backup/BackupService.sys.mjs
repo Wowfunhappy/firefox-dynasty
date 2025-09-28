@@ -30,6 +30,10 @@ const LAST_BACKUP_TIMESTAMP_PREF_NAME =
   "browser.backup.scheduled.last-backup-timestamp";
 const LAST_BACKUP_FILE_NAME_PREF_NAME =
   "browser.backup.scheduled.last-backup-file";
+const BACKUP_RETRY_LIMIT_PREF_NAME = "browser.backup.backup-retry-limit";
+const DISABLED_ON_IDLE_RETRY_PREF_NAME =
+  "browser.backup.disabled-on-idle-backup-retry";
+const BACKUP_DEBUG_INFO_PREF_NAME = "browser.backup.backup-debug-info";
 
 const SCHEMAS = Object.freeze({
   BACKUP_MANIFEST: 1,
@@ -105,10 +109,6 @@ ChromeUtils.defineLazyGetter(lazy, "gDOMLocalization", function () {
   ]);
 });
 
-ChromeUtils.defineLazyGetter(lazy, "defaultParentDirPath", function () {
-  return Services.dirsvc.get("Docs", Ci.nsIFile).path;
-});
-
 XPCOMUtils.defineLazyPreferenceGetter(
   lazy,
   "scheduledBackupsPref",
@@ -155,6 +155,20 @@ XPCOMUtils.defineLazyPreferenceGetter(
   "minimumTimeBetweenBackupsSeconds",
   MINIMUM_TIME_BETWEEN_BACKUPS_SECONDS_PREF_NAME,
   86400 /* 1 day */
+);
+
+XPCOMUtils.defineLazyPreferenceGetter(
+  lazy,
+  "backupRetryLimit",
+  BACKUP_RETRY_LIMIT_PREF_NAME,
+  100
+);
+
+XPCOMUtils.defineLazyPreferenceGetter(
+  lazy,
+  "isRetryDisabledOnIdle",
+  DISABLED_ON_IDLE_RETRY_PREF_NAME,
+  false
 );
 
 XPCOMUtils.defineLazyServiceGetter(
@@ -566,6 +580,11 @@ export class BackupService extends EventTarget {
   static #backupFileName = null;
 
   /**
+   * Number of retries that have occured in this session on error
+   */
+  static #errorRetries = 0;
+
+  /**
    * Set to true if a backup is currently in progress. Causes stateUpdate()
    * to be called.
    *
@@ -598,11 +617,14 @@ export class BackupService extends EventTarget {
   }
 
   /**
-   * True if a recovery is currently in progress.
+   * Sets the recovery error code and updates the state.
    *
-   * @type {boolean}
+   * @param {number} errorCode - The error code to set
    */
-  #recoveryInProgress = false;
+  setRecoveryError(errorCode) {
+    this.#_state.recoveryErrorCode = errorCode;
+    this.stateUpdate();
+  }
 
   /**
    * An object holding the current state of the BackupService instance, for
@@ -624,6 +646,8 @@ export class BackupService extends EventTarget {
     lastBackupDate: null,
     lastBackupFileName: "",
     supportBaseLink: Services.urlFormatter.formatURLPref("app.support.baseURL"),
+    recoveryInProgress: false,
+    recoveryErrorCode: 0,
   };
 
   /**
@@ -702,7 +726,10 @@ export class BackupService extends EventTarget {
    * @returns {string} The path of the default parent directory
    */
   static get DEFAULT_PARENT_DIR_PATH() {
-    return lazy.defaultParentDirPath;
+    return (
+      BackupService.oneDriveFolderPath?.path ||
+      Services.dirsvc.get("Docs", Ci.nsIFile).path
+    );
   }
 
   /**
@@ -1206,6 +1233,10 @@ export class BackupService extends EventTarget {
         this.#backupInProgress = true;
         const backupTimer = Glean.browserBackup.totalBackupTime.start();
 
+        // reset the error state prefs
+        Services.prefs.clearUserPref(BACKUP_DEBUG_INFO_PREF_NAME);
+        Services.prefs.setIntPref(BACKUP_ERROR_CODE_PREF_NAME, ERRORS.NONE);
+
         try {
           lazy.logConsole.debug(
             `Creating backup for profile at ${profilePath}`
@@ -1406,7 +1437,7 @@ export class BackupService extends EventTarget {
             manifest.meta
           );
 
-          let nowSeconds = Math.floor(Date.now() / 1000);
+          let nowSeconds = Math.floor(ChromeUtils.now() / 1000);
           Services.prefs.setIntPref(
             LAST_BACKUP_TIMESTAMP_PREF_NAME,
             nowSeconds
@@ -1415,6 +1446,10 @@ export class BackupService extends EventTarget {
           Glean.browserBackup.totalBackupTime.stopAndAccumulate(backupTimer);
 
           Glean.browserBackup.created.record();
+
+          // we should reset any values that were set for retry error handling
+          Services.prefs.clearUserPref(DISABLED_ON_IDLE_RETRY_PREF_NAME);
+          BackupService.#errorRetries = 0;
 
           return { manifest, archivePath };
         } catch (e) {
@@ -1428,6 +1463,15 @@ export class BackupService extends EventTarget {
           Services.prefs.setIntPref(
             BACKUP_ERROR_CODE_PREF_NAME,
             ERRORS.UNKNOWN
+          );
+
+          Services.prefs.setStringPref(
+            BACKUP_DEBUG_INFO_PREF_NAME,
+            JSON.stringify({
+              lastBackupAttempt: Math.floor(ChromeUtils.now() / 1000),
+              errorCode: e instanceof BackupError ? e : ERRORS.UNKNOWN,
+              lastRunStep: currentStep,
+            })
           );
 
           throw e;
@@ -2503,13 +2547,15 @@ export class BackupService extends EventTarget {
     profileRootPath = null
   ) {
     // No concurrent recoveries.
-    if (this.#recoveryInProgress) {
+    if (this.#_state.recoveryInProgress) {
       lazy.logConsole.warn("Recovery attempt already in progress");
       return null;
     }
 
     try {
-      this.#recoveryInProgress = true;
+      this.#_state.recoveryInProgress = true;
+      this.#_state.recoveryErrorCode = 0;
+      this.stateUpdate();
       const RECOVERY_FILE_DEST_PATH = PathUtils.join(
         profilePath,
         BackupService.PROFILE_FOLDER_NAME,
@@ -2579,7 +2625,8 @@ export class BackupService extends EventTarget {
         }
       }
     } finally {
-      this.#recoveryInProgress = false;
+      this.#_state.recoveryInProgress = false;
+      this.stateUpdate();
     }
   }
 
@@ -2940,7 +2987,7 @@ export class BackupService extends EventTarget {
 
     if (shouldEnableScheduledBackups) {
       // reset the error states when reenabling backup
-      Services.prefs.setIntPref(BACKUP_ERROR_CODE_PREF_NAME, 0);
+      Services.prefs.setIntPref(BACKUP_ERROR_CODE_PREF_NAME, ERRORS.NONE);
     }
   }
 
@@ -2984,7 +3031,10 @@ export class BackupService extends EventTarget {
 
     const USING_DEFAULT_DIR_PATH =
       lazy.backupDirPref ==
-      PathUtils.join(lazy.defaultParentDirPath, BackupService.BACKUP_DIR_NAME);
+      PathUtils.join(
+        BackupService.DEFAULT_PARENT_DIR_PATH,
+        BackupService.BACKUP_DIR_NAME
+      );
     Glean.browserBackup.locationOnDevice.set(USING_DEFAULT_DIR_PATH ? 1 : 2);
 
     // Next, we'll measure the available disk space on the storage
@@ -3430,7 +3480,7 @@ export class BackupService extends EventTarget {
 
     if (lazy.scheduledBackupsPref) {
       lazy.logConsole.debug("Scheduled backups enabled.");
-      let now = Math.floor(Date.now() / 1000);
+      let now = Math.floor(ChromeUtils.now() / 1000);
       let lastBackupDate = this.#_state.lastBackupDate;
       if (lastBackupDate && lastBackupDate > now) {
         lazy.logConsole.error(
@@ -3479,15 +3529,43 @@ export class BackupService extends EventTarget {
    * into its own method to make it easier to stub out in tests.
    */
   createBackupOnIdleDispatch() {
+    let now = Math.floor(ChromeUtils.now() / 1000);
+    let errorStateDebugInfo = Services.prefs.getStringPref(
+      BACKUP_DEBUG_INFO_PREF_NAME,
+      ""
+    );
+
+    // we retry failing backups every minimumTimeBetweenBackupsSeconds if
+    // isRetryDisabledOnIdle is true. If isRetryDisabledOnIdle is false,
+    // we retry on next idle until we hit backupRetryLimit and switch isRetryDisabledOnIdle to true
+    if (
+      lazy.isRetryDisabledOnIdle &&
+      errorStateDebugInfo &&
+      now - JSON.parse(errorStateDebugInfo).lastBackupAttempt <
+        lazy.minimumTimeBetweenBackupsSeconds
+    ) {
+      lazy.logConsole.debug(
+        `We've already retried in the last ${lazy.minimumTimeBetweenBackupsSeconds}s. Waiting for next valid idleDispatch to try again.`
+      );
+      return;
+    }
+
     ChromeUtils.idleDispatch(() => {
       lazy.logConsole.debug(
         "idleDispatch fired. Attempting to create a backup."
       );
-      try {
-        this.createBackup();
-      } catch (e) {
-        lazy.logConsole.error("There was an error creating backup: ", e);
-      }
+
+      this.createBackup().catch(e => {
+        lazy.logConsole.debug(
+          `There was an error creating backup on idle dispatch: ${e}`
+        );
+
+        BackupService.#errorRetries += 1;
+        if (BackupService.#errorRetries > lazy.backupRetryLimit) {
+          // We've had too many error's with retries, let's only backup on next timestamp
+          Services.prefs.setBoolPref(DISABLED_ON_IDLE_RETRY_PREF_NAME, true);
+        }
+      });
     });
   }
 
@@ -3551,6 +3629,7 @@ export class BackupService extends EventTarget {
       isEncrypted,
       date: archiveJSON?.meta?.date,
     };
+    this.#_state.backupFileToRestore = backupFilePath;
     this.stateUpdate();
   }
 

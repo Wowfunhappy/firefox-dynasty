@@ -29,6 +29,7 @@ from gecko_taskgraph.util.attributes import (
     match_run_on_hg_branches,
     match_run_on_projects,
 )
+from gecko_taskgraph.util.constants import TEST_KINDS
 from gecko_taskgraph.util.hg import find_hg_revision_push_info, get_hg_commit_message
 from gecko_taskgraph.util.platforms import platform_family
 from gecko_taskgraph.util.taskcluster import find_task, insert_index
@@ -157,7 +158,6 @@ def filter_by_regex(task_label, regexes, mode="include"):
 def filter_release_tasks(task, parameters):
     platform = task.attributes.get("build_platform")
     if platform in (
-        "linux",
         "linux64",
         "linux64-aarch64",
         "macosx64",
@@ -237,7 +237,7 @@ def filter_tests_without_manifests(task, parameters):
     aware that the task exists (which is needed by the backfill action).
     """
     if (
-        task.kind == "test"
+        task.kind in TEST_KINDS
         and "test_manifests" in task.attributes
         and not task.attributes["test_manifests"]
     ):
@@ -380,7 +380,7 @@ def target_tasks_autoland(full_task_graph, parameters, graph_config):
     )
 
     def filter(task):
-        if task.kind != "test":
+        if task.kind not in TEST_KINDS:
             return True
 
         if parameters["backstop"]:
@@ -406,7 +406,7 @@ def target_tasks_mozilla_central(full_task_graph, parameters, graph_config):
     )
 
     def filter(task):
-        if task.kind != "test":
+        if task.kind not in TEST_KINDS:
             return True
 
         build_platform = task.attributes.get("build_platform")
@@ -645,7 +645,7 @@ def target_tasks_larch(full_task_graph, parameters, graph_config):
         ):
             return False
         # otherwise reduce tests only
-        if task.kind != "test":
+        if task.kind not in TEST_KINDS:
             return True
         return "browser-chrome" in task.label or "xpcshell" in task.label
 
@@ -916,7 +916,7 @@ def target_tasks_nightly_linux(full_task_graph, parameters, graph_config):
     nightly build process involves a pipeline of builds, signing,
     and, eventually, uploading the tasks to balrog."""
     filter = make_desktop_nightly_filter(
-        {"linux64-shippable", "linux-shippable", "linux64-aarch64-shippable"}
+        {"linux64-shippable", "linux64-aarch64-shippable"}
     )
     return [l for l, t in full_task_graph.tasks.items() if filter(t, parameters)]
 
@@ -1640,7 +1640,7 @@ def target_tasks_os_integration(full_task_graph, parameters, graph_config):
 
     labels = []
     for label, task in full_task_graph.tasks.items():
-        if task.kind not in ("test", "source-test", "perftest", "startup-test"):
+        if task.kind not in TEST_KINDS + ("source-test", "perftest", "startup-test"):
             continue
 
         # Match tasks against attribute sets defined in os-integration.yml.

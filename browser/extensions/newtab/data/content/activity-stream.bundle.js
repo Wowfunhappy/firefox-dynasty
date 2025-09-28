@@ -3902,6 +3902,7 @@ class _DSCard extends (external_React_default()).PureComponent {
       event: "POCKET_THUMBS_UP",
       source: "THUMBS_UI",
       value: {
+        action_position: this.props.pos,
         recommendation_id: this.props.recommendation_id,
         tile_id: this.props.id,
         corpus_item_id: this.props.corpus_item_id,
@@ -3979,6 +3980,7 @@ class _DSCard extends (external_React_default()).PureComponent {
         event: "POCKET_THUMBS_DOWN",
         source: "THUMBS_UI",
         value: {
+          action_position: this.props.pos,
           recommendation_id: this.props.recommendation_id,
           tile_id: this.props.id,
           corpus_item_id: this.props.corpus_item_id,
@@ -10950,9 +10952,14 @@ const selectLayoutRender = ({ state = {}, prefs = {} }) => {
 
   // Filter sections is Widgets are turned off
   // Note extra logic is required bc this feature can be enabled via Nimbus
+  const nimbusWidgetsTrainhopEnabled = prefs.trainhopConfig?.widgets?.enabled;
   const nimbusWidgetsEnabled = prefs.widgetsConfig?.enabled;
   const widgetsEnabled = prefs["widgets.system.enabled"];
-  if (!nimbusWidgetsEnabled && !widgetsEnabled) {
+  if (
+    !nimbusWidgetsTrainhopEnabled &&
+    !nimbusWidgetsEnabled &&
+    !widgetsEnabled
+  ) {
     filterArray.push("Widgets");
   }
 
@@ -11844,6 +11851,14 @@ class _Weather extends (external_React_default()).PureComponent {
       }
     }));
   }
+  handleRejectOptIn = () => {
+    this.props.dispatch(actionCreators.SetPref("weather.optInAccepted", false));
+    this.props.dispatch(actionCreators.SetPref("weather.optInDisplayed", false));
+  };
+  handleAcceptOptIn = () => {
+    this.props.dispatch(actionCreators.SetPref("weather.optInAccepted", true));
+    this.props.dispatch(actionCreators.SetPref("weather.optInDisplayed", false));
+  };
   render() {
     // Check if weather should be rendered
     const isWeatherEnabled = this.props.Prefs.values["system.showWeather"];
@@ -11867,6 +11882,21 @@ class _Weather extends (external_React_default()).PureComponent {
     const WEATHER_SUGGESTION = Weather.suggestions?.[0];
     const outerClassName = ["weather", Weather.searchActive && "search", props.isInSection && "section-weather"].filter(v => v).join(" ");
     const showDetailedView = Prefs.values["weather.display"] === "detailed";
+    const isOptInEnabled = Prefs.values["system.showWeatherOptIn"];
+    const optInDisplayed = Prefs.values["weather.optInDisplayed"];
+    const nimbusOptInDisplayed = Prefs.values.trainhopConfig?.weather?.optInDisplayed;
+    const optInUserChoice = Prefs.values["weather.optInAccepted"];
+    const nimbusOptInUserChoice = Prefs.values.trainhopConfig?.weather?.optInAccepted;
+    const optInPrompt = nimbusOptInDisplayed ?? optInDisplayed ?? false;
+    const userChoice = nimbusOptInUserChoice ?? optInUserChoice ?? false;
+    const isUserWeatherEnabled = Prefs.values.showWeather;
+
+    // Opt-in dialog should only show if:
+    // - weather enabled on customization menu
+    // - weather opt-in pref is enabled
+    // - opt-in prompt is enabled
+    // - user hasn't accepted the opt-in yet
+    const shouldShowOptInDialog = isUserWeatherEnabled && isOptInEnabled && optInPrompt && !userChoice;
 
     // Note: The temperature units/display options will become secondary menu items
     const WEATHER_SOURCE_CONTEXT_MENU_OPTIONS = [...(Prefs.values["weather.locationSearchEnabled"] ? ["ChangeWeatherLocation"] : []), ...(Prefs.values["weather.temperatureUnits"] === "f" ? ["ChangeTempUnitCelsius"] : ["ChangeTempUnitFahrenheit"]), ...(Prefs.values["weather.display"] === "simple" ? ["ChangeWeatherDisplayDetailed"] : ["ChangeWeatherDisplaySimple"]), "HideWeather", "OpenLearnMoreURL"];
@@ -11932,7 +11962,27 @@ class _Weather extends (external_React_default()).PureComponent {
       }, /*#__PURE__*/external_React_default().createElement("span", {
         "data-l10n-id": "newtab-weather-sponsored",
         "data-l10n-args": "{\"provider\": \"AccuWeather\xAE\"}"
-      })));
+      })), shouldShowOptInDialog && /*#__PURE__*/external_React_default().createElement("div", {
+        className: "weatherOptIn"
+      }, /*#__PURE__*/external_React_default().createElement("dialog", {
+        open: true
+      }, /*#__PURE__*/external_React_default().createElement("span", {
+        className: "weatherOptInImg"
+      }), /*#__PURE__*/external_React_default().createElement("div", {
+        className: "weatherOptInContent"
+      }, /*#__PURE__*/external_React_default().createElement("h3", null, "Do you want to see the weather for your location?"), /*#__PURE__*/external_React_default().createElement("moz-button-group", {
+        className: "button-group"
+      }, /*#__PURE__*/external_React_default().createElement("moz-button", {
+        size: "small",
+        type: "default",
+        label: "Not now",
+        onClick: this.handleRejectOptIn
+      }), /*#__PURE__*/external_React_default().createElement("moz-button", {
+        size: "small",
+        type: "default",
+        label: "Yes",
+        onClick: this.handleAcceptOptIn
+      }))))));
     }
     return /*#__PURE__*/external_React_default().createElement("div", {
       ref: this.setErrorRef,
@@ -11994,6 +12044,7 @@ const CardSections_PREF_TRENDING_SEARCH_SYSTEM = "system.trendingSearch.enabled"
 const CardSections_PREF_SEARCH_ENGINE = "trendingSearch.defaultSearchEngine";
 const CardSections_PREF_TRENDING_SEARCH_VARIANT = "trendingSearch.variant";
 const CardSections_PREF_DAILY_BRIEF_SECTIONID = "discoverystream.dailyBrief.sectionId";
+const CardSections_PREF_SPOCS_STARTUPCACHE_ENABLED = "discoverystream.spocs.startupCache.enabled";
 function getLayoutData(responsiveLayouts, index, refinedCardsLayout, sectionKey) {
   let layoutData = {
     classNames: [],
@@ -12081,6 +12132,9 @@ function CardSection({
   const {
     sectionPersonalization
   } = (0,external_ReactRedux_namespaceObject.useSelector)(state => state.DiscoveryStream);
+  const {
+    isForStartupCache
+  } = (0,external_ReactRedux_namespaceObject.useSelector)(state => state.App);
   const showTopics = prefs[CardSections_PREF_TOPICS_ENABLED];
   const mayHaveSectionsCards = prefs[CardSections_PREF_SECTIONS_CARDS_ENABLED];
   const mayHaveSectionsCardsThumbsUpDown = prefs[PREF_SECTIONS_CARDS_THUMBS_UP_DOWN_ENABLED];
@@ -12088,6 +12142,7 @@ function CardSection({
   const selectedTopics = prefs[CardSections_PREF_TOPICS_SELECTED];
   const availableTopics = prefs[CardSections_PREF_TOPICS_AVAILABLE];
   const refinedCardsLayout = prefs[PREF_REFINED_CARDS_ENABLED];
+  const spocsStartupCacheEnabled = prefs[CardSections_PREF_SPOCS_STARTUPCACHE_ENABLED];
   const trendingEnabled = prefs[CardSections_PREF_TRENDING_SEARCH] && prefs[CardSections_PREF_TRENDING_SEARCH_SYSTEM] && prefs[CardSections_PREF_SEARCH_ENGINE]?.toLowerCase() === "google";
   const trendingVariant = prefs[CardSections_PREF_TRENDING_SEARCH_VARIANT];
   const shouldShowTrendingSearch = trendingEnabled && trendingVariant === "b";
@@ -12238,7 +12293,11 @@ function CardSection({
       classNames,
       imageSizes
     } = layoutData;
-    if (!rec || rec.placeholder) {
+    // Render a placeholder card when:
+    // 1. No recommendation is available.
+    // 2. The item is flagged as a placeholder.
+    // 3. Spocs are loading for with spocs startup cache disabled.
+    if (!rec || rec.placeholder || rec.flight_id && !spocsStartupCacheEnabled && isForStartupCache.DiscoveryStream) {
       return /*#__PURE__*/external_React_default().createElement(PlaceholderDSCard, {
         key: `dscard-${index}`
       });
@@ -13803,8 +13862,10 @@ function Widgets() {
   const dispatch = (0,external_ReactRedux_namespaceObject.useDispatch)();
   const nimbusListsEnabled = prefs.widgetsConfig?.listsEnabled;
   const nimbusTimerEnabled = prefs.widgetsConfig?.timerEnabled;
-  const listsEnabled = (nimbusListsEnabled || prefs[PREF_WIDGETS_SYSTEM_LISTS_ENABLED]) && prefs[PREF_WIDGETS_LISTS_ENABLED];
-  const timerEnabled = (nimbusTimerEnabled || prefs[PREF_WIDGETS_SYSTEM_TIMER_ENABLED]) && prefs[PREF_WIDGETS_TIMER_ENABLED];
+  const nimbusListsTrainhopEnabled = prefs.trainhopConfig?.widgets?.listsEnabled;
+  const nimbusTimerTrainhopEnabled = prefs.trainhopConfig?.widgets?.timerEnabled;
+  const listsEnabled = (nimbusListsTrainhopEnabled || nimbusListsEnabled || prefs[PREF_WIDGETS_SYSTEM_LISTS_ENABLED]) && prefs[PREF_WIDGETS_LISTS_ENABLED];
+  const timerEnabled = (nimbusTimerTrainhopEnabled || nimbusTimerEnabled || prefs[PREF_WIDGETS_SYSTEM_TIMER_ENABLED]) && prefs[PREF_WIDGETS_TIMER_ENABLED];
   const recommendedStoriesEnabled = prefs[PREF_FEEDS_SECTION_TOPSTORIES];
   function handleUserInteraction(widgetName) {
     const prefName = `widgets.${widgetName}.interaction`;
@@ -13813,6 +13874,9 @@ function Widgets() {
     if (hasInteracted === false) {
       dispatch(actionCreators.SetPref(prefName, true));
     }
+  }
+  if (!(listsEnabled || timerEnabled)) {
+    return null;
   }
   return /*#__PURE__*/external_React_default().createElement("div", {
     className: "widgets-wrapper"
@@ -14089,9 +14153,10 @@ class _DiscoveryStreamBase extends (external_React_default()).PureComponent {
 
     // There are two ways to enable widgets:
     // Via `widgets.system.*` prefs or Nimbus experiment
+    const widgetsNimbusTrainhopEnabled = this.props.Prefs.values.trainhopConfig?.widgets?.enabled;
     const widgetsNimbusEnabled = this.props.Prefs.values.widgetsConfig?.enabled;
     const widgetsSystemPrefsEnabled = this.props.Prefs.values["widgets.system.enabled"];
-    const widgets = widgetsNimbusEnabled || widgetsSystemPrefsEnabled;
+    const widgets = widgetsNimbusTrainhopEnabled || widgetsNimbusEnabled || widgetsSystemPrefsEnabled;
     const message = extractComponent("Message") || {
       header: {
         link_text: topStories.learnMore.link.message,
@@ -16279,7 +16344,7 @@ class BaseContent extends (external_React_default()).PureComponent {
     this.updateWallpaper = this.updateWallpaper.bind(this);
     this.prefersDarkQuery = null;
     this.handleColorModeChange = this.handleColorModeChange.bind(this);
-    this.shouldDisplayTopicSelectionModal = this.shouldDisplayTopicSelectionModal.bind(this);
+    this.onVisible = this.onVisible.bind(this);
     this.toggleDownloadHighlight = this.toggleDownloadHighlight.bind(this);
     this.handleDismissDownloadHighlight = this.handleDismissDownloadHighlight.bind(this);
     this.applyBodyClasses = this.applyBodyClasses.bind(this);
@@ -16299,6 +16364,10 @@ class BaseContent extends (external_React_default()).PureComponent {
       });
     }
   }
+  onVisible() {
+    this.setFirstVisibleTimestamp();
+    this.shouldDisplayTopicSelectionModal();
+  }
   componentDidMount() {
     this.applyBodyClasses();
     __webpack_require__.g.addEventListener("scroll", this.onWindowScroll);
@@ -16306,13 +16375,11 @@ class BaseContent extends (external_React_default()).PureComponent {
     const prefs = this.props.Prefs.values;
     const wallpapersEnabled = prefs["newtabWallpapers.enabled"];
     if (this.props.document.visibilityState === Base_VISIBLE) {
-      this.setFirstVisibleTimestamp();
-      this.shouldDisplayTopicSelectionModal();
+      this.onVisible();
     } else {
       this._onVisibilityChange = () => {
         if (this.props.document.visibilityState === Base_VISIBLE) {
-          this.setFirstVisibleTimestamp();
-          this.shouldDisplayTopicSelectionModal();
+          this.onVisible();
           this.props.document.removeEventListener(Base_VISIBILITY_CHANGE_EVENT, this._onVisibilityChange);
           this._onVisibilityChange = null;
         }
@@ -16330,6 +16397,14 @@ class BaseContent extends (external_React_default()).PureComponent {
   componentDidUpdate(prevProps) {
     this.applyBodyClasses();
     const prefs = this.props.Prefs.values;
+
+    // Check if weather widget was re-enabled from customization menu
+    const wasWeatherDisabled = !prevProps.Prefs.values.showWeather;
+    const isWeatherEnabled = this.props.Prefs.values.showWeather;
+    if (wasWeatherDisabled && isWeatherEnabled) {
+      // If weather widget was enabled from customization menu, display opt-in dialog
+      this.props.dispatch(actionCreators.SetPref("weather.optInDisplayed", true));
+    }
     const wallpapersEnabled = prefs["newtabWallpapers.enabled"];
     if (wallpapersEnabled) {
       // destructure current and previous props with fallbacks
@@ -16693,9 +16768,12 @@ class BaseContent extends (external_React_default()).PureComponent {
     const nimbusWidgetsEnabled = prefs.widgetsConfig?.enabled;
     const nimbusListsEnabled = prefs.widgetsConfig?.listsEnabled;
     const nimbusTimerEnabled = prefs.widgetsConfig?.timerEnabled;
-    const mayHaveWidgets = prefs["widgets.system.enabled"] || nimbusWidgetsEnabled;
-    const mayHaveListsWidget = prefs["widgets.system.lists.enabled"] || nimbusListsEnabled;
-    const mayHaveTimerWidget = prefs["widgets.system.focusTimer.enabled"] || nimbusTimerEnabled;
+    const nimbusWidgetsTrainhopEnabled = prefs.trainhopConfig?.widgets?.enabled;
+    const nimbusListsTrainhopEnabled = prefs.trainhopConfig?.widgets?.listsEnabled;
+    const nimbusTimerTrainhopEnabled = prefs.trainhopConfig?.widgets?.timerEnabled;
+    const mayHaveWidgets = prefs["widgets.system.enabled"] || nimbusWidgetsEnabled || nimbusWidgetsTrainhopEnabled;
+    const mayHaveListsWidget = prefs["widgets.system.lists.enabled"] || nimbusListsEnabled || nimbusListsTrainhopEnabled;
+    const mayHaveTimerWidget = prefs["widgets.system.focusTimer.enabled"] || nimbusTimerEnabled || nimbusTimerTrainhopEnabled;
 
     // These prefs set the initial values on the Customize panel toggle switches
     const enabledWidgets = {

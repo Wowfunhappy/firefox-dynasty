@@ -241,7 +241,6 @@ class Nursery {
   // should be freed at the end of a minor GC. Buffers are unregistered when
   // their owning objects are tenured.
   [[nodiscard]] bool registerMallocedBuffer(void* buffer, size_t nbytes);
-  void registerBuffer(void* buffer, size_t nbytes);
 
   // Mark a malloced buffer as no longer needing to be freed.
   inline void removeMallocedBuffer(void* buffer, size_t nbytes);
@@ -387,8 +386,11 @@ class Nursery {
   }
 
   inline void addMallocedBufferBytes(size_t nbytes);
+  inline void removeMallocedBufferBytes(size_t nbytes);
 
   mozilla::TimeStamp lastCollectionEndTime() const;
+
+  size_t capacity() const { return capacity_; }
 
  private:
   struct Space;
@@ -405,8 +407,6 @@ class Nursery {
   using ProfileDurations =
       mozilla::EnumeratedArray<ProfileKey, mozilla::TimeDuration,
                                size_t(ProfileKey::KeyCount)>;
-
-  size_t capacity() const { return capacity_; }
 
   // Total number of chunks and the capacity of the current nursery
   // space. Chunks will be lazily allocated and added to the chunks array up to

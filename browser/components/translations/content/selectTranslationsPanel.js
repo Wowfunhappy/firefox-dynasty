@@ -2211,11 +2211,13 @@ var SelectTranslationsPanel = new (class {
       `Creating new Translator (${TranslationsUtils.serializeLanguagePair(languagePair)})`
     );
 
-    const translator = await Translator.create(
+    const translator = await Translator.create({
       languagePair,
-      this.#requestTranslationsPort,
-      true /* allowSameLanguage */
-    );
+      requestTranslationsPort: this.#requestTranslationsPort,
+      allowSameLanguage: true,
+      activeRequestCapacity: 1,
+    });
+
     return translator;
   }
 

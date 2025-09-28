@@ -5646,6 +5646,11 @@
   value: false
   mirror: always
 
+- name: dom.webnotifications.forbid_nested_first_party.enabled
+  type: RelaxedAtomicBool
+  value: true
+  mirror: always
+
 - name: dom.webnotifications.enabled
   type: RelaxedAtomicBool
   value: true
@@ -8065,6 +8070,20 @@
   mirror: once
 
 # Use a more precise method for sampling gradients when *not* using SWGL .
+- name: gfx.webrender.precise-linear-gradients
+  type: bool
+  rust: true
+  value: false
+  mirror: once
+
+# Use a more precise method for sampling gradients when using SWGL.
+- name: gfx.webrender.precise-linear-gradients-swgl
+  type: bool
+  rust: true
+  value: false
+  mirror: once
+
+# Use a more precise method for sampling gradients when *not* using SWGL .
 - name: gfx.webrender.precise-radial-gradients
   type: bool
   rust: true
@@ -9783,7 +9802,7 @@
 # https://drafts.csswg.org/css-anchor-position-1/
 - name: layout.css.anchor-positioning.enabled
   type: RelaxedAtomicBool
-  value: false
+  value: @IS_NIGHTLY_BUILD@
   mirror: always
   rust: true
 
@@ -9952,24 +9971,10 @@
   value: false
   mirror: always
 
-# Is support for rect() enabled?
-- name: layout.css.basic-shape-rect.enabled
-  type: RelaxedAtomicBool
-  value: true
-  mirror: always
-  rust: true
-
 # Is support for shape() enabled?
 - name: layout.css.basic-shape-shape.enabled
   type: RelaxedAtomicBool
   value: @IS_NIGHTLY_BUILD@
-  mirror: always
-  rust: true
-
-# Is support for xywh() enabled?
-- name: layout.css.basic-shape-xywh.enabled
-  type: RelaxedAtomicBool
-  value: true
   mirror: always
   rust: true
 
@@ -10426,7 +10431,7 @@
 # https://drafts.csswg.org/css-text-4/#text-autospace-property
 - name: layout.css.text-autospace.enabled
   type: bool
-  value: false
+  value: @IS_NIGHTLY_BUILD@
   mirror: always
 
 # Maximum number of lines to try balancing.
@@ -15122,7 +15127,12 @@
 # Use NSPR for HTTP3 UDP IO
 - name: network.http.http3.use_nspr_for_io
   type: RelaxedAtomicBool
+#ifdef ANDROID
+  # Holding back on Android for now given <https://bugzilla.mozilla.org/show_bug.cgi?id=1987256>.
   value: @IS_NOT_EARLY_BETA_OR_EARLIER@
+#else
+  value: false
+#endif
   mirror: always
   rust: true
 
@@ -15130,7 +15140,7 @@
 # network.http.http3.use_nspr_for_io is true.
 - name: network.http.http3.ecn_mark
   type: RelaxedAtomicBool
-  value: @IS_EARLY_BETA_OR_EARLIER@
+  value: true
   mirror: always
   rust: true
 
@@ -15183,6 +15193,13 @@
 - name: network.http.http3.backup_timer_delay
   type: RelaxedAtomicUint32
   value: 100
+  mirror: always
+
+# Delay in milliseconds before falling back the proxy’s inner connection
+# from HTTP/3 to HTTP/2/1 after receiving 200 OK.
+- name: network.http.http3.inner_fallback_delay
+  type: RelaxedAtomicUint32
+  value: 3000
   mirror: always
 
 # The global half open sockets allowed for creating a backup connection.
@@ -16834,11 +16851,13 @@
   mirror: always
   do_not_use_directly: true # Consumers should use SandboxSettings to ask.
 
-# This controls the strength of the Windows GPU process sandbox.  Changes
-# will require restart.
-# For information on what the level number means, see
-# SetSecurityLevelForGPUProcess() in
+# This controls the strength of the GPU process sandbox on Windows
+# and macOS. Changes will require restart. Levels have different meanings
+# on Windows and macOS. For information on what the level number means on
+# Windows, see SetSecurityLevelForGPUProcess() in
 # security/sandbox/win/src/sandboxbroker/sandboxBroker.cpp
+# For macOS, any level >= 1 enables the sandbox and setting a higher level
+# has no effect.
 - name: security.sandbox.gpu.level
   type: int32_t
 #if defined(XP_WIN)
@@ -16847,6 +16866,8 @@
 #else
   value: 1
 #endif
+#elif defined(XP_MACOSX)
+  value: 1
 #else
   value: 0
 #endif
@@ -17484,7 +17505,7 @@
 
 - name: security.integrity_policy.enabled
   type: RelaxedAtomicBool
-  value: @IS_NIGHTLY_BUILD@
+  value: true
   mirror: always
 
 - name: security.integrity_policy.stylesheet.enabled

@@ -19,16 +19,19 @@ add_task(async function test_error_visibility_heuristic() {
     set: [[SCHEDULED_BACKUPS_ENABLED_PREF, true]],
   });
 
-  await BrowserTestUtils.withNewTab("about:preferences", async browser => {
+  await BrowserTestUtils.withNewTab("about:preferences#sync", async browser => {
     let settings = browser.contentDocument.querySelector("backup-settings");
     let sandbox = sinon.createSandbox();
+
+    registerCleanupFunction(() => {
+      sandbox.restore();
+    });
 
     const bs = BackupService.get();
     sandbox
       .stub(bs, "resolveArchiveDestFolderPath")
       .rejects(new BackupError("forced failure", ERRORS.UNKNOWN));
 
-    // let prefObserver = promisePrefChangeObserved(BACKUP_ERROR_CODE_PREF_NAME);
     settings.triggerBackupButtonEl.click();
 
     // ensure that the error message is shown
@@ -45,6 +48,7 @@ add_task(async function test_error_visibility_heuristic() {
     await settings.updateComplete;
 
     Assert.ok(settings.backupErrorBarEl, "Error bar is visible");
-    sandbox.restore();
   });
+
+  await SpecialPowers.popPrefEnv();
 });

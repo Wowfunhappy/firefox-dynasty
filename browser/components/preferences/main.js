@@ -2,6 +2,9 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+/**@import { SettingGroup } from "./widgets/setting-group/setting-group.mjs" */
+/** @import { PreferencesSettingsConfig } from "chrome://global/content/preferences/Preferences.mjs" */
+
 /* import-globals-from extensionControlled.js */
 /* import-globals-from preferences.js */
 /* import-globals-from /toolkit/mozapps/preferences/fontbuilder.js */
@@ -372,6 +375,14 @@ Preferences.addSetting({
 });
 
 Preferences.addSetting({ id: "zoomPlaceholder" });
+Preferences.addSetting({
+  id: "containersPane",
+  onUserClick(e) {
+    e.preventDefault();
+    gotoPref("paneContainers2");
+  },
+});
+Preferences.addSetting({ id: "containersPlaceholder" });
 
 // Downloads
 /*
@@ -655,7 +666,58 @@ Preferences.addSetting({
   },
 });
 
+// Performance settings
+Preferences.addSetting({
+  id: "contentProcessCount",
+  pref: "dom.ipc.processCount",
+});
+Preferences.addSetting({
+  id: "allowHWAccel",
+  pref: "layers.acceleration.disabled",
+  deps: ["useRecommendedPerformanceSettings"],
+  visible({ useRecommendedPerformanceSettings }) {
+    return !useRecommendedPerformanceSettings.value;
+  },
+});
+Preferences.addSetting({
+  id: "useRecommendedPerformanceSettings",
+  pref: "browser.preferences.defaultPerformanceSettings.enabled",
+  deps: ["contentProcessCount", "allowHWAccel"],
+  get(val, { allowHWAccel, contentProcessCount }) {
+    if (
+      allowHWAccel.value != allowHWAccel.pref.defaultValue ||
+      contentProcessCount.value != contentProcessCount.pref.defaultValue
+    ) {
+      return false;
+    }
+    return val;
+  },
+  set(val, { allowHWAccel, contentProcessCount }) {
+    if (val) {
+      contentProcessCount.value = contentProcessCount.pref.defaultValue;
+      allowHWAccel.value = allowHWAccel.pref.defaultValue;
+    }
+    return val;
+  },
+});
+
+/**
+ * @type {Record<string, PreferencesSettingsConfig>} SettingConfig
+ */
 let SETTINGS_CONFIG = {
+  containers: {
+    // This section is marked as in progress for testing purposes
+    inProgress: true,
+    items: [
+      {
+        id: "containersPlaceholder",
+        control: "moz-message-bar",
+        controlAttrs: {
+          message: "Placeholder for updated containers",
+        },
+      },
+    ],
+  },
   zoom: {
     // This section is marked as in progress for testing purposes
     inProgress: true,
@@ -665,6 +727,13 @@ let SETTINGS_CONFIG = {
         control: "moz-message-bar",
         controlAttrs: {
           message: "Placeholder for updated zoom controls",
+        },
+      },
+      {
+        id: "containersPane",
+        control: "moz-button",
+        controlAttrs: {
+          label: "Manage container settings",
         },
       },
     ],
@@ -819,6 +888,63 @@ let SETTINGS_CONFIG = {
       },
     ],
   },
+  httpsOnly: {
+    items: [
+      {
+        id: "httpsOnlyRadioGroup",
+        control: "moz-radio-group",
+        l10nId: "httpsonly-label",
+        supportPage: "https-only-prefs",
+        options: [
+          {
+            id: "httpsOnlyRadioEnabled",
+            value: "enabled",
+            l10nId: "httpsonly-radio-enabled",
+          },
+          {
+            id: "httpsOnlyRadioEnabledPBM",
+            value: "privateOnly",
+            l10nId: "httpsonly-radio-enabled-pbm",
+          },
+          {
+            id: "httpsOnlyRadioDisabled",
+            value: "disabled",
+            l10nId: "httpsonly-radio-disabled3",
+            supportPage: "connection-upgrades",
+          },
+        ],
+      },
+      {
+        id: "httpsOnlyExceptionButton",
+        l10nId: "sitedata-cookies-exceptions",
+        control: "moz-box-button",
+        controlAttrs: {
+          "search-l10n-ids":
+            "permissions-address,permissions-allow.label,permissions-remove.label,permissions-remove-all.label,permissions-exceptions-https-only-desc2",
+        },
+      },
+    ],
+  },
+  browsingProtection: {
+    items: [
+      {
+        id: "enableSafeBrowsing",
+        l10nId: "security-enable-safe-browsing",
+        supportPage: "phishing-malware",
+        control: "moz-checkbox",
+        items: [
+          {
+            id: "blockDownloads",
+            l10nId: "security-block-downloads",
+          },
+          {
+            id: "blockUncommonUnwanted",
+            l10nId: "security-block-uncommon-software",
+          },
+        ],
+      },
+    ],
+  },
   nonTechnicalPrivacy: {
     l10nId: "non-technical-privacy-label",
     items: [
@@ -853,11 +979,28 @@ let SETTINGS_CONFIG = {
       },
     ],
   },
+  performance: {
+    items: [
+      {
+        id: "useRecommendedPerformanceSettings",
+        l10nId: "performance-use-recommended-settings-checkbox",
+        supportPage: "performance",
+      },
+      {
+        id: "allowHWAccel",
+        l10nId: "performance-allow-hw-accel",
+      },
+    ],
+  },
 };
 
+/**
+ * @param {string} id - ID of {@link SettingGroup} custom element.
+ */
 function initSettingGroup(id) {
+  /** @type {SettingGroup} */
   let group = document.querySelector(`setting-group[groupid=${id}]`);
-  let config = SETTINGS_CONFIG[id];
+  const config = SETTINGS_CONFIG[id];
   if (group && config) {
     if (config.inProgress && !srdSectionEnabled(id)) {
       group.remove();
@@ -987,17 +1130,6 @@ var gMainPane = {
     }
 
     this.initBrowserContainers();
-    this.buildContentProcessCountMenuList();
-
-    this.updateDefaultPerformanceSettingsPref();
-
-    let defaultPerformancePref = Preferences.get(
-      "browser.preferences.defaultPerformanceSettings.enabled"
-    );
-    defaultPerformancePref.on("change", () => {
-      this.updatePerformanceSettingsBox({ duringChangeEvent: true });
-    });
-    this.updatePerformanceSettingsBox({ duringChangeEvent: false });
     this.displayUseSystemLocale();
     this.updateProxySettingsUI();
     initializeProxyUI(gMainPane);
@@ -1018,6 +1150,7 @@ var gMainPane = {
     initSettingGroup("downloads");
     initSettingGroup("browsing");
     initSettingGroup("zoom");
+    initSettingGroup("performance");
 
     if (AppConstants.platform == "win") {
       // Functionality for "Show tabs in taskbar" on Windows 7 and up.
@@ -1169,10 +1302,6 @@ var gMainPane = {
       gMainPane.updateColorsButton.bind(gMainPane)
     );
     gMainPane.updateColorsButton();
-    Preferences.get("layers.acceleration.disabled").on(
-      "change",
-      gMainPane.updateHardwareAcceleration.bind(gMainPane)
-    );
     setEventListener(
       "connectionSettings",
       "command",
@@ -2791,10 +2920,6 @@ var gMainPane = {
     gotoPref("containers");
   },
 
-  updateHardwareAcceleration() {
-    // Placeholder for restart on change
-  },
-
   // FONTS
 
   /**
@@ -2988,77 +3113,6 @@ var gMainPane = {
       return 1;
     }
     return 0;
-  },
-
-  updateDefaultPerformanceSettingsPref() {
-    let defaultPerformancePref = Preferences.get(
-      "browser.preferences.defaultPerformanceSettings.enabled"
-    );
-    let processCountPref = Preferences.get("dom.ipc.processCount");
-    let accelerationPref = Preferences.get("layers.acceleration.disabled");
-    if (
-      processCountPref.value != processCountPref.defaultValue ||
-      accelerationPref.value != accelerationPref.defaultValue
-    ) {
-      defaultPerformancePref.value = false;
-    }
-  },
-
-  updatePerformanceSettingsBox() {
-    let defaultPerformancePref = Preferences.get(
-      "browser.preferences.defaultPerformanceSettings.enabled"
-    );
-    let performanceSettings = document.getElementById("performanceSettings");
-    let processCountPref = Preferences.get("dom.ipc.processCount");
-    if (defaultPerformancePref.value) {
-      let accelerationPref = Preferences.get("layers.acceleration.disabled");
-      // Unset the value so process count will be decided by the platform.
-      processCountPref.value = processCountPref.defaultValue;
-      accelerationPref.value = accelerationPref.defaultValue;
-      performanceSettings.hidden = true;
-    } else {
-      performanceSettings.hidden = false;
-    }
-  },
-
-  buildContentProcessCountMenuList() {
-    if (Services.appinfo.fissionAutostart) {
-      document.getElementById("limitContentProcess").hidden = true;
-      document.getElementById("contentProcessCount").hidden = true;
-      document.getElementById("contentProcessCountEnabledDescription").hidden =
-        true;
-      document.getElementById("contentProcessCountDisabledDescription").hidden =
-        true;
-      return;
-    }
-    if (Services.appinfo.browserTabsRemoteAutostart) {
-      let processCountPref = Preferences.get("dom.ipc.processCount");
-      let defaultProcessCount = processCountPref.defaultValue;
-
-      let contentProcessCount =
-        document.querySelector(`#contentProcessCount > menupopup >
-                                menuitem[value="${defaultProcessCount}"]`);
-
-      document.l10n.setAttributes(
-        contentProcessCount,
-        "performance-default-content-process-count",
-        { num: defaultProcessCount }
-      );
-
-      document.getElementById("limitContentProcess").disabled = false;
-      document.getElementById("contentProcessCount").disabled = false;
-      document.getElementById("contentProcessCountEnabledDescription").hidden =
-        false;
-      document.getElementById("contentProcessCountDisabledDescription").hidden =
-        true;
-    } else {
-      document.getElementById("limitContentProcess").disabled = true;
-      document.getElementById("contentProcessCount").disabled = true;
-      document.getElementById("contentProcessCountEnabledDescription").hidden =
-        true;
-      document.getElementById("contentProcessCountDisabledDescription").hidden =
-        false;
-    }
   },
 
   _minUpdatePrefDisableTime: 1000,

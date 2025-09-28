@@ -49,7 +49,7 @@ use crate::stylesheets::scope_rule::{
 #[cfg(feature = "gecko")]
 use crate::stylesheets::{
     CounterStyleRule, FontFaceRule, FontFeatureValuesRule, FontPaletteValuesRule,
-    PagePseudoClassFlags,
+    PagePseudoClassFlags, PositionTryRule,
 };
 use crate::stylesheets::{
     CssRule, EffectiveRulesIterator, Origin, OriginSet, PageRule, PerOrigin, PerOriginIter,
@@ -1503,35 +1503,41 @@ impl Stylist {
         self.any_applicable_rule_data(element, |data| data.mapped_ids.contains(id))
     }
 
-    /// Returns the registered `@keyframes` animation for the specified name.
+    /// Looks up a CascadeData-dependent rule for a given element.
+    ///
+    /// NOTE(emilio): This is a best-effort thing, the right fix is a bit TBD because it involves
+    /// "recording" which tree the name came from, see [1][2].
+    ///
+    /// [1]: https://github.com/w3c/csswg-drafts/issues/1995
+    /// [2]: https://bugzil.la/1458189
     #[inline]
-    pub fn get_animation<'a, E>(&'a self, name: &Atom, element: E) -> Option<&'a KeyframesAnimation>
+    fn lookup_element_dependent_at_rule<'a, T, F, E>(
+        &'a self,
+        element: E,
+        find_in: F,
+    ) -> Option<&'a T>
     where
         E: TElement + 'a,
+        F: Fn(&'a CascadeData) -> Option<&'a T>,
     {
         macro_rules! try_find_in {
             ($data:expr) => {
-                if let Some(animation) = $data.animations.get(name) {
-                    return Some(animation);
+                if let Some(thing) = find_in(&$data) {
+                    return Some(thing);
                 }
             };
         }
 
-        // NOTE(emilio): This is a best-effort thing, the right fix is a bit TBD because it
-        // involves "recording" which tree the name came from, see [1][2].
-        //
-        // [1]: https://github.com/w3c/csswg-drafts/issues/1995
-        // [2]: https://bugzil.la/1458189
-        let mut animation = None;
+        let mut result = None;
         let doc_rules_apply =
             element.each_applicable_non_document_style_rule_data(|data, _host| {
-                if animation.is_none() {
-                    animation = data.animations.get(name);
+                if result.is_none() {
+                    result = find_in(data);
                 }
             });
 
-        if animation.is_some() {
-            return animation;
+        if result.is_some() {
+            return result;
         }
 
         if doc_rules_apply {
@@ -1541,6 +1547,34 @@ impl Stylist {
         try_find_in!(self.cascade_data.user_agent.cascade_data);
 
         None
+    }
+
+    /// Returns the registered `@keyframes` animation for the specified name.
+    #[inline]
+    pub fn lookup_keyframes<'a, E>(
+        &'a self,
+        name: &Atom,
+        element: E,
+    ) -> Option<&'a KeyframesAnimation>
+    where
+        E: TElement + 'a,
+    {
+        self.lookup_element_dependent_at_rule(element, |data| data.animations.get(name))
+    }
+
+    /// Returns the registered `@position-try-rule` animation for the specified name.
+    #[inline]
+    pub fn lookup_position_try<'a, E>(
+        &'a self,
+        name: &Atom,
+        element: E,
+    ) -> Option<&'a Arc<Locked<PositionTryRule>>>
+    where
+        E: TElement + 'a,
+    {
+        self.lookup_element_dependent_at_rule(element, |data| {
+            data.extra_data.position_try_rules.get(name)
+        })
     }
 
     /// Computes the match results of a given element against the set of
@@ -1956,6 +1990,10 @@ pub struct ExtraStyleData {
     #[cfg(feature = "gecko")]
     pub counter_styles: LayerOrderedMap<Arc<Locked<CounterStyleRule>>>,
 
+    /// A map of effective @position-try rules.
+    #[cfg(feature = "gecko")]
+    pub position_try_rules: LayerOrderedMap<Arc<Locked<PositionTryRule>>>,
+
     /// A map of effective page rules.
     #[cfg(feature = "gecko")]
     pub pages: PageRuleMap,
@@ -1989,6 +2027,18 @@ impl ExtraStyleData {
         self.counter_styles.try_insert(name, rule.clone(), layer)
     }
 
+    /// Add the given @position-try rule.
+    fn add_position_try(
+        &mut self,
+        guard: &SharedRwLockReadGuard,
+        rule: &Arc<Locked<PositionTryRule>>,
+        layer: LayerId,
+    ) -> Result<(), AllocErr> {
+        let name = rule.read_with(guard).name.0.clone();
+        self.position_try_rules
+            .try_insert(name, rule.clone(), layer)
+    }
+
     /// Add the given @page rule.
     fn add_page(
         &mut self,
@@ -2019,17 +2069,16 @@ impl ExtraStyleData {
         self.font_feature_values.sort(layers);
         self.font_palette_values.sort(layers);
         self.counter_styles.sort(layers);
+        self.position_try_rules.sort(layers);
     }
 
     fn clear(&mut self) {
-        #[cfg(feature = "gecko")]
-        {
-            self.font_faces.clear();
-            self.font_feature_values.clear();
-            self.font_palette_values.clear();
-            self.counter_styles.clear();
-            self.pages.clear();
-        }
+        self.font_faces.clear();
+        self.font_feature_values.clear();
+        self.font_palette_values.clear();
+        self.counter_styles.clear();
+        self.position_try_rules.clear();
+        self.pages.clear();
     }
 }
 
@@ -2065,6 +2114,7 @@ impl MallocSizeOf for ExtraStyleData {
         n += self.font_feature_values.shallow_size_of(ops);
         n += self.font_palette_values.shallow_size_of(ops);
         n += self.counter_styles.shallow_size_of(ops);
+        n += self.position_try_rules.shallow_size_of(ops);
         n += self.pages.shallow_size_of(ops);
         n
     }
@@ -2626,10 +2676,12 @@ impl ScopeBoundsWithHashes {
             .flatten()
     }
 
-    fn iter_selectors<'a>(&'a self) -> impl Iterator<Item = &'a Selector<SelectorImpl>> {
-        let start_selectors = Self::selectors_for(self.start.as_ref());
-        let end_selectors = Self::selectors_for(self.end.as_ref());
-        start_selectors.chain(end_selectors)
+    fn start_selectors<'a>(&'a self) -> impl Iterator<Item = &'a Selector<SelectorImpl>> {
+        Self::selectors_for(self.start.as_ref())
+    }
+
+    fn end_selectors<'a>(&'a self) -> impl Iterator<Item = &'a Selector<SelectorImpl>> {
+        Self::selectors_for(self.end.as_ref())
     }
 
     fn is_trivial(&self) -> bool {
@@ -3357,6 +3409,47 @@ impl CascadeData {
         }
     }
 
+    fn note_scope_selector_for_invalidation(
+        &mut self,
+        quirks_mode: QuirksMode,
+        inner_scope_dependencies: &Option<Arc<servo_arc::HeaderSlice<(), Dependency>>>,
+        dependency_vector: &mut Vec<Dependency>,
+        s: &Selector<SelectorImpl>,
+        scope_kind: ScopeDependencyInvalidationKind,
+    ) -> Result<(), AllocErr> {
+        let mut new_inner_dependencies = note_selector_for_invalidation(
+            &s.clone(),
+            quirks_mode,
+            &mut self.invalidation_map,
+            &mut self.relative_selector_invalidation_map,
+            &mut self.additional_relative_selector_invalidation_map,
+            inner_scope_dependencies.as_ref(),
+            Some(scope_kind),
+        )?;
+        let mut _unused = false;
+        let mut visitor = StylistSelectorVisitor {
+            needs_revalidation: &mut _unused,
+            passed_rightmost_selector: true,
+            in_selector_list_of: SelectorListKind::default(),
+            mapped_ids: &mut self.mapped_ids,
+            nth_of_mapped_ids: &mut self.nth_of_mapped_ids,
+            attribute_dependencies: &mut self.attribute_dependencies,
+            nth_of_class_dependencies: &mut self.nth_of_class_dependencies,
+            nth_of_attribute_dependencies: &mut self
+                .nth_of_attribute_dependencies,
+            nth_of_custom_state_dependencies: &mut self
+                .nth_of_custom_state_dependencies,
+            state_dependencies: &mut self.state_dependencies,
+            nth_of_state_dependencies: &mut self.nth_of_state_dependencies,
+            document_state_dependencies: &mut self.document_state_dependencies,
+        };
+        s.visit(&mut visitor);
+        new_inner_dependencies.as_mut().map(|dep| {
+            dependency_vector.append(dep);
+        });
+        Ok(())
+    }
+
     fn add_styles(
         &mut self,
         selectors: &SelectorList<SelectorImpl>,
@@ -3441,6 +3534,7 @@ impl CascadeData {
                     &mut self.relative_selector_invalidation_map,
                     &mut self.additional_relative_selector_invalidation_map,
                     None,
+                    None,
                 )?;
                 let mut needs_revalidation = false;
                 let mut visitor = StylistSelectorVisitor {
@@ -3475,7 +3569,7 @@ impl CascadeData {
                         .map(|dep_vec| ThinArc::from_header_and_iter((), dep_vec.into_iter()));
 
                 while scope_idx != ScopeConditionId::none() {
-                    let cur_scope = &self.scope_conditions[scope_idx.0 as usize];
+                    let cur_scope = self.scope_conditions[scope_idx.0 as usize].clone();
 
                     if let Some(cond) = cur_scope.condition.as_ref() {
                         let mut dependency_vector: Vec<Dependency> = Vec::new();
@@ -3491,39 +3585,27 @@ impl CascadeData {
                             ));
                         }
 
-                        for s in cond.iter_selectors() {
-                            let mut new_inner_dependencies = note_selector_for_invalidation(
-                                &s.clone(),
+                        for s in cond.start_selectors() {
+                            self.note_scope_selector_for_invalidation(
                                 quirks_mode,
-                                &mut self.invalidation_map,
-                                &mut self.relative_selector_invalidation_map,
-                                &mut self.additional_relative_selector_invalidation_map,
-                                inner_scope_dependencies.as_ref(),
+                                &inner_scope_dependencies,
+                                &mut dependency_vector,
+                                s,
+                                ScopeDependencyInvalidationKind::ExplicitScope,
                             )?;
-
-                            let mut _unused = false;
-                            let mut visitor = StylistSelectorVisitor {
-                                needs_revalidation: &mut _unused,
-                                passed_rightmost_selector: true,
-                                in_selector_list_of: SelectorListKind::default(),
-                                mapped_ids: &mut self.mapped_ids,
-                                nth_of_mapped_ids: &mut self.nth_of_mapped_ids,
-                                attribute_dependencies: &mut self.attribute_dependencies,
-                                nth_of_class_dependencies: &mut self.nth_of_class_dependencies,
-                                nth_of_attribute_dependencies: &mut self
-                                    .nth_of_attribute_dependencies,
-                                nth_of_custom_state_dependencies: &mut self
-                                    .nth_of_custom_state_dependencies,
-                                state_dependencies: &mut self.state_dependencies,
-                                nth_of_state_dependencies: &mut self.nth_of_state_dependencies,
-                                document_state_dependencies: &mut self.document_state_dependencies,
-                            };
-                            s.visit(&mut visitor);
-
-                            new_inner_dependencies.as_mut().map(|dep| {
-                                dependency_vector.append(dep);
-                            });
                         }
+
+                        // End-Scope selectors require special handling
+                        for s in cond.end_selectors() {
+                            self.note_scope_selector_for_invalidation(
+                                quirks_mode,
+                                &inner_scope_dependencies,
+                                &mut dependency_vector,
+                                s,
+                                ScopeDependencyInvalidationKind::ScopeEnd,
+                            )?;
+                        }
+
                         inner_scope_dependencies = Some(ThinArc::from_header_and_iter(
                             (),
                             dependency_vector.into_iter(),
@@ -3720,6 +3802,14 @@ impl CascadeData {
                 #[cfg(feature = "gecko")]
                 CssRule::CounterStyle(ref rule) => {
                     self.extra_data.add_counter_style(
+                        guard,
+                        rule,
+                        containing_rule_state.layer_id,
+                    )?;
+                },
+                #[cfg(feature = "gecko")]
+                CssRule::PositionTry(ref rule) => {
+                    self.extra_data.add_position_try(
                         guard,
                         rule,
                         containing_rule_state.layer_id,

@@ -29,7 +29,7 @@
   --tab-pinned-margin-inline-expanded: var(--space-xsmall);
   --tab-pinned-min-width-expanded: calc(var(--tab-pinned-expanded-background-width) + 2 * var(--tab-pinned-margin-inline-expanded));
   --tab-pinned-container-margin-inline-expanded: var(--space-small);
-  --tab-border-radius: var(--border-radius-medium);
+  --tab-border-radius: var(--toolbarbutton-border-radius);
   --tab-overflow-clip-margin: 2px;
   --tab-close-button-padding: 6px;
   --tab-block-margin: 4px;
@@ -145,6 +145,14 @@
 
   &[noshadowfortests] {
     --tab-selected-shadow: none;
+  }
+
+  &[orient="horizontal"] {
+    --tab-group-label-highlight-radius: 2px;
+  }
+
+  &[orient="vertical"] {
+    --tab-group-label-highlight-radius: 4px;
   }
 }
 
@@ -945,7 +953,7 @@
 }
 
 #pinned-tabs-container[orient="horizontal"] {
-  max-width: 33vw;
+  max-width: max(80px, calc(100vw - var(--window-controls-size) - 300px /* Room for toolbar buttons, drag space, and unpinned tabs */));
 
   &:empty {
     display: none;
@@ -1160,7 +1168,7 @@
 
     tab-group:not([collapsed]) > .tabbrowser-tab:last-of-type > .tab-stack > .tab-background > &,
     tab-group[collapsed]:not([hasmultipletabs]) & {
-      inset-inline-end: 0;
+      inset-inline-end: calc(var(--tab-border-radius) / 2);
       border-start-end-radius: calc(var(--tab-group-line-thickness) / 2);
       border-end-end-radius: calc(var(--tab-group-line-thickness) / 2);
     }
@@ -1191,7 +1199,7 @@
   #tabbrowser-tabs[movingtab]:not([movingtab-group],[movingtab-ungroup]) .tabbrowser-tab:is(:active,[multiselected]) > .tab-stack > .tab-background > & {
     display: flex;
     background-color: light-dark(var(--dragover-tab-group-color), var(--dragover-tab-group-color-invert));
-    border-radius: 1px;
+    border-radius: var(--border-radius-xsmall);
   }
 
   #tabbrowser-tabs:is([movingtab-group], [movingtab-ungroup]) &:is([selected], [multiselected]) {
@@ -1364,7 +1372,11 @@ tab-group {
 
 .tab-group-label-hover-highlight {
   tab-group[collapsed] & {
-    border-radius: var(--tab-border-radius);
+    /* Since effective border radius is the sum of border-radius and box-shadow
+     * spread radius, make sure that these values vary together in order to add
+     * up to --tab-border-radius.
+     */
+    border-radius: calc(var(--tab-border-radius) - var(--tab-group-label-highlight-radius));
 
     #tabbrowser-tabs[orient="horizontal"] & {
       padding-block: 4px;
@@ -1389,18 +1401,7 @@ tab-group {
   tab-group[collapsed]:not([movingtabgroup]) &:hover,
   tab-group[previewpanelactive] & {
     background-color: var(--tab-hover-background-color);
-
-    #tabbrowser-tabs[orient="horizontal"] & {
-      box-shadow: 0 0 0 2px var(--tab-hover-background-color);
-    }
-
-    #tabbrowser-tabs[orient="vertical"] & {
-      box-shadow: 0 0 0 3px var(--tab-hover-background-color);
-    }
-
-    #tabbrowser-tabs[orient="vertical"][expanded] & {
-      box-shadow: 0 0 0 4px var(--tab-hover-background-color);
-    }
+    box-shadow: 0 0 0 var(--tab-group-label-highlight-radius) var(--tab-hover-background-color);
   }
 }
 
@@ -1412,7 +1413,11 @@ tab-group {
   white-space: nowrap;
   overflow: hidden;
   text-shadow: none;
-  border-radius: var(--border-radius-small);
+  /* .tab-group-label-hover-highlight shadow surrounds the .tab-group-label; keep
+   * the border radius of the inside element 2px smaller so that these two elements
+   * look good when hovering over a collapsed tab group label.
+   */
+  border-radius: calc(var(--tab-border-radius) - 2px);
   line-height: calc(var(--tab-group-label-height) - var(--tab-group-line-thickness));
   min-height: var(--tab-group-label-height);
   min-width: var(--tab-group-label-height);
@@ -1666,12 +1671,8 @@ tab-group {
   }
 }
 
-#tabbrowser-arrowscrollbox[orient="horizontal"] {
-  min-width: 20vw;
-
-  &::part(scrollbox) {
-    contain: inline-size;
-  }
+#tabbrowser-arrowscrollbox[orient="horizontal"]::part(scrollbox) {
+  contain: inline-size;
 }
 
 /* Vertical tabs styling */

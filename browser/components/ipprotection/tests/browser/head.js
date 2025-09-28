@@ -9,7 +9,7 @@ const { IPProtection, IPProtectionWidget } = ChromeUtils.importESModule(
   "resource:///modules/ipprotection/IPProtection.sys.mjs"
 );
 
-const { IPProtectionService } = ChromeUtils.importESModule(
+const { IPProtectionService, IPProtectionStates } = ChromeUtils.importESModule(
   "resource:///modules/ipprotection/IPProtectionService.sys.mjs"
 );
 
@@ -82,13 +82,12 @@ async function openPanel(state, win = window) {
     panel.setState(state);
   }
 
-  IPProtection.openPanel(win);
-
   let panelShownPromise = waitForPanelEvent(win.document, "popupshown");
   let panelInitPromise = BrowserTestUtils.waitForEvent(
     win.document,
     "IPProtection:Init"
   );
+  await panel.open(win);
   await Promise.all([panelShownPromise, panelInitPromise]);
 
   let panelView = PanelMultiView.getViewNode(
@@ -252,7 +251,7 @@ add_setup(async function setupVPN() {
   setupService();
 
   await putServerInRemoteSettings(DEFAULT_SERVICE_STATUS.serverList);
-  IPProtectionService.init();
+  await IPProtectionService.init();
 
   if (DEFAULT_EXPERIMENT) {
     await setupExperiment();

@@ -38,17 +38,16 @@ body {
 :root {
   --window-min-width: 500px;
   /* Vertical tabs need extra room in the nav bar for window controls,
-     drag space, and the sidebar button.
-     FIXME: Only the window controls' size should be platform-specific, we
-            should be able to share the rest. */
-  --window-min-width-increase-for-vertical-tabs: 161px;
+     drag space, and the sidebar button. */
+  --window-min-width-increase-for-vertical-tabs: calc(var(--window-controls-size) + 23px);
+  --window-controls-size: 138px;
   @media (-moz-platform: macos) {
-    --window-min-width-increase-for-vertical-tabs: 99px;
+    --window-controls-size: 76px;
   }
   @media (-moz-platform: linux) {
     /* FIXME: Use --titlebar-button-* variables to calculate the window
               controls' size. */
-    --window-min-width-increase-for-vertical-tabs: 138px;
+    --window-controls-size: 115px;
   }
 
   user-select: none;
@@ -100,7 +99,7 @@ body {
   /* on macOS the animation of the toolbox in fullscreen needs the toolbox to be higher */
   --browser-area-z-index-toolbox-while-animating: 4;
 
-  --toolbarbutton-border-radius: 4px;
+  --toolbarbutton-border-radius: var(--button-border-radius);
   --identity-box-margin-inline: 4px;
   --urlbar-min-height: max(32px, 1.4em);
   --urlbar-icon-padding: calc((var(--urlbar-min-height) - 2px /* border */ - 2px /* padding */ - 16px /* icon */) / 2);
@@ -1077,7 +1076,7 @@ menupopup::part(drop-indicator) {
   margin: 0;
   background-color: rgb(0, 96, 223);
   color: rgb(255, 255, 255);
-  border-radius: 5px;
+  border-radius: var(--border-radius-small);
   padding: 10px;
   margin-top: 15px;
   margin-bottom: 10px;

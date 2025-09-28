@@ -2694,6 +2694,17 @@ void MacroAssembler::loadRealmFuse(RealmFuses::FuseIndex index, Register dest) {
           dest);
 }
 
+void MacroAssembler::loadRuntimeFuse(RuntimeFuses::FuseIndex index,
+                                     Register dest) {
+  loadPtr(AbsoluteAddress(runtime()->addressOfRuntimeFuse(index)), dest);
+}
+
+void MacroAssembler::guardRuntimeFuse(RuntimeFuses::FuseIndex index,
+                                      Label* fail) {
+  AbsoluteAddress addr(runtime()->addressOfRuntimeFuse(index));
+  branchPtr(Assembler::NotEqual, addr, ImmWord(0), fail);
+}
+
 void MacroAssembler::switchToRealm(const void* realm, Register scratch) {
   MOZ_ASSERT(realm);
 
@@ -5870,9 +5881,10 @@ static void MoveDataBlock(MacroAssembler& masm, Register base, int32_t from,
 #elif defined(JS_CODEGEN_ARM) || defined(JS_CODEGEN_X86)
   static constexpr Register scratch = ABINonArgReg0;
   masm.push(scratch);
-#elif defined(JS_CODEGEN_LOONG64) || defined(JS_CODEGEN_MIPS64) || \
+#elif defined(JS_CODEGEN_MIPS64) || defined(JS_CODEGEN_LOONG64) || \
     defined(JS_CODEGEN_RISCV64)
-  ScratchRegisterScope scratch(masm);
+  UseScratchRegisterScope temps(masm);
+  Register scratch = temps.Acquire();
 #elif !defined(JS_CODEGEN_NONE)
   const Register scratch = ScratchReg;
 #else
@@ -6181,11 +6193,16 @@ static void CollapseWasmFrameSlow(MacroAssembler& masm,
   masm.append(desc, CodeOffset(data.trampolineOffset));
 #else
 
-#  if defined(JS_CODEGEN_MIPS64) || defined(JS_CODEGEN_LOONG64)
+#  if defined(JS_CODEGEN_MIPS64)
   // intermediate values in ra can break the unwinder.
   masm.mov(&data.trampoline, ScratchRegister);
   // thus, modify ra in only one instruction.
   masm.mov(ScratchRegister, tempForRA);
+#  elif defined(JS_CODEGEN_LOONG64)
+  // intermediate values in ra can break the unwinder.
+  masm.mov(&data.trampoline, SavedScratchRegister);
+  // thus, modify ra in only one instruction.
+  masm.mov(SavedScratchRegister, tempForRA);
 #  else
   masm.mov(&data.trampoline, tempForRA);
 #  endif
@@ -8154,7 +8171,8 @@ void MacroAssembler::debugAssertCanonicalInt32(Register r) {
 #    elif defined(JS_CODEGEN_MIPS64) || defined(JS_CODEGEN_LOONG64) || \
         defined(JS_CODEGEN_RISCV64)
     Label ok;
-    ScratchRegisterScope scratch(asMasm());
+    UseScratchRegisterScope temps(*this);
+    Register scratch = temps.Acquire();
     move32SignExtendToPtr(r, scratch);
     branchPtr(Assembler::Equal, r, scratch, &ok);
     breakpoint();

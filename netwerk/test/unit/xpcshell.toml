@@ -852,6 +852,13 @@ skip-if = [
 run-sequentially = "http3server"
 skip-if = ["true"] # Will be reenabled in bug 1865394
 
+["test_http3_proxy.js"]
+run-sequentially = "node server exceptions dont replay well"
+skip-if = [
+  "os == 'android'",
+  "os == 'win' && os_version == '11.26100' && processor == 'x86_64' && msix'", # Bug 1808049
+]
+
 ["test_http3_server.js"]
 run-sequentially = "node server exceptions dont replay well"
 skip-if = [
@@ -1149,6 +1156,8 @@ skip-if = ["socketprocess_networking"] # Bug 1614708
 skip-if = [
   "os == 'win' && os_version == '11.26100' && processor == 'x86_64' && opt",
   "os == 'win' && os_version == '11.26100' && processor == 'x86' && opt",
+  "os == 'win' && os_version == '11.2009' && processor == 'x86_64' && opt", # Bug 1866777
+  "os == 'android' && android_version == '34' && processor == 'x86_64'", # Bug 1866777
 ]
 
 ["test_range_requests.js"]
@@ -1404,7 +1413,7 @@ run-sequentially = "node server exceptions dont replay well"
 ["test_trr_proxy.js"]
 
 ["test_trr_proxy_auth.js"]
-run-if = ["!socketprocess_networking"]
+skip-if = ["true"]
 
 ["test_trr_strict_mode.js"]
 

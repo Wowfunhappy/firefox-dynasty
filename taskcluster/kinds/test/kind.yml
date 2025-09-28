@@ -28,19 +28,15 @@ transforms:
 # used in these files.
 
 # Adding a new test type or running tests on a new platform? Be sure to review
-# https://wiki.mozilla.org/Sherifemfing/Job_Visibility_Policy
+# https://wiki.mozilla.org/Sheriffing/Job_Visibility_Policy
 
 tasks-from:
     - awsy.yml
-    - browsertime-desktop.yml
-    - browsertime-mobile.yml
     - compiled.yml
     - firefox-ui.yml
     - marionette.yml
     - misc.yml
-    - reftest.yml
     - talos.yml
-    - web-platform.yml
     - xpcshell.yml
 
 task-defaults:

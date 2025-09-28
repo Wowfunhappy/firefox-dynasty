@@ -2,11 +2,14 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+import { WEATHER_OPTIN_REGIONS } from "./ActivityStream.sys.mjs";
+
 const lazy = {};
 ChromeUtils.defineESModuleGetters(lazy, {
   clearTimeout: "resource://gre/modules/Timer.sys.mjs",
   setTimeout: "resource://gre/modules/Timer.sys.mjs",
   PersistentCache: "resource://newtab/lib/PersistentCache.sys.mjs",
+  Region: "resource://gre/modules/Region.sys.mjs",
 });
 
 ChromeUtils.defineLazyGetter(lazy, "MerinoClient", () => {
@@ -235,9 +238,18 @@ export class WeatherFeed {
     }
   }
 
+  async checkOptInRegion() {
+    const currentRegion = await lazy.Region.home;
+    const optIn =
+      this.isEnabled() && WEATHER_OPTIN_REGIONS.includes(currentRegion);
+    this.store.dispatch(ac.SetPref("system.showWeatherOptIn", optIn));
+    return optIn;
+  }
+
   async onAction(action) {
     switch (action.type) {
       case at.INIT:
+        await this.checkOptInRegion();
         if (this.isEnabled()) {
           await this.init();
         }
@@ -252,6 +264,9 @@ export class WeatherFeed {
         }
         break;
       case at.PREF_CHANGED:
+        if (action.data.name === "system.showWeather") {
+          await this.checkOptInRegion();
+        }
         await this.onPrefChangedAction(action);
         break;
       case at.WEATHER_LOCATION_SEARCH_UPDATE:

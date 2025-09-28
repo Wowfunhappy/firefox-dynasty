@@ -2797,13 +2797,13 @@ bool nsIFrame::ComputeOverflowClipRectRelativeToSelf(
     // NOTE(mats) We shouldn't be clipping at all in this dimension really,
     // but clipping in just one axis isn't supported by our GFX APIs so we
     // clip to our visual overflow rect instead.
-    nsRect o = InkOverflowRect();
+    nsRect o = InkOverflowRectRelativeToSelf();
     aOutRect.x = o.x;
     aOutRect.width = o.width;
   }
   if (MOZ_UNLIKELY(!aClipAxes.contains(PhysicalAxis::Vertical))) {
     // See the note above.
-    nsRect o = InkOverflowRect();
+    nsRect o = InkOverflowRectRelativeToSelf();
     aOutRect.y = o.y;
     aOutRect.height = o.height;
   }
@@ -4159,13 +4159,12 @@ static bool ShouldSkipFrame(nsDisplayListBuilder* aBuilder,
       (!aFrame->IsTextFrame() && aFrame->IsLeaf())) {
     return true;
   }
-  // The placeholder frame should have the same content as the OOF frame.
-  if (aBuilder->GetSelectedFramesOnly() &&
-      (aFrame->IsLeaf() && !aFrame->IsSelected())) {
+  if (aBuilder->GetSelectedFramesOnly() && aFrame->IsLeaf() &&
+      !aFrame->IsSelected()) {
     return true;
   }
   static const nsFrameState skipFlags =
-      (NS_FRAME_TOO_DEEP_IN_FRAME_TREE | NS_FRAME_IS_NONDISPLAY);
+      NS_FRAME_TOO_DEEP_IN_FRAME_TREE | NS_FRAME_IS_NONDISPLAY;
   if (aFrame->HasAnyStateBits(skipFlags)) {
     return true;
   }
@@ -4182,19 +4181,12 @@ void nsIFrame::BuildDisplayListForChild(nsDisplayListBuilder* aBuilder,
                                         const nsDisplayListSet& aLists,
                                         DisplayChildFlags aFlags) {
   AutoCheckBuilder check(aBuilder);
+  MOZ_ASSERT(!HidesContent(), "Caller should check");
 #ifdef DEBUG
   DL_LOGV("BuildDisplayListForChild (%p) <", aChild);
   ScopeExit e(
       [aChild]() { DL_LOGV("> BuildDisplayListForChild (%p)", aChild); });
 #endif
-
-  if (ShouldSkipFrame(aBuilder, aChild)) {
-    return;
-  }
-
-  if (HidesContent()) {
-    return;
-  }
 
   nsIFrame* child = aChild;
   auto* placeholder = child->IsPlaceholderFrame()
@@ -4202,6 +4194,9 @@ void nsIFrame::BuildDisplayListForChild(nsDisplayListBuilder* aBuilder,
                           : nullptr;
   nsIFrame* childOrOutOfFlow =
       placeholder ? placeholder->GetOutOfFlowFrame() : child;
+  if (ShouldSkipFrame(aBuilder, childOrOutOfFlow)) {
+    return;
+  }
 
   // If we're generating a display list for printing, include Link items for
   // frames that correspond to HTML link elements so that we can have active
@@ -9107,10 +9102,10 @@ bool nsIFrame::IsEmpty() {
 }
 
 bool nsIFrame::CachedIsEmpty() {
-  MOZ_ASSERT(!HasAnyStateBits(NS_FRAME_IS_DIRTY) ||
-                 IsHiddenByContentVisibilityOfInFlowParentForLayout(),
-             "Must only be called on reflowed lines or those hidden by "
-             "content-visibility.");
+  NS_ASSERTION(!HasAnyStateBits(NS_FRAME_IS_DIRTY) ||
+                   IsHiddenByContentVisibilityOfInFlowParentForLayout(),
+               "Must only be called on reflowed lines or those hidden by "
+               "content-visibility.");
   return IsEmpty();
 }
 

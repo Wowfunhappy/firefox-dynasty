@@ -5,6 +5,7 @@
 import { html } from "chrome://global/content/vendor/lit.all.mjs";
 import { MozLitElement } from "chrome://global/content/lit-utils.mjs";
 import { getErrorL10nId } from "chrome://browser/content/backup/backup-errors.mjs";
+import { ERRORS } from "chrome://browser/content/backup/backup-constants.mjs";
 
 // eslint-disable-next-line import/no-unassigned-import
 import "chrome://browser/content/backup/turn-on-scheduled-backups.mjs";
@@ -28,9 +29,7 @@ export default class BackupSettings extends MozLitElement {
 
   static properties = {
     backupServiceState: { type: Object },
-    recoveryErrorCode: { type: Number },
     backupErrorCode: { type: Number },
-    recoveryInProgress: { type: Boolean },
     _enableEncryptionTypeAttr: { type: String },
   };
 
@@ -84,10 +83,10 @@ export default class BackupSettings extends MozLitElement {
       lastBackupFileName: "",
       supportBaseLink: "",
       backupInProgress: false,
+      recoveryInProgress: false,
+      recoveryErrorCode: 0,
     };
-    this.recoveryInProgress = false;
     this.backupErrorCode = this.#readBackupErrorPref();
-    this.recoveryErrorCode = 0;
     this._enableEncryptionTypeAttr = "";
   }
 
@@ -102,7 +101,6 @@ export default class BackupSettings extends MozLitElement {
     );
 
     this.addEventListener("dialogCancel", this);
-    this.addEventListener("getBackupFileInfo", this);
     this.addEventListener("restoreFromBackupConfirm", this);
     this.addEventListener("restoreFromBackupChooseFile", this);
   }
@@ -113,7 +111,7 @@ export default class BackupSettings extends MozLitElement {
 
   handleErrorBarDismiss = () => {
     // Reset the pref and reactive state; Lit will re-render without the bar.
-    Services.prefs.setIntPref(BACKUP_ERROR_CODE_PREF_NAME, 0);
+    Services.prefs.setIntPref(BACKUP_ERROR_CODE_PREF_NAME, ERRORS.NONE);
     this.backupErrorCode = 0;
   };
 
@@ -149,17 +147,6 @@ export default class BackupSettings extends MozLitElement {
           new CustomEvent("BackupUI:RestoreFromBackupChooseFile", {
             bubbles: true,
             composed: true,
-          })
-        );
-        break;
-      case "getBackupFileInfo":
-        this.dispatchEvent(
-          new CustomEvent("BackupUI:GetBackupFileInfo", {
-            bubbles: true,
-            composed: true,
-            detail: {
-              backupFile: event.detail.backupFile,
-            },
           })
         );
         break;
@@ -250,16 +237,8 @@ export default class BackupSettings extends MozLitElement {
   }
 
   restoreFromBackupDialogTemplate() {
-    let { backupFilePath, backupFileToRestore, backupFileInfo } =
-      this.backupServiceState;
     return html`<dialog id="restore-from-backup-dialog">
-      <restore-from-backup
-        .backupFilePath=${backupFilePath}
-        .backupFileToRestore=${backupFileToRestore}
-        .backupFileInfo=${backupFileInfo}
-        .recoveryInProgress=${this.recoveryInProgress}
-        .recoveryErrorCode=${this.recoveryErrorCode}
-      ></restore-from-backup>
+      <restore-from-backup></restore-from-backup>
     </dialog>`;
   }
 
@@ -295,19 +274,8 @@ export default class BackupSettings extends MozLitElement {
 
   handleShowRestoreDialog() {
     if (this.restoreFromBackupDialogEl) {
-      // check if a backup exists already before opening the modal
-      // don't block opening the modal
-      this.handleFindIfABackupFileExists();
       this.restoreFromBackupDialogEl.showModal();
     }
-  }
-
-  handleFindIfABackupFileExists() {
-    this.dispatchEvent(
-      new CustomEvent("BackupUI:FindIfABackupFileExists", {
-        bubbles: true,
-      })
-    );
   }
 
   handleShowBackupLocation() {

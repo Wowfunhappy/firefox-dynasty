@@ -198,6 +198,39 @@ See the :doc:`test kind documentation <kinds/test>` for more info.
    kinds/test
 
 
+reftest
+-------
+
+See the :doc:`test kind documentation <kinds/test>` for more info.
+
+.. toctree::
+   :hidden:
+
+   kinds/test
+
+
+browsertime
+-----------
+
+See the :doc:`test kind documentation <kinds/test>` for more info.
+
+.. toctree::
+   :hidden:
+
+   kinds/test
+
+
+web-platform-tests
+------------------
+
+See the :doc:`test kind documentation <kinds/test>` for more info.
+
+.. toctree::
+   :hidden:
+
+   kinds/test
+
+
 test
 ----
 

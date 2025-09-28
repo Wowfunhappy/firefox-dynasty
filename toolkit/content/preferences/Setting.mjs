@@ -44,6 +44,15 @@ export class Setting extends EventEmitter {
    */
   _deps;
 
+  /**
+   * @type {PreferencesSettingsConfig}
+   */
+  config;
+
+  /**
+   * @param {PreferencesSettingsConfig['id']} id
+   * @param {PreferencesSettingsConfig} config
+   */
   constructor(id, config) {
     super();
 
@@ -54,10 +63,7 @@ export class Setting extends EventEmitter {
     this.id = id;
     this.config = config;
     this.pref = config.pref && Preferences.get(config.pref);
-
-    for (const setting of Object.values(this.deps)) {
-      setting.on("change", this.onChange);
-    }
+    this._emitting = false;
 
     this.controllingExtensionInfo = {
       ...this.config.controllingExtensionInfo,
@@ -75,7 +81,12 @@ export class Setting extends EventEmitter {
   }
 
   onChange = () => {
+    if (this._emitting) {
+      return;
+    }
+    this._emitting = true;
     this.emit("change");
+    this._emitting = false;
   };
 
   /**
@@ -101,9 +112,17 @@ export class Setting extends EventEmitter {
       }
     }
     this._deps = deps;
+
+    for (const setting of Object.values(this._deps)) {
+      setting.on("change", this.onChange);
+    }
+
     return this._deps;
   }
 
+  /**
+   * @type {string | undefined}
+   */
   get value() {
     let prefVal = this.pref?.value;
     if (this.config.get) {
@@ -112,6 +131,9 @@ export class Setting extends EventEmitter {
     return prefVal;
   }
 
+  /**
+   * @param {string} val
+   */
   set value(val) {
     let newVal = this.config.set ? this.config.set(val, this.deps, this) : val;
     if (this.pref) {
@@ -119,6 +141,9 @@ export class Setting extends EventEmitter {
     }
   }
 
+  /**
+   * @type {boolean}
+   */
   get locked() {
     return this.pref?.locked ?? false;
   }
@@ -131,6 +156,10 @@ export class Setting extends EventEmitter {
     return this.config.disabled ? this.config.disabled(this.deps, this) : false;
   }
 
+  /**
+   * @param {PreferencesSettingsConfig} config
+   * @returns {PreferencesSettingsConfig | undefined}
+   */
   getControlConfig(config) {
     if (this.config.getControlConfig) {
       return this.config.getControlConfig(config, this.deps, this);
@@ -140,10 +169,13 @@ export class Setting extends EventEmitter {
 
   userClick(event) {
     if (this.config.onUserClick) {
-      this.config.onUserClick(event);
+      this.config.onUserClick(event, this.deps, this);
     }
   }
 
+  /**
+   * @param {string} val
+   */
   userChange(val) {
     this.value = val;
     if (this.config.onUserChange) {

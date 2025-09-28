@@ -599,7 +599,7 @@ export const tokensTable = {
     { value: "4px", name: "--border-radius-small" },
     { value: "8px", name: "--border-radius-medium" },
     { value: "16px", name: "--border-radius-large" },
-    { value: "var(--border-radius-small)", name: "--button-border-radius" },
+    { value: "var(--border-radius-medium)", name: "--button-border-radius" },
   ],
   "border-width": [{ value: "1px", name: "--border-width" }],
   border: [
@@ -654,11 +654,22 @@ export const tokensTable = {
       },
       name: "--font-size-xxlarge",
     },
+    {
+      value: {
+        brand: { default: "2.2rem", comment: "33px" },
+        platform: { default: "unset" },
+      },
+      name: "--font-size-xxxlarge",
+    },
+    { value: "var(--font-size-xxlarge)", name: "--heading-font-size-xlarge" },
+    { value: "var(--font-size-xlarge)", name: "--heading-font-size-large" },
+    { value: "var(--font-size-large)", name: "--heading-font-size-medium" },
   ],
   "font-weight": [
     { value: "var(--font-weight-bold)", name: "--button-font-weight" },
     { value: "normal", name: "--font-weight" },
     { value: 600, name: "--font-weight-bold" },
+    { value: "var(--font-weight-bold)", name: "--heading-font-weight" },
   ],
   "icon-color": [
     { value: "currentColor", name: "--button-icon-fill" },
@@ -953,12 +964,6 @@ export const tokensTable = {
       },
       name: "--outline-color-error",
     },
-  ],
-  "heading-font": [
-    { value: "var(--font-size-xxlarge)", name: "--heading-font-size-xlarge" },
-    { value: "var(--font-size-xlarge)", name: "--heading-font-size-large" },
-    { value: "var(--font-size-large)", name: "--heading-font-size-medium" },
-    { value: "var(--font-weight-bold)", name: "--heading-font-weight" },
   ],
   "icon-size": [
     { value: "var(--icon-size-small)", name: "--icon-size" },
@@ -1314,7 +1319,7 @@ export const variableLookupTable = {
   "button-border-color-primary-selected":
     "var(--button-border-color-primary-active)",
   "button-border-color-selected": "var(--button-border-color-active)",
-  "button-border-radius": "var(--border-radius-small)",
+  "button-border-radius": "var(--border-radius-medium)",
   "button-font-size": "var(--font-size-root)",
   "button-font-size-small": "var(--font-size-small)",
   "button-font-weight": "var(--font-weight-bold)",
@@ -1597,6 +1602,10 @@ export const variableLookupTable = {
   },
   "font-size-xxlarge": {
     brand: { default: "1.6rem", comment: "24px" },
+    platform: { default: "unset" },
+  },
+  "font-size-xxxlarge": {
+    brand: { default: "2.2rem", comment: "33px" },
     platform: { default: "unset" },
   },
   "font-weight": "normal",

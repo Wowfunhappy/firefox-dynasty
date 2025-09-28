@@ -844,13 +844,7 @@ void* js::Nursery::allocateBuffer(Zone* zone, Cell* owner, size_t nbytes) {
     }
   }
 
-  void* buffer = AllocBuffer(zone, nbytes, true);
-  if (!buffer) {
-    return nullptr;
-  }
-
-  registerBuffer(buffer, nbytes);
-  return buffer;
+  return AllocBuffer(zone, nbytes, true);
 }
 
 std::tuple<void*, bool> js::Nursery::allocateZeroedBuffer(Zone* zone,
@@ -935,16 +929,7 @@ void* js::Nursery::reallocateBuffer(Zone* zone, Cell* cell, void* oldBuffer,
 
   if (IsBufferAlloc(oldBuffer)) {
     MOZ_ASSERT(IsNurseryOwned(zone, oldBuffer));
-    MOZ_ASSERT(toSpace.mallocedBufferBytes >= oldBytes);
-
-    void* newBuffer = ReallocBuffer(zone, oldBuffer, newBytes, true);
-    if (!newBuffer) {
-      return nullptr;
-    }
-
-    toSpace.mallocedBufferBytes -= oldBytes;
-    toSpace.mallocedBufferBytes += newBytes;
-    return newBuffer;
+    return ReallocBuffer(zone, oldBuffer, newBytes, true);
   }
 
   // The nursery cannot make use of the returned slots data.
@@ -968,11 +953,6 @@ void Nursery::freeBuffer(JS::Zone* zone, gc::Cell* cell, void* buffer,
   if (!IsBufferAlloc(buffer)) {
     // The nursery cannot make use of the returned space.
     return;
-  }
-
-  if (IsInsideNursery(cell)) {
-    MOZ_ASSERT(toSpace.mallocedBufferBytes >= bytes);
-    toSpace.mallocedBufferBytes -= bytes;
   }
 
   FreeBuffer(zone, buffer);
@@ -1947,14 +1927,6 @@ bool js::Nursery::registerMallocedBuffer(void* buffer, size_t nbytes) {
   return true;
 }
 
-void js::Nursery::registerBuffer(void* buffer, size_t nbytes) {
-  MOZ_ASSERT(buffer);
-  MOZ_ASSERT(nbytes > 0);
-  MOZ_ASSERT(!isInside(buffer));
-
-  addMallocedBufferBytes(nbytes);
-}
-
 /*
  * Several things may need to happen when a nursery allocated cell with an
  * external buffer is promoted:
@@ -2040,11 +2012,7 @@ Nursery::WasBufferMoved js::Nursery::maybeMoveRawBufferOnPromotion(
     // This is an external buffer allocation owned by a nursery GC thing.
     Zone* zone = owner->zone();
     MOZ_ASSERT(IsNurseryOwned(zone, buffer));
-    bool ownerWasTenured = !nurseryOwned;
-    zone->bufferAllocator.markNurseryOwnedAlloc(buffer, ownerWasTenured);
-    if (nurseryOwned) {
-      registerBuffer(buffer, nbytes);
-    }
+    zone->bufferAllocator.markNurseryOwnedAlloc(buffer, nurseryOwned);
     return BufferNotMoved;
   }
 
@@ -2061,10 +2029,6 @@ Nursery::WasBufferMoved js::Nursery::maybeMoveRawBufferOnPromotion(
   }
 
   memcpy(movedBuffer, buffer, nbytes);
-
-  if (nurseryOwned) {
-    registerBuffer(movedBuffer, nbytes);
-  }
 
   *bufferp = movedBuffer;
   return BufferMoved;
@@ -2396,17 +2360,22 @@ void js::Nursery::maybeResizeNursery(JS::GCOptions options,
   }
 #endif
 
-  decommitTask->join();
-
   size_t newCapacity =
       std::clamp(targetSize(options, reason), minSpaceSize(), maxSpaceSize());
 
   MOZ_ASSERT(roundSize(newCapacity) == newCapacity);
   MOZ_ASSERT(newCapacity >= SystemPageSize());
 
+  if (newCapacity == capacity()) {
+    return;
+  }
+
+  decommitTask->join();
+
   if (newCapacity > capacity()) {
     growAllocableSpace(newCapacity);
-  } else if (newCapacity < capacity()) {
+  } else {
+    MOZ_ASSERT(newCapacity < capacity());
     shrinkAllocableSpace(newCapacity);
   }
 
@@ -2414,6 +2383,9 @@ void js::Nursery::maybeResizeNursery(JS::GCOptions options,
   if (!decommitTask->isEmpty(lock)) {
     decommitTask->startOrRunIfIdle(lock);
   }
+
+  // The size of the store buffers depends on the nursery size.
+  gc->storeBuffer().updateSize();
 }
 
 static inline bool ClampDouble(double* value, double min, double max) {

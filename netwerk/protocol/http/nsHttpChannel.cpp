@@ -374,7 +374,7 @@ CookieObserver::Observe(nsISupports* aSubject, const char* aTopic,
 void MaybeInitializeCookieProcessingGuard(
     nsHttpChannel* aChannel, CookieServiceParent::CookieProcessingGuard& aGuard,
     RefPtr<CookieObserver>& aCookieObserver,
-    RefPtr<HttpChannelParent>& aHttpChannelParent) {
+    RefPtr<HttpChannelParent>& aHttpChannelParent, uint32_t aHttpStatus) {
   nsCOMPtr<nsIParentChannel> parentChannel;
   NS_QueryNotificationCallbacks(aChannel, parentChannel);
   aHttpChannelParent = do_QueryObject(parentChannel);
@@ -394,6 +394,13 @@ void MaybeInitializeCookieProcessingGuard(
   CookieServiceParent* cookieServiceParent =
       static_cast<CookieServiceParent*>(csParent);
   if (!cookieServiceParent) {
+    return;
+  }
+
+  // on redirect we don't want to use processing guard
+  // because it will prevent cookies from being set in the
+  // content process that originated the request
+  if (nsHttpChannel::IsRedirectStatus(aHttpStatus)) {
     return;
   }
 
@@ -611,6 +618,10 @@ void nsHttpChannel::AddStorageAccessHeadersToRequest() {
     case nsILoadInfo::NoStoragePermission:
       break;
   }
+}
+
+bool nsHttpChannel::StorageAccessReloadedChannel() {
+  return LoadStorageAccessReloadChannel();
 }
 
 nsresult nsHttpChannel::PrepareToConnect() {
@@ -1102,6 +1113,8 @@ nsresult nsHttpChannel::ContinueOnBeforeConnect(bool aShouldUpgrade,
       mCaps |= NS_HTTP_DISALLOW_SPDY;
     }
     // Upgrades cannot use HTTP/3.
+    // TODO: When mUpgradeProtocolCallback is not null, we should allow HTTP/3
+    // for connect-udp.
     mCaps |= NS_HTTP_DISALLOW_HTTP3;
     // Because NS_HTTP_STICKY_CONNECTION breaks HTTPS RR fallabck mecnahism, we
     // can not use HTTPS RR for upgrade requests.
@@ -1236,8 +1249,8 @@ nsresult nsHttpChannel::HandleOverrideResponse() {
     RefPtr<CookieObserver> cookieObserver;
 
     CookieServiceParent::CookieProcessingGuard cookieProcessingGuard;
-    MaybeInitializeCookieProcessingGuard(this, cookieProcessingGuard,
-                                         cookieObserver, httpParent);
+    MaybeInitializeCookieProcessingGuard(
+        this, cookieProcessingGuard, cookieObserver, httpParent, statusCode);
 
     // Handle Set-Cookie headers as if the response was from networking.
     CookieVisitor cookieVisitor(mResponseHead.get());
@@ -2974,7 +2987,8 @@ nsresult nsHttpChannel::ContinueProcessResponse1(
         // called, we shouldn't call SetCookieHeaders.
 
         MaybeInitializeCookieProcessingGuard(this, cookieProcessingGuard,
-                                             cookieObserver, httpParent);
+                                             cookieObserver, httpParent,
+                                             httpStatus);
       }
 
       CookieVisitor cookieVisitor(mResponseHead.get());
@@ -3747,8 +3761,9 @@ nsresult nsHttpChannel::RedirectToNewChannelForAuthRetry() {
     if (mTransaction->Http3Disabled()) {
       httpChannelImpl->mCaps |= NS_HTTP_DISALLOW_HTTP3;
     }
-    httpChannelImpl->mCaps |= NS_HTTP_STICKY_CONNECTION;
   }
+  // always set sticky connection flag
+  httpChannelImpl->mCaps |= NS_HTTP_STICKY_CONNECTION;
 
   if (LoadAuthConnectionRestartable()) {
     httpChannelImpl->mCaps |= NS_HTTP_CONNECTION_RESTARTABLE;
@@ -8501,6 +8516,28 @@ nsHttpChannel::OnStartRequest(nsIRequest* request) {
     // the response head may be null if the transaction was cancelled.  in
     // which case we just need to call OnStartRequest/OnStopRequest.
     if (mResponseHead) {
+      if (AntiTrackingUtils::ProcessStorageAccessHeadersShouldRetry(this)) {
+        // force reload. Doom cache to avoid redirect loop
+        if (mCacheEntry) {
+          mCacheEntry->AsyncDoom(nullptr);
+        }
+
+        auto storeAllowStorageAccess = [&](nsIChannel* aRedirectedChannel) {
+          RefPtr<nsHttpChannel> httpChan = do_QueryObject(aRedirectedChannel);
+          if (httpChan) {
+            httpChan->StoreStorageAccessReloadChannel(true);
+          }
+        };
+
+        rv = StartRedirectChannelToURI(mURI,
+                                       nsIChannelEventSink::REDIRECT_INTERNAL,
+                                       storeAllowStorageAccess);
+        if (NS_FAILED(rv)) {
+          Cancel(rv);
+          return CallOnStartRequest();
+        }
+        return NS_OK;
+      }
       return ProcessResponse(connInfo);
     }
 

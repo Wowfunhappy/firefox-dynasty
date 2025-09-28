@@ -23,12 +23,11 @@ use crate::media_queries::Device;
 use crate::parser::ParserContext;
 use crate::selector_parser::PseudoElement;
 use crate::stylist::Stylist;
-use style_traits::{CssWriter, KeywordsCollectFn, ParseError, SpecifiedValueInfo, StyleParseErrorKind, ToCss, TypedValue, ToTyped};
+use style_traits::{CssStringWriter, CssWriter, KeywordsCollectFn, ParseError, SpecifiedValueInfo, StyleParseErrorKind, ToCss, TypedValue, ToTyped};
 use crate::stylesheets::{CssRuleType, CssRuleTypes, Origin};
 use crate::logical_geometry::{LogicalAxis, LogicalCorner, LogicalSide};
 use crate::use_counters::UseCounters;
 use crate::rule_tree::StrongRuleNode;
-use crate::str::CssStringWriter;
 use crate::values::{
     computed,
     resolved,
@@ -1844,6 +1843,31 @@ impl ComputedValues {
                 } else {
                     value.to_css(&mut dest)
                 }
+            }
+            % endfor
+        }
+    }
+
+    /// Returns the computed value of the given longhand as a strongly-typed
+    /// `TypedValue`, if supported.
+    pub fn computed_typed_value(
+        &self,
+        property_id: LonghandId,
+    ) -> Option<TypedValue> {
+        let property_id = property_id.to_physical(self.writing_mode);
+        match property_id {
+            % for specified_type, props in groupby(data.longhands, key=lambda x: x.specified_type()):
+            <% props = list(props) %>
+            ${" |\n".join("LonghandId::{}".format(p.camel_case) for p in props)} => {
+                let value = match property_id {
+                    % for prop in props:
+                    % if not prop.logical:
+                    LonghandId::${prop.camel_case} => self.clone_${prop.ident}(),
+                    % endif
+                    % endfor
+                    _ => unsafe { debug_unreachable!() },
+                };
+                value.to_typed()
             }
             % endfor
         }

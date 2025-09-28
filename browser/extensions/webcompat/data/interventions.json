@@ -2007,8 +2007,8 @@
     },
     "interventions": [
       {
-        "platforms": ["desktop"],
-        "ua_string": ["add_Chrome"]
+        "platforms": ["all"],
+        "ua_string": ["Chrome"]
       }
     ]
   },
@@ -2243,9 +2243,7 @@
     "interventions": [
       {
         "platforms": ["all"],
-        "content_scripts": {
-          "js": ["bug1898934-tza.red-prevent-unsupported-message.js"]
-        }
+        "ua_string": ["change_Firefox_to_FireFox"]
       }
     ]
   },
@@ -2335,7 +2333,7 @@
     "interventions": [
       {
         "platforms": ["desktop"],
-        "ua_string": ["add_Chrome"]
+        "ua_string": ["Safari_with_FxQuantum"]
       }
     ]
   },
@@ -2616,7 +2614,7 @@
       },
       {
         "platforms": ["linux", "mac"],
-        "ua_string": ["Safari"]
+        "ua_string": ["add_Safari"]
       }
     ]
   },
@@ -3685,22 +3683,6 @@
         "content_scripts": {
           "css": ["bug1918604-g1.globo.com-fix-clipped-buttons.css"]
         }
-      }
-    ]
-  },
-  "1918609": {
-    "label": "www.zara.com",
-    "bugs": {
-      "1918609": {
-        "issue": "broken-layout",
-        "matches": ["*://www.zara.com/*"]
-      }
-    },
-    "interventions": [
-      {
-        "platforms": ["desktop"],
-        "only_channels": ["nightly"],
-        "ua_string": ["reduce_firefox_version_by_one"]
       }
     ]
   },
@@ -5198,6 +5180,21 @@
       }
     ]
   },
+  "1975927": {
+    "label": "trafficnews.jp",
+    "bugs": {
+      "1975927": {
+        "issue": "desktop-layout-not-mobile",
+        "matches": ["*://trafficnews.jp/*"]
+      }
+    },
+    "interventions": [
+      {
+        "platforms": ["android"],
+        "ua_string": ["Chrome_with_FxQuantum"]
+      }
+    ]
+  },
   "1976200": {
     "label": "unak.medlemssidor.org",
     "bugs": {
@@ -5315,6 +5312,21 @@
       }
     ]
   },
+  "1980629": {
+    "label": "truepicvision.com",
+    "bugs": {
+      "1980629": {
+        "issue": "firefox-blocked-completely",
+        "matches": ["*://*.truepicvision.com/*"]
+      }
+    },
+    "interventions": [
+      {
+        "platforms": ["all"],
+        "ua_string": ["Chrome"]
+      }
+    ]
+  },
   "1982295": {
     "label": "hall.ssjj.cn",
     "bugs": {
@@ -5347,12 +5359,76 @@
       }
     ]
   },
+  "1983538": {
+    "label": "incontrol.landrover.com",
+    "bugs": {
+      "1983538": {
+        "issue": "broken-interactive-elements",
+        "matches": ["*://incontrol.landrover.com/*"]
+      }
+    },
+    "interventions": [
+      {
+        "platforms": ["all"],
+        "content_scripts": {
+          "js": [
+            "bug1983538-incontrol.landrover.com-alias-WebKitMutationObserver.js"
+          ]
+        }
+      }
+    ]
+  },
   "1984434": {
     "label": "fxnetworkspressroom.com",
     "bugs": {
       "1984434": {
         "issue": "firefox-blocked-completely",
         "matches": ["*://www.fxnetworkspressroom.com/*"]
+      }
+    },
+    "interventions": [
+      {
+        "platforms": ["all"],
+        "ua_string": ["add_Chrome"]
+      }
+    ]
+  },
+  "1989241": {
+    "label": "useinsider.com",
+    "bugs": {
+      "1984434": {
+        "issue": "firefox-blocked-completely",
+        "matches": ["*://*.useinsider.com/*"]
+      }
+    },
+    "interventions": [
+      {
+        "platforms": ["all"],
+        "ua_string": ["Chrome_with_FxQuantum"]
+      }
+    ]
+  },
+  "1989975": {
+    "label": "idp.infocert.it",
+    "bugs": {
+      "1989975": {
+        "issue": "firefox-blocked-completely",
+        "matches": ["*://idp.infocert.it/*"]
+      }
+    },
+    "interventions": [
+      {
+        "platforms": ["android"],
+        "ua_string": ["add_Chrome"]
+      }
+    ]
+  },
+  "1990193": {
+    "label": "zeit.werkheim.de",
+    "bugs": {
+      "1990193": {
+        "issue": "page-fails-to-load",
+        "matches": ["*://zeit.werkheim.de/*"]
       }
     },
     "interventions": [

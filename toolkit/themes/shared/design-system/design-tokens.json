@@ -419,7 +419,7 @@
         }
       },
       "radius": {
-        "value": "{border.radius.small}"
+        "value": "{border.radius.medium}"
       }
     },
     "font": {
@@ -1123,6 +1123,17 @@
           "brand": {
             "default": "1.6rem",
             "comment": "24px"
+          },
+          "platform": {
+            "default": "unset"
+          }
+        }
+      },
+      "xxxlarge": {
+        "value": {
+          "brand": {
+            "default": "2.2rem",
+            "comment": "33px"
           },
           "platform": {
             "default": "unset"

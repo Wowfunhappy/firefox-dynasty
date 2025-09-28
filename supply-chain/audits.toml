@@ -401,6 +401,13 @@ start = "2020-11-03"
 end = "2026-02-01"
 notes = "Maintained by the DevTools team at Mozilla and has no unsafe code."
 
+[[wildcard-audits.mtu]]
+who = "Max Leonard Inden <mail@max-inden.de>"
+criteria = "safe-to-deploy"
+user-id = 83100
+start = "2025-01-29"
+end = "2026-09-24"
+
 [[wildcard-audits.nss-gk-api]]
 who = "John M. Schanck <jschanck@mozilla.com>"
 criteria = "safe-to-deploy"
@@ -2521,6 +2528,11 @@ who = "Valentin Gosu <valentin.gosu@gmail.com>"
 criteria = "safe-to-deploy"
 delta = "1.2.0 -> 1.2.1"
 
+[[audits.form_urlencoded]]
+who = "edgul <ed.guloien@gmail.com>"
+criteria = "safe-to-deploy"
+delta = "1.2.1 -> 1.2.2"
+
 [[audits.fs-err]]
 who = "Mike Hommey <mh+mozilla@glandium.org>"
 criteria = "safe-to-deploy"
@@ -3387,6 +3399,11 @@ who = "Valentin Gosu <valentin.gosu@gmail.com>"
 criteria = "safe-to-deploy"
 delta = "1.0.2 -> 1.0.3"
 
+[[audits.idna]]
+who = "edgul <ed.guloien@gmail.com>"
+criteria = "safe-to-deploy"
+delta = "1.0.3 -> 1.1.0"
+
 [[audits.idna_adapter]]
 who = "Valentin Gosu <valentin.gosu@gmail.com>"
 criteria = "safe-to-deploy"
@@ -4138,6 +4155,12 @@ who = "Max Leonard Inden <mail@max-inden.de>"
 criteria = "safe-to-deploy"
 delta = "0.2.6 -> 0.2.9"
 
+[[audits.mtu]]
+who = "Max Leonard Inden <mail@max-inden.de>"
+criteria = "safe-to-deploy"
+delta = "0.2.9 -> 0.2.9@git:b3d8f0d21db5657ebafb14f9b60c8892d2eb3aa9"
+importable = false
+
 [[audits.naga]]
 who = "Dzmitry Malyshau <kvark@fastmail.com>"
 criteria = "safe-to-deploy"
@@ -4233,7 +4256,7 @@ who = [
     "Erich Gubler <erichdongubler@gmail.com>",
 ]
 criteria = "safe-to-deploy"
-delta = "26.0.0 -> 26.0.0@git:1791064a306881c7ddf218e69b4ffdafdae1be0d"
+delta = "26.0.0 -> 26.0.0@git:ffd4e9fb53a98f8ad67bab8c5d2b42cc9dbdff24"
 importable = false
 
 [[audits.net2]]
@@ -4568,6 +4591,11 @@ delta = "2.2.0 -> 2.3.0"
 who = "Valentin Gosu <valentin.gosu@gmail.com>"
 criteria = "safe-to-deploy"
 delta = "2.3.0 -> 2.3.1"
+
+[[audits.percent-encoding]]
+who = "edgul <ed.guloien@gmail.com>"
+criteria = "safe-to-deploy"
+delta = "2.3.1 -> 2.3.2"
 
 [[audits.phf]]
 who = "Mike Hommey <mh+mozilla@glandium.org>"
@@ -6453,10 +6481,20 @@ who = "Valentin Gosu <valentin.gosu@gmail.com>"
 criteria = "safe-to-deploy"
 delta = "2.5.1 -> 2.5.4"
 
+[[audits.url]]
+who = "edgul <ed.guloien@gmail.com>"
+criteria = "safe-to-deploy"
+delta = "2.5.4 -> 2.5.7"
+
 [[audits.urlpattern]]
 who = "edgul <ed.guloien@gmail.com>"
 criteria = "safe-to-deploy"
 version = "0.3.0"
+
+[[audits.urlpattern]]
+who = "edgul <ed.guloien@gmail.com>"
+criteria = "safe-to-deploy"
+delta = "0.3.0 -> 0.4.0"
 
 [[audits.utf16_iter]]
 who = "Henri Sivonen <hsivonen@hsivonen.fi>"
@@ -6708,7 +6746,7 @@ who = [
     "Erich Gubler <erichdongubler@gmail.com>",
 ]
 criteria = "safe-to-deploy"
-delta = "26.0.0 -> 26.0.0@git:1791064a306881c7ddf218e69b4ffdafdae1be0d"
+delta = "26.0.0 -> 26.0.0@git:ffd4e9fb53a98f8ad67bab8c5d2b42cc9dbdff24"
 importable = false
 
 [[audits.wgpu-core-deps-apple]]
@@ -6729,7 +6767,7 @@ who = [
     "Erich Gubler <erichdongubler@gmail.com>",
 ]
 criteria = "safe-to-deploy"
-delta = "26.0.0 -> 26.0.0@git:1791064a306881c7ddf218e69b4ffdafdae1be0d"
+delta = "26.0.0 -> 26.0.0@git:ffd4e9fb53a98f8ad67bab8c5d2b42cc9dbdff24"
 importable = false
 
 [[audits.wgpu-core-deps-windows-linux-android]]
@@ -6750,7 +6788,7 @@ who = [
     "Erich Gubler <erichdongubler@gmail.com>",
 ]
 criteria = "safe-to-deploy"
-delta = "26.0.0 -> 26.0.0@git:1791064a306881c7ddf218e69b4ffdafdae1be0d"
+delta = "26.0.0 -> 26.0.0@git:ffd4e9fb53a98f8ad67bab8c5d2b42cc9dbdff24"
 importable = false
 
 [[audits.wgpu-hal]]
@@ -6849,7 +6887,7 @@ who = [
     "Erich Gubler <erichdongubler@gmail.com>",
 ]
 criteria = "safe-to-deploy"
-delta = "26.0.0 -> 26.0.0@git:1791064a306881c7ddf218e69b4ffdafdae1be0d"
+delta = "26.0.0 -> 26.0.0@git:ffd4e9fb53a98f8ad67bab8c5d2b42cc9dbdff24"
 importable = false
 
 [[audits.wgpu-types]]
@@ -6943,7 +6981,7 @@ who = [
     "Erich Gubler <erichdongubler@gmail.com>",
 ]
 criteria = "safe-to-deploy"
-delta = "26.0.0 -> 26.0.0@git:1791064a306881c7ddf218e69b4ffdafdae1be0d"
+delta = "26.0.0 -> 26.0.0@git:ffd4e9fb53a98f8ad67bab8c5d2b42cc9dbdff24"
 importable = false
 
 [[audits.whatsys]]

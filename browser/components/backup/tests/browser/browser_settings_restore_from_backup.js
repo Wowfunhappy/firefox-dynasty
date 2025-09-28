@@ -75,17 +75,40 @@ add_task(async function test_restore_from_backup() {
 
     let infoPromise = BrowserTestUtils.waitForEvent(
       window,
-      "getBackupFileInfo"
+      "BackupUI:GetBackupFileInfo"
     );
 
     restoreFromBackup.chooseButtonEl.click();
+
     await filePickerShownPromise;
+    restoreFromBackup.backupServiceState = {
+      ...restoreFromBackup.backupServiceState,
+      backupFileToRestore: mockBackupFilePath,
+    };
+    await restoreFromBackup.updateComplete;
+
+    // Dispatch the event that would normally be sent by BackupUIChild
+    // after a file is selected
+    restoreFromBackup.dispatchEvent(
+      new CustomEvent("BackupUI:SelectNewFilepickerPath", {
+        bubbles: true,
+        composed: true,
+        detail: {
+          path: mockBackupFilePath,
+          filename: mockBackupFile.leafName,
+          iconURL: "",
+        },
+      })
+    );
 
     await infoPromise;
     // Set mock file info
-    restoreFromBackup.backupFileInfo = {
-      date: new Date(),
-      isEncrypted: true,
+    restoreFromBackup.backupServiceState = {
+      ...restoreFromBackup.backupServiceState,
+      backupFileInfo: {
+        date: new Date(),
+        isEncrypted: true,
+      },
     };
     await restoreFromBackup.updateComplete;
 
@@ -94,12 +117,16 @@ add_task(async function test_restore_from_backup() {
 
     let restorePromise = BrowserTestUtils.waitForEvent(
       window,
-      "restoreFromBackupConfirm"
+      "BackupUI:RestoreFromBackupFile"
     );
 
     Assert.ok(
       restoreFromBackup.confirmButtonEl,
       "Confirm button should be found"
+    );
+    Assert.ok(
+      !restoreFromBackup.confirmButtonEl.disabled,
+      "Confirm button should not be disabled"
     );
 
     await restoreFromBackup.updateComplete;
@@ -175,8 +202,10 @@ add_task(async function test_restore_in_progress() {
       "backup.html"
     );
 
-    // Set mock file
-    restoreFromBackup.backupFileToRestore = mockBackupFilePath;
+    restoreFromBackup.backupServiceState = {
+      ...restoreFromBackup.backupServiceState,
+      backupFileToRestore: mockBackupFilePath,
+    };
     await restoreFromBackup.updateComplete;
 
     Assert.ok(
@@ -191,19 +220,16 @@ add_task(async function test_restore_in_progress() {
 
     let restorePromise = BrowserTestUtils.waitForEvent(
       window,
-      "restoreFromBackupConfirm"
+      "BackupUI:RestoreFromBackupFile"
     );
 
     restoreFromBackup.confirmButtonEl.click();
-    let currentState = bs.state;
-    let recoveryInProgressState = Object.assign(
-      { recoveryInProgress: true },
-      currentState
-    );
-    sandbox.stub(BackupService.prototype, "state").get(() => {
-      return recoveryInProgressState;
-    });
-    bs.stateUpdate();
+    restoreFromBackup.backupServiceState = {
+      ...restoreFromBackup.backupServiceState,
+      recoveryInProgress: true,
+    };
+    // Re-render since we've manually changed the component's state
+    await restoreFromBackup.requestUpdate();
 
     await restorePromise;
 
@@ -244,77 +270,6 @@ add_task(async function test_restore_in_progress() {
     Assert.ok(
       !settings.restoreFromBackupDialogEl.open,
       "Restore dialog should now be closed."
-    );
-
-    sandbox.restore();
-  });
-});
-
-/**
- * Tests the backup autodetect feature for the file picker
- */
-add_task(async function test_finding_a_valid_backup() {
-  await BrowserTestUtils.withNewTab("about:preferences#sync", async browser => {
-    let sandbox = sinon.createSandbox();
-    let bs = BackupService.get();
-
-    let { archivePath } = await bs.createBackup();
-
-    Assert.stringContains(
-      archivePath,
-      TEST_PROFILE_PATH,
-      "archive is in our test dir"
-    );
-
-    let settings = browser.contentDocument.querySelector("backup-settings");
-
-    // To test the behaviour of this function, we want to reset the last backup states
-    // so we can see if the function can find a valid backup from the default directory
-    bs.resetLastBackupInternalState();
-
-    await settings.updateComplete;
-
-    registerCleanupFunction(async () => {
-      // we'll make sure to clean this whole dir up after the test
-      await IOUtils.remove(TEST_PROFILE_PATH, { recursive: true });
-    });
-
-    settings.restoreFromBackupButtonEl.click();
-    await settings.updateComplete;
-
-    let restoreFromBackup = settings.restoreFromBackupEl;
-    Assert.ok(restoreFromBackup, "restore-from-backup should be found");
-
-    let infoPromise = BrowserTestUtils.waitForEvent(
-      window,
-      "getBackupFileInfo"
-    );
-    let infoEvent = await infoPromise;
-
-    // it should be asking about the same path we created.
-    Assert.equal(
-      infoEvent.detail.backupFile,
-      archivePath,
-      "Component asked for info for the detected archive"
-    );
-
-    await restoreFromBackup.updateComplete;
-
-    Assert.ok(
-      settings.restoreFromBackupDialogEl.open,
-      "Restore dialog should be open."
-    );
-
-    Assert.equal(
-      restoreFromBackup.backupFileToRestore,
-      archivePath,
-      "backupFileToRestore was updated to the detected archive path"
-    );
-
-    Assert.equal(
-      restoreFromBackup.filePicker.value,
-      archivePath,
-      "Text input reflects the detected archive path"
     );
 
     sandbox.restore();

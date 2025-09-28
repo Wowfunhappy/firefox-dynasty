@@ -140,6 +140,7 @@
   background-color: transparent;
   color: inherit;
   border: none;
+  border-radius: 0;
   margin: 0;
   padding: 0;
   outline: none;
@@ -222,6 +223,10 @@
 [open] > .urlbar-background {
   border-color: var(--arrowpanel-border-color);
   box-shadow: 0 2px 14px rgba(0, 0, 0, 0.13);
+
+  /* The border moves outwards in the open state, so increase the radius
+     accordingly. */
+  border-radius: calc(var(--toolbarbutton-border-radius) + 2px);
 
   @media (-moz-platform: macos) and (prefers-contrast) {
     /* The "increase contrast" preference on macOS draws a 1px black line around
@@ -1159,7 +1164,6 @@
 .searchmode-switcher-icon {
   width: 16px;
   height: 16px;
-  border-radius: var(--urlbar-icon-border-radius);
   -moz-context-properties: fill;
   fill: currentColor;
   list-style-image: url("chrome://global/skin/icons/search-glass.svg");

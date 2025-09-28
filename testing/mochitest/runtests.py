@@ -996,6 +996,7 @@ class MochitestDesktop:
         self.extraEnv = {}
         self.extraTestsDirs = []
         self.conditioned_profile_dir = None
+        self.perfherder_data = []
 
         if logger_options.get("log"):
             self.log = logger_options["log"]
@@ -2183,6 +2184,8 @@ toolbar#nav-bar {
         certutil = os.path.join(options.utilityPath, "certutil" + bin_suffix)
         pk12util = os.path.join(options.utilityPath, "pk12util" + bin_suffix)
         toolsEnv = env
+        if "browser.newtabpage.trainhopAddon.version=any" in options.extraPrefs:
+            toolsEnv["LD_LIBRARY_PATH"] = os.path.join(os.path.dirname(here), "bin")
         if mozinfo.info["asan"]:
             # Disable leak checking when running these tools
             toolsEnv["ASAN_OPTIONS"] = "detect_leaks=0"
@@ -3679,6 +3682,13 @@ toolbar#nav-bar {
             print("4 INFO Mode:    %s" % e10s_mode)
             print("5 INFO SimpleTest FINISHED")
 
+        if os.getenv("MOZ_AUTOMATION") and self.perfherder_data:
+            upload_dir = Path(os.getenv("MOZ_UPLOAD_DIR"))
+            for i, data in enumerate(self.perfherder_data):
+                out_path = upload_dir / f"perfherder-data-mochitest-{i}.json"
+                with out_path.open("w", encoding="utf-8") as f:
+                    f.write(json.dumps(data))
+
         self.handleShutdownProfile(options)
 
         if not result:
@@ -4170,6 +4180,7 @@ toolbar#nav-bar {
 
                 # Processing the message by the logger
                 self.harness.message_logger.process_message(msg)
+                self.parse_perfherder_data(msg)
 
         __call__ = processOutputLine
 
@@ -4321,6 +4332,13 @@ toolbar#nav-bar {
             if self.shutdownLeaks:
                 self.shutdownLeaks.log(message)
             return message
+
+        def parse_perfherder_data(self, message):
+            PERFHERDER_MATCHER = re.compile(r"PERFHERDER_DATA:\s*(\{.*\})\s*$")
+            match = PERFHERDER_MATCHER.search(message.get("message", ""))
+            if match:
+                data = json.loads(match.group(1))
+                self.harness.perfherder_data.append(data)
 
 
 def view_gecko_profile_from_mochitest(profile_path, options, profiler_logger):

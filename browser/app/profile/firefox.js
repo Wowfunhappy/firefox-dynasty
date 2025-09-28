@@ -450,6 +450,8 @@ pref("browser.urlbar.deduplication.thresholdDays", 0);
 
 pref("browser.urlbar.scotchBonnet.enableOverride", true);
 
+pref("browser.urlbar.trustPanel.featureGate", false);
+
 // Once Perplexity has entered search mode at least once,
 // we no longer show the Perplexity onboarding callout.
 // This pref will be set to true when perplexity search mode is detected.
@@ -870,7 +872,7 @@ pref("browser.search.widget.removeAfterDaysUnused", 120);
 pref("browser.search.totalSearches", 0);
 
 // Feature gate for visual search.
-pref("browser.search.visualSearch.featureGate", false);
+pref("browser.search.visualSearch.featureGate", true);
 
 // Feature gate for ohttp based suggestions.
 pref("browser.search.suggest.ohttp.featureGate", false);
@@ -2215,7 +2217,11 @@ pref("browser.ml.linkPreview.shift", false);
 pref("browser.ml.linkPreview.shiftAlt", false);
 
 pref("browser.ml.pageAssist.enabled", false);
+pref("browser.ml.smartAssist.apiKey", "");
 pref("browser.ml.smartAssist.enabled", false);
+pref("browser.ml.smartAssist.endpoint", "");
+pref("browser.ml.smartAssist.model", "");
+pref("browser.ml.smartAssist.overrideNewTab", false);
 
 // Block insecure active content on https pages
 pref("security.mixed_content.block_active_content", true);
@@ -3089,9 +3095,12 @@ pref("devtools.netmonitor.har.multiple-pages", false);
 pref("devtools.netmonitor.audits.slow", 500);
 
 // Enable the new Edit and Resend panel
-  pref("devtools.netmonitor.features.newEditAndResend", true);
+pref("devtools.netmonitor.features.newEditAndResend", true);
 
 pref("devtools.netmonitor.customRequest", '{}');
+
+// Enable Netmonitor Web Transport Support
+pref("devtools.netmonitor.features.webtransport", false);
 
 // Enable the Storage Inspector
 pref("devtools.storage.enabled", true);
@@ -3438,6 +3447,8 @@ pref("browser.backup.template.fallback-download.aurora", "https://www.mozilla.or
 pref("browser.backup.template.fallback-download.nightly", "https://www.mozilla.org/firefox/channel/desktop/?utm_medium=firefox-desktop&utm_source=backup&utm_campaign=firefox-backup-2024&utm_content=control#nightly");
 pref("browser.backup.template.fallback-download.esr", "https://www.mozilla.org/firefox/enterprise/?utm_medium=firefox-desktop&utm_source=backup&utm_campaign=firefox-backup-2024&utm_content=control#download");
 pref("browser.backup.errorCode", 0);
+pref("browser.backup.backup-retry-limit", 100);
+pref("browser.backup.disabled-on-idle-backup-retry", false);
 
 #ifdef NIGHTLY_BUILD
   // Pref to enable the new profiles
@@ -3465,7 +3476,7 @@ pref("toolkit.contentRelevancy.log", false);
 
 // The number of days after which to rotate the context ID. 0 means to disable
 // rotation altogether.
-pref("browser.contextual-services.contextId.rotation-in-days", 15);
+pref("browser.contextual-services.contextId.rotation-in-days", 7);
 pref("browser.contextual-services.contextId.rust-component.enabled", true);
 
 // Pref to enable the IP protection feature

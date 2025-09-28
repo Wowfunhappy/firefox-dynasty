@@ -95,8 +95,7 @@ export class BaseContent extends React.PureComponent {
     this.updateWallpaper = this.updateWallpaper.bind(this);
     this.prefersDarkQuery = null;
     this.handleColorModeChange = this.handleColorModeChange.bind(this);
-    this.shouldDisplayTopicSelectionModal =
-      this.shouldDisplayTopicSelectionModal.bind(this);
+    this.onVisible = this.onVisible.bind(this);
     this.toggleDownloadHighlight = this.toggleDownloadHighlight.bind(this);
     this.handleDismissDownloadHighlight =
       this.handleDismissDownloadHighlight.bind(this);
@@ -119,6 +118,11 @@ export class BaseContent extends React.PureComponent {
     }
   }
 
+  onVisible() {
+    this.setFirstVisibleTimestamp();
+    this.shouldDisplayTopicSelectionModal();
+  }
+
   componentDidMount() {
     this.applyBodyClasses();
     global.addEventListener("scroll", this.onWindowScroll);
@@ -126,13 +130,11 @@ export class BaseContent extends React.PureComponent {
     const prefs = this.props.Prefs.values;
     const wallpapersEnabled = prefs["newtabWallpapers.enabled"];
     if (this.props.document.visibilityState === VISIBLE) {
-      this.setFirstVisibleTimestamp();
-      this.shouldDisplayTopicSelectionModal();
+      this.onVisible();
     } else {
       this._onVisibilityChange = () => {
         if (this.props.document.visibilityState === VISIBLE) {
-          this.setFirstVisibleTimestamp();
-          this.shouldDisplayTopicSelectionModal();
+          this.onVisible();
           this.props.document.removeEventListener(
             VISIBILITY_CHANGE_EVENT,
             this._onVisibilityChange
@@ -163,6 +165,16 @@ export class BaseContent extends React.PureComponent {
   componentDidUpdate(prevProps) {
     this.applyBodyClasses();
     const prefs = this.props.Prefs.values;
+
+    // Check if weather widget was re-enabled from customization menu
+    const wasWeatherDisabled = !prevProps.Prefs.values.showWeather;
+    const isWeatherEnabled = this.props.Prefs.values.showWeather;
+
+    if (wasWeatherDisabled && isWeatherEnabled) {
+      // If weather widget was enabled from customization menu, display opt-in dialog
+      this.props.dispatch(ac.SetPref("weather.optInDisplayed", true));
+    }
+
     const wallpapersEnabled = prefs["newtabWallpapers.enabled"];
     if (wallpapersEnabled) {
       // destructure current and previous props with fallbacks
@@ -578,13 +590,24 @@ export class BaseContent extends React.PureComponent {
     const nimbusWidgetsEnabled = prefs.widgetsConfig?.enabled;
     const nimbusListsEnabled = prefs.widgetsConfig?.listsEnabled;
     const nimbusTimerEnabled = prefs.widgetsConfig?.timerEnabled;
+    const nimbusWidgetsTrainhopEnabled = prefs.trainhopConfig?.widgets?.enabled;
+    const nimbusListsTrainhopEnabled =
+      prefs.trainhopConfig?.widgets?.listsEnabled;
+    const nimbusTimerTrainhopEnabled =
+      prefs.trainhopConfig?.widgets?.timerEnabled;
 
     const mayHaveWidgets =
-      prefs["widgets.system.enabled"] || nimbusWidgetsEnabled;
+      prefs["widgets.system.enabled"] ||
+      nimbusWidgetsEnabled ||
+      nimbusWidgetsTrainhopEnabled;
     const mayHaveListsWidget =
-      prefs["widgets.system.lists.enabled"] || nimbusListsEnabled;
+      prefs["widgets.system.lists.enabled"] ||
+      nimbusListsEnabled ||
+      nimbusListsTrainhopEnabled;
     const mayHaveTimerWidget =
-      prefs["widgets.system.focusTimer.enabled"] || nimbusTimerEnabled;
+      prefs["widgets.system.focusTimer.enabled"] ||
+      nimbusTimerEnabled ||
+      nimbusTimerTrainhopEnabled;
 
     // These prefs set the initial values on the Customize panel toggle switches
     const enabledWidgets = {

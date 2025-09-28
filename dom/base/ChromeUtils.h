@@ -205,7 +205,10 @@ class ChromeUtils {
                                       nsIPrincipal* aPrincipal,
                                       ErrorResult& aRv);
 
-  static void SetPerfStatsCollectionMask(GlobalObject& aGlobal, uint64_t aMask);
+  static void EnableAllPerfStatsFeatures(GlobalObject& aGlobal);
+
+  static void SetPerfStatsFeatures(GlobalObject& aGlobal,
+                                   const Sequence<nsString>& aMetrics);
 
   static already_AddRefed<Promise> CollectPerfStats(GlobalObject& aGlobal,
                                                     ErrorResult& aRv);
@@ -337,6 +340,9 @@ class ChromeUtils {
 
   static Nullable<bool> GetGlobalWindowCommandEnabled(GlobalObject&,
                                                       const nsACString& aName);
+
+  static void EncodeURIForSrcset(GlobalObject&, const nsACString& aIn,
+                                 nsACString& aOut);
 
 #ifdef MOZ_WMF_CDM
   static already_AddRefed<Promise> GetWMFContentDecryptionModuleInformation(
