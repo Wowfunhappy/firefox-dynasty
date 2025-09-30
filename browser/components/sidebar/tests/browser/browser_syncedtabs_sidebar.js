@@ -203,9 +203,9 @@ add_task(async function test_tabs() {
   sandbox.restore();
 });
 
-add_task(async function test_syncedtabs_searchbox_focus_and_context_menu() {
+add_task(async function test_syncedtabs_searchbox_focus() {
   await SidebarController.show("viewTabsSidebar");
-  const { contentDocument, contentWindow } = SidebarController.browser;
+  const { contentDocument } = SidebarController.browser;
   const component = contentDocument.querySelector("sidebar-syncedtabs");
   const { searchTextbox } = component;
 
@@ -215,24 +215,6 @@ add_task(async function test_syncedtabs_searchbox_focus_and_context_menu() {
     searchTextbox,
     "Check search box is focused"
   );
-
-  const promisePopupShown = BrowserTestUtils.waitForEvent(
-    contentWindow,
-    "popupshown"
-  );
-  EventUtils.synthesizeMouseAtCenter(
-    searchTextbox,
-    { type: "contextmenu", button: 2 },
-    contentWindow
-  );
-  const { target: menu } = await promisePopupShown;
-  Assert.equal(
-    menu.id,
-    "textbox-contextmenu",
-    "The correct context menu is shown."
-  );
-  menu.hidePopup();
-
   SidebarController.hide();
 });
 

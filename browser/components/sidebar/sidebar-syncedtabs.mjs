@@ -60,9 +60,7 @@ class SyncedTabsInSidebar extends SidebarPage {
   }
 
   handleContextMenuEvent(e) {
-    this.triggerNode =
-      this.findTriggerNode(e, "sidebar-tab-row") ||
-      this.findTriggerNode(e, "moz-input-search");
+    this.triggerNode = this.findTriggerNode(e, "sidebar-tab-row");
     if (!this.triggerNode) {
       e.preventDefault();
       return;
