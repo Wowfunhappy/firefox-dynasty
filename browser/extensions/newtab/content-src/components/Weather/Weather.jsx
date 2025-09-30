@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-import { connect } from "react-redux";
+import { connect, batch } from "react-redux";
 import { LinkMenu } from "content-src/components/LinkMenu/LinkMenu";
 import { LocationSearch } from "content-src/components/Weather/LocationSearch";
 import { actionCreators as ac, actionTypes as at } from "common/Actions.mjs";
@@ -217,8 +217,16 @@ export class _Weather extends React.PureComponent {
   };
 
   handleAcceptOptIn = () => {
-    this.props.dispatch(ac.SetPref("weather.optInAccepted", true));
-    this.props.dispatch(ac.SetPref("weather.optInDisplayed", false));
+    batch(() => {
+      this.props.dispatch(ac.SetPref("weather.optInAccepted", true));
+      this.props.dispatch(ac.SetPref("weather.optInDisplayed", false));
+      this.props.dispatch(
+        ac.BroadcastToContent({
+          type: at.WEATHER_SEARCH_ACTIVE,
+          data: true,
+        })
+      );
+    });
   };
 
   render() {
@@ -261,10 +269,14 @@ export class _Weather extends React.PureComponent {
     const optInUserChoice = Prefs.values["weather.optInAccepted"];
     const nimbusOptInUserChoice =
       Prefs.values.trainhopConfig?.weather?.optInAccepted;
+    const staticWeather = Prefs.values["weather.staticData.enabled"];
+    const nimbusStaticWeather =
+      Prefs.values.trainhopConfig?.weather?.staticDataEnabled;
 
     const optInPrompt = nimbusOptInDisplayed ?? optInDisplayed ?? false;
     const userChoice = nimbusOptInUserChoice ?? optInUserChoice ?? false;
     const isUserWeatherEnabled = Prefs.values.showWeather;
+    const staticDataEnabled = nimbusStaticWeather ?? staticWeather ?? false;
 
     // Opt-in dialog should only show if:
     // - weather enabled on customization menu
@@ -273,6 +285,13 @@ export class _Weather extends React.PureComponent {
     // - user hasn't accepted the opt-in yet
     const shouldShowOptInDialog =
       isUserWeatherEnabled && isOptInEnabled && optInPrompt && !userChoice;
+
+    // Show static weather data only if:
+    // - weather is enabled on customization menu
+    // weather opt-in pref is enabled
+    // static weather data is enabled
+    const showStaticData =
+      isUserWeatherEnabled && isOptInEnabled && staticDataEnabled;
 
     // Note: The temperature units/display options will become secondary menu items
     const WEATHER_SOURCE_CONTEXT_MENU_OPTIONS = [
@@ -288,7 +307,7 @@ export class _Weather extends React.PureComponent {
       "HideWeather",
       "OpenLearnMoreURL",
     ];
-    const WEATHER_SOURCE_ERROR_CONTEXT_MENU_OPTIONS = [
+    const WEATHER_SOURCE_SHORTENED_CONTEXT_MENU_OPTIONS = [
       ...(Prefs.values["weather.locationSearchEnabled"]
         ? ["ChangeWeatherLocation"]
         : []),
@@ -329,68 +348,91 @@ export class _Weather extends React.PureComponent {
       return (
         <div ref={this.setImpressionRef} className={outerClassName}>
           <div className="weatherCard">
-            <a
-              data-l10n-id="newtab-weather-see-forecast"
-              data-l10n-args='{"provider": "AccuWeather®"}'
-              href={WEATHER_SUGGESTION.forecast.url}
-              className="weatherInfoLink"
-              onClick={this.onProviderClick}
-            >
-              <div className="weatherIconCol">
-                <span
-                  className={`weatherIcon iconId${WEATHER_SUGGESTION.current_conditions.icon_id}`}
-                />
-              </div>
-              <div className="weatherText">
-                <div className="weatherForecastRow">
-                  <span className="weatherTemperature">
-                    {
-                      WEATHER_SUGGESTION.current_conditions.temperature[
-                        Prefs.values["weather.temperatureUnits"]
-                      ]
-                    }
-                    &deg;{Prefs.values["weather.temperatureUnits"]}
-                  </span>
+            {showStaticData ? (
+              <div className="weatherInfoLink staticWeatherInfo">
+                <div className="weatherIconCol">
+                  <span className="weatherIcon iconId3" />
                 </div>
-                <div className="weatherCityRow">
-                  <span className="weatherCity">
-                    {Weather.locationData.city}
-                  </span>
-                </div>
-                {showDetailedView ? (
-                  <div className="weatherDetailedSummaryRow">
-                    <div className="weatherHighLowTemps">
-                      {/* Low Forecasted Temperature */}
-                      <span>
-                        {
-                          WEATHER_SUGGESTION.forecast.high[
-                            Prefs.values["weather.temperatureUnits"]
-                          ]
-                        }
-                        &deg;
-                        {Prefs.values["weather.temperatureUnits"]}
-                      </span>
-                      {/* Spacer / Bullet */}
-                      <span>&bull;</span>
-                      {/* Low Forecasted Temperature */}
-                      <span>
-                        {
-                          WEATHER_SUGGESTION.forecast.low[
-                            Prefs.values["weather.temperatureUnits"]
-                          ]
-                        }
-                        &deg;
-                        {Prefs.values["weather.temperatureUnits"]}
-                      </span>
-                    </div>
-                    <span className="weatherTextSummary">
-                      {WEATHER_SUGGESTION.current_conditions.summary}
+                <div className="weatherText">
+                  <div className="weatherForecastRow">
+                    <span className="weatherTemperature">
+                      22&deg;{Prefs.values["weather.temperatureUnits"]}
                     </span>
                   </div>
-                ) : null}
+                  <div className="weatherCityRow">
+                    <span className="weatherCity">New York City</span>
+                  </div>
+                </div>
               </div>
-            </a>
-            {contextMenu(WEATHER_SOURCE_CONTEXT_MENU_OPTIONS)}
+            ) : (
+              <a
+                data-l10n-id="newtab-weather-see-forecast"
+                data-l10n-args='{"provider": "AccuWeather®"}'
+                href={WEATHER_SUGGESTION.forecast.url}
+                className="weatherInfoLink"
+                onClick={this.onProviderClick}
+              >
+                <div className="weatherIconCol">
+                  <span
+                    className={`weatherIcon iconId${WEATHER_SUGGESTION.current_conditions.icon_id}`}
+                  />
+                </div>
+                <div className="weatherText">
+                  <div className="weatherForecastRow">
+                    <span className="weatherTemperature">
+                      {
+                        WEATHER_SUGGESTION.current_conditions.temperature[
+                          Prefs.values["weather.temperatureUnits"]
+                        ]
+                      }
+                      &deg;{Prefs.values["weather.temperatureUnits"]}
+                    </span>
+                  </div>
+                  <div className="weatherCityRow">
+                    <span className="weatherCity">
+                      {Weather.locationData.city}
+                    </span>
+                  </div>
+                  {showDetailedView ? (
+                    <div className="weatherDetailedSummaryRow">
+                      <div className="weatherHighLowTemps">
+                        {/* Low Forecasted Temperature */}
+                        <span>
+                          {
+                            WEATHER_SUGGESTION.forecast.high[
+                              Prefs.values["weather.temperatureUnits"]
+                            ]
+                          }
+                          &deg;
+                          {Prefs.values["weather.temperatureUnits"]}
+                        </span>
+                        {/* Spacer / Bullet */}
+                        <span>&bull;</span>
+                        {/* Low Forecasted Temperature */}
+                        <span>
+                          {
+                            WEATHER_SUGGESTION.forecast.low[
+                              Prefs.values["weather.temperatureUnits"]
+                            ]
+                          }
+                          &deg;
+                          {Prefs.values["weather.temperatureUnits"]}
+                        </span>
+                      </div>
+                      <span className="weatherTextSummary">
+                        {WEATHER_SUGGESTION.current_conditions.summary}
+                      </span>
+                    </div>
+                  ) : null}
+                </div>
+              </a>
+            )}
+
+            {contextMenu(
+              showStaticData
+                ? WEATHER_SOURCE_SHORTENED_CONTEXT_MENU_OPTIONS
+                : WEATHER_SOURCE_CONTEXT_MENU_OPTIONS
+            )}
           </div>
           <span className="weatherSponsorText">
             <span
@@ -432,7 +474,7 @@ export class _Weather extends React.PureComponent {
         <div className="weatherNotAvailable">
           <span className="icon icon-info-warning" />{" "}
           <p data-l10n-id="newtab-weather-error-not-available"></p>
-          {contextMenu(WEATHER_SOURCE_ERROR_CONTEXT_MENU_OPTIONS)}
+          {contextMenu(WEATHER_SOURCE_SHORTENED_CONTEXT_MENU_OPTIONS)}
         </div>
       </div>
     );

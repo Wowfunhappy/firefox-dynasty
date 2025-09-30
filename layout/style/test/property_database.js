@@ -8428,6 +8428,7 @@ var gCSSProperties = {
     type: CSS_TYPE_LONGHAND,
     applies_to_first_letter: true,
     applies_to_first_line: true,
+    applies_to_marker: true,
     applies_to_placeholder: true,
     applies_to_cue: true,
     prerequisites: { color: "blue" },
@@ -10470,6 +10471,7 @@ var gCSSProperties = {
     domProp: "textOrientation",
     inherited: true,
     type: CSS_TYPE_LONGHAND,
+    applies_to_marker: true,
     initial_values: ["mixed"],
     other_values: [
       "upright",

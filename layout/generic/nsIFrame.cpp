@@ -17,6 +17,7 @@
 #include "TextOverflow.h"
 #include "gfx2DGlue.h"
 #include "gfxUtils.h"
+#include "mozilla/AbsoluteContainingBlock.h"
 #include "mozilla/Attributes.h"
 #include "mozilla/CaretAssociationHint.h"
 #include "mozilla/ComputedStyle.h"
@@ -108,7 +109,6 @@
 #include "StickyScrollContainer.h"
 #include "gfxContext.h"
 #include "imgIRequest.h"
-#include "nsAbsoluteContainingBlock.h"
 #include "nsBlockFrame.h"
 #include "nsChangeHint.h"
 #include "nsContainerFrame.h"
@@ -153,7 +153,6 @@ using namespace mozilla::dom;
 using namespace mozilla::gfx;
 using namespace mozilla::layers;
 using namespace mozilla::layout;
-typedef nsAbsoluteContainingBlock::AbsPosReflowFlags AbsPosReflowFlags;
 using nsStyleTransformMatrix::TransformReferenceBox;
 
 nsIFrame* nsILineIterator::LineInfo::GetLastFrameOnLine() const {
@@ -253,17 +252,17 @@ mozilla::LazyLogModule nsIFrame::sFrameLogModule("frame");
 #endif
 
 NS_DECLARE_FRAME_PROPERTY_DELETABLE(AbsoluteContainingBlockProperty,
-                                    nsAbsoluteContainingBlock)
+                                    AbsoluteContainingBlock)
 
 bool nsIFrame::HasAbsolutelyPositionedChildren() const {
   return IsAbsoluteContainer() &&
          GetAbsoluteContainingBlock()->HasAbsoluteFrames();
 }
 
-nsAbsoluteContainingBlock* nsIFrame::GetAbsoluteContainingBlock() const {
+AbsoluteContainingBlock* nsIFrame::GetAbsoluteContainingBlock() const {
   NS_ASSERTION(IsAbsoluteContainer(),
                "The frame is not marked as an abspos container correctly");
-  nsAbsoluteContainingBlock* absCB =
+  AbsoluteContainingBlock* absCB =
       GetProperty(AbsoluteContainingBlockProperty());
   NS_ASSERTION(absCB,
                "The frame is marked as an abspos container but doesn't have "
@@ -279,7 +278,7 @@ void nsIFrame::MarkAsAbsoluteContainingBlock() {
                "Already has NS_FRAME_HAS_ABSPOS_CHILDREN state bit?");
   AddStateBits(NS_FRAME_HAS_ABSPOS_CHILDREN);
   SetProperty(AbsoluteContainingBlockProperty(),
-              new nsAbsoluteContainingBlock(GetAbsoluteListID()));
+              new AbsoluteContainingBlock(GetAbsoluteListID()));
 }
 
 void nsIFrame::MarkAsNotAbsoluteContainingBlock() {
@@ -2764,29 +2763,11 @@ bool nsIFrame::ComputeOverflowClipRectRelativeToSelf(
   // non-'visible' value for blocks in a paginated context).
   // We allow 'clip' to apply to any kind of frame. This is required by
   // comboboxes which make their display text (an inline frame) have clipping.
-  const auto* disp = StyleDisplay();
   MOZ_ASSERT(!aClipAxes.isEmpty());
-  MOZ_ASSERT(ShouldApplyOverflowClipping(disp) == aClipAxes);
+  MOZ_ASSERT(ShouldApplyOverflowClipping(StyleDisplay()) == aClipAxes);
   // Only deflate the padding if we clip to the content-box in that axis.
-  auto wm = GetWritingMode();
-  bool cbH = (wm.IsVertical() ? disp->mOverflowClipBoxBlock
-                              : disp->mOverflowClipBoxInline) ==
-             StyleOverflowClipBox::ContentBox;
-  bool cbV = (wm.IsVertical() ? disp->mOverflowClipBoxInline
-                              : disp->mOverflowClipBoxBlock) ==
-             StyleOverflowClipBox::ContentBox;
-
-  nsMargin boxMargin = -GetUsedPadding();
-  if (!cbH) {
-    boxMargin.left = boxMargin.right = nscoord(0);
-  }
-  if (!cbV) {
-    boxMargin.top = boxMargin.bottom = nscoord(0);
-  }
-
+  nsMargin boxMargin = -GetUsedBorder();
   auto clipMargin = OverflowClipMargin(aClipAxes);
-
-  boxMargin -= GetUsedBorder();
   boxMargin += nsMargin(clipMargin.height, clipMargin.width, clipMargin.height,
                         clipMargin.width);
   boxMargin.ApplySkipSides(GetSkipSides());
@@ -7463,7 +7444,7 @@ void nsIFrame::ReflowAbsoluteFrames(nsPresContext* aPresContext,
                                     const ReflowInput& aReflowInput,
                                     nsReflowStatus& aStatus) {
   if (HasAbsolutelyPositionedChildren()) {
-    nsAbsoluteContainingBlock* absoluteContainer = GetAbsoluteContainingBlock();
+    AbsoluteContainingBlock* absoluteContainer = GetAbsoluteContainingBlock();
 
     // Let the absolutely positioned container reflow any absolutely positioned
     // child frames that need to be reflowed
@@ -7479,9 +7460,11 @@ void nsIFrame::ReflowAbsoluteFrames(nsPresContext* aPresContext,
                  "Abs-pos children only supported on container frames for now");
 
     nsRect containingBlock(0, 0, containingBlockWidth, containingBlockHeight);
-    AbsPosReflowFlags flags =
-        AbsPosReflowFlags::CBWidthAndHeightChanged |  // XXX could be optimized
-        AbsPosReflowFlags::ConstrainHeight;
+    // XXX: To optimize the performance, set the flags only when the CB width or
+    // height actually changes.
+    AbsPosReflowFlags flags{AbsPosReflowFlag::AllowFragmentation,
+                            AbsPosReflowFlag::CBWidthChanged,
+                            AbsPosReflowFlag::CBHeightChanged};
     absoluteContainer->Reflow(container, aPresContext, aReflowInput, aStatus,
                               containingBlock, flags,
                               &aDesiredSize.mOverflowAreas);

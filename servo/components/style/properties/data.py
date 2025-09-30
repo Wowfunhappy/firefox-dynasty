@@ -1077,15 +1077,17 @@ class PropertyRestrictions:
         return set(
             [
                 "color",
+                "content",
+                "direction",
+                "line-height",
                 "text-combine-upright",
                 "text-emphasis-color",
                 "text-emphasis-position",
                 "text-emphasis-style",
+                "text-orientation",
+                "text-shadow",
                 "text-transform",
                 "unicode-bidi",
-                "direction",
-                "content",
-                "line-height",
                 "-moz-osx-font-smoothing",
             ]
             + PropertyRestrictions.shorthand(data, "text-wrap")

@@ -417,7 +417,7 @@ tasks:
                 - --timeout-multiplier=5.0
         worker-type:
             by-test-platform:
-                .*-wayland.*: t-linux-wayland-vm
+                .*windows.*: win11-64-24h2-webgpu
                 default: default
 
     web-platform-tests-webgpu-long:
@@ -482,7 +482,7 @@ tasks:
                 - --timeout-multiplier=5.0
         worker-type:
             by-test-platform:
-                .*-wayland.*: t-linux-wayland-vm
+                .*windows.*: win11-64-24h2-webgpu
                 default: default
 
     web-platform-tests-webgpu-backlog-long:

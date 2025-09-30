@@ -877,6 +877,9 @@ pref("browser.search.visualSearch.featureGate", true);
 // Feature gate for ohttp based suggestions.
 pref("browser.search.suggest.ohttp.featureGate", false);
 
+// User preference to enable/disable ohttp based suggestions.
+pref("browser.search.suggest.ohttp.enabled", true);
+
 // Spin the cursor while the page is loading
 pref("browser.spin_cursor_while_busy", false);
 
@@ -3441,11 +3444,11 @@ pref("browser.backup.sqlite.pages_per_step", 50);
 pref("browser.backup.sqlite.step_delay_ms", 50);
 pref("browser.backup.scheduled.idle-threshold-seconds", 15);
 pref("browser.backup.scheduled.minimum-time-between-backups-seconds", 86400);
-pref("browser.backup.template.fallback-download.release", "https://www.mozilla.org/firefox/download/thanks/?s=direct&utm_medium=firefox-desktop&utm_source=backup&utm_campaign=firefox-backup-2024&utm_content=control");
-pref("browser.backup.template.fallback-download.beta", "https://www.mozilla.org/firefox/channel/desktop/?utm_medium=firefox-desktop&utm_source=backup&utm_campaign=firefox-backup-2024&utm_content=control#beta");
-pref("browser.backup.template.fallback-download.aurora", "https://www.mozilla.org/firefox/channel/desktop/?utm_medium=firefox-desktop&utm_source=backup&utm_campaign=firefox-backup-2024&utm_content=control#developer");
-pref("browser.backup.template.fallback-download.nightly", "https://www.mozilla.org/firefox/channel/desktop/?utm_medium=firefox-desktop&utm_source=backup&utm_campaign=firefox-backup-2024&utm_content=control#nightly");
-pref("browser.backup.template.fallback-download.esr", "https://www.mozilla.org/firefox/enterprise/?utm_medium=firefox-desktop&utm_source=backup&utm_campaign=firefox-backup-2024&utm_content=control#download");
+pref("browser.backup.template.fallback-download.release", "https://www.firefox.com/?utm_medium=firefox-desktop&utm_source=html-backup");
+pref("browser.backup.template.fallback-download.beta", "https://www.firefox.com/channel/desktop/?utm_medium=firefox-desktop&utm_source=html-backup");
+pref("browser.backup.template.fallback-download.aurora", "https://www.firefox.com/channel/desktop/?utm_medium=firefox-desktop&utm_source=html-backup");
+pref("browser.backup.template.fallback-download.nightly", "https://www.firefox.com/channel/desktop/?utm_medium=firefox-desktop&utm_source=html-backup");
+pref("browser.backup.template.fallback-download.esr", " https://www.firefox.com/download/all/desktop-esr/?utm_medium=firefox-desktop&utm_source=html-backup");
 pref("browser.backup.errorCode", 0);
 pref("browser.backup.backup-retry-limit", 100);
 pref("browser.backup.disabled-on-idle-backup-retry", false);
@@ -3481,6 +3484,7 @@ pref("browser.contextual-services.contextId.rust-component.enabled", true);
 
 // Pref to enable the IP protection feature
 pref("browser.ipProtection.enabled", false);
+pref("browser.ipProtection.userEnabled", false);
 pref("browser.ipProtection.variant", "");
 pref("browser.ipProtection.log", false);
 pref("browser.ipProtection.guardian.endpoint", "https://vpn.mozilla.org/");

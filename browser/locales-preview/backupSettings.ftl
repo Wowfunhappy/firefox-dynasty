@@ -224,37 +224,48 @@ backup-file-header = { -brand-short-name } is ready to be restored
 backup-file-title = Restore { -brand-short-name }
 backup-file-intro = Get back to browsing and recover all your bookmarks, history, and other data. <a data-l10n-name="backup-file-support-link">Learn more</a>
 
-# Variables:
-#   $date (string) - Date to be formatted based on locale
-backup-file-last-backed-up = <strong>Last backed up:</strong> { DATETIME($date, timeStyle: "short") }, { DATETIME($date, dateStyle: "short") }
+backup-file-path-label = Backup file:
 
-backup-file-encryption-state-encrypted = Encrypted
-backup-file-encryption-state-not-encrypted = Not encrypted
+backup-file-encryption-state-label = Encrypted:
+backup-file-encryption-state-value-encrypted = Yes
+backup-file-encryption-state-value-not-encrypted = No
 
-# Variables:
-#   $machineName (String) - Name of the machine that the backup was created on.
-backup-file-creation-device = Created on { $machineName }
+backup-file-creation-device-label = Device:
 
+backup-file-creation-date-label = Created:
 # Variables:
 #   $date (Datetime) - The date the backup was created
-#   $machineName (String) - Name of the machine that the backup was created on.
-backup-file-creation-date-and-device = Created on { DATETIME($date, year: "numeric", month: "numeric", day: "numeric") } on { $machineName }
+backup-file-creation-date-value = { DATETIME($date, timeStyle: "short") }, { DATETIME($date, dateStyle: "short") }
+
+backup-file-how-to-restore-header = How to restore:
+
+# The ☰ character is intended as a visual icon representing the Firefox
+# application menu.
+backup-file-moz-browser-restore-step-1 = Open the application menu ☰ and go to Settings > Sync
+backup-file-moz-browser-restore-step-2 = Click “Choose backup file” and select this file
+backup-file-moz-browser-restore-step-3 = Restart { -brand-short-name } when asked
+
+backup-file-other-browser-restore-step-1 = Download and install { -brand-short-name }
+backup-file-download-moz-browser-button = Download
+# The ☰ character is intended as a visual icon representing the Firefox
+# application menu.
+backup-file-other-browser-restore-step-2 = Start { -brand-short-name }, open the application menu ☰ and go to Settings > Sync
+backup-file-other-browser-restore-step-3 = Click “Choose backup file” and select this file
+backup-file-other-browser-restore-step-4 = Restart { -brand-short-name } when asked
+
+## These strings are used in the about:restore and about:welcome pages
+## These pages guide the user on browser startup to help them restore a backup
+## if they have one on their file system.
 
 # Variables:
 # $numberOfOtherBackupsFound (number) - The number of backups found other than the displayed default backup
 other-backup-files-founds =
     { $numberOfOtherBackupsFound ->
         [one] <b>Note:</b> { $numberOfOtherBackupsFound } other backup file found
-        *[other] <b>Note:</b> { $numberOfOtherBackupsFound } other backup files found
+       *[other] <b>Note:</b> { $numberOfOtherBackupsFound } other backup files found
     }
 
-backup-file-how-to-restore-header = How to restore your data:
-backup-file-moz-browser-restore-step-1 = Go to Settings > Backup
-backup-file-moz-browser-restore-step-2 = Under “Restore”, click “Choose backup file”
-backup-file-moz-browser-restore-step-3 = Restart { -brand-short-name } when asked
-
-backup-file-other-browser-restore-step-1 = Download and install { -brand-short-name }:
-backup-file-download-moz-browser-button = Download { -brand-short-name }
-backup-file-other-browser-restore-step-2 = Open { -brand-short-name } and restore your backup
-
-##
+# Variables:
+#   $date (Datetime) - The date the backup was created
+#   $machineName (String) - Name of the machine that the backup was created on.
+backup-file-creation-date-and-device = Created on { DATETIME($date, year: "numeric", month: "numeric", day: "numeric") } on { $machineName }

@@ -4434,7 +4434,7 @@
 # (https://w3c.github.io/trusted-types/dist/spec/) is enabled.
 - name: dom.security.trusted_types.enabled
   type: RelaxedAtomicBool
-  value: False
+  value: @IS_NIGHTLY_BUILD@
   mirror: always
 
 # If true, all content requests will get upgraded to HTTPS://
@@ -16641,7 +16641,7 @@
 # Whether only bounces that access storage should be considered trackers.
 - name: privacy.bounceTrackingProtection.requireStatefulBounces
   type: bool
-  value: @IS_NOT_NIGHTLY_BUILD@
+  value: false
   mirror: always
 
 # To be used in automated test environments to enable observer messages.

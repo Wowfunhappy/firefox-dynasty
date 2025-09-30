@@ -1185,7 +1185,7 @@ export class BackupService extends EventTarget {
     // If all else fails, this is the download link we'll put into the rendered
     // template.
     const ULTIMATE_FALLBACK_DOWNLOAD_URL =
-      "https://www.mozilla.org/firefox/download/thanks/?s=direct&utm_medium=firefox-desktop&utm_source=backup&utm_campaign=firefox-backup-2024&utm_content=control";
+      "https://www.firefox.com/?utm_medium=firefox-desktop&utm_source=html-backup";
     const FALLBACK_DOWNLOAD_URL = Services.prefs.getStringPref(
       `browser.backup.template.fallback-download.${updateChannel}`,
       ULTIMATE_FALLBACK_DOWNLOAD_URL
@@ -1804,11 +1804,15 @@ export class BackupService extends EventTarget {
       AppConstants.MOZ_UPDATE_CHANNEL
     );
 
-    let supportLinkHref =
-      Services.urlFormatter.formatURLPref("app.support.baseURL") +
-      "recover-from-backup";
+    let supportURI = new URL(
+      "firefox-backup",
+      Services.urlFormatter.formatURLPref("app.support.baseURL")
+    );
+    supportURI.searchParams.set("utm_medium", "firefox-desktop");
+    supportURI.searchParams.set("utm_source", "html-backup");
+
     let supportLink = templateDOM.querySelector("#support-link");
-    supportLink.href = supportLinkHref;
+    supportLink.href = supportURI.href;
 
     // Now insert the logo as a dataURL, since we want the single-file backup
     // archive to be entirely self-contained.
@@ -1824,26 +1828,26 @@ export class BackupService extends EventTarget {
     let logoNode = templateDOM.querySelector("#logo");
     logoNode.src = logoDataURL;
 
-    let encStateNode = templateDOM.querySelector("#encryption-state");
+    let encStateNode = templateDOM.querySelector("#encryption-state-value");
     lazy.gDOMLocalization.setAttributes(
       encStateNode,
       isEncrypted
-        ? "backup-file-encryption-state-encrypted"
-        : "backup-file-encryption-state-not-encrypted"
+        ? "backup-file-encryption-state-value-encrypted"
+        : "backup-file-encryption-state-value-not-encrypted"
     );
 
-    let lastBackedUpNode = templateDOM.querySelector("#last-backed-up");
-    lazy.gDOMLocalization.setArgs(lastBackedUpNode, {
+    let createdDateNode = templateDOM.querySelector("#creation-date-value");
+    lazy.gDOMLocalization.setArgs(createdDateNode, {
       // It's very unlikely that backupMetadata.date isn't a valid Date string,
       // but if it _is_, then Fluent will cause us to crash in debug builds.
       // We fallback to the current date if all else fails.
       date: new Date(backupMetadata.date).getTime() || new Date().getTime(),
     });
 
-    let creationDeviceNode = templateDOM.querySelector("#creation-device");
-    lazy.gDOMLocalization.setArgs(creationDeviceNode, {
-      machineName: backupMetadata.machineName,
-    });
+    let creationDeviceNode = templateDOM.querySelector(
+      "#creation-device-value"
+    );
+    creationDeviceNode.textContent = backupMetadata.machineName;
 
     try {
       await lazy.gDOMLocalization.translateFragment(
