@@ -1184,6 +1184,21 @@ const POLICIES_TESTS = [
       // browser/components/enterprisepolicies/tests/browser/browser_policy_usermessaging.js
     },
   },
+
+  // Bug 1981587
+  {
+    policies: {
+      Preferences: {
+        "security.webauthn.always_allow_direct_attestation": {
+          Value: true,
+          Status: "locked",
+        },
+      },
+    },
+    lockedPrefs: {
+      "security.webauthn.always_allow_direct_attestation": true,
+    },
+  },
 ];
 
 add_task(async function test_policy_simple_prefs() {
