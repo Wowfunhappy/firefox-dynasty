@@ -202,13 +202,14 @@
               this._finishFAYT(event);
             }
             break;
-          case KeyEvent.DOM_VK_TAB:
+          case KeyEvent.DOM_VK_TAB: {
             let shouldHandle =
               !event.altKey && !event.ctrlKey && !event.metaKey;
             if (shouldHandle && this.findMode != this.FIND_NORMAL) {
               this._finishFAYT(event);
             }
             break;
+          }
           case KeyEvent.DOM_VK_PAGE_UP:
           case KeyEvent.DOM_VK_PAGE_DOWN:
             if (
@@ -499,10 +500,9 @@
         return;
       }
 
-      this.browser.finder.requestMatchesCount(
-        this._findField.value,
-        this.findMode == this.FIND_LINKS
-      );
+      this.browser.finder.requestMatchesCount(this._findField.value, {
+        linksOnly: this.findMode == this.FIND_LINKS,
+      });
     }
 
     /**

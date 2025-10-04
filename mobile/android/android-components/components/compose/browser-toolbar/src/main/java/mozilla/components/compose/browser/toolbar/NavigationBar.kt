@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -43,7 +44,7 @@ fun NavigationBar(
 ) {
     Box(
         modifier = Modifier
-            .height(60.dp)
+            .height(if (toolbarGravity == Top) 60.dp else 48.dp)
             .background(color = AcornTheme.colors.layer1)
             .pointerInput(Unit) {
                 awaitPointerEventScope {
@@ -59,9 +60,10 @@ fun NavigationBar(
             actions = actions,
             onInteraction = onInteraction,
             modifier = Modifier
+                .padding(horizontal = 12.dp)
                 .fillMaxWidth()
                 .align(Alignment.Center),
-            horizontalArrangement = Arrangement.SpaceEvenly,
+            horizontalArrangement = Arrangement.SpaceBetween,
         )
 
         if (toolbarGravity == Top) {

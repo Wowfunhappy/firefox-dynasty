@@ -18,6 +18,7 @@ import {
 import { MozLitElement } from "chrome://global/content/lit-utils.mjs";
 
 /** @import MozCheckbox from "../../../../../toolkit/content/widgets/moz-checkbox/moz-checkbox.mjs"*/
+/** @import { Setting } from "chrome://global/content/preferences/Setting.mjs"; */
 
 /**
  * A Lit directive that applies all properties of an object to a DOM element.
@@ -98,17 +99,6 @@ class SpreadDirective extends Directive {
 }
 
 const spread = directive(SpreadDirective);
-
-/**
- * @type Map<string, HTMLElement>
- */
-const controlInstances = new Map();
-function getControlInstance(control = "moz-checkbox") {
-  if (!controlInstances.has(control)) {
-    controlInstances.set(control, document.createElement(control));
-  }
-  return controlInstances.get(control);
-}
 
 /**
  * Mapping of parent control tag names to the literal tag name for their
@@ -215,7 +205,21 @@ export class SettingControl extends MozLitElement {
   }
 
   updated() {
-    this.controlRef?.value?.requestUpdate();
+    const control = this.controlRef?.value;
+    if (!control) {
+      return;
+    }
+
+    // Set the value based on the control's API.
+    if ("checked" in control) {
+      control.checked = this.value;
+    } else if ("pressed" in control) {
+      control.pressed = this.value;
+    } else if ("value" in control) {
+      control.value = this.value;
+    }
+
+    control.requestUpdate();
   }
 
   /**
@@ -257,21 +261,10 @@ export class SettingControl extends MozLitElement {
   getControlPropertyMapping(config) {
     const props = this.getCommonPropertyMapping(config);
     props[".parentDisabled"] = this.parentDisabled;
-    props[".control"] = this;
     props["?disabled"] =
       this.setting.disabled ||
       this.setting.locked ||
       this.isControlledByExtension();
-
-    // Set the value based on the control's API.
-    let instance = getControlInstance(config.control);
-    if ("checked" in instance) {
-      props[".checked"] = this.value;
-    } else if ("pressed" in instance) {
-      props[".pressed"] = this.value;
-    } else if ("value" in instance) {
-      props[".value"] = this.value;
-    }
 
     return props;
   }

@@ -824,24 +824,6 @@ networking:
       - rjesup@mozilla.com
     expires: 146
 
-  http_content_cssloader_ondatafinished_to_onstop_delay:
-    type: timing_distribution
-    time_unit: millisecond
-    description: >
-      The time between processing OnDataFinished and processing OnStopRequest for CSSLoader in the content process
-    bugs:
-      - https://bugzilla.mozilla.org/show_bug.cgi?id=1883391
-      - https://bugzilla.mozilla.org/show_bug.cgi?id=1902186
-    data_reviews:
-      - https://bugzilla.mozilla.org/show_bug.cgi?id=1883391
-    data_sensitivity:
-      - technical
-    notification_emails:
-      - necko@mozilla.com
-    expires: 146
-
-
-
   http_onstart_suspend_total_time:
     type: timing_distribution
     time_unit: millisecond
@@ -1502,7 +1484,7 @@ networking:
       - https://bugzilla.mozilla.org/show_bug.cgi?id=1848542
     notification_emails:
       - vgosu@mozilla.com
-    expires: 146
+    expires: 156
 
   residual_cache_folder_removal:
     type: labeled_counter
@@ -1511,11 +1493,13 @@ networking:
       that wasn't purged at shutdown
     bugs:
       - https://bugzilla.mozilla.org/1848542
+      - https://bugzilla.mozilla.org/1989190
     data_reviews:
       - https://bugzilla.mozilla.org/show_bug.cgi?id=1848542
+      - https://bugzilla.mozilla.org/show_bug.cgi?id=1989190
     notification_emails:
       - vgosu@mozilla.com
-    expires: 146
+    expires: 156
     labels:
       - success
       - failure

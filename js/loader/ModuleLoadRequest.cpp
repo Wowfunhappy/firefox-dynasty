@@ -53,12 +53,20 @@ ModuleLoadRequest::ModuleLoadRequest(
     ModuleLoadRequest* aRootModule)
     : ScriptLoadRequest(ScriptKind::eModule, aURI, aReferrerPolicy,
                         aFetchOptions, aIntegrity, aReferrer, aContext),
-      mIsTopLevel(aKind == Kind::TopLevel || aKind == Kind::DynamicImport),
+      mKind(aKind),
       mModuleType(aModuleType),
-      mIsDynamicImport(aKind == Kind::DynamicImport),
+      mErroredLoadingImports(false),
       mLoader(aLoader),
       mRootModule(aRootModule) {
   MOZ_ASSERT(mLoader);
+}
+
+ModuleLoadRequest::~ModuleLoadRequest() {
+  MOZ_ASSERT(!mReferrerScript);
+  MOZ_ASSERT(!mModuleRequestObj);
+  MOZ_ASSERT(mPayload.isUndefined());
+
+  DropJSObjects(this);
 }
 
 nsIGlobalObject* ModuleLoadRequest::GetGlobalObject() {
@@ -66,23 +74,12 @@ nsIGlobalObject* ModuleLoadRequest::GetGlobalObject() {
 }
 
 bool ModuleLoadRequest::IsErrored() const {
-  return !mModuleScript || mModuleScript->HasParseError();
-}
-
-void ModuleLoadRequest::Cancel() {
-  if (IsCanceled()) {
-    return;
+  if (!mModuleScript || mErroredLoadingImports) {
+    return true;
   }
 
-  if (IsFinished()) {
-    return;
-  }
-
-  ScriptLoadRequest::Cancel();
-
-  mModuleScript = nullptr;
-  mReferrerScript = nullptr;
-  mModuleRequestObj = nullptr;
+  MOZ_ASSERT_IF(mModuleScript->HasErrorToRethrow(), !IsDynamicImport());
+  return mModuleScript->HasParseError() || mModuleScript->HasErrorToRethrow();
 }
 
 void ModuleLoadRequest::SetReady() {
@@ -108,10 +105,6 @@ void ModuleLoadRequest::ModuleLoaded() {
   MOZ_ASSERT(IsFetching() || IsPendingFetchingError());
 
   mModuleScript = mLoader->GetFetchedModule(ModuleMapKey(mURI, mModuleType));
-  if (IsErrored()) {
-    ModuleErrored();
-    return;
-  }
 }
 
 void ModuleLoadRequest::LoadFailed() {
@@ -141,13 +134,7 @@ void ModuleLoadRequest::ModuleErrored() {
   }
 
   MOZ_ASSERT(!IsFinished());
-
-  mozilla::DebugOnly<bool> hasRethrow =
-      mModuleScript && mModuleScript->HasErrorToRethrow();
-
-  // When LoadRequestedModules fails, we will set error to rethrow to the module
-  // script and call ModuleErrored().
-  MOZ_ASSERT(IsErrored() || hasRethrow);
+  MOZ_ASSERT(IsErrored());
 
   if (IsFinished()) {
     // Cancelling an outstanding import will error this request.
@@ -160,7 +147,7 @@ void ModuleLoadRequest::ModuleErrored() {
 
 void ModuleLoadRequest::LoadFinished() {
   RefPtr<ModuleLoadRequest> request(this);
-  if (IsTopLevel() && IsDynamicImport()) {
+  if (IsDynamicImport()) {
     mLoader->RemoveDynamicImport(request);
   }
 

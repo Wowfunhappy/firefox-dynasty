@@ -4364,8 +4364,8 @@
   value: false
   mirror: always
 
-# Cache stencil across navigation
-- name: dom.script_loader.navigation_cache
+# For testing purposes only: Cache stencil across navigation
+- name: dom.script_loader.experimental.navigation_cache
   type: bool
   value: false
   mirror: always
@@ -8087,7 +8087,7 @@
 - name: gfx.webrender.precise-radial-gradients
   type: bool
   rust: true
-  value: false
+  value: true
   mirror: once
 
 # Use a more precise method for sampling gradients when using SWGL.
@@ -9375,6 +9375,18 @@
   mirror: always
   do_not_use_directly: true
 
+# Use the JS microtask queue for Promise jobs and other microtasks.
+# DO NOT TURN THIS ON BY DEFAULT WITHOUT THE BUGS BLOCKING
+# BUG 1990841 being fixed (especially Bug 1990842).
+- name: javascript.options.use_js_microtask_queue
+  type: RelaxedAtomicBool
+  value: false
+  # Changing this mid process will break invariants and crash, however
+  # making this mirror: once, and set_spidermonkey_pref: startup is
+  # broken: See Bug 1989094
+  mirror: always
+  set_spidermonkey_pref: always
+
 # Whether to use the off-thread script compilation and decoding.
 - name: javascript.options.parallel_parsing
   type: bool
@@ -9511,6 +9523,13 @@
 #endif
   mirror: always
 
+# If true, allow the parent process as a fallback for compositing due to an
+# unstable GPU process, otherwise simply crash the parent process.
+- name: layers.gpu-process.allow-fallback-to-parent
+  type: bool
+  value: false
+  mirror: once
+
 - name: layers.gpu-process.allow-software
   type: bool
 #if defined(XP_WIN)
@@ -9557,6 +9576,17 @@
   value: 20000
   mirror: once
 
+# How many additional attempts to launch the GPU process we try if we fail
+# during process launch, before any configuration is attempted.
+- name: layers.gpu-process.max_launch_attempts
+  type: RelaxedAtomicInt32
+#if defined(XP_WIN) || defined(MOZ_WIDGET_GTK)
+  value: 2
+#else
+  value: 0
+#endif
+  mirror: always
+
 # How many unstable GPU process restarts we allow for a given configuration.
 - name: layers.gpu-process.max_restarts
   type: RelaxedAtomicInt32
@@ -9579,7 +9609,7 @@
 # restarts.
 - name: layers.gpu-process.stable.min-uptime-ms
   type: RelaxedAtomicInt32
-  value: 4 * 60000
+  value: 30000
   mirror: always
 
 # Note: This pref will only be used if it is less than layers.gpu-process.max_restarts.
@@ -10102,13 +10132,6 @@
   mirror: always
   rust: true
 
-# Perform intrinsic sizing of flexible grid tracks based on grid items that
-# span more than one track.
-- name: layout.css.grid-flex-spanning-items-intrinsic-sizing.enabled
-  type: bool
-  value: true
-  mirror: always
-
 # Enable the new multi-pass grid track sizing algorithm.
 # This features implements two aspects from the CSS Grid Level 2 spec:
 # 1. Percent-valued row track size re-resolution:
@@ -10177,12 +10200,6 @@
 #else
   value: false
 #endif
-  mirror: always
-
-# Is support for CSS overflow-clip-box enabled for non-UA sheets?
-- name: layout.css.overflow-clip-box.enabled
-  type: bool
-  value: false
   mirror: always
 
 # Is support for CSS overflow: -moz-hidden-unscrollable enabled
@@ -11971,12 +11988,6 @@
     value: true
     mirror: always
 
-# Use IsTypeSupportedEx for PlayReady
--   name: media.eme.playready.istypesupportedex
-    type: RelaxedAtomicBool
-    value: true
-    mirror: always
-
 # Enable Widevine experiment DRM for EME
 -   name: media.eme.widevine.experiment.enabled
     type: RelaxedAtomicBool
@@ -12253,7 +12264,7 @@
 # Matroska
 - name: media.mkv.enabled
   type: RelaxedAtomicBool
-  value: @IS_NIGHTLY_BUILD@
+  value: true
   mirror: always
 
 - name: media.av1.use-dav1d
@@ -12973,6 +12984,21 @@
   value: 262144
   mirror: always
 
+# The maximum desired size of PHC, This includes allocations and excludes
+# metadata. PHC allocations are "oversized" to the system page size.
+- name: memory.phc.size_kb
+  type: uint32_t
+#ifdef EARLY_BETA_OR_EARLIER
+  value: 16 * 1024
+#else
+# Before Bug 1867191 PHC used aproximately 1.1MB since it was set to a round
+# number of 256 pages.  To keep the size the same we now specify this
+# strange total size, but will follow-up with a more sensible maximum in
+# the future.
+  value: 1024 + 128
+#endif
+  mirror: always
+
 # Tell mozjemalloc and the TaskController to use lazy purge.
 - name: memory.lazypurge.enable
   type: bool
@@ -13453,7 +13479,7 @@
 # Include an idempotency-key header for POST requests
 - name: network.http.idempotencyKey.enabled
   type: RelaxedAtomicBool
-  value: @IS_NIGHTLY_BUILD@
+  value: true
   mirror: always
 
 # Whether to respect the redirected-tainted origin flag
@@ -15127,12 +15153,7 @@
 # Use NSPR for HTTP3 UDP IO
 - name: network.http.http3.use_nspr_for_io
   type: RelaxedAtomicBool
-#ifdef ANDROID
-  # Holding back on Android for now given <https://bugzilla.mozilla.org/show_bug.cgi?id=1987256>.
-  value: @IS_NOT_EARLY_BETA_OR_EARLIER@
-#else
   value: false
-#endif
   mirror: always
   rust: true
 
@@ -15170,6 +15191,11 @@
   # Disable GSO on Windows.
   #
   # See https://bugzilla.mozilla.org/show_bug.cgi?id=1979279 for details.
+  value: 1
+#elif defined(ANDROID)
+  # Disable GSO on Android.
+  #
+  # See <https://bugzilla.mozilla.org/show_bug.cgi?id=1987256> for details.
   value: 1
 #else
   # Current industry standard. Likely worth tuning.
@@ -15270,11 +15296,7 @@
 # Has no effect unless security.tls.enable_kyber is true.
 - name: network.http.http3.enable_kyber
   type: RelaxedAtomicBool
-#ifdef ANDROID
-  value: @IS_NIGHTLY_BUILD@
-#else
   value: true
-#endif
   mirror: always
   rust: true
 
@@ -17341,17 +17363,13 @@
 
 - name: security.tls.enable_kyber
   type: RelaxedAtomicBool
-#ifdef ANDROID
-  value: @IS_NIGHTLY_BUILD@
-#else
   value: true
-#endif
   mirror: always
   rust: true
 
 - name: security.tls.client_hello.send_p256_keyshare
   type: RelaxedAtomicBool
-  value: true
+  value: @IS_NOT_NIGHTLY_BUILD@
   mirror: always
   rust: true
 

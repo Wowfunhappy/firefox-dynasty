@@ -20,13 +20,11 @@ import android.widget.Toast
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.VisibleForTesting
-import androidx.core.content.edit
 import androidx.core.net.toUri
 import androidx.core.view.isVisible
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
-import androidx.preference.PreferenceManager
 import com.google.android.material.snackbar.Snackbar
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.DelicateCoroutinesApi
@@ -412,6 +410,11 @@ class BrowserFragment :
                 components.store,
                 components.downloadsUseCases,
                 fragmentManager = childFragmentManager,
+                promptsStyling = DownloadsFeature.PromptsStyling(
+                    gravity = Gravity.CENTER,
+                    positiveButtonBackgroundColor = R.color.contrastColor,
+                    positiveButtonTextColor = R.color.colorPrimary,
+                ),
                 tabId = tabId,
                 downloadManager = FetchDownloadManager(
                     requireContext().applicationContext,
@@ -536,6 +539,11 @@ class BrowserFragment :
             feature = SitePermissionsFeature(
                 context = requireContext(),
                 fragmentManager = parentFragmentManager,
+                promptsStyling = SitePermissionsFeature.PromptsStyling(
+                    gravity = Gravity.CENTER,
+                    positiveButtonBackgroundColor = R.color.contrastColor,
+                    positiveButtonTextColor = R.color.colorPrimary,
+                ),
                 onNeedToRequestPermissions = { permissions ->
                     if (SitePermissionOptionsStorage(requireContext()).isSitePermissionNotBlocked(permissions)) {
                         requestPermissionLauncher.launch(permissions)
@@ -619,7 +627,7 @@ class BrowserFragment :
             requireComponents.topSitesUseCases,
             tabId,
             ::shareCurrentUrl,
-            ::setShouldRequestDesktop,
+            ::toggleDesktopSite,
             ::showAddToHomescreenDialog,
             ::showFindInPageBar,
             ::openSelectBrowser,
@@ -1051,12 +1059,12 @@ class BrowserFragment :
         requireActivity().finish()
     }
 
-    private fun setShouldRequestDesktop(enabled: Boolean) {
-        if (enabled) {
-            PreferenceManager.getDefaultSharedPreferences(requireContext()).edit {
-                putBoolean(requireContext().getString(R.string.has_requested_desktop), true)
-            }
-        }
+    /**
+     * Toggles the "Request desktop site" setting for the current tab.
+     *
+     * @param enabled True to request the desktop site, false to request the mobile site.
+     */
+    private fun toggleDesktopSite(enabled: Boolean) {
         requireComponents.sessionUseCases.requestDesktopSite(enabled, tab.id)
     }
 

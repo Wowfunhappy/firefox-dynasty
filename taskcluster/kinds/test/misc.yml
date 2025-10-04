@@ -152,15 +152,10 @@ test-verify:
                     - linux64-hostutils
         fetch:
             - ort.jsep.wasm
-            - translations.inference
-            - translations.esen.lex
-            - translations.esen.model
-            - translations.esen.vocab
-
-    worker-type:
-        by-test-platform:
-            .*-wayland.*: t-linux-wayland-vm
-            default: default
+            - tr8ns.inference
+            - tr8ns.T.esen.lex
+            - tr8ns.T.esen.model
+            - tr8ns.T.esen.vocab
 
 test-verify-gpu:
     description: "Extra verification of tests modified on this push on gpu instances"
@@ -206,10 +201,6 @@ test-verify-gpu:
         extra-options:
             - --verify
             - --gpu-required
-    worker-type:
-        by-test-platform:
-            .*-wayland.*: t-linux-wayland-vm
-            default: default
 
 test-coverage:
     description: "Per-test coverage"

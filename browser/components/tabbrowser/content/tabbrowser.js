@@ -3,8 +3,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-/* eslint-env mozilla/browser-window */
-
 {
   // start private scope for Tabbrowser
   /**
@@ -3214,18 +3212,6 @@
       }
 
       return splitview;
-    }
-
-    /**
-     * Removes the split view. This has the effect of closing all the tabs
-     * in the split view.
-     *
-     * @param {MozTabSplitViewWrapper} [splitView]
-     *   The split view to remove.
-     */
-    async removeSplitView(splitView) {
-      this.removeTabs(splitView.tabs);
-      splitView.remove();
     }
 
     /**
@@ -6571,7 +6557,7 @@
       }
 
       this.#handleTabMove(aTab, () =>
-        aSplitViewWrapper.wrapper.appendChild(aTab)
+        aSplitViewWrapper.container.appendChild(aTab)
       );
       this.removeFromMultiSelectedTabs(aTab);
       this.tabContainer._notifyBackgroundTab(aTab);
@@ -7471,7 +7457,6 @@
       }
 
       // Add a line to the tooltip with additional tab context (e.g. container
-      // membership, tab group membership) when applicable.
       let containerName = tab.userContextId
         ? ContextualIdentityService.getUserContextLabel(tab.userContextId)
         : "";

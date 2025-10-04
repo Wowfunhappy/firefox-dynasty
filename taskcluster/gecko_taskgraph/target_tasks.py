@@ -12,7 +12,7 @@ from datetime import datetime, timedelta
 import requests
 from redo import retry
 from taskgraph import create
-from taskgraph.target_tasks import register_target_task
+from taskgraph.target_tasks import filter_for_git_branch, register_target_task
 from taskgraph.util.attributes import attrmatch
 from taskgraph.util.parameterization import resolve_timestamps
 from taskgraph.util.taskcluster import (
@@ -28,6 +28,7 @@ from gecko_taskgraph.util.attributes import (
     is_try,
     match_run_on_hg_branches,
     match_run_on_projects,
+    match_run_on_repo_type,
 )
 from gecko_taskgraph.util.constants import TEST_KINDS
 from gecko_taskgraph.util.hg import find_hg_revision_push_info, get_hg_commit_message
@@ -98,6 +99,15 @@ def filter_out_cron(task, parameters):
     Filter out tasks that run via cron.
     """
     return not task.attributes.get("cron")
+
+
+def filter_for_repo_type(task, parameters):
+    """Filter tasks by repository type.
+
+    This filter is temporarily in-place to facilitate the hg.mozilla.org ->
+    Github migration."""
+    run_on_repo_types = set(task.attributes.get("run_on_repo_type", ["hg"]))
+    return match_run_on_repo_type(parameters["repository_type"], run_on_repo_types)
 
 
 def filter_for_project(task, parameters):
@@ -250,8 +260,10 @@ def standard_filter(task, parameters):
         filter_func(task, parameters)
         for filter_func in (
             filter_out_cron,
+            filter_for_repo_type,
             filter_for_project,
             filter_for_hg_branch,
+            filter_for_git_branch,
             filter_tests_without_manifests,
         )
     )
@@ -1063,7 +1075,12 @@ def target_tasks_searchfox(full_task_graph, parameters, graph_config):
         else:
             # Find the earlier expiration time of existing tasks
             taskdef = get_task_definition(task["taskId"])
-            task_graph = get_artifact(task["taskId"], "public/task-graph.json")
+            try:
+                task_graph = get_artifact(task["taskId"], "public/task-graph.json")
+            except requests.exceptions.HTTPError as e:
+                if e.response.status_code != 404:
+                    raise
+                task_graph = None
             if task_graph:
                 base_time = parse_time(taskdef["created"])
                 first_expiry = min(
@@ -1545,6 +1562,32 @@ def target_tasks_perftest_autoland(full_task_graph, parameters, graph_config):
         if task.attributes.get("cron", False) and any(
             test_name in name for test_name in ["view"]
         ):
+            yield name
+
+
+@register_target_task("retrigger-perftests-autoland")
+def retrigger_perftests_autoland_commits(full_task_graph, parameters, graph_config):
+    """
+    In this transform we are trying to do retrigger the following tasks 4 times every 20 commits in autoland:
+    - "perftest-android-hw-a55-aarch64-shippable-startup-fenix-cold-main-first-frame",
+    - "perftest-android-hw-a55-aarch64-shippable-startup-fenix-cold-view-nav-start",
+    - "perftest-android-hw-a55-aarch64-shippable-startup-fenix-homeview-startup",
+    - "perftest-android-hw-a55-aarch64-shippable-startup-fenix-newssite-applink-startup",
+    - "perftest-android-hw-a55-aarch64-shippable-startup-fenix-shopify-applink-startup",
+    - "perftest-android-hw-a55-aarch64-shippable-startup-fenix-tab-restore-shopify"
+    - "test-windows11-64-24h2-shippable/opt-browsertime-benchmark-firefox-speedometer3",
+    """
+    retrigger_count = 4
+    for name, task in full_task_graph.tasks.items():
+        if (
+            (
+                "perftest-android-hw-a55-aarch64-shippable-startup-fenix" in task.label
+                and "simple" not in task.label
+            )
+            or "test-windows11-64-24h2-shippable/opt-browsertime-benchmark-firefox-speedometer3"
+            in task.label
+        ):
+            task.attributes["task_duplicates"] = retrigger_count
             yield name
 
 

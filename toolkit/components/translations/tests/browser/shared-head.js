@@ -68,7 +68,7 @@ const NO_LANGUAGE_URL = _url("translations-tester-no-tag.html");
 const PDF_TEST_PAGE_URL = _url("translations-tester-pdf-file.pdf");
 const SELECT_TEST_PAGE_URL = _url("translations-tester-select.html");
 const TEXT_CLEANING_URL = _url("translations-text-cleaning.html");
-const SPANISH_BENCHMARK_PAGE_URL = _url("translations-bencher-es.html");
+const ENGLISH_BENCHMARK_PAGE_URL = _url("translations-bencher-en.html");
 
 const SPANISH_PAGE_URL_DOT_ORG =
   URL_ORG_PREFIX + DIR_PATH + "translations-tester-es.html";
@@ -201,6 +201,11 @@ async function openAboutTranslations({
 
   // Now load the about:translations page, since the actor could be mocked.
   await loadNewPage(tab.linkedBrowser, "about:translations");
+
+  // Ensure the window always opens with a horizontal page layout.
+  // Divide everything by sqrt(2) to halve the overall content size.
+  await ensureWindowSize(window, 1600 * Math.SQRT1_2, 900 * Math.SQRT1_2);
+  FullZoom.setZoom(Math.SQRT1_2, tab.linkedBrowser);
 
   /**
    * @param {number} count - Count of the language pairs expected.
@@ -1215,7 +1220,7 @@ async function pathExists(path) {
  *
  * @returns {Promise<object>} - An object containing the removeMocks function and remoteClients.
  */
-async function createFileSystemRemoteSettings(languagePairs) {
+async function createFileSystemRemoteSettings(languagePairs, architecture) {
   const { removeMocks, remoteClients } = await createAndMockRemoteSettings({
     languagePairs,
     useMockedTranslator: false,
@@ -1250,12 +1255,14 @@ async function createFileSystemRemoteSettings(languagePairs) {
 
   const download = async record => {
     const recordPath = normalizePathForOS(
-      `${artifactDirectory}/${record.name}.zst`
+      record.name === "bergamot-translator"
+        ? `${artifactDirectory}/${record.name}.zst`
+        : `${artifactDirectory}/${architecture}.${record.name}.zst`
     );
 
     if (!(await pathExists(recordPath))) {
       throw new Error(`
-        The record ${record.name} was not found in ${artifactDirectory} specified by MOZ_FETCHES_DIR.
+        The record ${record.name} was not found in ${artifactDirectory} specified by MOZ_FETCHES_DIR at the expected path: ${recordPath}
         If you are running a Translations end-to-end test locally, you will need to download the required artifacts to MOZ_FETCHES_DIR.
         To configure MOZ_FETCHES_DIR to run Translations end-to-end tests locally, please run toolkit/components/translations/tests/scripts/download-translations-artifacts.py
       `);
@@ -1360,7 +1367,10 @@ class MockedA11yUtils {
  * @returns {Promise<void>}
  */
 async function ensureWindowSize(win, width, height) {
-  if (win.outerWidth < width + 50 && win.outerHeight < height + 50) {
+  if (
+    Math.abs(win.outerWidth - width) < 1 &&
+    Math.abs(win.outerHeight - height) < 1
+  ) {
     return;
   }
 
@@ -1382,6 +1392,7 @@ async function loadTestPage({
   systemLocales = ["en"],
   appLocales,
   webLanguages,
+  architecture,
   contentEagerMode = false,
   win = window,
 }) {
@@ -1436,7 +1447,7 @@ async function loadTestPage({
     );
 
     const result = endToEndTest
-      ? await createFileSystemRemoteSettings(languagePairs)
+      ? await createFileSystemRemoteSettings(languagePairs, architecture)
       : await createAndMockRemoteSettings({
           languagePairs,
           autoDownloadFromRemoteSettings,
@@ -2765,7 +2776,7 @@ class AboutTranslationsTestUtils {
      * @type {string}
      */
     static DetectedLanguageUpdated =
-      "AboutTranslations:DetectedLanguageUpdated";
+      "AboutTranslationsTest:DetectedLanguageUpdated";
 
     /**
      * Event fired when the swap-languages button becomes disabled.
@@ -2773,7 +2784,7 @@ class AboutTranslationsTestUtils {
      * @type {string}
      */
     static SwapLanguagesButtonDisabled =
-      "AboutTranslations:SwapLanguagesButtonDisabled";
+      "AboutTranslationsTest:SwapLanguagesButtonDisabled";
 
     /**
      * Event fired when the swap-languages button becomes enabled.
@@ -2781,7 +2792,7 @@ class AboutTranslationsTestUtils {
      * @type {string}
      */
     static SwapLanguagesButtonEnabled =
-      "AboutTranslations:SwapLanguagesButtonEnabled";
+      "AboutTranslationsTest:SwapLanguagesButtonEnabled";
 
     /**
      * Event fired when the translating placeholder message is shown.
@@ -2789,35 +2800,51 @@ class AboutTranslationsTestUtils {
      * @type {string}
      */
     static ShowTranslatingPlaceholder =
-      "AboutTranslations:ShowTranslatingPlaceholder";
+      "AboutTranslationsTest:ShowTranslatingPlaceholder";
 
     /**
      * Event fired after the URL has been updated from UI interactions.
      *
      * @type {string}
      */
-    static URLUpdatedFromUI = "AboutTranslations:URLUpdatedFromUI";
+    static URLUpdatedFromUI = "AboutTranslationsTest:URLUpdatedFromUI";
 
     /**
      * Event fired when a translation is requested.
      *
      * @type {string}
      */
-    static TranslationRequested = "AboutTranslations:TranslationRequested";
+    static TranslationRequested = "AboutTranslationsTest:TranslationRequested";
 
     /**
      * Event fired when a translation completes.
      *
      * @type {string}
      */
-    static TranslationComplete = "AboutTranslations:TranslationComplete";
+    static TranslationComplete = "AboutTranslationsTest:TranslationComplete";
+
+    /**
+     * Event fired when the page layout changes.
+     *
+     * @type {string}
+     */
+    static PageOrientationChanged =
+      "AboutTranslationsTest:PageOrientationChanged";
+
+    /**
+     * Event fired when the source/target textarea heights change.
+     *
+     * @type {string}
+     */
+    static TextAreaHeightsChanged =
+      "AboutTranslationsTest:TextAreaHeightsChanged";
 
     /**
      * Event fired when the target text is cleared programmatically.
      *
      * @type {string}
      */
-    static ClearTargetText = "AboutTranslations:ClearTargetText";
+    static ClearTargetText = "AboutTranslationsTest:ClearTargetText";
   };
 
   /**
@@ -3147,6 +3174,9 @@ class AboutTranslationsTestUtils {
    * @returns {Promise<void>}
    */
   async assertEvents({ expected = [], unexpected = [] } = {}, callback) {
+    // This helps the test visually render at each step without significantly slowing test speed.
+    await doubleRaf(document);
+
     try {
       const expectedEventWaiters = Object.fromEntries(
         expected.map(([eventName]) => [eventName, this.waitForEvent(eventName)])
@@ -3155,9 +3185,14 @@ class AboutTranslationsTestUtils {
       const unexpectedEventMap = {};
       for (const eventName of unexpected) {
         unexpectedEventMap[eventName] = false;
-        this.waitForEvent(eventName).then(() => {
-          unexpectedEventMap[eventName] = true;
-        });
+        this.waitForEvent(eventName)
+          .then(() => {
+            unexpectedEventMap[eventName] = true;
+          })
+          .catch(() => {
+            // The waitForEvent() timeout race triggered, which is okay
+            // since we didn't expect this event to fire anyway.
+          });
       }
 
       await callback();
@@ -3184,6 +3219,9 @@ class AboutTranslationsTestUtils {
     } catch (error) {
       AboutTranslationsTestUtils.#reportTestFailure(error);
     }
+
+    // This helps the test visually render at each step without significantly slowing test speed.
+    await doubleRaf(document);
   }
 
   /**
@@ -3200,6 +3238,9 @@ class AboutTranslationsTestUtils {
     showsPlaceholder,
     scriptDirection,
   } = {}) {
+    // This helps the test visually render at each step without significantly slowing test speed.
+    await doubleRaf(document);
+
     let pageResult = {};
     try {
       pageResult = await this.#runInPage(
@@ -3265,6 +3306,9 @@ class AboutTranslationsTestUtils {
     showsPlaceholder,
     scriptDirection,
   } = {}) {
+    // This helps the test visually render at each step without significantly slowing test speed.
+    await doubleRaf(document);
+
     let pageResult = {};
     try {
       pageResult = await this.#runInPage(
@@ -3330,6 +3374,9 @@ class AboutTranslationsTestUtils {
     options,
     detectedLanguage,
   } = {}) {
+    // This helps the test visually render at each step without significantly slowing test speed.
+    await doubleRaf(document);
+
     let pageResult = {};
     try {
       pageResult = await this.#runInPage(selectors => {
@@ -3400,6 +3447,9 @@ class AboutTranslationsTestUtils {
    * @returns {Promise<void>}
    */
   async assertTargetLanguageSelector({ value, options } = {}) {
+    // This helps the test visually render at each step without significantly slowing test speed.
+    await doubleRaf(document);
+
     let pageResult = {};
     try {
       pageResult = await this.#runInPage(
@@ -3461,6 +3511,9 @@ class AboutTranslationsTestUtils {
     defaultValue,
     language,
   } = {}) {
+    // This helps the test visually render at each step without significantly slowing test speed.
+    await doubleRaf(document);
+
     if (language !== undefined && defaultValue) {
       throw new Error(
         "assertDetectLanguageOption: `language` and `defaultValue: true` are mutually exclusive."
@@ -3541,6 +3594,9 @@ class AboutTranslationsTestUtils {
    * @returns {Promise<void>}
    */
   async assertSwapLanguagesButton({ enabled } = {}) {
+    // This helps the test visually render at each step without significantly slowing test speed.
+    await doubleRaf(document);
+
     let pageResult = {};
     try {
       pageResult = await this.#runInPage(
@@ -3575,6 +3631,9 @@ class AboutTranslationsTestUtils {
    * @returns {Promise<void>}
    */
   async assertTranslatingPlaceholder() {
+    // This helps the test visually render at each step without significantly slowing test speed.
+    await doubleRaf(document);
+
     let actualValue;
     try {
       actualValue = await this.#runInPage(selectors => {
@@ -3610,6 +3669,9 @@ class AboutTranslationsTestUtils {
     targetLanguage,
     sourceText,
   }) {
+    // This helps the test visually render at each step without significantly slowing test speed.
+    await doubleRaf(document);
+
     if (sourceLanguage !== undefined && detectedLanguage !== undefined) {
       throw new Error(
         "assertTranslatedText: sourceLanguage and detectedLanguage are mutually exclusive assertion options."
@@ -3667,6 +3729,9 @@ class AboutTranslationsTestUtils {
     targetLanguage = "",
     sourceText = "",
   } = {}) {
+    // This helps the test visually render at each step without significantly slowing test speed.
+    await doubleRaf(document);
+
     try {
       // First verify that the UI controls contain the expected values.
       await this.assertSourceLanguageSelector({ value: sourceLanguage });
@@ -3760,6 +3825,9 @@ class AboutTranslationsTestUtils {
     unsupportedInfoMessage = false,
     languageLoadErrorMessage = false,
   } = {}) {
+    // This helps the test visually render at each step without significantly slowing test speed.
+    await doubleRaf(document);
+
     try {
       const visibilityMap = await this.#runInPage(selectors => {
         const { document, window } = content;

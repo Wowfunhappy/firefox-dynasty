@@ -1847,74 +1847,77 @@ static bool commitRadialGradient(sampler2D sampler, int address, float size,
 //    It is updated by this function.
 //  - (in/out) initialOffset is the offset of the stop at initalOffset.
 //    It is updated by this function.
-static int32_t findGradientStopPair(float offset, float* stops, int32_t numStops,
-                                    int32_t& initialIndex, float& initialOffset,
-                                    float& prevOffset, float& nextOffset) {
-    int32_t index = initialIndex;
+static int32_t findGradientStopPair(float offset, float* stops,
+                                    int32_t numStops, int32_t& initialIndex,
+                                    float& initialOffset, float& prevOffset,
+                                    float& nextOffset) {
+  int32_t index = initialIndex;
 
-    // Walk forward or backward depending on where the target offset is relative
-    // to the initial offset.
-    if (offset >= initialOffset) {
-        // Walk the gradient stops forward
-        float next = stops[initialIndex];
-        float prev = stops[max(initialIndex - 1, 0)];
-        while (index < numStops) {
-            if (next > offset) {
-                break;
-            }
+  // Walk forward or backward depending on where the target offset is relative
+  // to the initial offset.
+  if (offset >= initialOffset) {
+    // Walk the gradient stops forward
+    float next = stops[initialIndex];
+    float prev = stops[max(initialIndex - 1, 0)];
+    while (index < numStops) {
+      if (next > offset) {
+        break;
+      }
 
-            index += 1;
-            prev = next;
-            next = stops[index];
-        }
-
-        // We wither:
-        //  - Walked 1 stop past the one we are looking for, so we need to
-        //    adjust the index by decrementing it.
-        //  - Walked past the last stop so the index is out of bounds. We
-        //    don't *have* to decrement it since we are going to clamp it
-        //    at the end of the function but doing it does not break the
-        //    logic either.
-        index -= 1;
-
-        prevOffset = prev;
-        nextOffset = next;
-    } else {
-        // Walk back.
-        float next = stops[initialIndex];
-        float prev = stops[min(initialIndex + 1, numStops - 1)];
-        while (index > 0) {
-            if (next < offset) {
-                break;
-            }
-
-            index -= 1;
-            prev = next;
-            next = stops[index];
-        }
-
-        // Since we are walking backwards, prev and next are swapped.
-        prevOffset = next;
-        nextOffset = prev;
+      index += 1;
+      prev = next;
+      next = stops[index];
     }
 
-    index = clamp(index, 0, numStops - 2);
+    // We wither:
+    //  - Walked 1 stop past the one we are looking for, so we need to
+    //    adjust the index by decrementing it.
+    //  - Walked past the last stop so the index is out of bounds. We
+    //    don't *have* to decrement it since we are going to clamp it
+    //    at the end of the function but doing it does not break the
+    //    logic either.
+    index -= 1;
 
-    initialIndex = index;
-    initialOffset = prevOffset;
+    prevOffset = prev;
+    nextOffset = next;
+  } else {
+    // Walk back.
+    float next = stops[initialIndex];
+    float prev = stops[min(initialIndex + 1, numStops - 1)];
+    while (index > 0) {
+      if (next < offset) {
+        break;
+      }
 
-    return index;
+      index -= 1;
+      prev = next;
+      next = stops[index];
+    }
+
+    // Since we are walking backwards, prev and next are swapped.
+    prevOffset = next;
+    nextOffset = prev;
+  }
+
+  index = clamp(index, 0, numStops - 2);
+
+  initialIndex = index;
+  initialOffset = prevOffset;
+
+  return index;
 }
 
 // Samples an entire span of a radial gradient.
 template <bool BLEND>
-static bool commitRadialGradientFromStops(sampler2D sampler, int offsetsAddress, int colorsAddress, float stopCount,
-                                          bool repeat, vec2 pos, float radius,
+static bool commitRadialGradientFromStops(sampler2D sampler, int offsetsAddress,
+                                          int colorsAddress, float stopCount,
+                                          bool repeat, vec2 pos, float startRadius,
                                           uint32_t* buf, int span) {
   assert(sampler->format == TextureFormat::RGBA32F);
   // Stop offsets are expected to be stored just after the colors.
   assert(colorsAddress >= 0 && colorsAddress < offsetsAddress);
-  assert(offsetsAddress >= 0 && offsetsAddress + (stopCount + 3) / 4 < int(sampler->height * sampler->stride));
+  assert(offsetsAddress >= 0 && offsetsAddress + (stopCount + 3) / 4 <
+                                    int(sampler->height * sampler->stride));
   float* stopOffsets = (float*)&sampler->buf[offsetsAddress];
   Float* stopColors = (Float*)&sampler->buf[colorsAddress];
   // clang-format off
@@ -1940,7 +1943,7 @@ static bool commitRadialGradientFromStops(sampler2D sampler, int offsetsAddress,
   vec2_scalar pos0 = {pos.x.x, pos.y.x};
   vec2_scalar delta = {pos.x.y - pos.x.x, pos.y.y - pos.y.x};
   float deltaDelta = dot(delta, delta);
-  if (!isfinite(deltaDelta) || !isfinite(radius)) {
+  if (!isfinite(deltaDelta) || !isfinite(startRadius)) {
     return false;
   }
   float invDelta, middleT, middleB;
@@ -1955,13 +1958,7 @@ static bool commitRadialGradientFromStops(sampler2D sampler, int offsetsAddress,
     middleT = float(span);
     middleB = 0.0f;
   }
-  // We only want search for merged gradients up to the minimum of either the
-  // mid-point or the span length. Cache those offsets here as they don't vary
-  // in the inner loop.
-  Float middleEndRadius = fastLength<true>(
-      pos0 + delta * (Float){middleT, float(span), 0.0f, 0.0f});
-  float middleRadius = span < middleT ? middleEndRadius.y : middleEndRadius.x;
-  float endRadius = middleEndRadius.y;
+
   // Convert delta to change in position per chunk.
   delta *= 4;
   deltaDelta *= 4 * 4;
@@ -1987,18 +1984,18 @@ static bool commitRadialGradientFromStops(sampler2D sampler, int offsetsAddress,
   int32_t initialIndex = stopCount - 1;
   // This is not the real offset what matters is that it is greater than the
   // outermost one.
-  float initialOffset = 2.0;
+  float initialOffset = 2.0f;
   for (int t = 0; t < span;) {
     // Compute the gradient table offset from the current position.
-    Float offset = fastSqrt<true>(dotPos) - radius;
-    float startRadius = radius;
+    Float offset = fastSqrt<true>(dotPos) - startRadius;
+    float adjustedStartRadius = startRadius;
     // If repeat is desired, we need to limit the offset to a fractional value.
     if (repeat) {
       // The non-repeating radius at which the gradient table actually starts,
-      // radius + floor(offset) = radius + (offset - fract(offset)).
-      startRadius += offset.x;
+      // startRadius + floor(offset) = startRadius + (offset - fract(offset)).
+      adjustedStartRadius += offset.x;
       offset = fract(offset);
-      startRadius -= offset.x;
+      adjustedStartRadius -= offset.x;
     }
 
     // We need to find the pair of gradient stops that affect the the current
@@ -2006,14 +2003,14 @@ static bool commitRadialGradientFromStops(sampler2D sampler, int offsetsAddress,
     // gradient.
     float intercept = -1;
     int32_t stopIndex = 0;
-    float prevOffset = 0.0;
-    float nextOffset = 0.0;
+    float prevOffset = 0.0f;
+    float nextOffset = 0.0f;
     if (offset.x < 0) {
       // If inside the inner radius of the gradient table, then use the first
       // stop. Set the intercept to advance forward to the start of the gradient
       // table.
       if (t >= middleT) {
-        intercept = radius;
+        intercept = startRadius;
       }
     } else if (offset.x >= 1) {
       // If outside the outer radius of the gradient table, then use the last
@@ -2022,21 +2019,21 @@ static bool commitRadialGradientFromStops(sampler2D sampler, int offsetsAddress,
       // away from the gradient.
       stopIndex = stopCount - 1;
       if (t < middleT) {
-        intercept = radius + 1;
+        intercept = startRadius + 1;
       }
     } else {
       // Otherwise, we're inside the valid part of the gradient table.
 
-      stopIndex = findGradientStopPair(offset.x, stopOffsets, stopCount,
-                                       initialIndex, initialOffset,
-                                       prevOffset, nextOffset);
+      stopIndex =
+          findGradientStopPair(offset.x, stopOffsets, stopCount, initialIndex,
+                               initialOffset, prevOffset, nextOffset);
       if (t >= middleT) {
-        intercept = startRadius + nextOffset;
+        intercept = adjustedStartRadius + nextOffset;
       } else {
-        intercept = startRadius + prevOffset;
+        intercept = adjustedStartRadius + prevOffset;
       }
     }
-    // Solve the quadratic for t to find where the merged gradient ends. If no
+    // Solve the quadratic for t to find where the current stop pair ends. If no
     // intercept is found, just go to the middle or end of the span.
     float endT = t >= middleT ? span : min(span, int(middleT));
     if (intercept >= 0) {
@@ -2051,31 +2048,30 @@ static bool commitRadialGradientFromStops(sampler2D sampler, int offsetsAddress,
         endT = min(endT, middleT);
       }
     }
-
     // Ensure that we are advancing by at least one pixel at each iteration.
-    endT = max(endT, t + 1.0);
+    endT = max(ceil(endT), t + 1.0f);
 
-    // Figure out how many chunks are actually inside the merged gradient.
+    // Figure out how many pixels belonging to whole chunks are inside the gradient
+    // stop pair.
     int inside = int(endT - t) & ~3;
     // Convert start and end colors to BGRA and scale to 0..255 range.
     auto minColorF = stopColors[stopIndex].zyxw * 255.0f;
     auto maxColorF = stopColors[stopIndex + 1].zyxw * 255.0f;
     // Compute the change in color per change in gradient offset.
     auto deltaOffset = nextOffset - prevOffset;
-    Float deltaColorF;
-    if (deltaOffset == 0.0) {
-      // Note: If we take this branch, we know that we are going to fill
-      // some pixels with a solid color (we are in or out of the range of
-      // gradient stops). We could leverage that to skip the offset
-      // calculation.
-      deltaColorF = Float(0.0);
-    } else {
-      deltaColorF = (maxColorF - minColorF) / deltaOffset;
-    }
+    Float deltaColorF =
+        deltaOffset == 0.0f
+            ?
+            // Note: If we take this branch, we know that we are going to fill
+            // some pixels with a solid color (we are in or out of the range of
+            // gradient stops). We could leverage that to skip the offset
+            // calculation.
+            Float(0.0f)
+            : (maxColorF - minColorF) / deltaOffset;
     // Subtract off the color difference of the beginning of the current span
     // from the beginning of the gradient.
     Float colorF =
-        minColorF - deltaColorF * (startRadius + prevOffset); // TODO
+        minColorF - deltaColorF * (adjustedStartRadius + prevOffset);
     // Finally, walk over the span accumulating the position dot product and
     // getting its sqrt as an offset into the color ramp. Since we're already
     // in BGRA format and scaled to 255, we just need to round to an integer
@@ -2084,11 +2080,10 @@ static bool commitRadialGradientFromStops(sampler2D sampler, int offsetsAddress,
       Float offsetG = fastSqrt<false>(dotPos);
       commit_blend_span<BLEND>(
           buf,
-          combine(
-              packRGBA8(round_pixel(colorF + deltaColorF * offsetG.x, 1),
-                        round_pixel(colorF + deltaColorF * offsetG.y, 1)),
-              packRGBA8(round_pixel(colorF + deltaColorF * offsetG.z, 1),
-                        round_pixel(colorF + deltaColorF * offsetG.w, 1))));
+          combine(packRGBA8(round_pixel(colorF + deltaColorF * offsetG.x, 1),
+                            round_pixel(colorF + deltaColorF * offsetG.y, 1)),
+                  packRGBA8(round_pixel(colorF + deltaColorF * offsetG.z, 1),
+                            round_pixel(colorF + deltaColorF * offsetG.w, 1))));
       dotPos += dotPosDelta;
       dotPosDelta += deltaDelta2;
     }
@@ -2109,20 +2104,42 @@ static bool commitRadialGradientFromStops(sampler2D sampler, int offsetsAddress,
       Float offsetG = fastSqrt<false>(dotPos);
       commit_blend_span<BLEND>(
           buf,
-          combine(
-              packRGBA8(round_pixel(colorF + deltaColorF * offsetG.x, 1),
-                        round_pixel(colorF + deltaColorF * offsetG.y, 1)),
-              packRGBA8(round_pixel(colorF + deltaColorF * offsetG.z, 1),
-                        round_pixel(colorF + deltaColorF * offsetG.w, 1))),
-          remainder
-      );
+          combine(packRGBA8(round_pixel(colorF + deltaColorF * offsetG.x, 1),
+                            round_pixel(colorF + deltaColorF * offsetG.y, 1)),
+                  packRGBA8(round_pixel(colorF + deltaColorF * offsetG.z, 1),
+                            round_pixel(colorF + deltaColorF * offsetG.w, 1))),
+          remainder);
 
       buf += remainder;
       t += remainder;
 
-      float f = float(remainder) * 0.25;
-      dotPos += dotPosDelta * f;
-      dotPosDelta += deltaDelta2 * f;
+      // dotPosDelta's members are monotonically increasing, so adjusting the step only
+      // requires undoing the factor of 4 and multiplying with the actual number of
+      // remainder pixels.
+      float partialDeltaDelta2 = deltaDelta2 * 0.25f * float(remainder);
+      dotPosDelta += partialDeltaDelta2;
+
+      // For dotPos, however, there is a compounding effect that makes the math trickier.
+      // For simplicity's sake we are just computing the the parameters for a single-pixel
+      // step and applying it remainder times.
+
+      // The deltaDelta2 for a single-pixel step (undoing the 4*4 factor we did earlier
+      // when making deltaDelta2 work for 4-pixels chunks).
+      float singlePxDeltaDelta2 = deltaDelta2 * 0.0625f;
+      // The first single-pixel delta for dotPos (The difference between dotPos's first
+      // two lanes).
+      float dotPosDeltaFirst = dotPos.y - dotPos.x;
+      // For each 1-pixel step the delta is applied and monotonically increased by
+      // singleDeltaDelta2.
+      Float pxOffsets = {0.0f, 1.0f, 2.0f, 3.0f};
+      Float partialDotPosDelta =
+          pxOffsets * singlePxDeltaDelta2 + dotPosDeltaFirst;
+
+      // Apply each single-pixel step.
+      for (int i = 0; i < remainder; ++i) {
+          dotPos += partialDotPosDelta;
+          partialDotPosDelta += singlePxDeltaDelta2;
+      }
     }
   }
   return true;
@@ -2155,30 +2172,24 @@ static bool commitRadialGradientFromStops(sampler2D sampler, int offsetsAddress,
 // swglcommitLinearGradient, but given a varying 2D position scaled to
 // gradient-space and a radius at which the distance from the origin maps to the
 // start of the gradient table.
-#define swgl_commitRadialGradientFromStopsRGBA8(sampler, offsetsAddress,       \
-                                                colorsAddress, size, repeat,   \
-                                                pos, radius)                   \
-  do {                                                                         \
-    bool drawn = false;                                                        \
-    if (blend_key) {                                                           \
-      drawn =                                                                  \
-          commitRadialGradientFromStops<true>(sampler, offsetsAddress,         \
-                                              colorsAddress, size, repeat,     \
-                                              pos, radius, swgl_OutRGBA8,      \
-                                              swgl_SpanLength);                \
-    } else {                                                                   \
-      drawn =                                                                  \
-          commitRadialGradientFromStops<false>(sampler, offsetsAddress,        \
-                                               colorsAddress, size, repeat,    \
-                                               pos, radius, swgl_OutRGBA8,     \
-                                               swgl_SpanLength);               \
-    }                                                                          \
-    if (drawn) {                                                               \
-      swgl_OutRGBA8 += swgl_SpanLength;                                        \
-      swgl_SpanLength = 0;                                                     \
-    }                                                                          \
+#define swgl_commitRadialGradientFromStopsRGBA8(                             \
+    sampler, offsetsAddress, colorsAddress, size, repeat, pos, startRadius)  \
+  do {                                                                       \
+    bool drawn = false;                                                      \
+    if (blend_key) {                                                         \
+      drawn = commitRadialGradientFromStops<true>(                           \
+          sampler, offsetsAddress, colorsAddress, size, repeat, pos, startRadius, \
+          swgl_OutRGBA8, swgl_SpanLength);                                   \
+    } else {                                                                 \
+      drawn = commitRadialGradientFromStops<false>(                          \
+          sampler, offsetsAddress, colorsAddress, size, repeat, pos, startRadius, \
+          swgl_OutRGBA8, swgl_SpanLength);                                   \
+    }                                                                        \
+    if (drawn) {                                                             \
+      swgl_OutRGBA8 += swgl_SpanLength;                                      \
+      swgl_SpanLength = 0;                                                   \
+    }                                                                        \
   } while (0)
-
 
 // Extension to set a clip mask image to be sampled during blending. The offset
 // specifies the positioning of the clip mask image relative to the viewport

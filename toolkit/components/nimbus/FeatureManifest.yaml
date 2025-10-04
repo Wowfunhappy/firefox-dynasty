@@ -2049,42 +2049,6 @@ pocketNewtab:
       description: >-
         Change the layout of the sections to be more compact to account for the added card height with the thumbs up/down enabled.
 
-saveToPocket:
-  description: The save to Pocket feature
-  owner: sdowne@mozilla.com
-  hasExposure: false
-  variables:
-    enabled:
-      type: boolean
-      setPref:
-        branch: user
-        pref: extensions.pocket.enabled
-      description: Enabled save to Pocket feature.
-    emailButton:
-      type: boolean
-      setPref:
-        branch: user
-        pref: extensions.pocket.refresh.emailButton.enabled
-      description: Just for the new Pocket panels, enables the email signup button.
-    bffRecentSaves:
-      type: boolean
-      setPref:
-        branch: user
-        pref: extensions.pocket.bffRecentSaves
-      description: Use the new BFF Proxy Service instead of the legacy Pocket Service for Recent Saves
-    bffApi:
-      type: string
-      setPref:
-        branch: user
-        pref: extensions.pocket.bffApi
-      description: BFF Proxy Service domain
-    oAuthConsumerKeyBff:
-      type: string
-      setPref:
-        branch: user
-        pref: extensions.pocket.oAuthConsumerKeyBff
-      description: BFF Proxy Service OAuth Consumer Key
-
 sessionRestore:
   description: Session restore feature
   owner: sfoster@mozilla.com
@@ -4342,7 +4306,7 @@ scriptloader:
       type: boolean
       setPref:
         branch: user
-        pref: "dom.script_loader.navigation_cache"
+        pref: "dom.script_loader.experimental.navigation_cache"
 
 raceCacheWithNetwork:
   description: Prefs to toggle the race cache with network.
@@ -5659,3 +5623,16 @@ image:
       setPref:
         branch: user
         pref: "image.mem.decode_bytes_at_a_time"
+
+walletCustomSchemes:
+  description: Defines which custom schemes are treated as digital identity requests
+  owner: bvandersloot@mozilla.com
+  hasExposure: false
+  variables:
+    enabledSchemes:
+      type: string
+      setPref:
+        branch: user
+        pref: privacy.wallet_schemes
+      description: >-
+        Comma separated lists of schemes

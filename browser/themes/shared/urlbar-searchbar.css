@@ -205,7 +205,6 @@
 [focused]:not([suppress-focus-border]) > .urlbar-background,
 #searchbar:focus-within {
   outline: var(--focus-outline);
-  outline-offset: var(--focus-outline-inset);
 
   /* We used --focus-outline above to inherit its width and style properties,
      but we still want to use the theme's border-color.
@@ -213,11 +212,6 @@
      on :root, but LWT themes can override this value. */
   outline-color: var(--toolbar-field-focus-border-color);
   border-color: transparent;
-}
-
-[focused] > .urlbar-background,
-#searchbar:focus-within {
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.23);
 }
 
 [open] > .urlbar-background {

@@ -524,6 +524,9 @@ task-priority:
 
 taskgraph:
     register: gecko_taskgraph:register
+    repositories:
+        gecko:
+            name: 'Mozilla Firefox'
 
 workers:
     aliases:
@@ -752,11 +755,6 @@ workers:
             implementation: generic-worker
             os: linux
             worker-type: 't-linux-xlarge-2204-wayland'
-        t-linux-wayland-vm:
-            provisioner: '{trust-domain}-t'
-            implementation: generic-worker
-            os: linux
-            worker-type: 't-linux-vm-2204-wayland'
         t-linux-2204-wayland-snap:
             provisioner: '{trust-domain}-t'
             implementation: generic-worker

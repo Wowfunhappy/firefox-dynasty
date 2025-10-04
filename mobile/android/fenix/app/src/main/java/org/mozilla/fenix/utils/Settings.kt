@@ -46,6 +46,8 @@ import org.mozilla.fenix.components.settings.featureFlagPreference
 import org.mozilla.fenix.components.settings.lazyFeatureFlagPreference
 import org.mozilla.fenix.components.toolbar.ToolbarPosition
 import org.mozilla.fenix.debugsettings.addresses.SharedPrefsAddressesDebugLocalesRepository
+import org.mozilla.fenix.ext.TALL_SCREEN_HEIGHT_DP
+import org.mozilla.fenix.ext.WIDE_SCREEN_WIDTH_DP
 import org.mozilla.fenix.ext.components
 import org.mozilla.fenix.ext.getPreferenceKey
 import org.mozilla.fenix.ext.pixelSizeFor
@@ -601,6 +603,19 @@ class Settings(private val appContext: Context) : PreferencesHolder {
         key = appContext.getPreferenceKey(R.string.pref_key_terms_prompt_enabled),
         default = { FxNimbus.features.termsOfUsePrompt.value().enabled },
         featureFlag = true,
+    )
+
+    /**
+     * The maximum number of times the Terms of Use prompt should be displayed.
+     */
+    var termsOfUseMaxDisplayCount = FxNimbus.features.termsOfUsePrompt.value().maxDisplayCount
+
+    /**
+     * The total number of times the Terms of Use prompt has been displayed.
+     */
+    var termsOfUsePromptDisplayedCount by intPreference(
+        key = appContext.getPreferenceKey(R.string.pref_key_terms_prompt_displayed_count),
+        default = 0,
     )
 
     /**
@@ -2299,6 +2314,14 @@ class Settings(private val appContext: Context) : PreferencesHolder {
     )
 
     /**
+     * Indicates if the private browsing mode redesign is enabled.
+     */
+    var enablePrivateBrowsingModeRedesign by booleanPreference(
+        key = appContext.getPreferenceKey(R.string.pref_key_enable_private_browsing_mode_redesign),
+        default = FeatureFlags.PRIVATE_BROWSING_MODE_REDESIGN,
+    )
+
+    /**
      * Indicates if the Unified Trust Panel is enabled.
      */
     var enableUnifiedTrustPanel by lazyFeatureFlagPreference(
@@ -2442,7 +2465,17 @@ class Settings(private val appContext: Context) : PreferencesHolder {
     val browserToolbarHeight: Int
         get() = appContext.pixelSizeFor(
             when (shouldUseComposableToolbar) {
-                true -> R.dimen.composable_browser_toolbar_height
+                true -> {
+                    val isTallWindow = appContext.resources.configuration.screenHeightDp > TALL_SCREEN_HEIGHT_DP
+                    val isWideWindow = appContext.resources.configuration.screenWidthDp > WIDE_SCREEN_WIDTH_DP
+                    when (
+                        toolbarPosition == ToolbarPosition.BOTTOM && shouldUseExpandedToolbar &&
+                                isTallWindow && !isWideWindow
+                    ) {
+                        true -> R.dimen.composable_browser_toolbar_height_small
+                        false -> R.dimen.composable_browser_toolbar_height
+                    }
+                }
                 false -> R.dimen.browser_toolbar_height
             },
         )

@@ -7151,16 +7151,14 @@ void nsGridContainerFrame::Tracks::ResolveIntrinsicSize(
       // Collect information for step 3.
       // https://drafts.csswg.org/css-grid-2/#algo-spanning-items
 
-      nsTArray<SpanningItemData>* items = &nonFlexSpanningItems;
+      nsTArray<SpanningItemData>* items;
       if (state & TrackSize::eFlexMaxSizing) {
         // Set eIsFlexing on the item state here to speed up
         // FindUsedFlexFraction later.
         gridItem.mState[mAxis] |= ItemState::eIsFlexing;
-        if (!StaticPrefs::
-                layout_css_grid_flex_spanning_items_intrinsic_sizing_enabled()) {
-          continue;
-        }
         items = &flexSpanningItems;
+      } else {
+        items = &nonFlexSpanningItems;
       }
 
       if (state &
@@ -9547,8 +9545,9 @@ void nsGridContainerFrame::Reflow(nsPresContext* aPresContext,
       // two-pass row sizes resolution."
       if (bSizeForResolvingRowSizes == NS_UNCONSTRAINEDSIZE &&
           !IsMasonry(LogicalAxis::Block)) {
-        bSizeForResolvingRowSizes = gridRI.mReflowInput->ApplyMinMaxBSize(
-            gridRI.mRows.TotalTrackSizeWithoutAlignment(this));
+        bSizeForResolvingRowSizes =
+            std::max(gridRI.mRows.TotalTrackSizeWithoutAlignment(this),
+                     gridRI.mReflowInput->ComputedMinBSize());
 
         NS_ASSERTION(bSizeForResolvingRowSizes != NS_UNCONSTRAINEDSIZE,
                      "The block-size for re-resolving the row sizes should be "

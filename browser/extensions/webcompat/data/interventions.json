@@ -3784,21 +3784,6 @@
       }
     ]
   },
-  "1924718": {
-    "label": "ai.invideo.io",
-    "bugs": {
-      "1924718": {
-        "issue": "blocked-content",
-        "matches": ["*://ai.invideo.io/*"]
-      }
-    },
-    "interventions": [
-      {
-        "platforms": ["all"],
-        "ua_string": ["add_Chrome"]
-      }
-    ]
-  },
   "1925276": {
     "label": "xtralife.com",
     "bugs": {
@@ -3813,6 +3798,21 @@
         "content_scripts": {
           "css": ["bug1925276-xtralife.com-fix-search-results.css"]
         }
+      }
+    ]
+  },
+  "1924441": {
+    "label": "contractorinduction.colesgroup.com.au",
+    "bugs": {
+      "1924441": {
+        "issue": "firefox-blocked-completely",
+        "matches": ["*://contractorinduction.colesgroup.com.au/*"]
+      }
+    },
+    "interventions": [
+      {
+        "platforms": ["desktop"],
+        "ua_string": ["add_Chrome"]
       }
     ]
   },
@@ -5390,6 +5390,24 @@
       {
         "platforms": ["all"],
         "ua_string": ["add_Chrome"]
+      }
+    ]
+  },
+  "1987351": {
+    "label": "mirage.decart.ai",
+    "bugs": {
+      "1987351": {
+        "issue": "firefox-blocked-completely",
+        "matches": ["*://mirage.decart.ai/*"]
+      }
+    },
+    "interventions": [
+      {
+        "platforms": ["all"],
+        "content_scripts": {
+          "js": ["bug1928941-oasis.decart.ai-window-chrome-shim.js"]
+        },
+        "ua_string": ["Chrome", "add_Firefox_as_Gecko"]
       }
     ]
   },

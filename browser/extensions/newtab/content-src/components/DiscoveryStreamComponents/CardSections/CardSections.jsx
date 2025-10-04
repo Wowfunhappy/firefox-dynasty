@@ -150,6 +150,7 @@ function CardSection({
   ctaButtonSponsors,
   anySectionsFollowed,
   showWeather,
+  placeholder,
 }) {
   const prefs = useSelector(state => state.Prefs.values);
 
@@ -258,7 +259,13 @@ function CardSection({
     );
   }, [dispatch, sectionPersonalization, sectionKey, sectionPosition]);
 
-  const { maxTile } = getMaxTiles(responsiveLayouts);
+  let { maxTile } = getMaxTiles(responsiveLayouts);
+  if (placeholder) {
+    // We need a number that divides evenly by 2, 3, and 4.
+    // So it can be displayed without orphans in grids with 2, 3, and 4 columns.
+    maxTile = 12;
+  }
+
   const displaySections = section.data.slice(0, maxTile);
   const isSectionEmpty = !displaySections?.length;
   const shouldShowLabels = sectionKey === "top_stories_section" && showTopics;
@@ -273,7 +280,7 @@ function CardSection({
         className={following ? "section-follow following" : "section-follow"}
       >
         {!anySectionsFollowed &&
-          sectionPosition === 1 &&
+          sectionPosition === 0 &&
           shouldShowOMCHighlight(
             messageData,
             "FollowSectionButtonHighlight"
@@ -284,11 +291,12 @@ function CardSection({
                 position="arrow-inline-start"
                 dispatch={dispatch}
                 feature="FEATURE_FOLLOW_SECTION_BUTTON"
+                messageData={messageData}
               />
             </MessageWrapper>
           )}
         {!anySectionsFollowed &&
-          sectionPosition === 1 &&
+          sectionPosition === 0 &&
           shouldShowOMCHighlight(
             messageData,
             "FollowSectionButtonAltHighlight"
@@ -368,6 +376,7 @@ function CardSection({
           if (
             !rec ||
             rec.placeholder ||
+            placeholder ||
             (rec.flight_id &&
               !spocsStartupCacheEnabled &&
               isForStartupCache.DiscoveryStream)
@@ -446,6 +455,7 @@ function CardSections({
   firstVisibleTimestamp,
   ctaButtonVariant,
   ctaButtonSponsors,
+  placeholder,
 }) {
   const prefs = useSelector(state => state.Prefs.values);
   const { spocs, sectionPersonalization } = useSelector(
@@ -473,7 +483,25 @@ function CardSections({
     sectionPersonalization &&
     Object.values(sectionPersonalization).some(section => section?.isFollowed);
 
-  let filteredSections = data.sections.filter(
+  let sectionsData = data.sections;
+
+  if (placeholder) {
+    // To clean up the placeholder state for sections if the whole section is loading still.
+    sectionsData = [
+      {
+        ...sectionsData[0],
+        title: "",
+        subtitle: "",
+      },
+      {
+        ...sectionsData[1],
+        title: "",
+        subtitle: "",
+      },
+    ];
+  }
+
+  let filteredSections = sectionsData.filter(
     section => !sectionPersonalization[section.sectionKey]?.isBlocked
   );
 
@@ -500,6 +528,7 @@ function CardSections({
       ctaButtonVariant={ctaButtonVariant}
       ctaButtonSponsors={ctaButtonSponsors}
       anySectionsFollowed={anySectionsFollowed}
+      placeholder={placeholder}
       showWeather={
         weatherEnabled &&
         weatherPlacement === "section" &&

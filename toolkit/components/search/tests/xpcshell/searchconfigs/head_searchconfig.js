@@ -127,6 +127,28 @@ async function maybeSetupConfig() {
  */
 
 /**
+ * Processes the configuration to get the search engines for the specified
+ * region/locale.
+ *
+ * @param {SearchEngineSelector} engineSelector
+ * @param {string} region
+ * @param {string} locale
+ * @returns {Promise<{engines: AppProvidedConfigEngine[], appDefaultEngineId: string}>}
+ */
+async function getEngines(engineSelector, region, locale) {
+  let configs = await engineSelector.fetchEngineConfiguration({
+    locale,
+    region,
+    channel: SearchUtils.MODIFIED_APP_CHANNEL,
+  });
+
+  return {
+    engines: await SearchTestUtils.searchConfigToEngines(configs.engines),
+    appDefaultEngineId: configs.appDefaultEngineId,
+  };
+}
+
+/**
  * This class implements the test harness for search configuration tests.
  * These tests are designed to ensure that the correct search engines are
  * loaded for the various region/locale configurations.
@@ -138,13 +160,13 @@ class SearchConfigTest {
   #engineSelector;
 
   /**
-   * @type {SearchConfigTestDetails}
+   * @type {SearchConfigTestDetails[]}
    */
   #testDetails;
 
   /**
-   * @param {SearchConfigTestDetails} testDetails
-   *   The initial configuration for this test.
+   * @param {SearchConfigTestDetails[]} testDetails
+   *   An array of configurations for testing multiple engines.
    */
   constructor(testDetails) {
     this.#testDetails = testDetails;
@@ -166,20 +188,6 @@ class SearchConfigTest {
 
     await maybeSetupConfig();
 
-    // Disable region checks.
-    Services.prefs.setBoolPref("browser.search.geoSpecificDefaults", false);
-
-    // Enable separatePrivateDefault testing. We test with this on, as we have
-    // separate tests for ensuring the normal = private when this is off.
-    Services.prefs.setBoolPref(
-      SearchUtils.BROWSER_SEARCH_PREF + "separatePrivateDefault.ui.enabled",
-      true
-    );
-    Services.prefs.setBoolPref(
-      SearchUtils.BROWSER_SEARCH_PREF + "separatePrivateDefault",
-      true
-    );
-
     this.#engineSelector = new SearchEngineSelector();
   }
 
@@ -194,59 +202,45 @@ class SearchConfigTest {
     // when updating the requested/available locales.
     for (let region of regions) {
       for (let locale of locales) {
-        const { engines, appDefaultEngineId } = await this._getEngines(
+        const { engines, appDefaultEngineId } = await getEngines(
+          this.#engineSelector,
           region,
           locale
         );
-        this._assertEngineRules(
-          engines.filter(e => e.id == appDefaultEngineId),
-          region,
-          locale,
-          "default"
-        );
-        const isPresent = this._assertAvailableEngines(region, locale, engines);
-        if (isPresent) {
-          this._assertEngineDetails(region, locale, engines);
+
+        // Test each configuration in this single iteration
+        for (let testDetails of this.#testDetails) {
+          this._assertEngineRules(
+            engines.filter(e => e.id == appDefaultEngineId),
+            region,
+            locale,
+            "default",
+            testDetails
+          );
+          const isPresent = this._assertAvailableEngines(
+            region,
+            locale,
+            engines,
+            testDetails
+          );
+          if (isPresent) {
+            this._assertEngineDetails(region, locale, engines, testDetails);
+          }
         }
       }
     }
   }
 
   /**
-   * Processes the configuration to get the search engines for the specified
-   * region/locale.
-   *
-   * @param {string} region
-   * @param {string} locale
-   * @returns {Promise<{engines: AppProvidedConfigEngine[], appDefaultEngineId: string}>}
-   */
-  async _getEngines(region, locale) {
-    let configs = await this.#engineSelector.fetchEngineConfiguration({
-      locale,
-      region: region || "default",
-      channel: SearchUtils.MODIFIED_APP_CHANNEL,
-    });
-
-    return {
-      engines: await SearchTestUtils.searchConfigToEngines(configs.engines),
-      appDefaultEngineId: configs.appDefaultEngineId,
-    };
-  }
-
-  /**
    * @returns {Set<?string>} the list of regions for the tests to run with.
    */
   get _regions() {
-    // TODO: The legacy configuration worked with null as an unknown region,
-    // for the search engine selector, we expect "default" but apply the
-    // fallback in _getEngines. Once we remove the legacy configuration, we can
-    // simplify this.
     if (TEST_DEBUG) {
-      return new Set(["by", "cn", "kz", "us", "ru", "tr", null]);
+      return new Set(["by", "cn", "kz", "us", "ru", "tr", "default"]);
     }
     return new Set([
       ...Services.intl.getAvailableLocaleDisplayNames("region"),
-      null,
+      "default",
     ]);
   }
 
@@ -327,21 +321,23 @@ class SearchConfigTest {
    *   The two-letter locale code.
    * @param {"default" | "available"} section
    *   The section of the test to check.
+   * @param {SearchConfigTestDetails} testDetails
+   *   The test details to use.
    * @returns {boolean}
    *   Returns true if the engine is expected to be present, false otherwise.
    */
-  _assertEngineRules(engines, region, locale, section) {
+  _assertEngineRules(engines, region, locale, section, testDetails) {
     const infoString = `region: "${region}" locale: "${locale}"`;
-    const testSection = this.#testDetails[section];
+    const testSection = testDetails[section];
     const hasIncluded = "included" in testSection;
     const hasExcluded = "excluded" in testSection;
-    const identifierIncluded = !!this._findEngine(engines, this.#testDetails);
+    const identifierIncluded = !!this._findEngine(engines, testDetails);
 
     // If there's not included/excluded, then this shouldn't be the default anywhere.
     if (section == "default" && !hasIncluded && !hasExcluded) {
       this.assertOk(
         !identifierIncluded,
-        `Should not be ${section} for any locale/region,
+        `${testDetails.identifier} should not be ${section} for any locale/region,
          currently set for ${infoString}`
       );
       return false;
@@ -364,48 +360,15 @@ class SearchConfigTest {
     ) {
       this.assertOk(
         identifierIncluded,
-        `Should be ${section} for ${infoString}`
+        `${testDetails.identifier} should be ${section} for ${infoString}`
       );
       return true;
     }
     this.assertOk(
       !identifierIncluded,
-      `Should not be ${section} for ${infoString}`
+      `${testDetails.identifier} should not be ${section} for ${infoString}`
     );
     return false;
-  }
-
-  /**
-   * Asserts whether the engine is correctly set as default or not.
-   *
-   * @param {string} region
-   *   The two-letter region code.
-   * @param {string} locale
-   *   The two-letter locale code.
-   */
-  _assertDefaultEngines(region, locale) {
-    this._assertEngineRules(
-      [
-        /** @type {AppProvidedConfigEngine} */ (
-          Services.search.appDefaultEngine
-        ),
-      ],
-      region,
-      locale,
-      "default"
-    );
-    // At the moment, this uses the same section as the normal default, as
-    // we don't set this differently for any region/locale.
-    this._assertEngineRules(
-      [
-        /** @type {AppProvidedConfigEngine} */ (
-          Services.search.appPrivateDefaultEngine
-        ),
-      ],
-      region,
-      locale,
-      "default"
-    );
   }
 
   /**
@@ -417,11 +380,19 @@ class SearchConfigTest {
    *   The two-letter locale code.
    * @param {AppProvidedConfigEngine[]} engines
    *   The current visible engines.
+   * @param {SearchConfigTestDetails} testDetails
+   *   The test details to use.
    * @returns {boolean}
    *   Returns true if the engine is expected to be present, false otherwise.
    */
-  _assertAvailableEngines(region, locale, engines) {
-    return this._assertEngineRules(engines, region, locale, "available");
+  _assertAvailableEngines(region, locale, engines, testDetails) {
+    return this._assertEngineRules(
+      engines,
+      region,
+      locale,
+      "available",
+      testDetails
+    );
   }
 
   /**
@@ -433,9 +404,11 @@ class SearchConfigTest {
    *   The two-letter locale code.
    * @param {AppProvidedConfigEngine[]} engines
    *   The current visible engines.
+   * @param {SearchConfigTestDetails} testDetails
+   *   The test details to use.
    */
-  _assertEngineDetails(region, locale, engines) {
-    const details = this.#testDetails.details.filter(value => {
+  _assertEngineDetails(region, locale, engines, testDetails) {
+    const details = testDetails.details.filter(value => {
       const included = this._localeRegionInSection(
         value.included,
         region,
@@ -449,16 +422,19 @@ class SearchConfigTest {
     this.assertEqual(
       details.length,
       1,
-      `Should have just one details section for region: ${region} locale: ${locale}`
+      `${testDetails.identifier} should have just one details section for region: ${region} locale: ${locale}`
     );
 
-    const engine = this._findEngine(engines, this.#testDetails);
-    this.assertOk(engine, "Should have an engine present");
+    const engine = this._findEngine(engines, testDetails);
+    this.assertOk(
+      engine,
+      "${testDetails.identifier} should have an engine present"
+    );
 
-    if (this.#testDetails.aliases) {
+    if (testDetails.aliases) {
       this.assertDeepEqual(
         engine.aliases,
-        this.#testDetails.aliases,
+        testDetails.aliases,
         "Should have the correct aliases for the engine"
       );
     }
@@ -466,7 +442,7 @@ class SearchConfigTest {
     const location = `in region:${region}, locale:${locale}`;
 
     for (const rule of details) {
-      this._assertCorrectDomains(location, engine, rule);
+      this._assertCorrectDomains(location, engine, rule, testDetails);
       this._assertCorrectUrlCode(location, engine, rule);
       if ("aliases" in rule) {
         this.assertDeepEqual(
@@ -507,11 +483,13 @@ class SearchConfigTest {
    *   The engine being tested.
    * @param {EngineRuleDetails & DeploymentDetails} rules
    *   Rules to test.
+   * @param {SearchConfigTestDetails} testDetails
+   *   The test details to use.
    */
-  _assertCorrectDomains(location, engine, rules) {
+  _assertCorrectDomains(location, engine, rules, testDetails) {
     this.assertOk(
       rules.domain,
-      `Should have an expectedDomain for the engine ${location}`
+      `${testDetails.identifier} should have an expectedDomain for the engine ${location}`
     );
 
     let submission = engine.getSubmission("test", URLTYPE_SEARCH_HTML);
@@ -523,12 +501,12 @@ class SearchConfigTest {
     );
 
     submission = engine.getSubmission("test", URLTYPE_SUGGEST_JSON);
-    if (this.#testDetails.noSuggestionsURL || rules.noSuggestionsURL) {
+    if (testDetails.noSuggestionsURL || rules.noSuggestionsURL) {
       this.assertOk(!submission, "Should not have a submission url");
-    } else if (this.#testDetails.suggestionUrlBase) {
+    } else if (testDetails.suggestionUrlBase) {
       this.assertEqual(
         submission.uri.prePath + submission.uri.filePath,
-        this.#testDetails.suggestionUrlBase,
+        testDetails.suggestionUrlBase,
         `Should have the correct domain for type: ${URLTYPE_SUGGEST_JSON} ${location}.`
       );
       this.assertOk(
