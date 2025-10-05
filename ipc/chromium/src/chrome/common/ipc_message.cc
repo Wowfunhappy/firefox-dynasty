@@ -133,8 +133,10 @@ void Message::SetAttachedFileHandles(
 bool Message::has_any_attachments() const {
   return !attached_ports_.IsEmpty() || !attached_handles_.IsEmpty()
 #if defined(XP_DARWIN)
-         || !attached_send_rights_.IsEmpty() ||
+/* sorry nika it ain't working
+      || !attached_send_rights_.IsEmpty() ||
          !attached_receive_rights_.IsEmpty()
+*/
 #endif
       ;
 }
