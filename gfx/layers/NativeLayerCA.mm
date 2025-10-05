@@ -408,6 +408,26 @@ void NativeLayerRootCA::SetMutatedLayerStructure() {
   mMutatedOffscreenLayerStructure = true;
 }
 
+NativeLayerCAUpdateType NativeLayerRootCA::GetMaxUpdateRequired(
+    WhichRepresentation aRepresentation,
+    const nsTArray<RefPtr<NativeLayerCA>>& aSublayers,
+    bool aMutatedLayerStructure) const {
+  if (aMutatedLayerStructure) {
+    return UpdateType::All;
+  }
+
+  UpdateType maxUpdateRequired = UpdateType::None;
+  for (const auto& layer : aSublayers) {
+    UpdateType updateRequired = layer->HasUpdate(aRepresentation);
+    if (updateRequired == UpdateType::All) {
+      return UpdateType::All;
+    }
+    // Use the ordering of our UpdateType enum values.
+    maxUpdateRequired = std::max(maxUpdateRequired, updateRequired);
+  }
+  return maxUpdateRequired;
+}
+
 void NativeLayerRootCA::CommitRepresentation(
     WhichRepresentation aRepresentation, CALayer* aRootCALayer,
     const nsTArray<RefPtr<NativeLayerCA>>& aSublayers,
