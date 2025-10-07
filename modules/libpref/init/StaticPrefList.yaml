@@ -5547,6 +5547,17 @@
 #endif
   mirror: always
 
+# Is WebGPU allowed to run in the parent process? This should be false if
+# on a platform that supports the GPU process, else true.
+- name: dom.webgpu.allow-in-parent
+  type: bool
+#if defined(XP_WIN) || defined(ANDROID)
+  value: false
+#else
+  value: true
+#endif
+  mirror: once
+
 # Is support for the Web GPU API enabled on service workers?
 - name: dom.webgpu.service-workers.enabled
   type: RelaxedAtomicBool
@@ -19320,6 +19331,16 @@
 - name: widget.windows.mica.toplevel-backdrop
   type: RelaxedAtomicInt32
   value: 0
+  mirror: always
+
+# Whether to use the Windows App SDK to disable the minimize/maximize/close buttons.
+# This should only be disabled if crashes are happening, because it will make
+# double minimize/maximize/close buttons draw. Note that this preference is disregarded
+# when running on Windows 11 H2 or earlier (which includes Windows 10), as we never use
+# the Windows App SDK on those versions.
+- name: widget.windows.windowsappsdk.enabled
+  type: bool
+  value: true
   mirror: always
 #endif
 
