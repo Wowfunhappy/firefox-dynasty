@@ -834,6 +834,7 @@ class BrowserToolbarSearchMiddlewareTest {
                 private = false,
             )
         }
+        verify { navController.navigate(R.id.action_global_browser) }
     }
 
     @Test
@@ -867,6 +868,7 @@ class BrowserToolbarSearchMiddlewareTest {
                 private = true,
             )
         }
+        verify { navController.navigate(R.id.action_global_browser) }
     }
 
     @Test
@@ -905,6 +907,7 @@ class BrowserToolbarSearchMiddlewareTest {
                 private = false,
             )
         }
+        verify { navController.navigate(R.id.action_global_browser) }
     }
 
     @Test
