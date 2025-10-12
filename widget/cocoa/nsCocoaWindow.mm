@@ -976,10 +976,10 @@ void nsCocoaWindow::HandleMainThreadCATransaction() {
 
 void nsCocoaWindow::CreateCompositor(int aWidth, int aHeight) {
     MOZ_ASSERT(XRE_IsParentProcess());
-    
     if (mCompositorBridgeChild) {
       [mChildView setUsingOMTCompositor:true];
     }
+
     // We have some early exit cases. Create an exit scope so we call
     // our superclass implemenation in all code paths.
     auto completionScope =
@@ -1279,6 +1279,13 @@ NSView<mozView>* nsCocoaWindow::GetEditorView() {
 }
 
 #pragma mark -
+
+void nsCocoaWindow::CreateCompositor() {
+  nsBaseWidget::CreateCompositor();
+  if (mCompositorBridgeChild) {
+    [mChildView setUsingOMTCompositor:true];
+  }
+}
 
 bool nsCocoaWindow::PreRender(WidgetRenderingContext* aContext)
 MOZ_NO_THREAD_SAFETY_ANALYSIS {

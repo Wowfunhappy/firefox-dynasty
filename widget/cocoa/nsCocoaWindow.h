@@ -401,6 +401,7 @@ class nsCocoaWindow final : public nsBaseWidget {
 
   bool WidgetPaintsBackground() override { return true; }
   void CreateCompositor(int aWidth, int aHeight) override;
+  void CreateCompositor() override;
   void DestroyCompositor() override;
   void NotifyCompositorSessionLost(
       mozilla::layers::CompositorSession* aSession) override;

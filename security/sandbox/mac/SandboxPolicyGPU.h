@@ -36,6 +36,14 @@ static const char SandboxPolicyGPU[] = R"SANDBOX_LITERAL(
   (if (defined? 'file-map-executable)
     (moz-deny file-map-executable))
 
+  ;; OS X 10.7 (Lion) compatibility
+  (if (<= macosVersion 1007)
+    (begin
+    (define ipc-posix-shm* ipc-posix-shm)
+    (define ipc-posix-shm-read-data ipc-posix-shm)
+    (define ipc-posix-shm-read* ipc-posix-shm)
+    (define ipc-posix-shm-write-data ipc-posix-shm)))
+
   ; Needed for things like getpriority()/setpriority()/pthread_setname()
   (if (>= macosVersion 1009)
   (begin
@@ -172,23 +180,34 @@ static const char SandboxPolicyGPU[] = R"SANDBOX_LITERAL(
   (allow file-read* (subpath "/private/var/db/CVMS"))
 
   ; Allow creation of the bundle ID cache directory and files within.
-  (allow file-read* file-write*
-    (require-all
-      (require-not (vnode-type SYMLINK))
-      (subpath bundleIDCacheDir)))
+  (if (not (defined? 'vnode-type))
+    (allow file-write* file-write*
+     (subpath bundleIDCacheDir))
+  ;else
+    (allow file-read* file-write*
+      (require-all
+        (subpath bundleIDCacheDir)
+        (vnode-type SYMLINK))))
 
   ; Allow issuing sandbox extensions for the MTLCompilerService process
   ; to be able to read and write files in the bundle ID cache dir in the
   ; "com.apple.{metalfe,gpuarchiver}" subdirectories. Only observed
   ; to be needed on macOS 14 and earlier versions.
   (if (<= macosVersion 1500)
+  ; Allow creation of the bundle ID cache directory and files within.
+  (if (not (defined? 'vnode-type))
+    (allow file-issue-extension
+     (subpath (string-append bundleIDCacheDir "/com.apple.metalfe"))
+     (subpath (string-append bundleIDCacheDir "/com.apple.gpuarchiver")))
+  ;else
     (allow file-issue-extension
       (require-all
         (extension-class "com.apple.app-sandbox.read-write")
-        (require-not (vnode-type SYMLINK))
         (require-any
           (subpath (string-append bundleIDCacheDir "/com.apple.metalfe"))
-          (subpath (string-append bundleIDCacheDir "/com.apple.gpuarchiver"))))))
+          (subpath (string-append bundleIDCacheDir "/com.apple.gpuarchiver")))))))
+
+
 
   (if (defined? 'iokit-get-properties)
   (allow iokit-get-properties
