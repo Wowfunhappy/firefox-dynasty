@@ -37,6 +37,9 @@ report-broken-site-panel-reason-other =
 
 report-broken-site-panel-description-label = Describe the problem
 
+report-broken-site-panel-description =
+  .placeholder = What happened? What should have happened? Did turning off tracking protection help?
+
 report-broken-site-panel-description-optional-label = Describe the problem (optional)
 
 report-broken-site-panel-send-more-info-link = Send more info
@@ -58,3 +61,7 @@ report-broken-site-panel-report-sent-text = Thank you for helping { -brand-produ
 
 report-broken-site-panel-invalid-url-label = Please enter a valid URL
 report-broken-site-panel-missing-reason-label = Please choose a reason
+
+report-broken-site-panel-blocked-trackers-label =
+  .label = Send URLs blocked by tracking protection
+report-broken-site-panel-blocked-trackers-description = Enhanced Tracking Protection may block trackers and scripts that some websites need to work properly.

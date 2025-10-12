@@ -2180,6 +2180,17 @@ radiogroup:focus-visible > .subviewradio[focused="true"] {
     line-height: 1.5;
   }
 
+  vbox > checkbox {
+    margin-block-start: var(--space-large);
+  }
+
+  vbox > p {
+    font-size: 0.9em;
+    color: var(--text-color-deemphasized);
+    line-height: 1.2em;
+    margin-inline-start: calc(var(--space-medium) + var(--checkbox-size));
+  }
+
   textarea {
     resize: vertical;
   }
@@ -2251,10 +2262,6 @@ radiogroup:focus-visible > .subviewradio[focused="true"] {
 }
 
 /* ----- Profiles panels ----- */
-
-#PanelUI-profiles .panel-header + toolbarseparator {
-  display: none;
-}
 
 #profiles-header-content {
   max-width: 16em;

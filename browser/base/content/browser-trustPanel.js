@@ -195,12 +195,13 @@ class TrustPanel {
     }
   }
 
-  showPopup({ event }) {
+  showPopup() {
     this.#initializePopup();
     this.#updatePopup();
 
+    let anchor = document.getElementById("trust-icon-container");
     let opts = { position: "bottomleft topleft" };
-    PanelMultiView.openPopup(this.#popup, event.target, opts);
+    PanelMultiView.openPopup(this.#popup, anchor, opts);
   }
 
   async #hidePopup() {
@@ -248,7 +249,9 @@ class TrustPanel {
     let secureConnection = this.#isSecurePage();
     icon.className = "";
 
-    if (!this.#trackingProtectionEnabled) {
+    if (this.#isURILoadedFromFile) {
+      icon.classList.add("file");
+    } else if (!this.#trackingProtectionEnabled) {
       icon.classList.add("inactive");
     } else if (secureConnection && this.#trackingProtectionEnabled) {
       icon.classList.add("secure");
@@ -514,9 +517,9 @@ class TrustPanel {
   }
 
   get #trackingProtectionEnabled() {
-    return !(
-      ContentBlockingAllowList.canHandle(window.gBrowser.selectedBrowser) &&
-      ContentBlockingAllowList.includes(window.gBrowser.selectedBrowser)
+    return (
+      !ContentBlockingAllowList.canHandle(window.gBrowser.selectedBrowser) ||
+      !ContentBlockingAllowList.includes(window.gBrowser.selectedBrowser)
     );
   }
 
@@ -836,7 +839,7 @@ class TrustPanel {
           tooltip = gNavigatorBundle.getString("identity.notSecure.tooltip");
         }
       }
-    } else {
+    } else if (!this.#isPotentiallyTrustworthy) {
       tooltip = gNavigatorBundle.getString("identity.notSecure.tooltip");
     }
 

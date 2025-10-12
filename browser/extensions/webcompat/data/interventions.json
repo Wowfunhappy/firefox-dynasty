@@ -1719,21 +1719,6 @@
       }
     ]
   },
-  "1875540": {
-    "label": "allstate.com",
-    "bugs": {
-      "1875540": {
-        "issue": "unsupported-warning",
-        "matches": ["*://*.allstate.com/*"]
-      }
-    },
-    "interventions": [
-      {
-        "platforms": ["all"],
-        "ua_string": ["Chrome"]
-      }
-    ]
-  },
   "1878024": {
     "label": "g1.globo.com",
     "bugs": {
@@ -1879,23 +1864,6 @@
         "platforms": ["android"],
         "content_scripts": {
           "js": ["bug1889505-bankmandiri.co.id-window.chrome.js"]
-        }
-      }
-    ]
-  },
-  "1890762": {
-    "label": "urvaerket.dk",
-    "bugs": {
-      "1890762": {
-        "issue": "broken-scrolling",
-        "matches": ["*://*.urvaerket.dk/*"]
-      }
-    },
-    "interventions": [
-      {
-        "platforms": ["android"],
-        "content_scripts": {
-          "css": ["bug1890762-urvaerket.dk-fix-mobile-filter-scrolling.css"]
         }
       }
     ]
@@ -2051,6 +2019,21 @@
       "1897941": {
         "issue": "desktop-layout-not-mobile",
         "matches": ["*://biodiscover.com/*"]
+      }
+    },
+    "interventions": [
+      {
+        "platforms": ["android"],
+        "ua_string": ["Chrome_with_FxQuantum"]
+      }
+    ]
+  },
+  "1898895": {
+    "label": "eslatam.trygalaxy.com",
+    "bugs": {
+      "1898895": {
+        "issue": "firefox-blocked-completely",
+        "matches": ["*://eslatam.trygalaxy.com/*"]
       }
     },
     "interventions": [
@@ -2693,25 +2676,6 @@
     "interventions": [
       {
         "platforms": ["all"],
-        "ua_string": ["add_Chrome"]
-      }
-    ]
-  },
-  "1899937": {
-    "label": "plus.nhk.jp",
-    "bugs": {
-      "1899937": {
-        "issue": "firefox-blocked-completely",
-        "matches": ["*://plus.nhk.jp/*"]
-      }
-    },
-    "interventions": [
-      {
-        "platforms": ["all"],
-        "content_scripts": {
-          "css": ["bug1899937-plus.nhk.jp-hide-unsupported.css"],
-          "js": ["bug1899937-plus.nhk.jp-request-picture-in-picture.js"]
-        },
         "ua_string": ["add_Chrome"]
       }
     ]
@@ -4121,18 +4085,20 @@
       }
     ]
   },
-  "1935968": {
-    "label": "cfspart-idp.impots.gouv.fr",
+  "1936429": {
+    "label": "diadora.com",
     "bugs": {
-      "1935968": {
-        "issue": "firefox-blocked-completely",
-        "matches": ["*://cfspart-idp.impots.gouv.fr/*"]
+      "1936429": {
+        "issue": "extra-scrollbars",
+        "matches": ["*://www.diadora.com/*"]
       }
     },
     "interventions": [
       {
-        "platforms": ["android"],
-        "ua_string": ["Chrome", "add_Firefox_as_Gecko"]
+        "platforms": ["all"],
+        "content_scripts": {
+          "css": ["bug1936429-diadora.com-fix-doubled-scrollbars.css"]
+        }
       }
     ]
   },
@@ -4149,26 +4115,6 @@
         "platforms": ["all"],
         "content_scripts": {
           "js": ["bug1939248-rosasthai.com-load-event-helper.js"]
-        }
-      }
-    ]
-  },
-  "1939466": {
-    "label": "www.vodafone.it",
-    "bugs": {
-      "1939466": {
-        "issue": "page-fails-to-load",
-        "matches": ["*://*.vodafone.it/*"]
-      }
-    },
-    "interventions": [
-      {
-        "platforms": ["all"],
-        "content_scripts": {
-          "all_frames": true,
-          "js": [
-            "bug1939466-vodafone.it-polyfill-ancestorOrigins-and-InstallTrigger.js"
-          ]
         }
       }
     ]
@@ -4679,6 +4625,21 @@
         "content_scripts": {
           "css": ["bug1954144-td.com-scrollbar-fix.css"]
         }
+      }
+    ]
+  },
+  "1954427": {
+    "label": "eolno.nokas.com",
+    "bugs": {
+      "1954427": {
+        "issue": "desktop-layout-not-mobile",
+        "matches": ["*://eolno.nokas.com/*"]
+      }
+    },
+    "interventions": [
+      {
+        "platforms": ["android"],
+        "ua_string": ["Chrome_with_FxQuantum"]
       }
     ]
   },
@@ -5225,21 +5186,6 @@
       }
     ]
   },
-  "1982878": {
-    "label": "fanplus.co.jp",
-    "bugs": {
-      "1982878": {
-        "issue": "broken-redirect",
-        "matches": ["*://fanplus.co.jp/*"]
-      }
-    },
-    "interventions": [
-      {
-        "platforms": ["android"],
-        "ua_string": ["Chrome_with_FxQuantum"]
-      }
-    ]
-  },
   "1934908": {
     "label": "www.cbsnews.com",
     "bugs": {
@@ -5257,6 +5203,76 @@
             "lib/ua_helpers.js",
             "bug1934908-www.cbsnews.com-ua-override.js"
           ]
+        }
+      }
+    ]
+  },
+  "1938533": {
+    "label": "chatgpt.com",
+    "bugs": {
+      "1938533": {
+        "issue": "broken-interactive-elements",
+        "matches": ["https://chatgpt.com/*"]
+      }
+    },
+    "interventions": [
+      {
+        "platforms": ["all"],
+        "only_channels": ["nightly"],
+        "content_scripts": {
+          "js": ["bug1938533-chatgpt.com-fix-voice-mode.js"]
+        }
+      }
+    ]
+  },
+  "1973019": {
+    "label": "mitsukoshi.mistore.jp",
+    "bugs": {
+      "1973019": {
+        "issue": "broken-redirect",
+        "matches": ["*://mitsukoshi.mistore.jp/*"]
+      }
+    },
+    "interventions": [
+      {
+        "platforms": ["android"],
+        "ua_string": ["Chrome_with_FxQuantum"]
+      }
+    ]
+  },
+  "1973976": {
+    "label": "iweather.gov.vn",
+    "bugs": {
+      "1973976": {
+        "issue": "broken-layout",
+        "matches": ["*://iweather.gov.vn/*"]
+      }
+    },
+    "interventions": [
+      {
+        "platforms": ["all"],
+        "pref_check": { "layout.css.webkit-fill-available.enabled": false },
+        "content_scripts": {
+          "css": ["bug1973976-iweather.gov.vn-fix-narrow-interface.css"]
+        }
+      }
+    ]
+  },
+  "1974686": {
+    "label": "hermes.admin.ch",
+    "bugs": {
+      "1974686": {
+        "issue": "broken-layout",
+        "matches": [
+          "*://www.hermes.admin.ch/de/projektmanagement/szenarien/it-entwicklung/szenariouebersicht.html*"
+        ]
+      }
+    },
+    "interventions": [
+      {
+        "platforms": ["all"],
+        "content_scripts": {
+          "css": ["bug1974686-hermes_admin_ch.css"]
         }
       }
     ]
@@ -5447,6 +5463,66 @@
       "1990193": {
         "issue": "page-fails-to-load",
         "matches": ["*://zeit.werkheim.de/*"]
+      }
+    },
+    "interventions": [
+      {
+        "platforms": ["all"],
+        "ua_string": ["add_Chrome"]
+      }
+    ]
+  },
+  "1991388": {
+    "label": "gismeteo.ru",
+    "bugs": {
+      "1991388": {
+        "issue": "desktop-layout-not-mobile",
+        "matches": ["*://gismeteo.ru/*"]
+      }
+    },
+    "interventions": [
+      {
+        "platforms": ["android"],
+        "ua_string": ["Chrome_with_FxQuantum"]
+      }
+    ]
+  },
+  "1992121": {
+    "label": "tutor-uksouth.classroom.cloud",
+    "bugs": {
+      "1992121": {
+        "issue": "firefox-blocked-completely",
+        "matches": ["*://tutor-uksouth.classroom.cloud/*"]
+      }
+    },
+    "interventions": [
+      {
+        "platforms": ["all"],
+        "ua_string": ["Chrome_with_FxQuantum"]
+      }
+    ]
+  },
+  "1992402": {
+    "label": "ehssrisk.sai360.net",
+    "bugs": {
+      "1992402": {
+        "issue": "firefox-blocked-completely",
+        "matches": ["*://*.ehssrisk.com/*"]
+      }
+    },
+    "interventions": [
+      {
+        "platforms": ["all"],
+        "ua_string": ["add_Chrome"]
+      }
+    ]
+  },
+  "1993201": {
+    "label": "portal.pilot.ly",
+    "bugs": {
+      "1993201": {
+        "issue": "firefox-blocked-completely",
+        "matches": ["*://portal.pilot.ly/*"]
       }
     },
     "interventions": [

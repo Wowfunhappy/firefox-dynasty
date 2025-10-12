@@ -1,7 +1,7 @@
 /**
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
- * file, You can obtain one at http://mozilla.org/PL/2.0/.
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
 // Bug 1948378: remove this exception when the eslint import plugin fully
@@ -79,6 +79,14 @@ testRule({
     {
       code: ".a { border-color: currentColor; }",
       description: "Using currentColor is valid.",
+    },
+    {
+      code: ".a { border: none; }",
+      description: "Using none is valid.",
+    },
+    {
+      code: ".a { border: 0; }",
+      description: "Using 0 is valid.",
     },
     {
       code: ".a { border: 1px solid transparent; }",

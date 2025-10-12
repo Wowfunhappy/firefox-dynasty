@@ -52,6 +52,9 @@ const ICON_URL_APP =
 // was set by us to a custom handler icon and CSS should not try to override it.
 const APP_ICON_ATTR_NAME = "appHandlerIcon";
 
+const OPEN_EXTERNAL_LINK_NEXT_TO_ACTIVE_TAB_VALUE =
+  Ci.nsIBrowserDOMWindow.OPEN_NEWTAB_AFTER_CURRENT;
+
 Preferences.addAll([
   // Startup
   { id: "browser.startup.page", type: "int" },
@@ -73,6 +76,10 @@ Preferences.addAll([
       1 opens such links in the most recent window or tab,
       2 opens such links in a new window,
       3 opens such links in a new tab
+  browser.link.open_newwindow.override.external
+    - this setting overrides `browser.link.open_newwindow` for externally
+      opened links.
+    - see `nsIBrowserDOMWindow` constants for the meaning of each value.
   browser.tabs.loadInBackground
   - true if display should switch to a new tab which has been opened from a
     link, false if display shouldn't switch
@@ -89,6 +96,7 @@ Preferences.addAll([
   */
 
   { id: "browser.link.open_newwindow", type: "int" },
+  { id: "browser.link.open_newwindow.override.external", type: "int" },
   { id: "browser.tabs.loadInBackground", type: "bool", inverted: true },
   { id: "browser.tabs.warnOnClose", type: "bool" },
   { id: "browser.warnOnQuitShortcut", type: "bool" },
@@ -406,6 +414,7 @@ Preferences.addSetting({
   id: "useSmoothScrolling",
   pref: "general.smoothScroll",
 });
+
 Preferences.addSetting({
   id: "useOverlayScrollbars",
   pref: "widget.gtk.overlay-scrollbars.enabled",
@@ -413,7 +422,9 @@ Preferences.addSetting({
 });
 Preferences.addSetting({
   id: "useOnScreenKeyboard",
-  pref: "ui.osk.enabled",
+  // Bug 1993053: Restore the pref to `ui.osk.enabled` after changing
+  // the PrefereceNotFoundError throwing behavior.
+  pref: AppConstants.platform == "win" ? "ui.osk.enabled" : undefined,
   visible: () => AppConstants.platform == "win",
 });
 Preferences.addSetting({
@@ -568,6 +579,11 @@ Preferences.addSetting({
   },
 });
 Preferences.addSetting({ id: "containersPlaceholder" });
+
+Preferences.addSetting({
+  id: "connectionSettings",
+  onUserClick: () => gMainPane.showConnections(),
+});
 
 // Downloads
 /*
@@ -1123,9 +1139,7 @@ let SETTINGS_CONFIG = {
       {
         id: "windowsLaunchOnLoginDisabledProfileBox",
         control: "moz-message-bar",
-        controlAttrs: {
-          l10nId: "startup-windows-launch-on-login-profile-disabled",
-        },
+        l10nId: "startup-windows-launch-on-login-profile-disabled",
       },
       {
         id: "alwaysCheckDefault",
@@ -1361,6 +1375,43 @@ let SETTINGS_CONFIG = {
       },
     ],
   },
+  certificates: {
+    l10nId: "certs-description2",
+    supportPage: "secure-website-certificate",
+    headingLevel: 2,
+    items: [
+      {
+        id: "certificateButtonGroup",
+        control: "moz-box-group",
+        items: [
+          {
+            id: "viewCertificatesButton",
+            l10nId: "certs-view",
+            control: "moz-box-button",
+            controlAttrs: {
+              "search-l10n-ids":
+                "certmgr-tab-mine.label,certmgr-tab-people.label,certmgr-tab-servers.label,certmgr-tab-ca.label,certmgr-mine,certmgr-people,certmgr-server,certmgr-ca,certmgr-cert-name.label,certmgr-token-name.label,certmgr-view.label,certmgr-export.label,certmgr-delete.label",
+            },
+          },
+          {
+            id: "viewSecurityDevicesButton",
+            l10nId: "certs-devices",
+            control: "moz-box-button",
+            controlAttrs: {
+              "search-l10n-ids":
+                "devmgr-window.title,devmgr-devlist.label,devmgr-header-details.label,devmgr-header-value.label,devmgr-button-login.label,devmgr-button-logout.label,devmgr-button-changepw.label,devmgr-button-load.label,devmgr-button-unload.label,certs-devices-enable-fips",
+            },
+          },
+        ],
+      },
+
+      {
+        id: "certEnableThirdPartyToggle",
+        l10nId: "certs-thirdparty-toggle",
+        supportPage: "automatically-trust-third-party-certificates",
+      },
+    ],
+  },
   browsingProtection: {
     items: [
       {
@@ -1499,6 +1550,23 @@ let SETTINGS_CONFIG = {
       },
     ],
   },
+  networkProxy: {
+    items: [
+      {
+        id: "connectionSettings",
+        l10nId: "network-proxy-connection-settings",
+        control: "moz-box-button",
+        controlAttrs: {
+          "search-l10n-ids":
+            "connection-window2.title,connection-proxy-option-no.label,connection-proxy-option-auto.label,connection-proxy-option-system.label,connection-proxy-option-wpad.label,connection-proxy-option-manual.label,connection-proxy-http,connection-proxy-https,connection-proxy-http-port,connection-proxy-socks,connection-proxy-socks4,connection-proxy-socks5,connection-proxy-noproxy,connection-proxy-noproxy-desc,connection-proxy-https-sharing.label,connection-proxy-autotype.label,connection-proxy-reload.label,connection-proxy-autologin-checkbox.label,connection-proxy-socks-remote-dns.label",
+        },
+        // Bug 1990552: due to how this lays out in the legacy page, we do not include a
+        // controllingExtensionInfo attribute here. We will want one in the redesigned page,
+        // using storeId: "proxy.settings".
+        controllingExtensionInfo: undefined,
+      },
+    ],
+  },
 };
 
 /**
@@ -1587,6 +1655,11 @@ var gMainPane = {
    * Initialization of gMainPane.
    */
   init() {
+    /**
+     * @param {string} aId
+     * @param {string} aEventType
+     * @param {(ev: Event) => void} aCallback
+     */
     function setEventListener(aId, aEventType, aCallback) {
       document
         .getElementById(aId)
@@ -1616,6 +1689,7 @@ var gMainPane = {
     initSettingGroup("zoom");
     initSettingGroup("performance");
     initSettingGroup("startup");
+    initSettingGroup("networkProxy");
 
     if (AppConstants.platform == "win") {
       // Functionality for "Show tabs in taskbar" on Windows 7 and up.
@@ -1720,11 +1794,6 @@ var gMainPane = {
       gMainPane.updateColorsButton.bind(gMainPane)
     );
     gMainPane.updateColorsButton();
-    setEventListener(
-      "connectionSettings",
-      "command",
-      gMainPane.showConnections
-    );
     setEventListener(
       "browserContainersCheckbox",
       "command",
@@ -1975,6 +2044,14 @@ var gMainPane = {
     Preferences.addSyncToPrefListener(
       document.getElementById("linkTargeting"),
       () => this.writeLinkTarget()
+    );
+    Preferences.addSyncFromPrefListener(
+      document.getElementById("openAppLinksNextToActiveTab"),
+      () => this.readExternalLinkNextToActiveTab()
+    );
+    Preferences.addSyncToPrefListener(
+      document.getElementById("openAppLinksNextToActiveTab"),
+      inputElement => this.writeExternalLinkNextToActiveTab(inputElement)
     );
     Preferences.addSyncFromPrefListener(
       document.getElementById("browserContainersCheckbox"),
@@ -2874,6 +2951,44 @@ var gMainPane = {
   writeLinkTarget() {
     var linkTargeting = document.getElementById("linkTargeting");
     return linkTargeting.checked ? 3 : 2;
+  },
+
+  /**
+   * @returns {boolean}
+   *   Whether the "Open links in tabs instead of new windows" settings
+   *   checkbox should be checked. Should only be checked if the
+   *   `browser.link.open_newwindow.override.external` pref is set to the
+   *   value of 7 (nsIBrowserDOMWindow.OPEN_NEWTAB_AFTER_CURRENT).
+   */
+  readExternalLinkNextToActiveTab() {
+    const externalLinkOpenOverride = Preferences.get(
+      "browser.link.open_newwindow.override.external"
+    );
+
+    return (
+      externalLinkOpenOverride.value ==
+      Ci.nsIBrowserDOMWindow.OPEN_NEWTAB_AFTER_CURRENT
+    );
+  },
+
+  /**
+   * This pref has at least 8 valid values but we are offering a checkbox
+   * to set one specific value (`7`).
+   *
+   * @param {HTMLInputElement} inputElement
+   * @returns {number}
+   *   - `7` (`nsIBrowserDOMWindow.OPEN_NEWTAB_AFTER_CURRENT`) if checked
+   *   - the default value of
+   *     `browser.link.open_newwindow.override.external` if not checked
+   */
+  writeExternalLinkNextToActiveTab(inputElement) {
+    const externalLinkOpenOverride = Preferences.get(
+      "browser.link.open_newwindow.override.external"
+    );
+
+    return inputElement.checked
+      ? Ci.nsIBrowserDOMWindow.OPEN_NEWTAB_AFTER_CURRENT
+      : externalLinkOpenOverride.defaultValue;
   },
 
   /**

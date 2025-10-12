@@ -28,49 +28,7 @@ const LAST_BACKUP_FILE_NAME_PREF_NAME =
 let currentProfile;
 
 add_setup(function () {
-  // FOG needs to be initialized in order for data to flow.
-  Services.fog.initializeFOG();
-
-  // Much of this setup is copied from toolkit/profile/xpcshell/head.js. It is
-  // needed in order to put the xpcshell test environment into the state where
-  // it thinks its profile is the one pointed at by
-  // nsIToolkitProfileService.currentProfile.
-  let gProfD = do_get_profile();
-  let gDataHome = gProfD.clone();
-  gDataHome.append("data");
-  gDataHome.createUnique(Ci.nsIFile.DIRECTORY_TYPE, 0o755);
-  let gDataHomeLocal = gProfD.clone();
-  gDataHomeLocal.append("local");
-  gDataHomeLocal.createUnique(Ci.nsIFile.DIRECTORY_TYPE, 0o755);
-
-  let xreDirProvider = Cc["@mozilla.org/xre/directory-provider;1"].getService(
-    Ci.nsIXREDirProvider
-  );
-  xreDirProvider.setUserDataDirectory(gDataHome, false);
-  xreDirProvider.setUserDataDirectory(gDataHomeLocal, true);
-
-  let profileSvc = Cc["@mozilla.org/toolkit/profile-service;1"].getService(
-    Ci.nsIToolkitProfileService
-  );
-
-  let createdProfile = {};
-  let didCreate = profileSvc.selectStartupProfile(
-    ["xpcshell"],
-    false,
-    AppConstants.UPDATE_CHANNEL,
-    "",
-    {},
-    {},
-    createdProfile
-  );
-  Assert.ok(didCreate, "Created a testing profile and set it to current.");
-  Assert.equal(
-    profileSvc.currentProfile,
-    createdProfile.value,
-    "Profile set to current"
-  );
-
-  currentProfile = createdProfile.value;
+  currentProfile = setupProfile();
 });
 
 /**
@@ -898,12 +856,17 @@ add_task(async function test_getBackupFileInfo() {
 
   const DATE = "2024-06-25T21:59:11.777Z";
   const IS_ENCRYPTED = true;
+  const DEVICE_NAME = "test-device";
 
   let fakeSampleArchiveResult = {
     isEncrypted: IS_ENCRYPTED,
     startByteOffset: 26985,
     contentType: "multipart/mixed",
-    archiveJSON: { version: 1, meta: { date: DATE }, encConfig: {} },
+    archiveJSON: {
+      version: 1,
+      meta: { date: DATE, deviceName: DEVICE_NAME },
+      encConfig: {},
+    },
   };
 
   sandbox
@@ -921,7 +884,7 @@ add_task(async function test_getBackupFileInfo() {
 
   Assert.deepEqual(
     bs.state.backupFileInfo,
-    { isEncrypted: IS_ENCRYPTED, date: DATE },
+    { isEncrypted: IS_ENCRYPTED, date: DATE, deviceName: DEVICE_NAME },
     "State should match a subset from the archive sample."
   );
 

@@ -178,6 +178,9 @@ class VendorRust(MozbuildObject):
             }
         )
 
+    def generate_diff_stream(self):
+        return self.repository.diff_stream()
+
     def log(self, level, action, params, format_str):
         if level >= logging.WARNING:
             self._issues.append((level, format_str.format(**params)))
@@ -999,9 +1002,9 @@ The changes from `mach vendor rust` will NOT be added to version control.
                     notice=CARGO_LOCK_NOTICE,
                 ),
             )
-            self.repository.forget_add_remove_files(vendor_dir)
-            self.repository.clean_directory(vendor_dir)
             if not force:
+                self.repository.forget_add_remove_files(vendor_dir)
+                self.repository.clean_directory(vendor_dir)
                 return False
 
         # Only warn for large imports, since we may just have large code

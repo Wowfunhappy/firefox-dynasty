@@ -107,6 +107,7 @@ add_task(async function test_restore_from_backup() {
       ...restoreFromBackup.backupServiceState,
       backupFileInfo: {
         date: new Date(),
+        deviceName: "test-device",
         isEncrypted: true,
       },
     };
@@ -188,6 +189,12 @@ add_task(async function test_restore_in_progress() {
       restoreFromBackup.filePicker.value,
       "",
       "File picker has no value assigned automatically"
+    );
+
+    Assert.equal(
+      restoreFromBackup.filePicker.tagName.toLowerCase(),
+      "input",
+      "File picker should be an input when aboutWelcomeEmbedded is false"
     );
 
     // There is a backup file, but it is not a valid one
@@ -273,5 +280,161 @@ add_task(async function test_restore_in_progress() {
     );
 
     sandbox.restore();
+  });
+});
+
+/**
+ * Tests that the restore component uses a textarea when aboutWelcomeEmbedded is true
+ * as well as the associated functionality for said textarea
+ */
+add_task(
+  async function test_restore_from_backup_aboutwelcome_embedded_textarea() {
+    await BrowserTestUtils.withNewTab(
+      "about:preferences#sync",
+      async browser => {
+        let sandbox = sinon.createSandbox();
+        let settings = browser.contentDocument.querySelector("backup-settings");
+        await settings.updateComplete;
+
+        Assert.ok(
+          settings.restoreFromBackupButtonEl,
+          "Restore button should exist"
+        );
+
+        settings.restoreFromBackupButtonEl.click();
+        await settings.updateComplete;
+        let restoreFromBackup = settings.restoreFromBackupEl;
+        Assert.ok(restoreFromBackup, "restore-from-backup should be found");
+
+        // When aboutWelcomeEmbedded is false, the file picker should be an input
+        Assert.equal(
+          restoreFromBackup.filePicker.tagName.toLowerCase(),
+          "input",
+          "File picker should be an input when aboutWelcomeEmbedded is false"
+        );
+
+        restoreFromBackup.aboutWelcomeEmbedded = true;
+        await restoreFromBackup.updateComplete;
+        let resizeTextareaSpy = sandbox.spy(
+          restoreFromBackup,
+          "resizeTextarea"
+        );
+
+        const textarea = restoreFromBackup.shadowRoot.querySelector(
+          "#backup-filepicker-input"
+        );
+
+        Assert.ok(
+          textarea,
+          "textarea should be present after setting aboutWelcomeEmbedded to true"
+        );
+        Assert.equal(
+          textarea.tagName.toLowerCase(),
+          "textarea",
+          "File picker should be a textarea when aboutWelcomeEmbedded is true"
+        );
+        Assert.equal(
+          textarea.getAttribute("rows"),
+          "1",
+          "Textarea should have rows=1"
+        );
+
+        // Test resize functionality when content changes
+        const initialHeight = textarea.style.height;
+        Assert.ok(initialHeight, "Textarea should have an initial height set");
+
+        const longPath =
+          "/a/very/long/path/to/a/backup/file/that/would/wrap/multiple/lines.html";
+        textarea.value = longPath;
+        restoreFromBackup.resizeTextarea();
+
+        const newHeight = textarea.style.height;
+        Assert.notEqual(
+          newHeight,
+          initialHeight,
+          "Textarea height should change when content is added"
+        );
+
+        // The text area resize function should also be called
+        // when the resize event occurs on the window
+        window.dispatchEvent(new Event("resize"));
+
+        Assert.ok(
+          resizeTextareaSpy.calledOnce,
+          "resizeTextarea should be called when window resize event is fired"
+        );
+
+        sandbox.restore();
+      }
+    );
+  }
+);
+
+/**
+ * Tests that the backup file info is displayed when backupFileInfo is present
+ */
+add_task(async function test_restore_backup_file_info_display() {
+  await BrowserTestUtils.withNewTab("about:preferences#sync", async browser => {
+    let settings = browser.contentDocument.querySelector("backup-settings");
+    await settings.updateComplete;
+
+    Assert.ok(
+      settings.restoreFromBackupButtonEl,
+      "Restore button should exist"
+    );
+
+    settings.restoreFromBackupButtonEl.click();
+    await settings.updateComplete;
+
+    let restoreFromBackup = settings.restoreFromBackupEl;
+    Assert.ok(restoreFromBackup, "restore-from-backup should be found");
+
+    // Initially, backup file info should not be displayed underneath the input
+    let fileInfoSpan = restoreFromBackup.shadowRoot.querySelector(
+      "#restore-from-backup-backup-found-info"
+    );
+    Assert.ok(
+      !fileInfoSpan,
+      "Backup file info should not be displayed when backupFileInfo is null"
+    );
+
+    // Set backup file info with device name and date
+    const mockDate = new Date("2025-10-07T21:27:56.844Z");
+    const mockDeviceName = "test-device";
+    restoreFromBackup.backupServiceState = {
+      ...restoreFromBackup.backupServiceState,
+      backupFileInfo: {
+        date: mockDate,
+        deviceName: mockDeviceName,
+        isEncrypted: false,
+      },
+    };
+    await restoreFromBackup.updateComplete;
+
+    fileInfoSpan = restoreFromBackup.shadowRoot.querySelector(
+      "#restore-from-backup-backup-found-info"
+    );
+    Assert.ok(
+      fileInfoSpan,
+      "Backup file info should be displayed when backupFileInfo is set"
+    );
+
+    Assert.equal(
+      fileInfoSpan.getAttribute("data-l10n-id"),
+      "backup-file-creation-date-and-device",
+      "Should have the correct l10n id"
+    );
+
+    const l10nArgs = JSON.parse(fileInfoSpan.getAttribute("data-l10n-args"));
+    Assert.equal(
+      l10nArgs.machineName,
+      mockDeviceName,
+      "l10n args should contain the correct device name"
+    );
+    Assert.equal(
+      l10nArgs.date,
+      mockDate.getTime(),
+      "l10n args should contain the correct date"
+    );
   });
 });

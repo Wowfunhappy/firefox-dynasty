@@ -10,7 +10,6 @@
 #define nsHTMLFrameset_h___
 
 #include "mozilla/Attributes.h"
-#include "mozilla/UniquePtr.h"
 #include "nsColor.h"
 #include "nsContainerFrame.h"
 #include "nsTArray.h"
@@ -125,11 +124,11 @@ class nsHTMLFramesetFrame final : public nsContainerFrame {
              const nsTArray<int32_t>& aIndicies, nsTArray<int32_t>& aItems);
 
   void CalculateRowCol(nsPresContext* aPresContext, nscoord aSize,
-                       int32_t aNumSpecs, const nsFramesetSpec* aSpecs,
+                       const mozilla::Span<const nsFramesetSpec>& aSpecs,
                        nsTArray<nscoord>& aValues);
 
   void GenerateRowCol(nsPresContext* aPresContext, nscoord aSize,
-                      int32_t aNumSpecs, const nsFramesetSpec* aSpecs,
+                      const mozilla::Span<const nsFramesetSpec>& aSpecs,
                       const nsTArray<nscoord>& aValues, nsString& aNewAttr);
 
   virtual void GetDesiredSize(nsPresContext* aPresContext,
@@ -167,8 +166,8 @@ class nsHTMLFramesetFrame final : public nsContainerFrame {
 
   void SetBorderResize(nsHTMLFramesetBorderFrame* aBorderFrame);
 
-  template <typename T, class D = mozilla::DefaultDelete<T>>
-  using UniquePtr = mozilla::UniquePtr<T, D>;
+  int32_t NumRows() const;
+  int32_t NumCols() const;
 
   nsFramesetDrag mDrag;
   nsBorderColor mEdgeColors;
@@ -182,8 +181,6 @@ class nsHTMLFramesetFrame final : public nsContainerFrame {
   nsTArray<nscoord> mRowSizes;  // currently computed row sizes
   nsTArray<nscoord> mColSizes;  // currently computed col sizes
   mozilla::LayoutDeviceIntPoint mFirstDragPoint;
-  int32_t mNumRows;
-  int32_t mNumCols;
   int32_t mNonBorderChildCount;
   int32_t mNonBlankChildCount;
   int32_t mEdgeVisibility;

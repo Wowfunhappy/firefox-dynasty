@@ -112,6 +112,7 @@ class nsFrameSelection;
 class nsIWidget;
 class nsISelectionController;
 class nsILineIterator;
+class nsTextControlFrame;
 class gfxSkipChars;
 class gfxSkipCharsIterator;
 class gfxContext;
@@ -630,7 +631,7 @@ struct MOZ_RAII FrameDestroyContext {
 /**
  * Bit-flags specific to a given layout class id.
  */
-enum class LayoutFrameClassFlags : uint16_t {
+enum class LayoutFrameClassFlags : uint32_t {
   None = 0,
   Leaf = 1 << 0,
   LeafDynamic = 1 << 1,
@@ -663,6 +664,8 @@ enum class LayoutFrameClassFlags : uint16_t {
   BlockFormattingContext = 1 << 14,
   // Whether we're a SVG rendering observer container.
   SVGRenderingObserverContainer = 1 << 15,
+  // Whether this frame type may store an nsView
+  MayHaveView = 1 << 16,
 };
 
 MOZ_MAKE_ENUM_CLASS_BITWISE_OPERATORS(LayoutFrameClassFlags)
@@ -736,8 +739,7 @@ class nsIFrame : public nsQueryFrame {
   NS_DECL_QUERYFRAME
   NS_DECL_QUERYFRAME_TARGET(nsIFrame)
 
-  explicit nsIFrame(ComputedStyle* aStyle, nsPresContext* aPresContext,
-                    ClassID aID)
+  nsIFrame(ComputedStyle* aStyle, nsPresContext* aPresContext, ClassID aID)
       : mContent(nullptr),
         mComputedStyle(aStyle),
         mPresContext(aPresContext),
@@ -849,7 +851,6 @@ class nsIFrame : public nsQueryFrame {
   template <class Source>
   friend class do_QueryFrameHelper;  // to read mClass
   friend class nsBlockFrame;         // for GetCaretBaseline
-  friend class nsContainerFrame;     // for ReparentFrameViewTo
 
   virtual ~nsIFrame();
 
@@ -1048,6 +1049,11 @@ class nsIFrame : public nsQueryFrame {
   nsContainerFrame* GetParent() const { return mParent; }
 
   bool CanBeDynamicReflowRoot() const;
+
+  // Whether we're inside an nsTextControlFrame. This is needed because that
+  // frame manages its own selection.
+  nsTextControlFrame* GetContainingTextControlFrame() const;
+  bool IsInsideTextControl() const { return !!GetContainingTextControlFrame(); }
 
   /**
    * Gets the parent of a frame, using the parent of the placeholder for
@@ -3302,11 +3308,6 @@ class nsIFrame : public nsQueryFrame {
     return false;
   }
 
-  //
-  // Accessor functions to an associated view object:
-  //
-  bool HasView() const { return !!(mState & NS_FRAME_HAS_VIEW); }
-
   template <typename SizeOrMaxSize>
   static inline bool IsIntrinsicKeyword(const SizeOrMaxSize& aSize) {
     // All keywords other than auto/none/-moz-available depend on intrinsic
@@ -3334,12 +3335,10 @@ class nsIFrame : public nsQueryFrame {
 
  public:
   nsView* GetView() const {
-    if (MOZ_LIKELY(!HasView())) {
+    if (MOZ_LIKELY(!MayHaveView())) {
       return nullptr;
     }
-    nsView* view = GetViewInternal();
-    MOZ_ASSERT(view, "GetViewInternal() should agree with HasView()");
-    return view;
+    return GetViewInternal();
   }
   void SetView(nsView* aView);
 
@@ -3594,6 +3593,7 @@ class nsIFrame : public nsQueryFrame {
   CLASS_FLAG_METHOD(IsBidiInlineContainer, BidiInlineContainer);
   CLASS_FLAG_METHOD(IsLineParticipant, LineParticipant);
   CLASS_FLAG_METHOD(HasReplacedSizing, ReplacedSizing);
+  CLASS_FLAG_METHOD(MayHaveView, MayHaveView);
   CLASS_FLAG_METHOD(IsTablePart, TablePart);
   CLASS_FLAG_METHOD0(CanContainOverflowContainers)
   CLASS_FLAG_METHOD0(SupportsCSSTransforms);
@@ -5226,11 +5226,6 @@ class nsIFrame : public nsQueryFrame {
   void HandleLastRememberedSize();
 
  protected:
-  /**
-   * Reparent this frame's view if it has one.
-   */
-  void ReparentFrameViewTo(nsViewManager* aViewManager, nsView* aNewParentView);
-
   // Members
   nsRect mRect;
   nsCOMPtr<nsIContent> mContent;

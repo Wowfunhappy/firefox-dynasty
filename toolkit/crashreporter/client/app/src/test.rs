@@ -111,7 +111,9 @@ macro_rules! current_date {
         "2004-11-09"
     };
 }
+const MOCK_CURRENT_DATE: &str = current_date!();
 const MOCK_CURRENT_TIME: &str = concat!(current_date!(), "T12:34:56.000Z");
+const MOCK_PING_UUID: uuid::Uuid = uuid::Uuid::nil();
 const MOCK_REMOTE_CRASH_ID: &str = "8cbb847c-def2-4f68-be9e-000000000000";
 
 fn current_datetime() -> time::OffsetDateTime {
@@ -135,6 +137,7 @@ fn test_config() -> Config {
     let mut cfg = Config::default();
     cfg.data_dir = Some("data_dir".into());
     cfg.events_dir = Some("events_dir".into());
+    cfg.ping_dir = Some("ping_dir".into());
     cfg.dump_file = Some("minidump.dmp".into());
     cfg.strings = Some(Default::default());
     // Set delete_dump to true: this matches the default case in practice.
@@ -190,6 +193,10 @@ impl GuiTest {
         // Create a default mock environment which allows successful operation.
         let mut mock = mock::builder();
         mock.set(
+            Command::mock("work_dir/pingsender"),
+            Box::new(|_| Ok(crate::std::process::success_output())),
+        )
+        .set(
             Command::mock("curl"),
             Box::new(|_| {
                 let mut output = crate::std::process::success_output();
@@ -204,7 +211,8 @@ impl GuiTest {
         )
         .set(crate::std::env::MockTempDir, "tmp".into())
         .set(crate::std::time::MockCurrentTime, current_system_time())
-        .set(mock::MockHook::new("enable_glean_pings"), false);
+        .set(mock::MockHook::new("enable_glean_pings"), false)
+        .set(mock::MockHook::new("ping_uuid"), MOCK_PING_UUID);
 
         GuiTest {
             config: test_config(),
@@ -362,6 +370,52 @@ impl AssertFiles {
         self.inner
             .check(self.data("pending/minidump.extra"), new_extra)
             .check_bytes(dmp, new_dmp);
+        self
+    }
+
+    /// Assert that a crash ping was created for sending according to the filesystem.
+    pub fn ping(&mut self) -> &mut Self {
+        self.inner.check(
+            format!("ping_dir/{MOCK_PING_UUID}.json"),
+            serde_json::json! {{
+                "type": "crash",
+                "id": MOCK_PING_UUID,
+                "version": 4,
+                "creationDate": MOCK_CURRENT_TIME,
+                "clientId": "telemetry_client",
+                "profileGroupId": "telemetry_profile_group",
+                "payload": {
+                    "sessionId": "telemetry_session",
+                    "version": 1,
+                    "crashDate": MOCK_CURRENT_DATE,
+                    "crashTime": MOCK_CURRENT_TIME,
+                    "hasCrashEnvironment": true,
+                    "crashId": "minidump",
+                    "minidumpSha256Hash": MOCK_MINIDUMP_SHA256,
+                    "processType": "main",
+                    "stackTraces": {
+                        "status": "OK"
+                    },
+                    "metadata": {
+                        "AsyncShutdownTimeout": "{}",
+                        "BuildID": "1234",
+                        "ProductName": "Bar",
+                        "ReleaseChannel": "release",
+                        "Version": "100.0",
+                    }
+                },
+                "application": {
+                    "vendor": "FooCorp",
+                    "name": "Bar",
+                    "buildId": "1234",
+                    "displayVersion": "",
+                    "platformVersion": "",
+                    "version": "100.0",
+                    "channel": "release"
+                }
+            }}
+            .to_string(),
+        );
         self
     }
 
@@ -666,13 +720,16 @@ fn no_submit() {
 #[test]
 fn ping_and_event_files() {
     let mut test = GuiTest::new();
-    test.files.add_dir("events_dir").add_file(
-        "events_dir/minidump",
-        "1\n\
+    test.files
+        .add_dir("ping_dir")
+        .add_dir("events_dir")
+        .add_file(
+            "events_dir/minidump",
+            "1\n\
          12:34:56\n\
          e0423878-8d59-4452-b82e-cad9c846836e\n\
          {\"foo\":\"bar\"}",
-    );
+        );
     test.run(|interact| {
         interact.element("quit", |_style, b: &model::Button| b.click.fire(&()));
     });
@@ -680,6 +737,7 @@ fn ping_and_event_files() {
         .saved_settings(Settings::default())
         .submitted()
         .submission_event(true)
+        .ping()
         .check(
             "events_dir/minidump",
             format!(
@@ -690,6 +748,7 @@ fn ping_and_event_files() {
                 serde_json::json! {{
                     "foo": "bar",
                     "MinidumpSha256Hash": MOCK_MINIDUMP_SHA256,
+                    "CrashPingUUID": MOCK_PING_UUID,
                     "StackTraces": { "status": "OK" }
                 }}
             ),
@@ -700,13 +759,16 @@ fn ping_and_event_files() {
 fn network_failure() {
     let invoked = Counter::new();
     let mut test = GuiTest::new();
-    test.files.add_dir("events_dir").add_file(
-        "events_dir/minidump",
-        "1\n\
+    test.files
+        .add_dir("ping_dir")
+        .add_dir("events_dir")
+        .add_file(
+            "events_dir/minidump",
+            "1\n\
          12:34:56\n\
          e0423878-8d59-4452-b82e-cad9c846836e\n\
          {\"foo\":\"bar\"}",
-    );
+        );
     test.mock.set(
         net::http::MockHttp,
         Box::new(cc! { (invoked) move |_request, _url| {
@@ -722,6 +784,7 @@ fn network_failure() {
         .saved_settings(Settings::default())
         .pending()
         .submission_event(false)
+        .ping()
         .check(
             "events_dir/minidump",
             format!(
@@ -732,6 +795,49 @@ fn network_failure() {
                 serde_json::json! {{
                     "foo": "bar",
                     "MinidumpSha256Hash": MOCK_MINIDUMP_SHA256,
+                    "CrashPingUUID": MOCK_PING_UUID,
+                    "StackTraces": { "status": "OK" }
+                }}
+            ),
+        );
+}
+
+#[test]
+fn pingsender_failure() {
+    let mut test = GuiTest::new();
+    test.mock.set(
+        Command::mock("work_dir/pingsender"),
+        Box::new(|_| Err(ErrorKind::NotFound.into())),
+    );
+    test.files
+        .add_dir("ping_dir")
+        .add_dir("events_dir")
+        .add_file(
+            "events_dir/minidump",
+            "1\n\
+         12:34:56\n\
+         e0423878-8d59-4452-b82e-cad9c846836e\n\
+         {\"foo\":\"bar\"}",
+        );
+    test.run(|interact| {
+        interact.element("quit", |_style, b: &model::Button| b.click.fire(&()));
+    });
+    test.assert_files()
+        .saved_settings(Settings::default())
+        .submitted()
+        .submission_event(true)
+        .ping()
+        .check(
+            "events_dir/minidump",
+            format!(
+                "1\n\
+                12:34:56\n\
+                e0423878-8d59-4452-b82e-cad9c846836e\n\
+                {}",
+                serde_json::json! {{
+                    "foo": "bar",
+                    "MinidumpSha256Hash": MOCK_MINIDUMP_SHA256,
+                    // No crash ping UUID since pingsender fails
                     "StackTraces": { "status": "OK" }
                 }}
             ),

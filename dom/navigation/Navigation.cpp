@@ -770,6 +770,20 @@ void Navigation::Reload(JSContext* aCx, const NavigationReloadOptions& aOptions,
   MOZ_ASSERT(docShell);
   docShell->ReloadNavigable(Some(WrapNotNullUnchecked(aCx)),
                             nsIWebNavigation::LOAD_FLAGS_NONE, serializedState);
+  // This is stolen from #dom-navigation-navigate. If the upcoming non-traverse
+  // API method tracker is still apiMethodTracker, this means that the reload
+  // algorithm bailed out before ever getting to the inner navigate event
+  // firing algorithm which would promote that upcoming API method tracker to
+  // ongoing. This is done here because gecko's reload implementation has
+  // additional abort code paths which may return early before firing the
+  // navigate event.
+  if (mUpcomingNonTraverseAPIMethodTracker == apiMethodTracker) {
+    mUpcomingNonTraverseAPIMethodTracker = nullptr;
+    ErrorResult rv;
+    rv.ThrowAbortError("Reload aborted.");
+    SetEarlyErrorResult(aCx, aResult, std::move(rv));
+    return;
+  }
 
   // 10. Return a navigation API method tracker-derived result for
   //     apiMethodTracker.
@@ -1443,12 +1457,12 @@ bool Navigation::InnerFireNavigateEvent(
               event->Finish(true);
 
               // Step 6
-              self->FireEvent(u"navigatesuccess"_ns);
-
-              // Step 7
               if (apiMethodTracker) {
                 apiMethodTracker->ResolveFinishedPromise();
               }
+
+              // Step 7
+              self->FireEvent(u"navigatesuccess"_ns);
 
               // Step 8
               if (self->mTransition) {
@@ -1493,19 +1507,19 @@ bool Navigation::InnerFireNavigateEvent(
               // Step 5
               event->Finish(false);
 
+              // Step 7
+              if (apiMethodTracker) {
+                apiMethodTracker->RejectFinishedPromise(aRejectionReason);
+              }
+
               if (AutoJSAPI jsapi;
                   !NS_WARN_IF(!jsapi.Init(event->GetParentObject()))) {
                 // Step 6
                 RootedDictionary<ErrorEventInit> init(jsapi.cx());
                 ExtractErrorInformation(jsapi.cx(), aRejectionReason, init);
 
-                // Step 7
+                // Step 8
                 self->FireErrorEvent(u"navigateerror"_ns, init);
-              }
-
-              // Step 8
-              if (apiMethodTracker) {
-                apiMethodTracker->RejectFinishedPromise(aRejectionReason);
               }
 
               // Step 9
@@ -1621,9 +1635,20 @@ void Navigation::InnerInformAboutAbortingNavigation(JSContext* aCx) {
   // As per https://github.com/whatwg/html/issues/11579, we should abort all
   // ongoing navigate events within "inform the navigation API about aborting
   // navigation".
+
+  // As per https://github.com/whatwg/html/issues/11735, we should move out
+  // the non-traverse api method tracker while aborting ongoing navigations.
+  // Aborting allows to run script (onnavigateerror), which could start a new
+  // navigation, which asserts if there's an upcoming non-traverse api method
+  // tracker.
+  RefPtr upcomingNonTraverseAPIMethodTracker =
+      std::move(mUpcomingNonTraverseAPIMethodTracker);
   while (HasOngoingNavigateEvent()) {
     AbortOngoingNavigation(aCx);
   }
+  MOZ_DIAGNOSTIC_ASSERT(!mUpcomingNonTraverseAPIMethodTracker);
+  mUpcomingNonTraverseAPIMethodTracker =
+      std::move(upcomingNonTraverseAPIMethodTracker);
 }
 
 // https://html.spec.whatwg.org/#abort-the-ongoing-navigation
@@ -1672,12 +1697,12 @@ void Navigation::AbortOngoingNavigation(JSContext* aCx,
   ExtractErrorInformation(aCx, error, init);
 
   // Step 10
-  FireErrorEvent(u"navigateerror"_ns, init);
-
-  // Step 11
   if (mOngoingAPIMethodTracker) {
     mOngoingAPIMethodTracker->RejectFinishedPromise(error);
   }
+
+  // Step 11
+  FireErrorEvent(u"navigateerror"_ns, init);
 
   // Step 12
   if (mTransition) {

@@ -111,8 +111,7 @@ class SourcePreview extends Component {
       // scroll the editor to center the line
       // with the target search result
       if (this.editor) {
-        await this.editor.scrollTo(line, 0);
-        await this.editor.setCursorAt(line - 1, 0);
+        await this.editor.setCursorAt(line, 0);
 
         // Highlight line
         this.editor.setLineContentMarker({
@@ -161,6 +160,16 @@ class SourcePreview extends Component {
   }
 }
 
-module.exports = connect(null, dispatch => ({
-  resetTargetSearchResult: () => dispatch(setTargetSearchResult(null)),
-}))(SourcePreview);
+module.exports = connect(
+  state => {
+    if (!state.search) {
+      return null;
+    }
+    return {
+      targetSearchResult: state.search.targetSearchResult,
+    };
+  },
+  dispatch => ({
+    resetTargetSearchResult: () => dispatch(setTargetSearchResult(null)),
+  })
+)(SourcePreview);

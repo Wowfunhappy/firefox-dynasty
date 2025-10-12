@@ -1770,6 +1770,18 @@ public class GeckoAppShell {
   }
 
   @WrapForJNI
+  private static void crashByUncaughtException() {
+    final Thread crashThread =
+        new Thread("UncaughtExceptionThread") {
+          @Override
+          public void run() {
+            throw new IllegalStateException();
+          }
+        };
+    crashThread.start();
+  }
+
+  @WrapForJNI
   public static native boolean isParentProcess();
 
   @WrapForJNI
@@ -1791,4 +1803,7 @@ public class GeckoAppShell {
 
   @WrapForJNI(dispatchTo = "gecko")
   public static native void onTimezoneChanged();
+
+  @WrapForJNI
+  public static native void logGpuProcessLaunchFailure(String aMessage);
 }

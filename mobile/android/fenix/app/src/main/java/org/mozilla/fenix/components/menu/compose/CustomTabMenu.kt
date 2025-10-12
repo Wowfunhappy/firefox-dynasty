@@ -107,14 +107,14 @@ internal fun CustomTabMenu(
                     isExtensionsExpanded = false,
                     isMoreMenuExpanded = false,
                 )
-                if (scrollState.value != 0) {
+                if (scrollState.canScrollBackward) {
                     HorizontalDivider(color = FirefoxTheme.colors.borderPrimary)
                 }
             }
         },
         footer = {
             if (isBottomToolbar) {
-                if (scrollState.value != 0) {
+                if (scrollState.canScrollBackward) {
                     HorizontalDivider(color = FirefoxTheme.colors.borderPrimary)
                 }
                 MenuNavigation(
@@ -182,7 +182,7 @@ internal fun CustomTabMenu(
                     }
                 },
                 label = stringResource(id = R.string.browser_menu_desktop_site),
-                beforeIconPainter = painterResource(id = iconsR.drawable.mozac_ic_device_mobile_24),
+                beforeIconPainter = painterResource(id = iconsR.drawable.mozac_ic_device_desktop_24),
                 state = menuItemState,
                 onClick = onSwitchToDesktopSiteMenuClick,
             ) {

@@ -25,8 +25,11 @@ export class SmartAssist extends MozLitElement {
     userPrompt: { type: String },
     aiResponse: { type: String },
     conversationState: { type: Array },
+    logState: { type: Array },
     mode: { type: String }, // "tab" | "sidebar"
     overrideNewTab: { type: Boolean },
+    showLog: { type: Boolean },
+    actionKey: { type: String }, // "chat" | "search"
   };
 
   constructor() {
@@ -37,10 +40,26 @@ export class SmartAssist extends MozLitElement {
     this.conversationState = [
       { role: "system", content: "You are a helpful assistant" },
     ];
+    this.logState = [];
+    this.showLog = false;
     this.mode = "sidebar";
     this.overrideNewTab = Services.prefs.getBoolPref(
       "browser.ml.smartAssist.overrideNewTab"
     );
+    this.actionKey = "chat";
+
+    this._actions = {
+      chat: {
+        label: "Submit",
+        icon: "chrome://global/skin/icons/arrow-right.svg",
+        run: this._actionChat,
+      },
+      search: {
+        label: "Search",
+        icon: "chrome://global/skin/icons/search-glass.svg",
+        run: this._actionSearch,
+      },
+    };
   }
 
   connectedCallback() {
@@ -61,12 +80,32 @@ export class SmartAssist extends MozLitElement {
     this.conversationState = [...this.conversationState, chatEntry];
   };
 
-  _handlePromptInput = e => {
-    const value = e.target.value;
-    this.userPrompt = value;
+  _updatelogState = chatEntry => {
+    const entryWithDate = { ...chatEntry, date: new Date().toLocaleString() };
+    this.logState = [...this.logState, entryWithDate];
   };
 
-  _handleSubmit = async () => {
+  _handlePromptInput = async e => {
+    const value = e.target.value;
+    this.userPrompt = value;
+
+    // Determine intent based on keywords in the prompt
+    this.actionKey = await lazy.SmartAssistEngine.getPromptIntent(value);
+  };
+
+  /**
+   * Returns the current action object based on the actionKey
+   */
+
+  get inputAction() {
+    return this._actions[this.actionKey];
+  }
+
+  _actionSearch = () => {
+    // TODO: Implement search functionality
+  };
+
+  _actionChat = async () => {
     const formattedPrompt = (this.userPrompt || "").trim();
     if (!formattedPrompt) {
       return;
@@ -87,7 +126,17 @@ export class SmartAssist extends MozLitElement {
       );
 
       for await (const chunk of stream) {
+        // Check to see if chunk is special tool calling log and add to logState
+        if (chunk.type === "tool_call_log") {
+          this._updatelogState({
+            content: chunk.content,
+            result: chunk.result || "No result",
+          });
+          continue;
+        }
         acc += chunk;
+        // append to the latest assistant message
+
         this.conversationState[latestAssistantMessageIndex] = {
           ...this.conversationState[latestAssistantMessageIndex],
           content: acc,
@@ -107,7 +156,7 @@ export class SmartAssist extends MozLitElement {
    * Mock Functionality to open full page UX
    *
    * @param {boolean} enable
-   *   Whether or not to override the new tab page.
+   * Whether or not to override the new tab page.
    */
   _applyNewTabOverride(enable) {
     try {
@@ -130,21 +179,29 @@ export class SmartAssist extends MozLitElement {
   }
 
   render() {
+    const iconSrc = this.showLog
+      ? "chrome://global/skin/icons/arrow-down.svg"
+      : "chrome://global/skin/icons/arrow-up.svg";
+
     return html`
       <link
         rel="stylesheet"
         href="chrome://browser/content/genai/content/smart-assist.css"
       />
-      <div>
-        ${this.mode === "sidebar"
-          ? html` <sidebar-panel-header
-              data-l10n-id="genai-smart-assist-sidebar-title"
-              data-l10n-attrs="heading"
-              view="viewGenaiSmartAssistSidebar"
-            ></sidebar-panel-header>`
-          : ""}
+      <div class="wrapper">
+        ${
+          this.mode === "sidebar"
+            ? html` <sidebar-panel-header
+                data-l10n-id="genai-smart-assist-sidebar-title"
+                data-l10n-attrs="heading"
+                view="viewGenaiSmartAssistSidebar"
+              ></sidebar-panel-header>`
+            : ""
+        }
 
-        <div class="wrapper">
+        <div>
+
+          <!-- Conversation Panel -->
           <div>
             ${this.conversationState
               .filter(msg => msg.role !== "system")
@@ -158,30 +215,72 @@ export class SmartAssist extends MozLitElement {
                   </div>`
               )}
           </div>
+
+          <!-- Log Panel -->
+          ${
+            this.logState.length !== 0
+              ? html` <div class="log-panel">
+                  <div class="log-header">
+                    <span class="log-title">Log</span>
+                    <moz-button
+                      type="ghost"
+                      iconSrc=${iconSrc}
+                      @click=${() => {
+                        this.showLog = !this.showLog;
+                      }}
+                    >
+                    </moz-button>
+                  </div>
+                  ${this.showLog
+                    ? html` <div class="log-entries">
+                        ${this.logState.map(
+                          data =>
+                            html`<div class="log-entry">
+                              <div><b>Message</b> : ${data.content}</div>
+                              <div><b>Date</b> : ${data.date}</div>
+                              <div>
+                                <b>Tool Response</b> :
+                                ${JSON.stringify(data.result)}
+                              </div>
+                            </div>`
+                        )}
+                      </div>`
+                    : html``}
+                </div>`
+              : html``
+          }
+          </div>
+
+          <!-- User Input -->
           <textarea
             .value=${this.userPrompt}
             class="prompt-textarea"
             @input=${e => this._handlePromptInput(e)}
           ></textarea>
           <moz-button
+            iconSrc=${this.inputAction.icon}
             id="submit-user-prompt-btn"
             type="primary"
             size="small"
-            @click=${this._handleSubmit}
+            @click=${this.inputAction.run}
+            iconPosition="end"
           >
-            Submit
+            ${this.inputAction.label}
           </moz-button>
 
-          ${this.mode === "sidebar"
-            ? html`<div class="footer">
-                <moz-checkbox
-                  type="checkbox"
-                  label="Mock Full Page Experience"
-                  @change=${e => this._onToggleFullPage(e)}
-                  ?checked=${this.overrideNewTab}
-                ></moz-checkbox>
-              </div>`
-            : ""}
+          <!-- Footer - New Tab Override -->
+          ${
+            this.mode === "sidebar"
+              ? html`<div class="footer">
+                  <moz-checkbox
+                    type="checkbox"
+                    label="Mock Full Page Experience"
+                    @change=${e => this._onToggleFullPage(e)}
+                    ?checked=${this.overrideNewTab}
+                  ></moz-checkbox>
+                </div>`
+              : ""
+          }
         </div>
       </div>
     `;

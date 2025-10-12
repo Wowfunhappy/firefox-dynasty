@@ -246,7 +246,9 @@ internal class BookmarksMiddleware(
                                 if (result.isFailure) {
                                     reportResultGlobally(BookmarksGlobalResultReport.EditBookmarkFailed)
                                 } else {
-                                    lastSavedFolderCache.setGuid(it.parentGuid)
+                                    if (preReductionState.bookmarksEditBookmarkState.edited) {
+                                        lastSavedFolderCache.setGuid(it.parentGuid)
+                                    }
                                 }
                             }
                             context.store.tryDispatchLoadFor(preReductionState.currentFolder.guid)
@@ -368,6 +370,10 @@ internal class BookmarksMiddleware(
                         }
                     }
                 }
+            }
+            is SelectFolderAction.SortMenu -> scope.launch {
+                context.store.tryDispatchLoadFolders()
+                saveBookmarkSortOrder(context.store.state.sortOrder)
             }
             is InitEditLoaded,
             SnackbarAction.Undo,

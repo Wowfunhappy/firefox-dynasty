@@ -5916,14 +5916,6 @@ var SessionStoreInternal = {
     arrowScrollbox.smoothScroll = smoothScroll;
 
     Glean.sessionRestore.restoreWindow.stopAndAccumulate(timerId);
-
-    this._setWindowStateReady(aWindow);
-
-    this._sendWindowRestoredNotification(aWindow);
-
-    Services.obs.notifyObservers(aWindow, NOTIFY_SINGLE_WINDOW_RESTORED);
-
-    this._sendRestoreCompletedNotifications();
   },
 
   /**
@@ -5986,9 +5978,11 @@ var SessionStoreInternal = {
   _restoreWindowsFeaturesAndTabs(windows) {
     // First, we restore window features, so that when users start interacting
     // with a window, we don't steal the window focus.
+    let resizePromises = [];
     for (let window of windows) {
       let state = this._statesToRestore[WINDOW_RESTORE_IDS.get(window)];
-      this.restoreWindowFeatures(window, state.windows[0]);
+      // Wait for these promises after we've restored data into them below.
+      resizePromises.push(this.restoreWindowFeatures(window, state.windows[0]));
     }
 
     // Then we restore data into windows.
@@ -6000,6 +5994,20 @@ var SessionStoreInternal = {
         state.options || { overwriteTabs: true }
       );
       WINDOW_RESTORE_ZINDICES.delete(window);
+    }
+    for (let resizePromise of resizePromises) {
+      resizePromise.then(resizedWindow => {
+        this._setWindowStateReady(resizedWindow);
+
+        this._sendWindowRestoredNotification(resizedWindow);
+
+        Services.obs.notifyObservers(
+          resizedWindow,
+          NOTIFY_SINGLE_WINDOW_RESTORED
+        );
+
+        this._sendRestoreCompletedNotifications();
+      });
     }
   },
 
@@ -6505,6 +6513,7 @@ var SessionStoreInternal = {
       }
     }
 
+    let promiseParts = Promise.withResolvers();
     aWindow.setTimeout(() => {
       this.restoreDimensions(
         aWindow,
@@ -6516,7 +6525,9 @@ var SessionStoreInternal = {
         aWinData.sizemodeBeforeMinimized || ""
       );
       this.restoreSidebar(aWindow, aWinData.sidebar, aWinData.isPopup);
+      promiseParts.resolve(aWindow);
     }, 0);
+    return promiseParts.promise;
   },
 
   /**
@@ -7441,6 +7452,16 @@ var SessionStoreInternal = {
         // notification in order not to retrigger startup observers that
         // are listening for NOTIFY_WINDOWS_RESTORED.
         Services.obs.notifyObservers(null, NOTIFY_BROWSER_STATE_RESTORED);
+      }
+
+      // If all windows are on other virtual desktops (on Windows), open a new
+      // window on this desktop so the user isn't left wondering where their
+      // session went. See bug 1812489.
+      let anyWindowNotCloaked = this._browserWindows[Symbol.iterator]().some(
+        window => !window.isCloaked
+      );
+      if (!anyWindowNotCloaked) {
+        lazy.BrowserWindowTracker.openWindow();
       }
 
       this._browserSetState = false;

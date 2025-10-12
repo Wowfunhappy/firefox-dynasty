@@ -2283,6 +2283,7 @@ STATIC_ATOMS = [
     Atom("_moz_windows_mica", "-moz-windows-mica"),
     Atom("_moz_windows_mica_popups", "-moz-windows-mica-popups"),
     Atom("_moz_mac_big_sur_theme", "-moz-mac-big-sur-theme"),
+    Atom("_moz_mac_tahoe_theme", "-moz-mac-tahoe-theme"),
     Atom("_moz_mac_rtl", "-moz-mac-rtl"),
     Atom("_moz_mac_titlebar_height", "-moz-mac-titlebar-height"),
     Atom("_moz_platform", "-moz-platform"),
@@ -2308,6 +2309,7 @@ STATIC_ATOMS = [
     Atom("_moz_content_prefers_color_scheme", "-moz-content-prefers-color-scheme"),
     Atom("_moz_content_preferred_color_scheme", "-moz-content-preferred-color-scheme"),
     Atom("_moz_system_dark_theme", "-moz-system-dark-theme"),
+    Atom("_moz_native_theme", "-moz-native-theme"),
     Atom("_moz_panel_animations", "-moz-panel-animations"),
     # application commands
     Atom("Back", "Back"),

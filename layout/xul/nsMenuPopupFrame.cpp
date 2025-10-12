@@ -2116,15 +2116,11 @@ nsresult nsMenuPopupFrame::AttributeChanged(int32_t aNameSpaceID,
 
   if (aAttribute == nsGkAtoms::label) {
     // set the label for the titlebar
-    nsView* view = GetView();
-    if (view) {
-      nsIWidget* widget = view->GetWidget();
-      if (widget) {
-        nsAutoString title;
-        mContent->AsElement()->GetAttr(nsGkAtoms::label, title);
-        if (!title.IsEmpty()) {
-          widget->SetTitle(title);
-        }
+    if (nsIWidget* widget = GetWidget()) {
+      nsAutoString title;
+      mContent->AsElement()->GetAttr(nsGkAtoms::label, title);
+      if (!title.IsEmpty()) {
+        widget->SetTitle(title);
       }
     }
   } else if (aAttribute == nsGkAtoms::ignorekeys) {
@@ -2349,12 +2345,12 @@ int8_t nsMenuPopupFrame::GetAlignmentPosition() const {
  * as much as possible. Until we get rid of views finally...
  */
 void nsMenuPopupFrame::CreatePopupView() {
-  if (HasView()) {
+  if (mView) {
     return;
   }
 
   nsViewManager* viewManager = PresContext()->GetPresShell()->GetViewManager();
-  NS_ASSERTION(nullptr != viewManager, "null view manager");
+  NS_ASSERTION(viewManager, "null view manager");
 
   // Create a view
   nsView* parentView = viewManager->GetRootView();

@@ -3628,31 +3628,30 @@ class Editor extends EventEmitter {
 
   /**
    * Move CodeMirror cursor to a given location.
-   *
+   * This will also scroll the editor to the specified position.
+   * Used only for CM6
    * @param {Number} line
    * @param {Number} column
    */
-  setCursorAt(line, column) {
+  async setCursorAt(line, column) {
+    await this.scrollTo(line, column);
     const cm = editors.get(this);
-    if (this.config.cm6) {
-      const { lines } = cm.state.doc;
-      if (line > lines) {
-        console.error(
-          `Trying to set the cursor on a non-existing line ${line} > ${lines}`
-        );
-        return null;
-      }
-      const lineInfo = cm.state.doc.line(line + 1);
-      if (column >= lineInfo.length) {
-        console.error(
-          `Trying to set the cursor on a non-existing column ${column} >= ${lineInfo.length}`
-        );
-        return null;
-      }
-      const position = lineInfo.from + column;
-      return cm.dispatch({ selection: { anchor: position, head: position } });
+    const { lines } = cm.state.doc;
+    if (line > lines) {
+      console.error(
+        `Trying to set the cursor on a non-existing line ${line} > ${lines}`
+      );
+      return null;
     }
-    return cm.setCursor({ line, ch: column });
+    const lineInfo = cm.state.doc.line(line);
+    if (column >= lineInfo.length) {
+      console.error(
+        `Trying to set the cursor on a non-existing column ${column} >= ${lineInfo.length}`
+      );
+      return null;
+    }
+    const position = lineInfo.from + column;
+    return cm.dispatch({ selection: { anchor: position, head: position } });
   }
 
   // Used only in tests

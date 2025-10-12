@@ -294,11 +294,7 @@
 # * 2: Enable unless incompatible accessibility clients are detected.
 - name: accessibility.uia.enable
   type: uint32_t
-#ifdef NIGHTLY_BUILD
   value: 2
-#else
-  value: 0
-#endif
   mirror: always
   do_not_use_directly: true
 
@@ -1808,12 +1804,23 @@
   value: 2
   mirror: always
 
+# Whether (-moz-native-theme) evaluates to true by default.
+- name: browser.theme.native-theme
+  type: RelaxedAtomicBool
+#ifdef MOZ_WIDGET_GTK
+  value: true
+#else
+  value: false
+#endif
+  mirror: always
+  rust: true
+
 # Communicates the preferred content theme color to platform (for e.g.,
 # prefers-color-scheme).
 #
-# dark (0), light (1), system (2), or toolbar (3).
+# dark (0), light (1), or system (2)
 #
-# Default to "toolbar", the theming code sets it appropriately.
+# Default to "system", the theming code sets it appropriately.
 - name: browser.theme.content-theme
   type: RelaxedAtomicUint32
   value: 2
@@ -4434,7 +4441,7 @@
 # (https://w3c.github.io/trusted-types/dist/spec/) is enabled.
 - name: dom.security.trusted_types.enabled
   type: RelaxedAtomicBool
-  value: @IS_NIGHTLY_BUILD@
+  value: @IS_EARLY_BETA_OR_EARLIER@
   mirror: always
 
 # If true, all content requests will get upgraded to HTTPS://
@@ -4804,7 +4811,7 @@
 # Enable Storage-Access-Headers
 - name: dom.storage_access.headers.enabled
   type: bool
-  value: false
+  value: @IS_NIGHTLY_BUILD@
   mirror: always
 
 # Forward-Declared Storage-access API.
@@ -4994,7 +5001,7 @@
 
 - name: dom.text_fragments.create_text_fragment.enabled
   type: bool
-  value: @IS_NIGHTLY_BUILD@
+  value: true
   mirror: always
 
 - name: dom.text_fragments.create_text_fragment.timeout_seconds
@@ -5538,9 +5545,13 @@
 #
 # When this condition changes, be sure to update the `run-if` / `skip-if`
 # conditions in `dom/webgpu/tests/mochitest/*.toml` accordingly.
+#
+# preprocessor.py doesn't understand parentheses, but && is higher precedence
+# than ||, meaning this pref defaults to true on any Windows architecture, or
+# on aarch64 (Apple Silicon) MacOS.
 - name: dom.webgpu.enabled
   type: RelaxedAtomicBool
-#ifdef XP_WIN
+#if defined(XP_WIN) || defined(XP_MACOSX) && defined(MOZ_AARCH64)
   value: true
 #else
   value: @IS_EARLY_BETA_OR_EARLIER@
@@ -6652,6 +6663,15 @@
   value: false
 #endif
   mirror: always
+
+- name: gfx.canvas.accelerated.allow-in-parent
+  type: bool
+#if defined(XP_WIN) || defined(ANDROID)
+  value: false
+#else
+  value: true
+#endif
+  mirror: once
 
 # Whether to attempt to enable Accelerated Canvas2D regardless of blocklisting.
 - name: gfx.canvas.accelerated.force-enabled
@@ -8105,7 +8125,7 @@
 - name: gfx.webrender.precise-radial-gradients-swgl
   type: bool
   rust: true
-  value: false
+  value: true
   mirror: once
 
 # Use a more precise method for sampling gradients when *not* using SWGL .
@@ -9538,16 +9558,12 @@
 # unstable GPU process, otherwise simply crash the parent process.
 - name: layers.gpu-process.allow-fallback-to-parent
   type: bool
-  value: false
+  value: @IS_NOT_NIGHTLY_BUILD@
   mirror: once
 
 - name: layers.gpu-process.allow-software
   type: bool
-#if defined(XP_WIN)
   value: true
-#else
-  value: false
-#endif
   mirror: once
 
 - name: layers.gpu-process.enabled
@@ -9556,6 +9572,8 @@
   value: true
 #elif defined(MOZ_X11)
   value: false  # we'd like this to be @IS_NIGHTLY_BUILD@, see Bug 1927058
+#elif defined(XP_MACOSX)
+  value: @IS_NIGHTLY_BUILD@
 #else
   value: false
 #endif
@@ -9591,7 +9609,7 @@
 # during process launch, before any configuration is attempted.
 - name: layers.gpu-process.max_launch_attempts
   type: RelaxedAtomicInt32
-#if defined(XP_WIN) || defined(MOZ_WIDGET_GTK)
+#if defined(XP_WIN) || defined(MOZ_WIDGET_GTK) || defined(XP_MACOSX)
   value: 2
 #else
   value: 0
@@ -9601,11 +9619,7 @@
 # How many unstable GPU process restarts we allow for a given configuration.
 - name: layers.gpu-process.max_restarts
   type: RelaxedAtomicInt32
-#if defined(XP_WIN) || defined(MOZ_WIDGET_GTK) || defined(MOZ_WIDGET_ANDROID)
   value: 6
-#else
-  value: 1
-#endif
   mirror: always
 
 # How many frames we must render before declaring the GPU process stable, and
@@ -10993,6 +11007,21 @@
   value: false
   mirror: always
 
+# Determines how we snap css outline-offset:
+#   0: No snapping (historical behavior)
+#   1: Always snap as border-width (proposed behavior in
+#      https://github.com/w3c/csswg-drafts/issues/12906)
+#   2: The above, but only on chrome code, for now.
+- name: layout.css.outline-offset.snapping
+  type: RelaxedAtomicInt32
+#ifdef NIGHTLY_BUILD
+  value: 1
+#else
+  value: 2
+#endif
+  mirror: always
+  rust: true
+
 - name: layout.visibility.min-recompute-interval-ms
   type: uint32_t
   value: 1000
@@ -12162,7 +12191,13 @@
   mirror: always
 
 # This pref disables using PQ crypto for WebRTC DTLS code.
-- name: media.webrtc.enable_pq_dtls
+- name: media.webrtc.enable_pq_hybrid_kex
+  type: RelaxedAtomicBool
+  value: true
+  mirror: always
+
+# This pref enabled sending ssl_grp_kem_mlkem768x25519 Key Share for WebRTC DTLS code.
+- name: media.webrtc.send_mlkem_keyshare
   type: RelaxedAtomicBool
   value: @IS_EARLY_BETA_OR_EARLIER@
   mirror: always
@@ -12301,11 +12336,7 @@
 # Hls
 - name: media.hls.enabled
   type: RelaxedAtomicBool
-#if defined(ANDROID)
-  value: @IS_NOT_EARLY_BETA_OR_EARLIER@
-#else
-  value: false
-#endif
+  value: @IS_ANDROID@
   mirror: always
 
 # Max number of HLS players that can be created concurrently. Used only on
@@ -15723,6 +15754,12 @@
 - name: network.essential_domains_fallback
   type: RelaxedAtomicBool
   value: false
+  mirror: always
+
+# Enable HTTP Compression Dictionary support
+- name: network.http.dictionaries.enable
+  type: RelaxedAtomicBool
+  value: true
   mirror: always
 
 #---------------------------------------------------------------------------

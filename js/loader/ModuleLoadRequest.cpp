@@ -61,25 +61,12 @@ ModuleLoadRequest::ModuleLoadRequest(
   MOZ_ASSERT(mLoader);
 }
 
-ModuleLoadRequest::~ModuleLoadRequest() {
-  MOZ_ASSERT(!mReferrerScript);
-  MOZ_ASSERT(!mModuleRequestObj);
-  MOZ_ASSERT(mPayload.isUndefined());
-
-  DropJSObjects(this);
-}
-
 nsIGlobalObject* ModuleLoadRequest::GetGlobalObject() {
   return mLoader->GetGlobalObject();
 }
 
 bool ModuleLoadRequest::IsErrored() const {
-  if (!mModuleScript || mErroredLoadingImports) {
-    return true;
-  }
-
-  MOZ_ASSERT_IF(mModuleScript->HasErrorToRethrow(), !IsDynamicImport());
-  return mModuleScript->HasParseError() || mModuleScript->HasErrorToRethrow();
+  return !mModuleScript || mModuleScript->HasParseError();
 }
 
 void ModuleLoadRequest::SetReady() {
@@ -134,7 +121,14 @@ void ModuleLoadRequest::ModuleErrored() {
   }
 
   MOZ_ASSERT(!IsFinished());
-  MOZ_ASSERT(IsErrored());
+
+  mozilla::DebugOnly<bool> hasRethrow =
+      mModuleScript && mModuleScript->HasErrorToRethrow();
+  MOZ_ASSERT_IF(hasRethrow, !IsDynamicImport());
+
+  // When LoadRequestedModules fails, we will set error to rethrow to the module
+  // script or call SetErroredLoadingImports() and then call ModuleErrored().
+  MOZ_ASSERT(IsErrored() || hasRethrow || mErroredLoadingImports);
 
   if (IsFinished()) {
     // Cancelling an outstanding import will error this request.

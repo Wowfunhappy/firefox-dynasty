@@ -117,6 +117,9 @@ const PREF_USER_INFERRED_PERSONALIZATION =
   "discoverystream.sections.personalization.inferred.user.enabled";
 const PREF_SYSTEM_INFERRED_PERSONALIZATION =
   "discoverystream.sections.personalization.inferred.enabled";
+const PREF_INFERRED_INTERESTS_OVERRIDE =
+  "discoverystream.sections.personalization.inferred.interests.override";
+
 const PREF_MERINO_OHTTP = "discoverystream.merino-provider.ohttp.enabled";
 const PREF_BILLBOARD_ENABLED = "newtabAdSize.billboard";
 const PREF_LEADERBOARD_ENABLED = "newtabAdSize.leaderboard";
@@ -532,7 +535,7 @@ export class DiscoveryStreamFeed {
       const spocsOnDemandConfig = values.trainhopConfig?.spocsOnDemand || {};
       const spocsOnDemand =
         spocsOnDemandConfig.enabled || values[PREF_SPOCS_CACHE_ONDEMAND];
-      this._spocsOnDemand = spocsOnDemand;
+      this._spocsOnDemand = this.showSponsoredStories && spocsOnDemand;
     }
 
     return this._spocsOnDemand;
@@ -2123,13 +2126,18 @@ export class DiscoveryStreamFeed {
 
     let inferredInterests = null;
     if (inferredPersonalization && merinoOhttpEnabled) {
-      const useLaplace =
-        !prefs.inferredPersonalizationConfig?.iv_unary_dp_in_request;
       inferredInterests =
-        (useLaplace
-          ? this.store.getState().InferredPersonalization.inferredInterests
-          : this.store.getState().InferredPersonalization
-              .coarsePrivateInferredInterests) || {};
+        this.store.getState().InferredPersonalization
+          ?.coarsePrivateInferredInterests || {};
+      if (prefs[PREF_INFERRED_INTERESTS_OVERRIDE]) {
+        try {
+          inferredInterests = JSON.parse(
+            prefs[PREF_INFERRED_INTERESTS_OVERRIDE]
+          );
+        } catch (ex) {
+          console.error("Invalid format json for inferred interest override.");
+        }
+      }
     }
 
     const requestMetadata = {

@@ -26,19 +26,39 @@ static const char SandboxPolicyGPU[] = R"SANDBOX_LITERAL(
       (deny feature (with no-log))))
 
   (moz-deny default)
-  (moz-deny process-info*)
-  (moz-deny nvram*)
-  (moz-deny iokit-get-properties)
-  (moz-deny file-map-executable)
+  (if (>= macosVersion 1009)  
+    (moz-deny process-info*))
+  ; This isn't available in some older macOS releases.
+  (if (defined? 'nvram*)
+    (moz-deny nvram*))
+  (if (defined? 'iokit-get-properties)
+    (moz-deny iokit-get-properties))
+  (if (defined? 'file-map-executable)
+    (moz-deny file-map-executable))
 
-  (allow process-info-pidinfo process-info-setcontrol (target self))
-  (allow user-preference-read)
+  ; Needed for things like getpriority()/setpriority()/pthread_setname()
+  (if (>= macosVersion 1009)
+  (begin
+        (allow process-info-pidinfo (target self))
+        (allow process-info-pidinfo process-info-setcontrol (target self))))
+
+  (if (>= macosVersion 1008)
+  (allow user-preference-read))
   (allow file-read-metadata (subpath "/"))
-  (allow file-map-executable file-read*
-    (subpath "/System")
-    (subpath "/usr/lib")
-    (subpath "/Library/GPUBundles")
-    (subpath appPath))
+  (if (defined? 'file-map-executable)
+    (begin
+      (if (string=? isRosettaTranslated "TRUE")
+        (allow file-map-executable (subpath "/private/var/db/oah")))
+      (allow file-map-executable file-read*
+        (subpath "/System")
+        (subpath "/usr/lib")
+        (subpath "/Library/GPUBundles")
+        (subpath appPath)))
+    (allow file-read*
+        (subpath "/System")
+        (subpath "/usr/lib")
+        (subpath "/Library/GPUBundles")
+        (subpath appPath)))
 
   (allow signal (target self))
   (allow file-read*
@@ -49,6 +69,10 @@ static const char SandboxPolicyGPU[] = R"SANDBOX_LITERAL(
   (if (string? crashPort)
     (allow mach-lookup (global-name crashPort)))
 
+   ; macOS 10.9 does not support the |sysctl-name| predicate, so unfortunately
+   ; we need to allow all sysctl-reads there.
+  (if (<= macosVersion 1009)
+  (allow sysctl-read)
   (allow sysctl-read
     (sysctl-name-regex #"^sysctl\.")
     (sysctl-name "kern.ostype")
@@ -111,7 +135,7 @@ static const char SandboxPolicyGPU[] = R"SANDBOX_LITERAL(
     (sysctl-name "hw.perflevel1.l1dcachesize")
     (sysctl-name "hw.perflevel1.l2cachesize")
     (sysctl-name "hw.perflevel1.cpusperl2")
-    (sysctl-name "hw.perflevel1.name"))
+    (sysctl-name "hw.perflevel1.name")))
 
   (allow mach-lookup
     (global-name "com.apple.system.opendirectoryd.libinfo")
@@ -126,6 +150,13 @@ static const char SandboxPolicyGPU[] = R"SANDBOX_LITERAL(
     (global-name "com.apple.CoreDisplay.master")
     (global-name "com.apple.CoreDisplay.Notification")
     (global-name "com.apple.cvmsServ"))
+
+  ; Allow access to defaults services
+  (allow mach-lookup
+    (global-name "com.apple.cfprefsd.agent")
+    (global-name "com.apple.cfprefsd.daemon"))
+  (allow ipc-posix-shm-read-data
+    (ipc-posix-name-regex #"^apple\.cfprefs\..*"))
 
   (define (home-subpath home-relative-subpath)
     (subpath (string-append homePath home-relative-subpath)))
@@ -159,6 +190,7 @@ static const char SandboxPolicyGPU[] = R"SANDBOX_LITERAL(
           (subpath (string-append bundleIDCacheDir "/com.apple.metalfe"))
           (subpath (string-append bundleIDCacheDir "/com.apple.gpuarchiver"))))))
 
+  (if (defined? 'iokit-get-properties)
   (allow iokit-get-properties
     (iokit-property "board-id")
     (iokit-property "product-id")
@@ -177,18 +209,7 @@ static const char SandboxPolicyGPU[] = R"SANDBOX_LITERAL(
     (iokit-property "IOVARendererID")
     (iokit-property "MetalPluginName")
     (iokit-property "MetalPluginClassName")
-    (iokit-property "gpu-core-count"))
-
-  (allow iokit-set-properties
-    (require-all
-      (iokit-connection "IODisplay")
-        (require-any
-          (iokit-property "brightness"
-                          "linear-brightness"
-                          "commit"
-                          "rgcs"
-                          "ggcs"
-                          "bgcs"))))
+    (iokit-property "gpu-core-count")))
 
   (allow iokit-open
     (iokit-connection "IOAccelerator")

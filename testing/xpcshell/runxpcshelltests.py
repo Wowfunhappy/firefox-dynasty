@@ -365,10 +365,7 @@ class XPCShellTestThread(Thread):
         Simple wrapper to check for crashes.
         On a remote system, this is more complex and we need to overload this function.
         """
-        quiet = False
-        if self.crashAsPass:
-            quiet = True
-
+        quiet = self.crashAsPass or self.retry
         return mozcrash.log_crashes(
             self.log, dump_directory, symbols_path, test=test_name, quiet=quiet
         )
@@ -421,6 +418,15 @@ class XPCShellTestThread(Thread):
             self.failCount = 1
 
     def testTimeout(self, proc):
+        # Set these flags first to prevent test_end from being logged again
+        # while we output the full log.
+        self.done = True
+        self.timedout = True
+
+        # Kill the test process before calling log_full_output that can take a
+        # a while due to stack fixing.
+        self.killTimeout(proc)
+
         if self.test_object["expected"] == "pass":
             expected = "PASS"
         else:
@@ -433,6 +439,7 @@ class XPCShellTestThread(Thread):
                 expected="TIMEOUT",
                 message="Test timed out",
             )
+            self.log_full_output(mark_failures_as_expected=True)
         else:
             result = "TIMEOUT"
             if self.timeoutAsPass:
@@ -447,9 +454,6 @@ class XPCShellTestThread(Thread):
             )
             self.log_full_output()
 
-        self.done = True
-        self.timedout = True
-        self.killTimeout(proc)
         self.log.info("xpcshell return code: %s" % self.getReturnCode(proc))
         self.postCheck(proc)
         self.clean_temp_dirs(self.test_object["path"])
@@ -710,12 +714,15 @@ class XPCShellTestThread(Thread):
             line = line.decode("utf-8")
         return line
 
-    def log_line(self, line):
+    def log_line(self, line, time=None):
         """Log a line of output (either a parser json object or text output from
         the test process"""
         if isinstance(line, (str, bytes)):
             line = self.fix_text_output(line).rstrip("\r\n")
-            self.log.process_output(self.proc_ident, line, command=self.command)
+            kwargs = {"command": self.command, "test": self.test_object["id"]}
+            if time is not None:
+                kwargs["time"] = time
+            self.log.process_output(self.proc_ident, line, **kwargs)
         else:
             if "message" in line:
                 line["message"] = self.fix_text_output(line["message"])
@@ -727,14 +734,44 @@ class XPCShellTestThread(Thread):
                 line["thread"] = current_thread().name
             self.log.log_raw(line)
 
-    def log_full_output(self):
-        """Logs any buffered output from the test process, and clears the buffer."""
+    def log_full_output(self, mark_failures_as_expected=False):
+        """Logs any buffered output from the test process, and clears the buffer.
+
+        Args:
+            mark_failures_as_expected: If True, failures will be marked as expected
+                (TEST-EXPECTED-FAIL instead of TEST-UNEXPECTED-FAIL). This is used
+                when a test will be retried.
+        """
         if not self.output_lines:
             return
-        self.log.info(">>>>>>>")
-        for line in self.output_lines:
-            self.log_line(line)
-        self.log.info("<<<<<<<")
+        log_message = f"full log for {self.test_object['id']}"
+        self.log.info(f">>>>>>> Begin of {log_message}")
+        self.log.group_start("replaying " + log_message)
+        for timestamp, line in self.output_lines:
+            if isinstance(line, dict):
+                # Always ensure the 'test' field is present for resource usage profiles
+                if "test" not in line:
+                    line["test"] = self.test_object["id"]
+
+                if mark_failures_as_expected:
+                    if line.get("action") == "test_status" and "expected" in line:
+                        # Ensure the 'expected' field matches the 'status' to avoid failing the job
+                        line["expected"] = line.get("status")
+                    elif line.get("action") == "log" and line.get("level") == "ERROR":
+                        # Convert ERROR log to test_status so it gets colored
+                        # properly without causing a test failure.
+                        line["action"] = "test_status"
+                        line["status"] = "ERROR"
+                        line["expected"] = "ERROR"
+                        line["subtest"] = ""
+                        del line["level"]
+                self.log_line(line)
+            else:
+                # For text lines, we need to provide the timestamp that was
+                # recorded when appending the message to self.output_lines
+                self.log_line(line, time=timestamp)
+        self.log.info(f"<<<<<<< End of {log_message}")
+        self.log.group_end("replaying " + log_message)
         self.output_lines = []
 
     def report_message(self, message):
@@ -742,7 +779,15 @@ class XPCShellTestThread(Thread):
         if self.verbose:
             self.log_line(message)
         else:
-            self.output_lines.append(message)
+            # Store timestamp only for string messages (dicts already have timestamps)
+            # We need valid timestamps to replay messages correctly in resource
+            # usage profiles.
+            import time
+
+            timestamp = (
+                int(time.time() * 1000) if isinstance(message, (str, bytes)) else None
+            )
+            self.output_lines.append((timestamp, message))
 
     def process_line(self, line_string):
         """Parses a single line of output, determining its significance and
@@ -997,6 +1042,14 @@ class XPCShellTestThread(Thread):
             if self.timedout:
                 return
 
+            # Check for crashes before logging test_end
+            found_crash = self.checkForCrashes(
+                self.tempDir, self.symbolsPath, test_name=name
+            )
+            if found_crash:
+                status = "CRASH"
+                message = "Test crashed"
+
             if status != expected or ended_before_crash_reporter_init:
                 if ended_before_crash_reporter_init:
                     self.log.test_end(
@@ -1007,11 +1060,16 @@ class XPCShellTestThread(Thread):
                         group=group,
                     )
                 elif self.retry:
+                    retry_message = (
+                        "Test crashed, will retry"
+                        if status == "CRASH"
+                        else "Test failed or timed out, will retry"
+                    )
                     self.log.test_end(
                         name,
                         status,
                         expected=status,
-                        message="Test failed or timed out, will retry",
+                        message=retry_message,
                         group=group,
                     )
                     self.clean_temp_dirs(path)
@@ -1051,16 +1109,6 @@ class XPCShellTestThread(Thread):
                     self.passCount = 1
                 else:
                     self.todoCount = 1
-
-            if self.checkForCrashes(self.tempDir, self.symbolsPath, test_name=name):
-                if self.retry:
-                    self.clean_temp_dirs(path)
-                    return
-
-                # If we assert during shutdown there's a chance the test has passed
-                # but we haven't logged full output, so do so here.
-                self.log_full_output()
-                self.failCount = 1
 
             if self.logfiles and process_output:
                 self.createLogFile(name, process_output)
@@ -2376,6 +2424,9 @@ class XPCShellTests:
                     if test.retry or test.is_alive():
                         # if the join call timed out, test.is_alive => True
                         self.try_again_list.append(test.test_object)
+                        # Print the failure output now, marking failures as expected
+                        # since we'll retry sequentially
+                        test.log_full_output(mark_failures_as_expected=True)
                         continue
                     # did the test encounter any exception?
                     if test.exception:
@@ -2415,6 +2466,9 @@ class XPCShellTests:
                 self.test_ended(test)
                 if (test.failCount > 0 or test.passCount <= 0) and test.retry:
                     self.try_again_list.append(test.test_object)
+                    # Print the failure output now, marking failures as expected
+                    # since we'll retry sequentially
+                    test.log_full_output(mark_failures_as_expected=True)
                     continue
                 self.addTestResults(test)
                 # did the test encounter any exception?

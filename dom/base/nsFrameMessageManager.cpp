@@ -37,8 +37,6 @@
 #include "mozilla/Assertions.h"
 #include "mozilla/ClearOnShutdown.h"
 #include "mozilla/ErrorResult.h"
-#include "mozilla/MacroForEach.h"
-#include "mozilla/NotNull.h"
 #include "mozilla/OwningNonNull.h"
 #include "mozilla/ProfilerLabels.h"
 #include "mozilla/RefPtr.h"

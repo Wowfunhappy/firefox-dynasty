@@ -290,6 +290,7 @@ for (const type of [
   "WALLPAPER_CLICK",
   "WALLPAPER_REMOVE_UPLOAD",
   "WALLPAPER_UPLOAD",
+  "WEATHER_DETECT_LOCATION",
   "WEATHER_IMPRESSION",
   "WEATHER_LOAD_ERROR",
   "WEATHER_LOCATION_DATA_UPDATE",
@@ -2053,6 +2054,7 @@ const LinkMenuOptions = {
     action: actionCreators.AlsoToMain({
       type: actionTypes.WEATHER_USER_OPT_IN_LOCATION,
     }),
+    userEvent: "WEATHER_DETECT_LOCATION",
   }),
   ChangeWeatherDisplaySimple: () => ({
     id: "newtab-weather-menu-change-weather-display-simple",
@@ -3694,7 +3696,7 @@ class _DSCard extends (external_React_default()).PureComponent {
     this.standardCardImageSizes = [{
       mediaMatcher: "default",
       width: 296,
-      height: 148
+      height: refinedCardsLayout ? 160 : 148
     }];
     this.listCardImageSizes = [{
       mediaMatcher: "(min-width: 1122px)",
@@ -12032,12 +12034,14 @@ class _Weather extends (external_React_default()).PureComponent {
         size: "small",
         type: "default",
         "data-l10n-id": "newtab-weather-opt-in-not-now",
-        onClick: this.handleRejectOptIn
+        onClick: this.handleRejectOptIn,
+        id: "reject-opt-in"
       }), /*#__PURE__*/external_React_default().createElement("moz-button", {
         size: "small",
         type: "default",
         "data-l10n-id": "newtab-weather-opt-in-yes",
-        onClick: this.handleAcceptOptIn
+        onClick: this.handleAcceptOptIn,
+        id: "accept-opt-in"
       }))))));
     }
     return /*#__PURE__*/external_React_default().createElement("div", {

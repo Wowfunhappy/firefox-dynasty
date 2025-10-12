@@ -648,8 +648,8 @@ class Editor extends PureComponent {
     if (this.props.shouldHighlightSelectedLocation) {
       editor.focus();
     }
-
-    await editor.setCursorAt(line - 1, column);
+    // This should also scroll the editor to the specified position
+    await editor.setCursorAt(line, column);
   }
 
   async setText(props, editor) {

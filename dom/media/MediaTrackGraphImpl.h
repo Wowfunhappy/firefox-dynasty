@@ -295,14 +295,13 @@ class MediaTrackGraphImpl : public MediaTrackGraph,
    * OneIterationImpl is called directly. Mixed audio output from the graph is
    * passed into aMixerReceiver, if it is non-null.
    */
-  IterationResult OneIteration(GraphTime aStateTime, GraphTime aIterationEnd,
+  IterationResult OneIteration(GraphTime aStateTime,
                                MixerCallbackReceiver* aMixerReceiver) override;
 
   /**
    * Returns true if this MediaTrackGraph should keep running
    */
   IterationResult OneIterationImpl(GraphTime aStateTime,
-                                   GraphTime aIterationEnd,
                                    MixerCallbackReceiver* aMixerReceiver);
 
   /**
@@ -312,10 +311,6 @@ class MediaTrackGraphImpl : public MediaTrackGraph,
    * messages.
    */
   void SignalMainThreadCleanup();
-
-  /* This is the end of the current iteration, that is, the current time of the
-   * graph. */
-  GraphTime IterationEnd() const;
 
   /**
    * Ensure there is an event posted to the main thread to run RunInStableState.
