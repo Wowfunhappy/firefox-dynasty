@@ -7974,7 +7974,11 @@
  # Width of WebRender tile size
 - name: gfx.webrender.picture-tile-width
   type: RelaxedAtomicInt32
+#if defined(XP_WIN)
+  value: 512
+#else
   value: 1024
+#endif
   mirror: always
 
  # Width of WebRender tile size
@@ -8132,7 +8136,7 @@
 - name: gfx.webrender.precise-conic-gradients
   type: bool
   rust: true
-  value: false
+  value: true
   mirror: once
 
 # Use a more precise method for sampling gradients when using SWGL.
@@ -8989,7 +8993,7 @@
 # Experimental support for Symbols as WeakMap keys in JavaScript.
 - name: javascript.options.experimental.symbols_as_weakmap_keys
   type: bool
-  value: false
+  value: true
   mirror: always
   set_spidermonkey_pref: startup
 
@@ -11146,20 +11150,6 @@
 - name: mathml.legacy_mathvariant_attribute.disabled
   type: bool
   value: @IS_NIGHTLY_BUILD@
-  mirror: always
-  rust: true
-
-# Whether to disable forced centering of binary operators (+, =, ...).
-- name: mathml.centered_operators.disabled
-  type: bool
-  value: true
-  mirror: always
-  rust: true
-
-# Whether to disable extra top/bottom spacing for stretchy operators.
-- name: mathml.top_bottom_spacing_for_stretchy_operators.disabled
-  type: bool
-  value: true
   mirror: always
   rust: true
 
@@ -13521,7 +13511,7 @@
 # Include an idempotency-key header for POST requests
 - name: network.http.idempotencyKey.enabled
   type: RelaxedAtomicBool
-  value: true
+  value: @IS_NIGHTLY_BUILD@
   mirror: always
 
 # Whether to respect the redirected-tainted origin flag
@@ -17333,6 +17323,14 @@
   type: RelaxedAtomicUint32
   value: 128
   mirror: always
+
+# Whether or not to enable the test trust anchor list when verifying QWACs
+# (qualified website authentication certificates)
+- name: security.qwacs.enable_test_trust_anchors
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
+  rust: true
 
 - name: security.tls.version.min
   type: RelaxedAtomicUint32

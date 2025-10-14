@@ -852,23 +852,25 @@ struct ReflowInput : public SizeComputationInput {
                        const Maybe<LogicalMargin>& aPadding,
                        LayoutFrameType aFrameType);
 
-  /**
-   * Compute the content-box rect of the containing block frame in mFrame's
-   * writing-mode (mWritingMode).
-   *
-   * Note: the block-size in the return value may be unconstrained.
-   */
+  // Compute the content-box size of the containing block frame in mFrame's
+  // writing-mode (mWritingMode).
+  //
+  // Note: the block-size in the return value may be unconstrained.
   LogicalSize ComputeContainingBlockRectangle(
       nsPresContext* aPresContext, const ReflowInput* aContainingBlockRI) const;
 
-  // Returns the nearest containing block or block frame (whether or not
-  // it is a containing block) for the specified frame.  Also returns
-  // the inline-start edge and logical size of the containing block's
-  // content area.
-  // These are returned in the coordinate space of the containing block.
-  nsIFrame* GetHypotheticalBoxContainer(nsIFrame* aFrame,
-                                        nscoord& aCBIStartEdge,
-                                        LogicalSize& aCBSize) const;
+  // mBorderPadding and mFrame are both in mBoxContainer's writing-mode.
+  struct HypotheticalBoxContainerInfo {
+    nsIFrame* mBoxContainer;
+    LogicalMargin mBorderPadding;
+    LogicalSize mContentBoxSize;
+  };
+
+  // Returns the nearest containing block for aFrame. Also returns its border &
+  // padding and content-box size. These are returned in the coordinate space of
+  // the containing block.
+  HypotheticalBoxContainerInfo GetHypotheticalBoxContainer(
+      const nsIFrame* aFrame) const;
 
   // Calculate the position of the hypothetical box that the placeholder frame
   // (for a position:fixed/absolute element) would have if it were in the flow
@@ -879,12 +881,11 @@ struct ReflowInput : public SizeComputationInput {
   // hypothetical box will have the same block direction as the absolute
   // containing block, but it may differ in the inline direction.
   //
-  // FIXME: Bug 1983345. We should update this function to use the customized
-  // containing block rect (if any), instead of using |aCBReflowInput| to
-  // calculate everything. Perhaps we could update
-  // ReflowInput::mContainingBlockSize earlier and use it in this function.
+  // @param aCBPaddingBoxSize the padding-box size of the absolute containing
+  // block, in its own writing-mode.
   void CalculateHypotheticalPosition(
       nsPlaceholderFrame* aPlaceholderFrame, const ReflowInput* aCBReflowInput,
+      const LogicalSize& aCBPaddingBoxSize,
       nsHypotheticalPosition& aHypotheticalPos) const;
 
   void InitAbsoluteConstraints(const ReflowInput* aCBReflowInput,

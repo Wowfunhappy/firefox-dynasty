@@ -2,6 +2,11 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+/**
+ * Note: If you add or modify the list of helpers, make sure to update the
+ * corresponding documentation in the `docs` folder as well.
+ */
+
 const lazy = {};
 
 ChromeUtils.defineESModuleGetters(lazy, {
@@ -19,7 +24,9 @@ ChromeUtils.defineESModuleGetters(lazy, {
   NimbusFeatures: "resource://nimbus/ExperimentAPI.sys.mjs",
 });
 
+import { IPPAutoStartHelpers } from "resource:///modules/ipprotection/IPPAutoStart.sys.mjs";
 import { IPPSignInWatcher } from "resource:///modules/ipprotection/IPPSignInWatcher.sys.mjs";
+import { IPPStartupCache } from "resource:///modules/ipprotection/IPPStartupCache.sys.mjs";
 
 const VPN_ADDON_ID = "vpn@mozilla.com";
 
@@ -37,6 +44,8 @@ class UIHelper {
       this.handleEvent
     );
   }
+
+  initOnStartupCompleted() {}
 
   uninit() {
     lazy.IPProtectionService.removeEventListener(
@@ -76,6 +85,8 @@ class AccountResetHelper {
     );
   }
 
+  initOnStartupCompleted() {}
+
   uninit() {
     lazy.IPProtectionService.removeEventListener(
       "IPProtectionService:StateChanged",
@@ -101,10 +112,12 @@ class AccountResetHelper {
  * This class removes the UI widget if the VPN add-on is installed.
  */
 class VPNAddonHelper {
+  init() {}
+
   /**
    * Adds an observer to monitor the VPN add-on installation
    */
-  init() {
+  initOnStartupCompleted() {
     this.addonVPNListener = {
       onInstallEnded(_install, addon) {
         if (addon.id === VPN_ADDON_ID && lazy.IPProtectionService.hasUpgraded) {
@@ -133,7 +146,9 @@ class VPNAddonHelper {
  * This class monitors the eligibility flag from Nimbus
  */
 class EligibilityHelper {
-  init() {
+  init() {}
+
+  initOnStartupCompleted() {
     lazy.NimbusFeatures.ipProtection.onUpdate(
       lazy.IPProtectionService.updateState
     );
@@ -146,12 +161,17 @@ class EligibilityHelper {
   }
 }
 
+// The order is important! Eligibility must be the last one because nimbus
+// triggers the callback immdiately, which could compute a new state for all
+// the helpers.
 const IPPHelpers = [
-  new AccountResetHelper(),
-  new EligibilityHelper(),
-  new VPNAddonHelper(),
-  new UIHelper(),
+  IPPStartupCache,
   IPPSignInWatcher,
+  new UIHelper(),
+  new AccountResetHelper(),
+  new VPNAddonHelper(),
+  new EligibilityHelper(),
+  ...IPPAutoStartHelpers,
 ];
 
 export { IPPHelpers };

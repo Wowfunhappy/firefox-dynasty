@@ -240,7 +240,10 @@ class ObjectRealm {
   // All non-syntactic lexical environments in the realm. These are kept in a
   // map because when loading scripts into a non-syntactic environment, we
   // need to use the same lexical environment to persist lexical bindings.
-  js::UniquePtr<js::ObjectWeakMap> nonSyntacticLexicalEnvironments_;
+  using NonSyntacticLexialEnvironmentsMap =
+      WeakMap<JSObject*, JSObject*, ZoneAllocPolicy>;
+  js::UniquePtr<NonSyntacticLexialEnvironmentsMap>
+      nonSyntacticLexicalEnvironments_;
 
   ObjectRealm(const ObjectRealm&) = delete;
   void operator=(const ObjectRealm&) = delete;
@@ -251,7 +254,8 @@ class ObjectRealm {
 
   // Keep track of the metadata objects which can be associated with each JS
   // object. Both keys and values are in this realm.
-  js::UniquePtr<js::ObjectWeakMap> objectMetadataTable;
+  using ObjectMetadataTable = WeakMap<JSObject*, JSObject*, ZoneAllocPolicy>;
+  js::UniquePtr<ObjectMetadataTable> objectMetadataTable;
 
   using IteratorCache =
       js::HashSet<js::PropertyIteratorObject*, js::IteratorHashPolicy,
@@ -807,9 +811,7 @@ class JS::Realm : public JS::shadow::Realm {
 
   // Set the locale for this realm. Reset to the system default locale when the
   // input is |nullptr|.
-  void setLocaleOverride(const char* locale) {
-    behaviors_.setLocaleOverride(locale);
-  }
+  void setLocaleOverride(const char* locale);
 
   // Returns the date-time info for this realm. Returns nullptr unless a time
   // zone override was specified in the realm creation options.

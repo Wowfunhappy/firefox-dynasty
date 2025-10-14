@@ -4470,14 +4470,13 @@ void CodeGenerator::visitGuardShape(LGuardShape* guard) {
 void CodeGenerator::visitGuardFuse(LGuardFuse* guard) {
   auto fuseIndex = guard->mir()->fuseIndex();
 
-  Register temp = ToRegister(guard->temp0());
   Label bail;
 
   // Bake specific fuse address for Ion code, because we won't share this code
   // across realms.
   GuardFuse* fuse = mirGen().realm->realmFuses().getFuseByIndex(fuseIndex);
-  masm.loadPtr(AbsoluteAddress(fuse->fuseRef()), temp);
-  masm.branchPtr(Assembler::NotEqual, temp, ImmPtr(nullptr), &bail);
+  masm.branchPtr(Assembler::NotEqual, AbsoluteAddress(fuse->fuseRef()),
+                 ImmWord(0), &bail);
 
   bailoutFrom(&bail, guard->snapshot());
 }
@@ -16770,6 +16769,7 @@ static bool CreateStackMapFromLSafepoint(LSafepoint& safepoint,
                                          const RegisterOffsets& trapExitLayout,
                                          size_t trapExitLayoutNumWords,
                                          size_t nInboundStackArgBytes,
+                                         wasm::StackMaps& stackMaps,
                                          wasm::StackMap** result) {
   // Ensure this is defined on all return paths.
   *result = nullptr;
@@ -16824,8 +16824,7 @@ static bool CreateStackMapFromLSafepoint(LSafepoint& safepoint,
   }
 #endif
 
-  wasm::StackMap* stackMap =
-      wasm::StackMap::create(nTotalBytes / sizeof(void*));
+  wasm::StackMap* stackMap = stackMaps.create(nTotalBytes / sizeof(void*));
   if (!stackMap) {
     return false;
   }
@@ -17011,7 +17010,7 @@ bool CodeGenerator::generateWasm(wasm::CallIndirectId callIndirectId,
     wasm::StackMap* functionEntryStackMap = nullptr;
     if (!CreateStackMapForFunctionEntryTrap(
             argTypes, trapExitLayout, trapExitLayoutNumWords,
-            nBytesReservedBeforeTrap, nInboundStackArgBytes,
+            nBytesReservedBeforeTrap, nInboundStackArgBytes, *stackMaps,
             &functionEntryStackMap)) {
       return false;
     }
@@ -17021,8 +17020,7 @@ bool CodeGenerator::generateWasm(wasm::CallIndirectId callIndirectId,
     MOZ_ASSERT(functionEntryStackMap);
 
     if (functionEntryStackMap &&
-        !stackMaps->add(trapInsnOffset.offset(), functionEntryStackMap)) {
-      functionEntryStackMap->destroy();
+        !stackMaps->finalize(trapInsnOffset.offset(), functionEntryStackMap)) {
       return false;
     }
   }
@@ -17063,9 +17061,9 @@ bool CodeGenerator::generateWasm(wasm::CallIndirectId callIndirectId,
   // collection thereof.
   for (CodegenSafepointIndex& index : safepointIndices_) {
     wasm::StackMap* stackMap = nullptr;
-    if (!CreateStackMapFromLSafepoint(*index.safepoint(), trapExitLayout,
-                                      trapExitLayoutNumWords,
-                                      nInboundStackArgBytes, &stackMap)) {
+    if (!CreateStackMapFromLSafepoint(
+            *index.safepoint(), trapExitLayout, trapExitLayoutNumWords,
+            nInboundStackArgBytes, *stackMaps, &stackMap)) {
       return false;
     }
 
@@ -17075,8 +17073,7 @@ bool CodeGenerator::generateWasm(wasm::CallIndirectId callIndirectId,
       continue;
     }
 
-    if (!stackMaps->add(index.displacement(), stackMap)) {
-      stackMap->destroy();
+    if (!stackMaps->finalize(index.displacement(), stackMap)) {
       return false;
     }
   }

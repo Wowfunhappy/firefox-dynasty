@@ -11,6 +11,7 @@ ChromeUtils.defineESModuleGetters(lazy, {
   IPPHelpers: "resource:///modules/ipprotection/IPProtectionHelpers.sys.mjs",
   IPPProxyManager: "resource:///modules/ipprotection/IPPProxyManager.sys.mjs",
   IPPSignInWatcher: "resource:///modules/ipprotection/IPPSignInWatcher.sys.mjs",
+  IPPStartupCache: "resource:///modules/ipprotection/IPPStartupCache.sys.mjs",
   SpecialMessageActions:
     "resource://messaging-system/lib/SpecialMessageActions.sys.mjs",
   NimbusFeatures: "resource://nimbus/ExperimentAPI.sys.mjs",
@@ -50,6 +51,9 @@ ChromeUtils.defineLazyGetter(lazy, "logConsole", function () {
  *  Proxy is active.
  * @property {string} ERROR
  *  Error
+ *
+ * Note: If you update this list of states, make sure to update the
+ * corresponding documentation in the `docs` folder as well.
  */
 export const IPProtectionStates = Object.freeze({
   UNINITIALIZED: "uninitialized",
@@ -140,11 +144,17 @@ class IPProtectionServiceSingleton extends EventTarget {
     if (this.#state !== IPProtectionStates.UNINITIALIZED) {
       return;
     }
-    this.proxyManager = new lazy.IPPProxyManager(this.guardian);
 
-    await Promise.allSettled(this.#helpers.map(helper => helper.init()));
+    this.proxyManager = new lazy.IPPProxyManager(this.guardian);
+    this.#entitlement = lazy.IPPStartupCache.entitlement;
+
+    this.#helpers.forEach(helper => helper.init());
 
     await this.#updateState();
+
+    if (lazy.IPPStartupCache.isStartupCompleted) {
+      this.initOnStartupCompleted();
+    }
   }
 
   /**
@@ -167,6 +177,12 @@ class IPProtectionServiceSingleton extends EventTarget {
     this.#helpers.forEach(helper => helper.uninit());
 
     this.#setState(IPProtectionStates.UNINITIALIZED);
+  }
+
+  async initOnStartupCompleted() {
+    await Promise.allSettled(
+      this.#helpers.map(helper => helper.initOnStartupCompleted())
+    );
   }
 
   /**
@@ -267,6 +283,8 @@ class IPProtectionServiceSingleton extends EventTarget {
    */
   resetAccount() {
     this.#entitlement = null;
+    lazy.IPPStartupCache.storeEntitlement(null);
+
     if (this.proxyManager?.active) {
       this.stop(false);
     }
@@ -317,6 +335,8 @@ class IPProtectionServiceSingleton extends EventTarget {
   async refetchEntitlement() {
     let prevState = this.#state;
     this.#entitlement = null;
+    lazy.IPPStartupCache.storeEntitlement(null);
+
     await this.#updateState();
     // hasUpgraded might not change the state.
     if (prevState === this.#state) {
@@ -383,6 +403,7 @@ class IPProtectionServiceSingleton extends EventTarget {
 
     // Entitlement is set until the user changes or it is cleared to check subscription status.
     this.#entitlement = entitlement;
+    lazy.IPPStartupCache.storeEntitlement(entitlement);
 
     return entitlement;
   }
@@ -417,6 +438,11 @@ class IPProtectionServiceSingleton extends EventTarget {
     // The IPP feature is disabled.
     if (!this.featureEnabled) {
       return IPProtectionStates.UNINITIALIZED;
+    }
+
+    // Maybe we have to use the cached state, because we are not initialized yet.
+    if (!lazy.IPPStartupCache.isStartupCompleted) {
+      return lazy.IPPStartupCache.state;
     }
 
     // For non authenticated users, we can check if they are eligible (the UI

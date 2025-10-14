@@ -145,6 +145,7 @@ import org.mozilla.fenix.nimbus.FxNimbus
 import org.mozilla.fenix.onboarding.ReEngagementNotificationWorker
 import org.mozilla.fenix.pbmlock.DefaultPrivateBrowsingLockStorage
 import org.mozilla.fenix.pbmlock.PrivateBrowsingLockFeature
+import org.mozilla.fenix.perf.DefaultStartupPathProvider
 import org.mozilla.fenix.perf.MarkersActivityLifecycleCallbacks
 import org.mozilla.fenix.perf.MarkersFragmentLifecycleCallbacks
 import org.mozilla.fenix.perf.Performance
@@ -308,7 +309,7 @@ open class HomeActivity : LocaleAwareAppCompatActivity(), NavHostActivity {
     // Tracker for contextual menu (Copy|Search|Select all|etc...)
     private var actionMode: ActionMode? = null
 
-    private val startupPathProvider = StartupPathProvider()
+    private val startupPathProvider: StartupPathProvider = DefaultStartupPathProvider()
     private lateinit var startupTypeTelemetry: StartupTypeTelemetry
 
     private val onBackPressedCallback = object : UserInteractionOnBackPressedCallback(
@@ -553,6 +554,8 @@ open class HomeActivity : LocaleAwareAppCompatActivity(), NavHostActivity {
             TopSitesRefresher(
                 settings = settings(),
                 topSitesProvider = components.core.marsTopSitesProvider,
+                startupPathProvider = startupPathProvider,
+                visualCompletenessQueue = components.performance.visualCompletenessQueue,
             ),
             downloadSnackbar,
             privateBrowsingLockFeature,

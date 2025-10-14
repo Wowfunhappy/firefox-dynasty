@@ -338,8 +338,8 @@ sccache:
     fetch:
         type: git
         repo: https://github.com/mozilla/sccache
-        # 0.9.1 release
-        revision: 77f67d73445a383ffd8af095fb7a8e41f258e80f
+        # 0.11.0 release
+        revision: 5709f069514a775ddb6604a6e9f5f5c91c0e9821
 
 fxc2:
     description: fxc2 source code
@@ -800,15 +800,6 @@ xmlstarlet-1.6.1:
         sha256: d1d7f55f7887d2d1c3283e1b06a68675b5bead2eebf14939f9cdd84b849ced19
         size: 267112
         artifact-name: xmlstarlet.deb
-
-chromium-depot-tools:
-    description: Chromium depot tools for managing Chromium repository
-    fetch:
-        type: git
-        repo: https://chromium.googlesource.com/chromium/tools/depot_tools.git
-        revision: 5304f2bbb31bad413e029a660097d1da1552e6f4
-        artifact-name: chromium-depot-tools.tar.zst
-        include-dot-git: true
 
 uv:
     description: uv 0.7.2 source code
