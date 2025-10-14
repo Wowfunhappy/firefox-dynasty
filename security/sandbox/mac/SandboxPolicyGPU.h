@@ -263,6 +263,26 @@ static const char SandboxPolicyGPU[] = R"SANDBOX_LITERAL(
   (allow mach-lookup
     (global-name "com.apple.fonts")
     (global-name "com.apple.FontObjectsServer"))
+  (if (<= macosVersion 1011)
+    (allow mach-lookup (global-name "com.apple.FontServer")))
+
+  ; Fonts
+  ; Workaround for sandbox extensions not being automatically
+  ; issued for fonts on 10.11 and earlier versions (bug 1460917).
+  (if (<= macosVersion 1011)
+   (allow file-read*
+    (regex #"\.[oO][tT][fF]$"          ; otf
+           #"\.[tT][tT][fF]$"          ; ttf
+           #"\.[tT][tT][cC]$"          ; ttc
+           #"\.[oO][tT][cC]$"          ; otc
+           #"\.[dD][fF][oO][nN][tT]$") ; dfont
+    (home-subpath "/Library/FontCollections")
+    (home-subpath "/Library/Application Support/Adobe/CoreSync/plugins/livetype")
+    (home-subpath "/Library/Application Support/FontAgent")
+    (home-subpath "/Library/Extensis/UTC") ; bug 1469657
+    (subpath "/Library/Extensis/UTC")      ; bug 1469657
+    (regex #"\.fontvault/")
+    (home-subpath "/FontExplorer X/Font Library")))
 
   (if (string=? isRosettaTranslated "TRUE")
     (allow file-map-executable (subpath "/private/var/db/oah")))
