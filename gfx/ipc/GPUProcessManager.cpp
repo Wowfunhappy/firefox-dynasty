@@ -46,7 +46,7 @@
 #ifdef MOZ_WIDGET_SUPPORTS_OOP_COMPOSITING
 #  include "mozilla/widget/CompositorWidgetChild.h"
 #endif
-#include "nsBaseWidget.h"
+#include "nsIWidget.h"
 #include "nsContentUtils.h"
 #include "VRManagerChild.h"
 #include "VRManagerParent.h"
@@ -80,7 +80,13 @@ void GPUProcessManager::Initialize() {
   sSingleton = new GPUProcessManager();
 }
 
-void GPUProcessManager::Shutdown() { sSingleton = nullptr; }
+void GPUProcessManager::Shutdown() {
+  if (!sSingleton) {
+    return;
+  }
+  sSingleton->ShutdownInternal();
+  sSingleton = nullptr;
+}
 
 GPUProcessManager::GPUProcessManager()
     : mTaskFactory(this),
@@ -114,70 +120,83 @@ GPUProcessManager::~GPUProcessManager() {
   MOZ_ASSERT(!mProcess && !mGPUChild);
 
   // We should have already removed observers.
-  MOZ_ASSERT(!mObserver);
+  MOZ_DIAGNOSTIC_ASSERT(!mObserver);
+  MOZ_DIAGNOSTIC_ASSERT(!mBatteryObserver);
 }
 
 NS_IMPL_ISUPPORTS(GPUProcessManager::Observer, nsIObserver);
 
-GPUProcessManager::Observer::Observer(GPUProcessManager* aManager)
-    : mManager(aManager) {}
+GPUProcessManager::Observer::Observer() {
+  nsContentUtils::RegisterShutdownObserver(this);
+  Preferences::AddStrongObserver(this, "");
+  if (nsCOMPtr<nsIObserverService> obsServ = services::GetObserverService()) {
+    obsServ->AddObserver(this, "application-foreground", false);
+    obsServ->AddObserver(this, "application-background", false);
+    obsServ->AddObserver(this, "screen-information-changed", false);
+    obsServ->AddObserver(this, "xpcom-will-shutdown", false);
+  }
+}
+
+void GPUProcessManager::Observer::Shutdown() {
+  nsContentUtils::UnregisterShutdownObserver(this);
+  Preferences::RemoveObserver(this, "");
+  if (nsCOMPtr<nsIObserverService> obsServ = services::GetObserverService()) {
+    obsServ->RemoveObserver(this, "application-foreground");
+    obsServ->RemoveObserver(this, "application-background");
+    obsServ->RemoveObserver(this, "screen-information-changed");
+    obsServ->RemoveObserver(this, "xpcom-will-shutdown");
+  }
+}
 
 NS_IMETHODIMP
 GPUProcessManager::Observer::Observe(nsISupports* aSubject, const char* aTopic,
                                      const char16_t* aData) {
-  if (!strcmp(aTopic, NS_XPCOM_WILL_SHUTDOWN_OBSERVER_ID)) {
-    mManager->StopObserving();
-  } else if (!strcmp(aTopic, NS_XPCOM_SHUTDOWN_OBSERVER_ID)) {
-    mManager->OnXPCOMShutdown();
-  } else if (!strcmp(aTopic, "nsPref:changed")) {
-    mManager->OnPreferenceChange(aData);
-  } else if (!strcmp(aTopic, "application-foreground")) {
-    mManager->mAppInForeground = true;
-    if (!mManager->mProcess && gfxConfig::IsEnabled(Feature::GPU_PROCESS)) {
-      Unused << mManager->LaunchGPUProcess();
-    }
-  } else if (!strcmp(aTopic, "application-background")) {
-    mManager->mAppInForeground = false;
-  } else if (!strcmp(aTopic, "screen-information-changed")) {
-    mManager->ScreenInformationChanged();
+  if (auto* gpm = GPUProcessManager::Get()) {
+    gpm->NotifyObserve(aTopic, aData);
   }
   return NS_OK;
 }
 
-GPUProcessManager::BatteryObserver::BatteryObserver(GPUProcessManager* aManager)
-    : mManager(aManager) {
+void GPUProcessManager::NotifyObserve(const char* aTopic,
+                                      const char16_t* aData) {
+  if (!strcmp(aTopic, NS_XPCOM_WILL_SHUTDOWN_OBSERVER_ID)) {
+    StopBatteryObserving();
+  } else if (!strcmp(aTopic, NS_XPCOM_SHUTDOWN_OBSERVER_ID)) {
+    ShutdownInternal();
+  } else if (!strcmp(aTopic, "nsPref:changed")) {
+    OnPreferenceChange(aData);
+  } else if (!strcmp(aTopic, "application-foreground")) {
+    mAppInForeground = true;
+    if (!mProcess && gfxConfig::IsEnabled(Feature::GPU_PROCESS)) {
+      Unused << LaunchGPUProcess();
+    }
+  } else if (!strcmp(aTopic, "application-background")) {
+    mAppInForeground = false;
+  } else if (!strcmp(aTopic, "screen-information-changed")) {
+    ScreenInformationChanged();
+  }
+}
+
+GPUProcessManager::BatteryObserver::BatteryObserver() {
   hal::RegisterBatteryObserver(this);
 }
 
 void GPUProcessManager::BatteryObserver::Notify(
     const hal::BatteryInformation& aBatteryInfo) {
-  mManager->NotifyBatteryInfo(aBatteryInfo);
+  if (auto* gpm = GPUProcessManager::Get()) {
+    gpm->NotifyBatteryInfo(aBatteryInfo);
+  }
 }
 
-void GPUProcessManager::BatteryObserver::ShutDown() {
+void GPUProcessManager::BatteryObserver::Shutdown() {
   hal::UnregisterBatteryObserver(this);
 }
 
-GPUProcessManager::BatteryObserver::~BatteryObserver() {}
-
-void GPUProcessManager::OnXPCOMShutdown() {
-  if (mObserver) {
-    nsContentUtils::UnregisterShutdownObserver(mObserver);
-    Preferences::RemoveObserver(mObserver, "");
-    nsCOMPtr<nsIObserverService> obsServ = services::GetObserverService();
-    if (obsServ) {
-      obsServ->RemoveObserver(mObserver, "application-foreground");
-      obsServ->RemoveObserver(mObserver, "application-background");
-      obsServ->RemoveObserver(mObserver, "screen-information-changed");
-      obsServ->RemoveObserver(mObserver, "xpcom-will-shutdown");
-    }
-    mObserver = nullptr;
+void GPUProcessManager::OnPreferenceChange(const char16_t* aData) {
+  if (!mGPUChild && !IsGPUProcessLaunching()) {
+    return;
   }
 
-  CleanShutdown();
-}
-
-void GPUProcessManager::OnPreferenceChange(const char16_t* aData) {
   // We know prefs are ASCII here.
   NS_LossyConvertUTF16toASCII strData(aData);
 
@@ -186,10 +205,10 @@ void GPUProcessManager::OnPreferenceChange(const char16_t* aData) {
 
   Preferences::GetPreference(&pref, GeckoProcessType_GPU,
                              /* remoteType */ ""_ns);
-  if (!!mGPUChild) {
+  if (mGPUChild) {
     MOZ_ASSERT(mQueuedPrefs.IsEmpty());
     mGPUChild->SendPreferenceUpdate(pref);
-  } else if (IsGPUProcessLaunching()) {
+  } else {
     mQueuedPrefs.AppendElement(pref);
   }
 }
@@ -246,16 +265,7 @@ bool GPUProcessManager::LaunchGPUProcess() {
   // Start listening for pref changes so we can
   // forward them to the process once it is running.
   if (!mObserver) {
-    mObserver = new Observer(this);
-    nsContentUtils::RegisterShutdownObserver(mObserver);
-    Preferences::AddStrongObserver(mObserver, "");
-    nsCOMPtr<nsIObserverService> obsServ = services::GetObserverService();
-    if (obsServ) {
-      obsServ->AddObserver(mObserver, "application-foreground", false);
-      obsServ->AddObserver(mObserver, "application-background", false);
-      obsServ->AddObserver(mObserver, "screen-information-changed", false);
-      obsServ->AddObserver(mObserver, "xpcom-will-shutdown", false);
-    }
+    mObserver = new Observer();
   }
 
   // Start the Vsync I/O thread so can use it as soon as the process launches.
@@ -352,9 +362,12 @@ bool GPUProcessManager::MaybeDisableGPUProcess(const char* aMessage,
   // process equivalent, and we need to make sure those services are setup
   // correctly. We cannot re-enter DisableGPUProcess from this call because we
   // know that it is disabled in the config above.
-  DebugOnly<bool> ready = EnsureProtocolsReady();
-  MOZ_ASSERT_IF(!ready,
-                AppShutdown::IsInOrBeyond(ShutdownPhase::XPCOMShutdown));
+  if (NS_WARN_IF(NS_FAILED(EnsureGPUReady()))) {
+    MOZ_ASSERT(AppShutdown::IsInOrBeyond(ShutdownPhase::XPCOMShutdown));
+  } else {
+    DebugOnly<bool> ready = EnsureProtocolsReady();
+    MOZ_ASSERT(ready);
+  }
 
   // If we disable the GPU process during reinitialization after a previous
   // crash, then we need to tell the content processes again, because they
@@ -379,8 +392,7 @@ bool GPUProcessManager::IsGPUReady() const {
   return false;
 }
 
-nsresult GPUProcessManager::EnsureGPUReady(
-    bool aRetryAfterFallback /* = true */) {
+nsresult GPUProcessManager::EnsureGPUReady() {
   MOZ_ASSERT(NS_IsMainThread());
 
   // We only wait to fail with NS_ERROR_ILLEGAL_DURING_SHUTDOWN if we would
@@ -413,13 +425,6 @@ nsresult GPUProcessManager::EnsureGPUReady(
         // or it will have disabled the GPU process.
         MOZ_ASSERT(!mProcess);
         MOZ_ASSERT(!mGPUChild);
-
-        // If aRetryAfterFallback is true, we will relaunch the process
-        // immediately in this loop (if still enabled). Otherwise we return to
-        // the caller to allow them to reconfigure first.
-        if (!aRetryAfterFallback) {
-          return NS_ERROR_ABORT;
-        }
         continue;
       }
     }
@@ -442,13 +447,6 @@ nsresult GPUProcessManager::EnsureGPUReady(
     // reasons, before first falling back from acceleration, and eventually
     // disabling the GPU process altogether.
     OnProcessUnexpectedShutdown(mProcess);
-
-    // If aRetryAfterFallback is true, we will relaunch the process immediately
-    // in this loop (if still enabled). Otherwise we return to the caller to
-    // allow them to reconfigure first.
-    if (!aRetryAfterFallback) {
-      return NS_ERROR_ABORT;
-    }
   }
 
   MOZ_DIAGNOSTIC_ASSERT(!gfxConfig::IsEnabled(Feature::GPU_PROCESS));
@@ -464,16 +462,12 @@ nsresult GPUProcessManager::EnsureGPUReady(
 }
 
 bool GPUProcessManager::EnsureProtocolsReady() {
-  if (NS_WARN_IF(NS_FAILED(EnsureGPUReady()))) {
-    return false;
-  }
-
   return EnsureCompositorManagerChild() && EnsureImageBridgeChild() &&
          EnsureVRManager();
 }
 
 bool GPUProcessManager::EnsureCompositorManagerChild() {
-  MOZ_ASSERT(IsGPUReady());
+  MOZ_DIAGNOSTIC_ASSERT(IsGPUReady());
 
   if (CompositorManagerChild::IsInitialized(mProcessToken)) {
     return true;
@@ -502,7 +496,7 @@ bool GPUProcessManager::EnsureCompositorManagerChild() {
 }
 
 bool GPUProcessManager::EnsureImageBridgeChild() {
-  MOZ_ASSERT(IsGPUReady());
+  MOZ_DIAGNOSTIC_ASSERT(IsGPUReady());
 
   if (ImageBridgeChild::GetSingleton()) {
     return true;
@@ -530,7 +524,7 @@ bool GPUProcessManager::EnsureImageBridgeChild() {
 }
 
 bool GPUProcessManager::EnsureVRManager() {
-  MOZ_ASSERT(IsGPUReady());
+  MOZ_DIAGNOSTIC_ASSERT(IsGPUReady());
 
   if (VRManagerChild::IsCreated()) {
     return true;
@@ -558,9 +552,9 @@ bool GPUProcessManager::EnsureVRManager() {
 
 #if defined(MOZ_WIDGET_ANDROID)
 RefPtr<UiCompositorControllerChild>
-GPUProcessManager::CreateUiCompositorController(nsBaseWidget* aWidget,
+GPUProcessManager::CreateUiCompositorController(nsIWidget* aWidget,
                                                 const LayersId aId) {
-  MOZ_ASSERT(IsGPUReady());
+  MOZ_DIAGNOSTIC_ASSERT(IsGPUReady());
 
   if (!mGPUChild) {
     return UiCompositorControllerChild::CreateForSameProcess(aId, aWidget);
@@ -633,8 +627,8 @@ void GPUProcessManager::OnProcessLaunchComplete(GPUProcessHost* aHost) {
                                           std::move(vsyncChild));
   mGPUChild->SendInitVsyncBridge(std::move(vsyncParent));
 
-  MOZ_ASSERT(!mBatteryObserver);
-  mBatteryObserver = new BatteryObserver(this);
+  MOZ_DIAGNOSTIC_ASSERT(!mBatteryObserver);
+  mBatteryObserver = new BatteryObserver();
 
   // Flush any pref updates that happened during launch and weren't
   // included in the blobs set up in LaunchGPUProcess.
@@ -1165,7 +1159,12 @@ void GPUProcessManager::NotifyRemoteActorDestroyed(
   OnProcessUnexpectedShutdown(mProcess);
 }
 
-void GPUProcessManager::CleanShutdown() {
+void GPUProcessManager::ShutdownInternal() {
+  if (mObserver) {
+    mObserver->Shutdown();
+    mObserver = nullptr;
+  }
+
   DestroyProcess();
   mVsyncIOThread = nullptr;
 }
@@ -1207,49 +1206,34 @@ void GPUProcessManager::DestroyProcess(bool aUnexpectedShutdown) {
     mVsyncBridge->Close();
     mVsyncBridge = nullptr;
   }
-  StopObserving();
+  StopBatteryObserving();
 
   CrashReporter::RecordAnnotationCString(
       CrashReporter::Annotation::GPUProcessStatus, "Destroyed");
 }
 
-void GPUProcessManager::StopObserving() {
+void GPUProcessManager::StopBatteryObserving() {
   if (mBatteryObserver) {
-    mBatteryObserver->ShutDown();
+    mBatteryObserver->Shutdown();
     mBatteryObserver = nullptr;
   }
 }
 
 already_AddRefed<CompositorSession> GPUProcessManager::CreateTopLevelCompositor(
-    nsBaseWidget* aWidget, WebRenderLayerManager* aLayerManager,
+    nsIWidget* aWidget, WebRenderLayerManager* aLayerManager,
     CSSToLayoutDeviceScale aScale, const CompositorOptions& aOptions,
     bool aUseExternalSurfaceSize, const gfx::IntSize& aSurfaceSize,
     uint64_t aInnerWindowId, bool* aRetryOut) {
+  MOZ_DIAGNOSTIC_ASSERT(IsGPUReady());
   MOZ_ASSERT(aRetryOut);
-
-  LayersId layerTreeId = AllocateLayerTreeId();
-
-  RefPtr<CompositorSession> session;
-
-  nsresult rv = EnsureGPUReady(/* aRetryAfterFallback */ false);
-
-  // If we used fallback, then retry creating the compositor sessions because
-  // our configuration may have changed.
-  if (rv == NS_ERROR_ABORT) {
-    *aRetryOut = true;
-    return nullptr;
-  }
-
-  if (NS_WARN_IF(NS_FAILED(rv))) {
-    *aRetryOut = false;
-    return nullptr;
-  }
 
   if (!EnsureProtocolsReady()) {
     *aRetryOut = false;
     return nullptr;
   }
 
+  LayersId layerTreeId = AllocateLayerTreeId();
+  RefPtr<CompositorSession> session;
   if (mGPUChild) {
     session = CreateRemoteSession(aWidget, aLayerManager, layerTreeId, aScale,
                                   aOptions, aUseExternalSurfaceSize,
@@ -1287,7 +1271,7 @@ already_AddRefed<CompositorSession> GPUProcessManager::CreateTopLevelCompositor(
 }
 
 RefPtr<CompositorSession> GPUProcessManager::CreateRemoteSession(
-    nsBaseWidget* aWidget, WebRenderLayerManager* aLayerManager,
+    nsIWidget* aWidget, WebRenderLayerManager* aLayerManager,
     const LayersId& aRootLayerTreeId, CSSToLayoutDeviceScale aScale,
     const CompositorOptions& aOptions, bool aUseExternalSurfaceSize,
     const gfx::IntSize& aSurfaceSize, uint64_t aInnerWindowId) {
@@ -1389,7 +1373,7 @@ bool GPUProcessManager::CreateContentBridges(
 bool GPUProcessManager::CreateContentCompositorManager(
     ipc::EndpointProcInfo aOtherProcess, dom::ContentParentId aChildId,
     uint32_t aNamespace, ipc::Endpoint<PCompositorManagerChild>* aOutEndpoint) {
-  MOZ_ASSERT(IsGPUReady());
+  MOZ_DIAGNOSTIC_ASSERT(IsGPUReady());
 
   ipc::Endpoint<PCompositorManagerParent> parentPipe;
   ipc::Endpoint<PCompositorManagerChild> childPipe;
@@ -1422,7 +1406,7 @@ bool GPUProcessManager::CreateContentCompositorManager(
 bool GPUProcessManager::CreateContentImageBridge(
     ipc::EndpointProcInfo aOtherProcess, dom::ContentParentId aChildId,
     ipc::Endpoint<PImageBridgeChild>* aOutEndpoint) {
-  MOZ_ASSERT(IsGPUReady());
+  MOZ_DIAGNOSTIC_ASSERT(IsGPUReady());
 
   if (!EnsureImageBridgeChild()) {
     return false;
@@ -1468,7 +1452,7 @@ ipc::EndpointProcInfo GPUProcessManager::GPUEndpointProcInfo() {
 bool GPUProcessManager::CreateContentVRManager(
     ipc::EndpointProcInfo aOtherProcess, dom::ContentParentId aChildId,
     ipc::Endpoint<PVRManagerChild>* aOutEndpoint) {
-  MOZ_ASSERT(IsGPUReady());
+  MOZ_DIAGNOSTIC_ASSERT(IsGPUReady());
 
   if (NS_WARN_IF(!EnsureVRManager())) {
     return false;
@@ -1503,7 +1487,7 @@ bool GPUProcessManager::CreateContentVRManager(
 void GPUProcessManager::CreateContentRemoteMediaManager(
     ipc::EndpointProcInfo aOtherProcess, dom::ContentParentId aChildId,
     ipc::Endpoint<PRemoteMediaManagerChild>* aOutEndpoint) {
-  MOZ_ASSERT(IsGPUReady());
+  MOZ_DIAGNOSTIC_ASSERT(IsGPUReady());
 
   if (!mGPUChild || !StaticPrefs::media_gpu_process_decoder() ||
       !mDecodeVideoOnGpuProcess) {

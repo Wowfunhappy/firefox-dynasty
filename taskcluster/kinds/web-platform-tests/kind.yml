@@ -151,6 +151,7 @@ tasks:
             - privatebrowsing
             - inc-origin-init
             - privatebrowsing-inc-origin-init
+            - navigation-api
         run-on-projects:
             by-variant:
                 geckoview-no-fission-no-ship:
@@ -180,6 +181,10 @@ tasks:
                         default: built-projects
                 inc-origin-init: []
                 privatebrowsing-inc-origin-init: []
+                navigation-api:
+                    by-test-platform:
+                        linux2404-64/.*: built-projects
+                        default: []
                 default:
                     by-test-platform:
                         android.*: []
@@ -207,6 +212,7 @@ tasks:
         treeherder-symbol: W-b(wpt)
         variants:
             - no-fission
+            - navigation-api
         chunks:
             by-test-platform:
                 android.*: 3
@@ -221,10 +227,15 @@ tasks:
                     by-test-platform:
                         android.*: ['mozilla-central']
                         default: []
+                navigation-api:
+                    by-test-platform:
+                        linux2404-64/.*: built-projects
+                        default: []
                 default:
                     by-test-platform:
                         android.*: []
                         .*-wayland.*: []
+                        .*/debug: []
                         default: ['mozilla-central']
         test-manifest-loader: null  # don't load tests in the taskgraph
         tier: 2
@@ -593,6 +604,7 @@ tasks:
                     by-test-platform:
                         android.*: []
                         .*-wayland.*: []
+                        .*/debug: []
                         default: ['mozilla-central']
         test-manifest-loader: null  # don't load tests in the taskgraph
         tier: 2

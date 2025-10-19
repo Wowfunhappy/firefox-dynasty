@@ -97,7 +97,6 @@
 #include "mozilla/PresShellInlines.h"
 #include "mozilla/ProfilerMarkers.h"
 #include "mozilla/PseudoStyleType.h"
-#include "mozilla/RefCountType.h"
 #include "mozilla/RelativeTo.h"
 #include "mozilla/RestyleManager.h"
 #include "mozilla/ReverseIterator.h"
@@ -111,7 +110,6 @@
 #include "mozilla/ServoStyleConsts.h"
 #include "mozilla/ServoTypes.h"
 #include "mozilla/SizeOfState.h"
-#include "mozilla/Span.h"
 #include "mozilla/Sprintf.h"
 #include "mozilla/StaticAnalysisFunctions.h"
 #include "mozilla/StaticPrefs_apz.h"
@@ -133,7 +131,6 @@
 #include "mozilla/TelemetryScalarEnums.h"
 #include "mozilla/TextControlElement.h"
 #include "mozilla/TextEditor.h"
-#include "mozilla/TypedEnumBits.h"
 #include "mozilla/URLDecorationStripper.h"
 #include "mozilla/URLExtraData.h"
 #include "mozilla/Unused.h"
@@ -387,6 +384,7 @@
 #include "nsINodeList.h"
 #include "nsIObjectLoadingContent.h"
 #include "nsIObserverService.h"
+#include "nsIParentalControlsService.h"
 #include "nsIPermission.h"
 #include "nsIPrompt.h"
 #include "nsIPropertyBag2.h"
@@ -11859,6 +11857,34 @@ void Document::ProcessMETATag(HTMLMetaElement* aMetaElement) {
       nsContentUtils::ASCIIToLower(result);
       SetHeaderData(nsGkAtoms::handheldFriendly, result);
     }
+  }
+  // Check for Restricted To Adults meta tag
+  if (aMetaElement->AttrValueIs(kNameSpaceID_None, nsGkAtoms::name,
+                                nsGkAtoms::rating, eIgnoreCase)) {
+    if (aMetaElement->AttrValueIs(kNameSpaceID_None, nsGkAtoms::content,
+                                  nsGkAtoms::adult, eIgnoreCase) ||
+        aMetaElement->AttrValueIs(kNameSpaceID_None, nsGkAtoms::content,
+                                  nsGkAtoms::restrictToAdults, eIgnoreCase)) {
+      BrowsingContext* bc = GetBrowsingContext();
+      if (bc && bc->GetParentalControlsEnabled() && GetDocShell()) {
+        RefPtr<nsDocShell> docShell = nsDocShell::Cast(GetDocShell());
+        nsCOMPtr<nsIRunnable> redirect = NewRunnableMethod(
+            "Document::ProcessMETATag::DisplayRestrictedContentError", docShell,
+            &nsDocShell::DisplayRestrictedContentError);
+        nsContentUtils::AddScriptRunner(redirect.forget());
+      }
+    }
+  }
+}
+
+void Document::TerminateParserAndDisableScripts() {
+  if (mParser) {
+    Unused << mParser->Terminate();
+    MOZ_ASSERT(!mParser, "mParser should have been null'd out");
+  }
+
+  if (WindowContext* wc = GetWindowContext()) {
+    Unused << wc->SetAllowJavascript(false);
   }
 }
 

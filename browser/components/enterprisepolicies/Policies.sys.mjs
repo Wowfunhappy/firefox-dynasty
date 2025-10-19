@@ -9,16 +9,16 @@ import { AppConstants } from "resource://gre/modules/AppConstants.sys.mjs";
 const lazy = {};
 
 XPCOMUtils.defineLazyServiceGetters(lazy, {
-  gCertDB: ["@mozilla.org/security/x509certdb;1", "nsIX509CertDB"],
+  gCertDB: ["@mozilla.org/security/x509certdb;1", Ci.nsIX509CertDB],
   gExternalProtocolService: [
     "@mozilla.org/uriloader/external-protocol-service;1",
-    "nsIExternalProtocolService",
+    Ci.nsIExternalProtocolService,
   ],
   gHandlerService: [
     "@mozilla.org/uriloader/handler-service;1",
-    "nsIHandlerService",
+    Ci.nsIHandlerService,
   ],
-  gMIMEService: ["@mozilla.org/mime;1", "nsIMIMEService"],
+  gMIMEService: ["@mozilla.org/mime;1", Ci.nsIMIMEService],
 });
 
 ChromeUtils.defineESModuleGetters(lazy, {
@@ -1866,6 +1866,16 @@ export var Policies = {
             param.Locked
           );
         }
+      }
+
+      // Handle SkipDomains separately (can be set independently of Enabled)
+      if ("SkipDomains" in param && Array.isArray(param.SkipDomains)) {
+        let skipDomainsValue = param.SkipDomains.join(",");
+        PoliciesUtils.setDefaultPref(
+          "network.lna.skip-domains",
+          skipDomainsValue,
+          param.Locked
+        );
       }
     },
   },

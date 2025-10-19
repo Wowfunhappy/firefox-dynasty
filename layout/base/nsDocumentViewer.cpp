@@ -342,7 +342,7 @@ class nsDocumentViewer final : public nsIDocumentViewer,
    * @param aContainerView the container view to hook our root view up
    * to as a child, or null if this will be the root view manager
    */
-  nsresult MakeWindow(const nsSize& aSize, nsView* aContainerView);
+  void MakeWindow(const nsSize& aSize, nsView* aContainerView);
 
   /**
    * Create our device context
@@ -849,10 +849,9 @@ nsresult nsDocumentViewer::InitInternal(
       // into nsSubDocumentFrame code through reflows caused by
       // FlushPendingNotifications() calls down the road...
 
-      rv = MakeWindow(nsSize(mPresContext->DevPixelsToAppUnits(aBounds.width),
+      MakeWindow(nsSize(mPresContext->DevPixelsToAppUnits(aBounds.width),
                              mPresContext->DevPixelsToAppUnits(aBounds.height)),
                       containerView);
-      NS_ENSURE_SUCCESS(rv, rv);
       Hide();
 
 #ifdef NS_PRINT_PREVIEW
@@ -1940,7 +1939,7 @@ nsDocumentViewer::SetBoundsWithFlags(const LayoutDeviceIntRect& aBounds,
   if (mWindow && !mAttachedToParent) {
     // Resize the widget, but don't trigger repaint. Layout will generate
     // repaint requests during reflow.
-    mWindow->Resize(aBounds.x, aBounds.y, aBounds.width, aBounds.height, false);
+    mWindow->Resize(aBounds / mWindow->GetDesktopToDeviceScale(), false); 
   } else if (mPresContext && mViewManager) {
     // Ensure presContext's deviceContext is up to date, as we sometimes get
     // here before a resolution-change notification has been fully handled
@@ -2008,7 +2007,7 @@ nsDocumentViewer::Move(int32_t aX, int32_t aY) {
   NS_ENSURE_TRUE(mDocument, NS_ERROR_NOT_AVAILABLE);
   mBounds.MoveTo(aX, aY);
   if (mWindow) {
-    mWindow->Move(aX, aY);
+    mWindow->Move(mBounds.TopLeft() / mWindow->GetDesktopToDeviceScale()); 
   }
   return NS_OK;
 }
@@ -2097,12 +2096,9 @@ nsDocumentViewer::Show() {
       return rv;
     }
 
-    rv = MakeWindow(nsSize(mPresContext->DevPixelsToAppUnits(mBounds.width),
+    MakeWindow(nsSize(mPresContext->DevPixelsToAppUnits(mBounds.width),
                            mPresContext->DevPixelsToAppUnits(mBounds.height)),
                     containerView);
-    if (NS_FAILED(rv)) {
-      return rv;
-    }
 
     if (mPresContext) {
       Hide();
@@ -2217,50 +2213,32 @@ nsDocumentViewer::ClearHistoryEntry() {
 
 //-------------------------------------------------------
 
-nsresult nsDocumentViewer::MakeWindow(const nsSize& aSize,
+void nsDocumentViewer::MakeWindow(const nsSize& aSize,
                                       nsView* aContainerView) {
   if (GetIsPrintPreview()) {
-    return NS_OK;
+    return; 
   }
 
-  const bool shouldAttach = ShouldAttachToTopLevel();
-  if (shouldAttach) {
-    // If the old view is already attached to our parent, detach
-    DetachFromTopLevelWidget();
-  }
-
-  mViewManager = new nsViewManager();
-
-  nsDeviceContext* dx = mPresContext->DeviceContext();
-
-  nsresult rv = mViewManager->Init(dx);
-  if (NS_FAILED(rv)) {
-    return rv;
-  }
+  mViewManager = new nsViewManager(mPresContext->DeviceContext());
 
   // The root view is always at 0,0.
-  nsRect tbounds(nsPoint(0, 0), aSize);
+  nsRect tbounds(nsPoint(), aSize);
   // Create a view
   nsView* view = mViewManager->CreateView(tbounds, aContainerView);
-  if (!view) {
-    return NS_ERROR_OUT_OF_MEMORY;
-  }
+
+  MOZ_ASSERT(view);
 
   // Create a widget if we were given a parent widget or don't have a
   // container view that we can hook up to without a widget.
   // Don't create widgets for ResourceDocs (external resources & svg images),
   // because when they're displayed, they're painted into *another* document's
   // widget.
-  if (!mDocument->IsResourceDoc() && (mParentWidget || !aContainerView)) {
-    if (shouldAttach) {
+  if (!mDocument->IsResourceDoc()) {
+    MOZ_ASSERT_IF(!aContainerView, mParentWidget);
+    if (mParentWidget) {
       // Reuse the top level parent widget.
-      rv = view->AttachToTopLevelWidget(mParentWidget);
+      view->AttachToTopLevelWidget(mParentWidget);
       mAttachedToParent = true;
-    } else {
-      rv = view->CreateWidget(mParentWidget, true, false);
-    }
-    if (NS_FAILED(rv)) {
-      return rv;
     }
   }
 
@@ -2273,8 +2251,6 @@ nsresult nsDocumentViewer::MakeWindow(const nsSize& aSize,
   // go to the scrolled view as soon as the Window is created instead of going
   // to the browser window (this enables keyboard scrolling of the document)
   // mWindow->SetFocus();
-
-  return rv;
 }
 
 void nsDocumentViewer::DetachFromTopLevelWidget() {
@@ -3400,10 +3376,9 @@ NS_IMETHODIMP nsDocumentViewer::SetPrintSettingsForSubdocument(
     rv = mPresContext->Init(mDeviceContext);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    rv = MakeWindow(nsSize(mPresContext->DevPixelsToAppUnits(mBounds.width),
+    MakeWindow(nsSize(mPresContext->DevPixelsToAppUnits(mBounds.width),
                            mPresContext->DevPixelsToAppUnits(mBounds.height)),
                     FindContainerView());
-    NS_ENSURE_SUCCESS(rv, rv);
 
     MOZ_TRY(InitPresentationStuff(true));
   }

@@ -27,7 +27,6 @@
 #include "mozilla/Services.h"
 #include "mozilla/StaticPrefs_accessibility.h"
 #include "mozilla/StaticPrefs_full_screen_api.h"
-#include "mozilla/Try.h"
 #include "mozilla/Unused.h"
 #include "mozilla/dom/BrowserBridgeChild.h"
 #include "mozilla/dom/BrowserParent.h"
@@ -1490,11 +1489,7 @@ void nsFocusManager::EnsureCurrentWidgetFocused(CallerType aCallerType) {
   if (!presShell) {
     return;
   }
-  nsViewManager* vm = presShell->GetViewManager();
-  if (!vm) {
-    return;
-  }
-  nsCOMPtr<nsIWidget> widget = vm->GetRootWidget();
+  nsCOMPtr<nsIWidget> widget = presShell->GetRootWidget();
   if (!widget) {
     return;
   }
@@ -2724,12 +2719,10 @@ void nsFocusManager::Focus(
   SetFocusedWindowInternal(aWindow, aActionId);
 
   if (aAdjustWidget && !sTestMode) {
-    if (nsViewManager* vm = presShell->GetViewManager()) {
-      if (nsCOMPtr<nsIWidget> widget = vm->GetRootWidget()) {
-        widget->SetFocus(nsIWidget::Raise::No, aFlags & FLAG_NONSYSTEMCALLER
-                                                   ? CallerType::NonSystem
-                                                   : CallerType::System);
-      }
+    if (nsCOMPtr<nsIWidget> widget = presShell->GetRootWidget()) {
+      widget->SetFocus(nsIWidget::Raise::No, aFlags & FLAG_NONSYSTEMCALLER
+                                                 ? CallerType::NonSystem
+                                                 : CallerType::System);
     }
   }
 

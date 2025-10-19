@@ -82,57 +82,30 @@ class SecretSettingsFragment : PreferenceFragmentCompat() {
                             }
                         }
                     }
-                    requirePreference<SwitchPreference>(R.string.pref_key_enable_simple_toolbar_customization).apply {
+                    requirePreference<SwitchPreference>(R.string.pref_key_enable_toolbar_customization).apply {
+                        val newOption = context.settings().toolbarRedesignEnabled
                         isEnabled = newOption
-                        when (newOption) {
-                            true -> {
-                                summary = null
-                            }
-
-                            false -> {
-                                isChecked = false
-                                summary = getString(R.string.preferences_debug_settings_toolbar_redesign_summary)
-                                context.settings().shouldShowSimpleToolbarCustomization = false
-                            }
+                        summary = when (newOption) {
+                            true -> null
+                            false -> getString(R.string.preferences_debug_settings_toolbar_customization_summary)
                         }
-                    }
-                    requirePreference<SwitchPreference>(R.string.pref_key_enable_expanded_toolbar_customization).apply {
-                        isEnabled = newOption
-                        when (newOption) {
-                            true -> {
-                                summary = null
-                            }
-
-                            false -> {
-                                isChecked = false
-                                summary = getString(R.string.preferences_debug_settings_toolbar_redesign_summary)
-                                context.settings().shouldShowExpandedToolbarCustomization = false
-                            }
+                        if (!newOption && isChecked) {
+                            isChecked = false
+                            context.settings().shouldShowToolbarCustomization = false
                         }
                     }
                 }
                 true
             }
         }
-
-        requirePreference<SwitchPreference>(R.string.pref_key_enable_simple_toolbar_customization).apply {
+        requirePreference<SwitchPreference>(R.string.pref_key_enable_toolbar_customization).apply {
             isVisible = Config.channel.isDebug
-            isChecked = context.settings().shouldShowSimpleToolbarCustomization
-            isEnabled = context.settings().shouldUseComposableToolbar
-            summary = when (context.settings().shouldUseComposableToolbar) {
+            isChecked = context.settings().shouldShowToolbarCustomization
+            val newOption = context.settings().toolbarRedesignEnabled
+            isEnabled = newOption
+            summary = when (newOption) {
                 true -> null
-                false -> getString(R.string.preferences_debug_settings_toolbar_redesign_summary)
-            }
-            onPreferenceChangeListener = SharedPreferenceUpdater()
-        }
-
-        requirePreference<SwitchPreference>(R.string.pref_key_enable_expanded_toolbar_customization).apply {
-            isVisible = Config.channel.isDebug
-            isChecked = context.settings().shouldShowExpandedToolbarCustomization
-            isEnabled = context.settings().shouldUseComposableToolbar
-            summary = when (context.settings().shouldUseComposableToolbar) {
-                true -> null
-                false -> getString(R.string.preferences_debug_settings_toolbar_redesign_summary)
+                false -> getString(R.string.preferences_debug_settings_toolbar_customization_summary)
             }
             onPreferenceChangeListener = SharedPreferenceUpdater()
         }
@@ -148,8 +121,19 @@ class SecretSettingsFragment : PreferenceFragmentCompat() {
             onPreferenceChangeListener = Preference.OnPreferenceChangeListener { _, newValue ->
                 (newValue as? Boolean)?.let { newOption ->
                     context.settings().toolbarRedesignEnabled = newOption
-                    if (newOption == false) {
+                    if (!newOption) {
                         context.settings().shouldUseExpandedToolbar = false
+                    }
+                    requirePreference<SwitchPreference>(R.string.pref_key_enable_toolbar_customization).apply {
+                        isEnabled = newOption
+                        summary = when (newOption) {
+                            true -> null
+                            false -> getString(R.string.preferences_debug_settings_toolbar_customization_summary)
+                        }
+                        if (!newOption && isChecked) {
+                            isChecked = false
+                            context.settings().shouldShowToolbarCustomization = false
+                        }
                     }
                 }
                 true
@@ -360,19 +344,19 @@ class SecretSettingsFragment : PreferenceFragmentCompat() {
         }
 
         requirePreference<SwitchPreference>(R.string.pref_key_tab_manager_enhancements).apply {
-            isVisible = Config.channel.isNightlyOrDebug
+            isVisible = true
             isChecked = context.settings().tabManagerEnhancementsEnabled
             onPreferenceChangeListener = SharedPreferenceUpdater()
         }
 
         requirePreference<SwitchPreference>(R.string.pref_key_terms_accepted).apply {
-            isVisible = Config.channel.isNightlyOrDebug
+            isVisible = Config.channel.isNightlyOrDebug || Config.channel.isBeta
             isChecked = context.settings().hasAcceptedTermsOfService
             onPreferenceChangeListener = SharedPreferenceUpdater()
         }
 
         requirePreference<SwitchPreference>(R.string.pref_key_debug_terms_trigger_time).apply {
-            isVisible = Config.channel.isNightlyOrDebug
+            isVisible = Config.channel.isNightlyOrDebug || Config.channel.isBeta
             isChecked = context.settings().isDebugTermsOfServiceTriggerTimeEnabled
             onPreferenceChangeListener = SharedPreferenceUpdater()
         }

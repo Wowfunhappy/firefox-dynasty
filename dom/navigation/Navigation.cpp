@@ -93,8 +93,7 @@ struct NavigationAPIMethodTracker final : public nsISupports {
     mCommittedToEntry = aNHE;
     if (mSerializedState) {
       // Step 2
-      aNHE->SetState(
-          static_cast<nsStructuredCloneContainer*>(mSerializedState.get()));
+      aNHE->SetNavigationAPIState(mSerializedState);
       // At this point, apiMethodTracker's serialized state is no longer needed.
       // We drop it do now for efficiency.
       mSerializedState = nullptr;
@@ -244,7 +243,22 @@ void Navigation::UpdateCurrentEntry(
     return;
   }
 
-  currentEntry->SetState(serializedState);
+  currentEntry->SetNavigationAPIState(serializedState);
+
+  ToMaybeRef(GetOwnerWindow())
+      .andThen([](auto& aWindow) {
+        return ToMaybeRef(aWindow.GetBrowsingContext());
+      })
+      .apply([serializedState](auto& navigable) {
+        navigable.SynchronizeNavigationAPIState(serializedState);
+        ToMaybeRef(nsDocShell::Cast(navigable.GetDocShell()))
+            .andThen([](auto& docshell) {
+              return ToMaybeRef(docshell.GetActiveSessionHistoryInfo());
+            })
+            .apply([serializedState](auto& activeInfo) {
+              activeInfo.SetNavigationAPIState(serializedState);
+            });
+      });
 
   NavigationCurrentEntryChangeEventInit init;
   init.mFrom = currentEntry;
@@ -564,7 +578,8 @@ void Navigation::Navigate(JSContext* aCx, const nsAString& aUrl,
   MOZ_DIAGNOSTIC_ASSERT(bc);
   bc->Navigate(urlRecord, *document->NodePrincipal(),
                /* per spec, error handling defaults to false */ IgnoreErrors(),
-               aOptions.mHistory);
+               aOptions.mHistory, /* aNeedsCompletelyLoadedDocument */ false,
+               serializedState);
 
   // 13. If this's upcoming non-traverse API method tracker is apiMethodTracker,
   //     then:
@@ -740,7 +755,7 @@ void Navigation::Reload(JSContext* aCx, const NavigationReloadOptions& aOptions,
     // 4.2 If current is not null, then set serializedState to current's
     //     session history entry's navigation API state.
     if (RefPtr<NavigationHistoryEntry> current = GetCurrentEntry()) {
-      serializedState = current->GetNavigationState();
+      serializedState = current->GetNavigationAPIState();
     }
   }
   // 5. If document is not fully active, then return an early error result for
@@ -920,8 +935,8 @@ bool Navigation::FireTraverseNavigateEvent(
       FindNavigationHistoryEntry(aDestinationSessionHistoryInfo);
 
   // Step 6.2 and step 7.2
-  RefPtr<nsStructuredCloneContainer> state =
-      destinationNHE ? destinationNHE->GetNavigationState() : nullptr;
+  RefPtr<nsIStructuredCloneContainer> state =
+      destinationNHE ? destinationNHE->GetNavigationAPIState() : nullptr;
 
   // Step 8
   bool isSameDocument =
@@ -969,7 +984,7 @@ bool Navigation::FirePushReplaceReloadNavigateEvent(
   RefPtr<NavigationDestination> destination =
       MakeAndAddRef<NavigationDestination>(GetOwnerGlobal(), aDestinationURL,
                                            /* aEntry */ nullptr,
-                                           /* aState */ nullptr,
+                                           /* aState */ aNavigationAPIState,
                                            aIsSameDocument);
 
   // Step 8
@@ -988,6 +1003,8 @@ bool Navigation::FireDownloadRequestNavigateEvent(
   // To not unnecessarily create an event that's never used, step 1 and step 2
   // in #fire-a-download-request-navigate-event have been moved to after step
   // 25 in #inner-navigate-event-firing-algorithm in our implementation.
+
+  InnerInformAboutAbortingNavigation(aCx);
 
   // Step 3 to step 7
   RefPtr<NavigationDestination> destination =
@@ -1566,6 +1583,12 @@ bool Navigation::InnerFireNavigateEvent(
     MOZ_DIAGNOSTIC_ASSERT(apiMethodTracker == mOngoingAPIMethodTracker);
     // Step 35
     apiMethodTracker->CleanUp();
+  } else {
+    // It needs to be ensured that the ongoing navigate event is cleared in
+    // every code path (e.g. for download events), so that we don't keep
+    // intermediate state around.
+    // See also https://github.com/whatwg/html/issues/11802
+    mOngoingNavigateEvent = nullptr;
   }
 
   // Step 37 and step 38

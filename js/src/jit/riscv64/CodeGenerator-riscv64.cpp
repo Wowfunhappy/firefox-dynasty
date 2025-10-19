@@ -152,7 +152,7 @@ class js::jit::OutOfLineTableSwitch
   }
 
  public:
-  OutOfLineTableSwitch(MTableSwitch* mir) : mir_(mir) {}
+  explicit OutOfLineTableSwitch(MTableSwitch* mir) : mir_(mir) {}
 
   MTableSwitch* mir() const { return mir_; }
 
@@ -280,6 +280,9 @@ void CodeGeneratorRiscv64::visitOutOfLineTableSwitch(
 
 void CodeGeneratorRiscv64::visitOutOfLineWasmTruncateCheck(
     OutOfLineWasmTruncateCheck* ool) {
+  MOZ_ASSERT(!ool->isSaturating(),
+             "saturating case doesn't require an OOL path");
+
   FloatRegister input = ool->input();
   Register output = ool->output();
   Register64 output64 = ool->output64();
@@ -308,6 +311,9 @@ void CodeGeneratorRiscv64::visitOutOfLineWasmTruncateCheck(
   } else {
     MOZ_CRASH("unexpected type");
   }
+
+  // The OOL path is only used to execute the correct trap.
+  MOZ_ASSERT(!oolRejoin->bound(), "ool path doesn't return");
 }
 
 void CodeGenerator::visitBox(LBox* box) {
@@ -597,12 +603,19 @@ void CodeGenerator::visitWasmTruncateToInt64(LWasmTruncateToInt64* lir) {
 
   MOZ_ASSERT(fromType == MIRType::Double || fromType == MIRType::Float32);
 
-  auto* ool = new (alloc()) OutOfLineWasmTruncateCheck(mir, input, output);
-  addOutOfLineCode(ool, mir);
-
-  Label* oolEntry = ool->entry();
-  Label* oolRejoin = ool->rejoin();
   bool isSaturating = mir->isSaturating();
+
+  // RISCV saturating instructions don't require an OOL path.
+  OutOfLineWasmTruncateCheck* ool = nullptr;
+  Label* oolEntry = nullptr;
+  Label* oolRejoin = nullptr;
+  if (!isSaturating) {
+    ool = new (alloc()) OutOfLineWasmTruncateCheck(mir, input, output);
+    addOutOfLineCode(ool, mir);
+
+    oolEntry = ool->entry();
+    oolRejoin = ool->rejoin();
+  }
 
   if (fromType == MIRType::Double) {
     if (mir->isUnsigned()) {
@@ -621,6 +634,10 @@ void CodeGenerator::visitWasmTruncateToInt64(LWasmTruncateToInt64* lir) {
                                       oolRejoin, InvalidFloatReg);
     }
   }
+
+  // RISCV can handle all success case. The OOL path is only used to execute
+  // the correct trap.
+  MOZ_ASSERT(!ool || !ool->rejoin()->bound(), "ool path doesn't return");
 }
 
 void CodeGenerator::visitInt64ToFloatingPoint(LInt64ToFloatingPoint* lir) {
@@ -1527,18 +1544,14 @@ void CodeGenerator::visitPowHalfD(LPowHalfD* ins) {
 
   // Masm.pow(-Infinity, 0.5) == Infinity.
   masm.loadConstantDouble(NegativeInfinity<double>(), fpscratch);
-  UseScratchRegisterScope temps(&masm);
-  Register scratch = temps.Acquire();
-
-  masm.ma_compareF64(scratch, Assembler::DoubleNotEqualOrUnordered, input,
-                     fpscratch);
-  masm.ma_branch(&skip, Assembler::Equal, scratch, Operand(1));
-  // masm.ma_bc_d(input, fpscratch, &skip, Assembler::DoubleNotEqualOrUnordered,
-  //              ShortJump);
-  masm.fneg_d(output, fpscratch);
-  masm.ma_branch(&done, ShortJump);
-
+  masm.BranchFloat64(Assembler::DoubleNotEqualOrUnordered, input, fpscratch,
+                     &skip, ShortJump);
+  {
+    masm.fneg_d(output, fpscratch);
+    masm.ma_branch(&done, ShortJump);
+  }
   masm.bind(&skip);
+
   // Math.pow(-0, 0.5) == 0 == Math.pow(0, 0.5).
   // Adding 0 converts any -0 to 0.
   masm.loadConstantDouble(0.0, fpscratch);
@@ -1625,36 +1638,35 @@ void CodeGenerator::visitWasmTruncateToInt32(LWasmTruncateToInt32* lir) {
 
   MOZ_ASSERT(fromType == MIRType::Double || fromType == MIRType::Float32);
 
-  auto* ool = new (alloc()) OutOfLineWasmTruncateCheck(mir, input, output);
-  addOutOfLineCode(ool, mir);
+  bool isSaturating = mir->isSaturating();
 
-  Label* oolEntry = ool->entry();
-  if (mir->isUnsigned()) {
-    if (fromType == MIRType::Double) {
-      masm.wasmTruncateDoubleToUInt32(input, output, mir->isSaturating(),
-                                      oolEntry);
-    } else if (fromType == MIRType::Float32) {
-      masm.wasmTruncateFloat32ToUInt32(input, output, mir->isSaturating(),
-                                       oolEntry);
-    } else {
-      MOZ_CRASH("unexpected type");
-    }
+  // RISCV saturating instructions don't require an OOL path.
+  OutOfLineWasmTruncateCheck* ool = nullptr;
+  Label* oolEntry = nullptr;
+  if (!isSaturating) {
+    ool = new (alloc()) OutOfLineWasmTruncateCheck(mir, input, output);
+    addOutOfLineCode(ool, mir);
 
-    masm.bind(ool->rejoin());
-    return;
+    oolEntry = ool->entry();
   }
 
   if (fromType == MIRType::Double) {
-    masm.wasmTruncateDoubleToInt32(input, output, mir->isSaturating(),
-                                   oolEntry);
-  } else if (fromType == MIRType::Float32) {
-    masm.wasmTruncateFloat32ToInt32(input, output, mir->isSaturating(),
-                                    oolEntry);
+    if (mir->isUnsigned()) {
+      masm.wasmTruncateDoubleToUInt32(input, output, isSaturating, oolEntry);
+    } else {
+      masm.wasmTruncateDoubleToInt32(input, output, isSaturating, oolEntry);
+    }
   } else {
-    MOZ_CRASH("unexpected type");
+    if (mir->isUnsigned()) {
+      masm.wasmTruncateFloat32ToUInt32(input, output, isSaturating, oolEntry);
+    } else {
+      masm.wasmTruncateFloat32ToInt32(input, output, isSaturating, oolEntry);
+    }
   }
 
-  masm.bind(ool->rejoin());
+  // RISCV can handle all success case. The OOL path is only used to execute
+  // the correct trap.
+  MOZ_ASSERT(!ool || !ool->rejoin()->bound(), "ool path doesn't return");
 }
 
 void CodeGenerator::visitCopySignF(LCopySignF* ins) {

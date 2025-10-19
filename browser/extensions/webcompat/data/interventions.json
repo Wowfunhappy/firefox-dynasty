@@ -1069,21 +1069,6 @@
       }
     ]
   },
-  "1827678_119012": {
-    "label": "kt.com",
-    "bugs": {
-      "1944036": {
-        "issue": "firefox-blocked-completely",
-        "matches": ["*://*.kt.com/*"]
-      }
-    },
-    "interventions": [
-      {
-        "platforms": ["desktop"],
-        "ua_string": ["Chrome"]
-      }
-    ]
-  },
   "1827678_119402": {
     "label": "oirsa.org",
     "bugs": {
@@ -1284,23 +1269,6 @@
         "platforms": ["all"],
         "content_scripts": {
           "js": ["bug1831007-nintendo-window-OnetrustActiveGroups.js"]
-        }
-      }
-    ]
-  },
-  "1836103": {
-    "label": "autostar-novoross.ru",
-    "bugs": {
-      "1891078": {
-        "issue": "broken-layout",
-        "matches": ["*://autostar-novoross.ru/*"]
-      }
-    },
-    "interventions": [
-      {
-        "platforms": ["all"],
-        "content_scripts": {
-          "css": ["bug1836103-autostar-novoross.ru-make-map-taller.css"]
         }
       }
     ]
@@ -3302,6 +3270,25 @@
       }
     ]
   },
+  "1902520": {
+    "label": "www.keisan.nta.go.jp",
+    "bugs": {
+      "1902520": {
+        "issue": "firefox-blocked-completely",
+        "matches": ["*://www.keisan.nta.go.jp/kyoutu/ky/sm/*"]
+      }
+    },
+    "interventions": [
+      {
+        "platforms": ["mac"],
+        "ua_string": ["Safari_with_FxQuantum"]
+      },
+      {
+        "platforms": ["windows"],
+        "ua_string": ["Chrome_with_FxQuantum"]
+      }
+    ]
+  },
   "1902527": {
     "label": "app.gather.town",
     "bugs": {
@@ -3448,21 +3435,6 @@
       }
     ]
   },
-  "1907062": {
-    "label": "upload-images.jianshu.io",
-    "bugs": {
-      "1907062": {
-        "issue": "broken-images",
-        "matches": ["*://upload-images.jianshu.io/upload_images/*"]
-      }
-    },
-    "interventions": [
-      {
-        "platforms": ["all"],
-        "ua_string": ["Chrome_with_FxQuantum"]
-      }
-    ]
-  },
   "1908636": {
     "label": "xmgl.ccccltd.cn",
     "bugs": {
@@ -3600,21 +3572,6 @@
       {
         "platforms": ["android"],
         "ua_string": ["Chrome"]
-      }
-    ]
-  },
-  "1915541": {
-    "label": "app.sunroom.so",
-    "bugs": {
-      "1915541": {
-        "issue": "firefox-blocked-completely",
-        "matches": ["*://app.sunroom.so/*"]
-      }
-    },
-    "interventions": [
-      {
-        "platforms": ["all"],
-        "ua_string": ["add_Chrome"]
       }
     ]
   },
@@ -3845,6 +3802,25 @@
       }
     ]
   },
+  "1927121": {
+    "label": "southerndevilhd.com",
+    "bugs": {
+      "1927121": {
+        "issue": "broken-images",
+        "matches": ["*://www.southerndevilhd.com/*"]
+      }
+    },
+    "interventions": [
+      {
+        "platforms": ["all"],
+        "content_scripts": {
+          "js": [
+            "bug1927121-southerndevilhd.com-shim-WebkitMutationObserver.js"
+          ]
+        }
+      }
+    ]
+  },
   "1927984": {
     "label": "modules.sms-timing.com",
     "bugs": {
@@ -3967,21 +3943,6 @@
       {
         "platforms": ["desktop"],
         "ua_string": ["Chrome", "add_Firefox_as_Gecko"]
-      }
-    ]
-  },
-  "1933811": {
-    "label": "indices.circana.com",
-    "bugs": {
-      "1898959": {
-        "issue": "firefox-blocked-completely",
-        "matches": ["*://indices.circana.com/*"]
-      }
-    },
-    "interventions": [
-      {
-        "platforms": ["all"],
-        "ua_string": ["add_Chrome"]
       }
     ]
   },
@@ -4429,21 +4390,6 @@
       }
     ]
   },
-  "1948723": {
-    "label": "babel.com",
-    "bugs": {
-      "1948723": {
-        "issue": "firefox-blocked-completely",
-        "matches": ["*://chat.babel.com/*"]
-      }
-    },
-    "interventions": [
-      {
-        "platforms": ["all"],
-        "ua_string": ["Chrome"]
-      }
-    ]
-  },
   "1949466": {
     "label": "lapalabradeldia.com",
     "bugs": {
@@ -4772,6 +4718,23 @@
       {
         "platforms": ["android"],
         "ua_string": ["change_Firefox_to_FireFox"]
+      }
+    ]
+  },
+  "1959598": {
+    "label": "signal-tech.com",
+    "bugs": {
+      "1959598": {
+        "issue": "broken-scrolling",
+        "matches": ["*://www.signal-tech.com/*"]
+      }
+    },
+    "interventions": [
+      {
+        "platforms": ["desktop"],
+        "content_scripts": {
+          "js": ["bug1959598-www.signal-tech.com-round-pageYOffset.js"]
+        }
       }
     ]
   },
@@ -5141,21 +5104,6 @@
       }
     ]
   },
-  "1975927": {
-    "label": "trafficnews.jp",
-    "bugs": {
-      "1975927": {
-        "issue": "desktop-layout-not-mobile",
-        "matches": ["*://trafficnews.jp/*"]
-      }
-    },
-    "interventions": [
-      {
-        "platforms": ["android"],
-        "ua_string": ["Chrome_with_FxQuantum"]
-      }
-    ]
-  },
   "1976200": {
     "label": "unak.medlemssidor.org",
     "bugs": {
@@ -5203,24 +5151,6 @@
             "lib/ua_helpers.js",
             "bug1934908-www.cbsnews.com-ua-override.js"
           ]
-        }
-      }
-    ]
-  },
-  "1938533": {
-    "label": "chatgpt.com",
-    "bugs": {
-      "1938533": {
-        "issue": "broken-interactive-elements",
-        "matches": ["https://chatgpt.com/*"]
-      }
-    },
-    "interventions": [
-      {
-        "platforms": ["all"],
-        "only_channels": ["nightly"],
-        "content_scripts": {
-          "js": ["bug1938533-chatgpt.com-fix-voice-mode.js"]
         }
       }
     ]
@@ -5277,40 +5207,6 @@
       }
     ]
   },
-  "1976402": {
-    "label": "dieseldispatch.com",
-    "bugs": {
-      "1976402": {
-        "issue": "broken-scrolling",
-        "matches": ["*://dieseldispatch.com/*"]
-      }
-    },
-    "interventions": [
-      {
-        "platforms": ["all"],
-        "content_scripts": {
-          "js": ["bug1976402-dieseldispatch.com-emulate-mousewheel-events.js"]
-        }
-      }
-    ]
-  },
-  "1979612": {
-    "label": "scrolller.com",
-    "bugs": {
-      "1979612": {
-        "issue": "page-fails-to-load",
-        "matches": ["*://scrolller.com/*"]
-      }
-    },
-    "interventions": [
-      {
-        "platforms": ["all"],
-        "content_scripts": {
-          "js": ["bug1979612-scroller.com-shim-mozappearance.js"]
-        }
-      }
-    ]
-  },
   "1980382": {
     "label": "www.fidrec.com.sg",
     "bugs": {
@@ -5340,6 +5236,23 @@
       {
         "platforms": ["all"],
         "ua_string": ["Chrome"]
+      }
+    ]
+  },
+  "1981995": {
+    "label": "mygeha.com",
+    "bugs": {
+      "1981995": {
+        "issue": "broken-layout",
+        "matches": ["*://www.mygeha.com/tpa-ap-web/*"]
+      }
+    },
+    "interventions": [
+      {
+        "platforms": ["all"],
+        "content_scripts": {
+          "css": ["1981995_www.mygeha.com-fix-location-layout.css"]
+        }
       }
     ]
   },
@@ -5409,6 +5322,23 @@
       }
     ]
   },
+  "1986438": {
+    "label": "gamma.app",
+    "bugs": {
+      "1986438": {
+        "issue": "unsupported-warning",
+        "matches": ["*://gamma.app/*"]
+      }
+    },
+    "interventions": [
+      {
+        "platforms": ["desktop"],
+        "content_scripts": {
+          "js": ["1986438-gamma.app-hide-unsupported.js"]
+        }
+      }
+    ]
+  },
   "1987351": {
     "label": "mirage.decart.ai",
     "bugs": {
@@ -5472,12 +5402,12 @@
       }
     ]
   },
-  "1991388": {
-    "label": "gismeteo.ru",
+  "1991941": {
+    "label": "brawlstats.com",
     "bugs": {
-      "1991388": {
+      "1991941": {
         "issue": "desktop-layout-not-mobile",
-        "matches": ["*://gismeteo.ru/*"]
+        "matches": ["*://brawlstats.com/*"]
       }
     },
     "interventions": [
@@ -5528,7 +5458,92 @@
     "interventions": [
       {
         "platforms": ["all"],
-        "ua_string": ["add_Chrome"]
+        "ua_string": ["Chrome"]
+      }
+    ]
+  },
+  "1993452": {
+    "label": "www.lee.in",
+    "bugs": {
+      "1993452": {
+        "issue": "broken-interactive-elements",
+        "matches": ["*://www.lee.in/*"]
+      }
+    },
+    "interventions": [
+      {
+        "platforms": ["desktop"],
+        "content_scripts": {
+          "css": ["1993452-www.lee.in-fix-product-image-hovering.css"]
+        }
+      }
+    ]
+  },
+  "1993453": {
+    "label": "www.dockers.in",
+    "bugs": {
+      "1993453": {
+        "issue": "broken-interactive-elements",
+        "matches": ["*://www.dockers.in/*"]
+      }
+    },
+    "interventions": [
+      {
+        "platforms": ["desktop"],
+        "content_scripts": {
+          "css": ["1993453-www.dockers.in-fix-product-image-hovering.css"]
+        }
+      }
+    ]
+  },
+  "1993454": {
+    "label": "www.wrangler.in",
+    "bugs": {
+      "1993454": {
+        "issue": "broken-interactive-elements",
+        "matches": ["*://www.wrangler.in/*"]
+      }
+    },
+    "interventions": [
+      {
+        "platforms": ["desktop"],
+        "content_scripts": {
+          "css": ["1993454-www.wrangler.in-fix-product-image-hovering.css"]
+        }
+      }
+    ]
+  },
+  "1994062": {
+    "label": "managetrips.jetblue.com",
+    "bugs": {
+      "1994062": {
+        "issue": "broken-printing",
+        "matches": ["*://managetrips.jetblue.com/*"]
+      }
+    },
+    "interventions": [
+      {
+        "platforms": ["all"],
+        "content_scripts": {
+          "css": ["1994062-managetrips.jetblue.com-fix-print-layout.css"]
+        }
+      }
+    ]
+  },
+  "1994142": {
+    "label": "virtual-cards.exnode.ru",
+    "bugs": {
+      "1994142": {
+        "issue": "broken-layout",
+        "matches": ["*://virtual-cards.exnode.ru/*"]
+      }
+    },
+    "interventions": [
+      {
+        "platforms": ["desktop"],
+        "content_scripts": {
+          "css": ["1994142-virtual-cards.exnode.ru-fix-table-layout.css"]
+        }
       }
     ]
   }

@@ -17,6 +17,7 @@
 #include "mozilla/a11y/Platform.h"
 #include "mozilla/FocusModel.h"
 #include "nsAccUtils.h"
+#include "nsMenuPopupFrame.h"
 #include "nsAccessibilityService.h"
 #include "ApplicationAccessible.h"
 #include "nsGenericHTMLElement.h"
@@ -316,13 +317,14 @@ uint64_t LocalAccessible::VisibilityState() const {
   // scrolled out.
   nsIFrame* curFrame = frame;
   do {
-    nsView* view = curFrame->GetView();
-    if (view && view->GetVisibility() == ViewVisibility::Hide) {
-      return states::INVISIBLE;
+    if (nsView* view = curFrame->GetView()) {
+      if (view->GetVisibility() == ViewVisibility::Hide) {
+        return states::INVISIBLE;
+      }
     }
 
-    if (nsLayoutUtils::IsPopup(curFrame)) {
-      return 0;
+    if (nsMenuPopupFrame* popup = do_QueryFrame(curFrame)) {
+      return popup->IsOpen() ? 0 : states::INVISIBLE;
     }
 
     if (curFrame->StyleUIReset()->mMozSubtreeHiddenOnlyVisually) {
@@ -495,7 +497,7 @@ LocalAccessible* LocalAccessible::LocalChildAtPoint(
   nsIFrame* startFrame = rootFrame;
 
   // Check whether the point is at popup content.
-  nsIWidget* rootWidget = rootFrame->GetView()->GetNearestWidget(nullptr);
+  nsIWidget* rootWidget = rootFrame->GetNearestWidget();
   NS_ENSURE_TRUE(rootWidget, nullptr);
 
   LayoutDeviceIntRect rootRect = rootWidget->GetScreenBounds();
@@ -1514,7 +1516,8 @@ void LocalAccessible::DOMAttributeChanged(int32_t aNameSpaceID,
 
   if (aAttribute == nsGkAtoms::aria_controls ||
       aAttribute == nsGkAtoms::aria_flowto ||
-      aAttribute == nsGkAtoms::aria_errormessage) {
+      aAttribute == nsGkAtoms::aria_errormessage ||
+      aAttribute == nsGkAtoms::aria_actions) {
     mDoc->QueueCacheUpdate(this, CacheDomain::Relations);
   }
 
@@ -2430,6 +2433,14 @@ Relation LocalAccessible::RelationByType(RelationType aType) const {
     case RelationType::ERRORMSG_FOR:
       return Relation(
           new RelatedAccIterator(mDoc, mContent, nsGkAtoms::aria_errormessage));
+
+    case RelationType::ACTION:
+      return Relation(new AssociatedElementsIterator(mDoc, mContent,
+                                                     nsGkAtoms::aria_actions));
+
+    case RelationType::ACTION_FOR:
+      return Relation(
+          new RelatedAccIterator(mDoc, mContent, nsGkAtoms::aria_actions));
 
     default:
       return Relation();

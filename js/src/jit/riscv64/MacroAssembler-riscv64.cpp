@@ -365,36 +365,58 @@ void MacroAssemblerRiscv64::ma_compareF32(Register rd, DoubleCondition cc,
                                           FloatRegister cmp1,
                                           FloatRegister cmp2) {
   switch (cc) {
-    case DoubleEqualOrUnordered:
     case DoubleEqual:
       feq_s(rd, cmp1, cmp2);
-      break;
-    case DoubleNotEqualOrUnordered:
-    case DoubleNotEqual: {
-      Label done;
-      CompareIsNanF32(rd, cmp1, cmp2);
-      ma_branch(&done, Equal, rd, Operand(1));
-      feq_s(rd, cmp1, cmp2);
-      bind(&done);
+      return;
+    case DoubleEqualOrUnordered: {
+      UseScratchRegisterScope temps(this);
+      Register scratch = temps.Acquire();
+      flt_s(rd, cmp1, cmp2);
+      flt_s(scratch, cmp2, cmp1);
+      or_(rd, rd, scratch);
       NegateBool(rd, rd);
-      break;
+      return;
     }
-    case DoubleLessThanOrUnordered:
+    case DoubleNotEqual: {
+      UseScratchRegisterScope temps(this);
+      Register scratch = temps.Acquire();
+      flt_s(rd, cmp1, cmp2);
+      flt_s(scratch, cmp2, cmp1);
+      or_(rd, rd, scratch);
+      return;
+    }
+    case DoubleNotEqualOrUnordered:
+      feq_s(rd, cmp1, cmp2);
+      NegateBool(rd, rd);
+      return;
     case DoubleLessThan:
       flt_s(rd, cmp1, cmp2);
-      break;
-    case DoubleGreaterThanOrEqualOrUnordered:
+      return;
+    case DoubleLessThanOrUnordered:
+      fle_s(rd, cmp2, cmp1);
+      NegateBool(rd, rd);
+      return;
     case DoubleGreaterThanOrEqual:
       fle_s(rd, cmp2, cmp1);
-      break;
-    case DoubleLessThanOrEqualOrUnordered:
+      return;
+    case DoubleGreaterThanOrEqualOrUnordered:
+      flt_s(rd, cmp1, cmp2);
+      NegateBool(rd, rd);
+      return;
     case DoubleLessThanOrEqual:
       fle_s(rd, cmp1, cmp2);
-      break;
-    case DoubleGreaterThanOrUnordered:
+      return;
+    case DoubleLessThanOrEqualOrUnordered:
+      flt_s(rd, cmp2, cmp1);
+      NegateBool(rd, rd);
+      return;
     case DoubleGreaterThan:
       flt_s(rd, cmp2, cmp1);
-      break;
+      return;
+    case DoubleGreaterThanOrUnordered:
+      fle_s(rd, cmp1, cmp2);
+      NegateBool(rd, rd);
+      return;
     case DoubleOrdered:
       CompareIsNotNanF32(rd, cmp1, cmp2);
       return;
@@ -402,60 +424,70 @@ void MacroAssemblerRiscv64::ma_compareF32(Register rd, DoubleCondition cc,
       CompareIsNanF32(rd, cmp1, cmp2);
       return;
   }
-  if (cc >= FIRST_UNORDERED && cc <= LAST_UNORDERED) {
-    UseScratchRegisterScope temps(this);
-    Register scratch = temps.Acquire();
-    CompareIsNanF32(scratch, cmp1, cmp2);
-    or_(rd, rd, scratch);
-  }
 }
 
 void MacroAssemblerRiscv64::ma_compareF64(Register rd, DoubleCondition cc,
                                           FloatRegister cmp1,
                                           FloatRegister cmp2) {
   switch (cc) {
-    case DoubleEqualOrUnordered:
     case DoubleEqual:
       feq_d(rd, cmp1, cmp2);
-      break;
-    case DoubleNotEqualOrUnordered:
-    case DoubleNotEqual: {
-      Label done;
-      CompareIsNanF64(rd, cmp1, cmp2);
-      ma_branch(&done, Equal, rd, Operand(1));
-      feq_d(rd, cmp1, cmp2);
-      bind(&done);
+      return;
+    case DoubleEqualOrUnordered: {
+      UseScratchRegisterScope temps(this);
+      Register scratch = temps.Acquire();
+      flt_d(rd, cmp1, cmp2);
+      flt_d(scratch, cmp2, cmp1);
+      or_(rd, rd, scratch);
       NegateBool(rd, rd);
-    } break;
-    case DoubleLessThanOrUnordered:
+      return;
+    }
+    case DoubleNotEqual: {
+      UseScratchRegisterScope temps(this);
+      Register scratch = temps.Acquire();
+      flt_d(rd, cmp1, cmp2);
+      flt_d(scratch, cmp2, cmp1);
+      or_(rd, rd, scratch);
+      return;
+    }
+    case DoubleNotEqualOrUnordered:
+      feq_d(rd, cmp1, cmp2);
+      NegateBool(rd, rd);
+      return;
     case DoubleLessThan:
       flt_d(rd, cmp1, cmp2);
-      break;
-    case DoubleGreaterThanOrEqualOrUnordered:
+      return;
+    case DoubleLessThanOrUnordered:
+      fle_d(rd, cmp2, cmp1);
+      NegateBool(rd, rd);
+      return;
     case DoubleGreaterThanOrEqual:
       fle_d(rd, cmp2, cmp1);
-      break;
-    case DoubleLessThanOrEqualOrUnordered:
+      return;
+    case DoubleGreaterThanOrEqualOrUnordered:
+      flt_d(rd, cmp1, cmp2);
+      NegateBool(rd, rd);
+      return;
     case DoubleLessThanOrEqual:
       fle_d(rd, cmp1, cmp2);
-      break;
-    case DoubleGreaterThanOrUnordered:
+      return;
+    case DoubleLessThanOrEqualOrUnordered:
+      flt_d(rd, cmp2, cmp1);
+      NegateBool(rd, rd);
+      return;
     case DoubleGreaterThan:
       flt_d(rd, cmp2, cmp1);
-      break;
+      return;
+    case DoubleGreaterThanOrUnordered:
+      fle_d(rd, cmp1, cmp2);
+      NegateBool(rd, rd);
+      return;
     case DoubleOrdered:
       CompareIsNotNanF64(rd, cmp1, cmp2);
       return;
     case DoubleUnordered:
       CompareIsNanF64(rd, cmp1, cmp2);
       return;
-  }
-
-  if (cc >= FIRST_UNORDERED && cc <= LAST_UNORDERED) {
-    UseScratchRegisterScope temps(this);
-    Register scratch = temps.Acquire();
-    CompareIsNanF64(scratch, cmp1, cmp2);
-    or_(rd, rd, scratch);
   }
 }
 
@@ -898,6 +930,26 @@ void MacroAssemblerRiscv64::Ceil_w_s(Register rd, FPURegister fs,
       Inexact);
 }
 
+void MacroAssemblerRiscv64::Ceil_l_d(Register rd, FPURegister fs,
+                                     Register result, bool Inexact) {
+  RoundFloatingPointToInteger(
+      rd, fs, result,
+      [](MacroAssemblerRiscv64* masm, Register dst, FPURegister src) {
+        masm->fcvt_l_d(dst, src, RUP);
+      },
+      Inexact);
+}
+
+void MacroAssemblerRiscv64::Ceil_l_s(Register rd, FPURegister fs,
+                                     Register result, bool Inexact) {
+  RoundFloatingPointToInteger(
+      rd, fs, result,
+      [](MacroAssemblerRiscv64* masm, Register dst, FPURegister src) {
+        masm->fcvt_l_s(dst, src, RUP);
+      },
+      Inexact);
+}
+
 void MacroAssemblerRiscv64::Ceil_w_d(Register rd, FPURegister fs,
                                      Register result, bool Inexact) {
   RoundFloatingPointToInteger(
@@ -924,6 +976,46 @@ void MacroAssemblerRiscv64::Floor_w_d(Register rd, FPURegister fs,
       rd, fs, result,
       [](MacroAssemblerRiscv64* masm, Register dst, FPURegister src) {
         masm->fcvt_w_d(dst, src, RDN);
+      },
+      Inexact);
+}
+
+void MacroAssemblerRiscv64::Floor_l_s(Register rd, FPURegister fs,
+                                      Register result, bool Inexact) {
+  RoundFloatingPointToInteger(
+      rd, fs, result,
+      [](MacroAssemblerRiscv64* masm, Register dst, FPURegister src) {
+        masm->fcvt_l_s(dst, src, RDN);
+      },
+      Inexact);
+}
+
+void MacroAssemblerRiscv64::Floor_l_d(Register rd, FPURegister fs,
+                                      Register result, bool Inexact) {
+  RoundFloatingPointToInteger(
+      rd, fs, result,
+      [](MacroAssemblerRiscv64* masm, Register dst, FPURegister src) {
+        masm->fcvt_l_d(dst, src, RDN);
+      },
+      Inexact);
+}
+
+void MacroAssemblerRiscv64::RoundMaxMag_l_s(Register rd, FPURegister fs,
+                                            Register result, bool Inexact) {
+  RoundFloatingPointToInteger(
+      rd, fs, result,
+      [](MacroAssemblerRiscv64* masm, Register dst, FPURegister src) {
+        masm->fcvt_l_s(dst, src, RMM);
+      },
+      Inexact);
+}
+
+void MacroAssemblerRiscv64::RoundMaxMag_l_d(Register rd, FPURegister fs,
+                                            Register result, bool Inexact) {
+  RoundFloatingPointToInteger(
+      rd, fs, result,
+      [](MacroAssemblerRiscv64* masm, Register dst, FPURegister src) {
+        masm->fcvt_l_d(dst, src, RMM);
       },
       Inexact);
 }
@@ -3292,49 +3384,51 @@ void MacroAssembler::callWithABINoProfiler(const Address& fun, ABIType result) {
 void MacroAssembler::ceilDoubleToInt32(FloatRegister src, Register dest,
                                        Label* fail) {
   UseScratchRegisterScope temps(this);
-  ScratchDoubleScope fscratch(*this);
-  Label performCeil, done;
-  // If x < -1 or x > 0 then perform ceil.
-  loadConstantDouble(0, fscratch);
-  branchDouble(Assembler::DoubleGreaterThan, src, fscratch, &performCeil);
-  loadConstantDouble(-1.0, fscratch);
-  branchDouble(Assembler::DoubleLessThanOrEqual, src, fscratch, &performCeil);
-
   Register scratch = temps.Acquire();
-  // If binary value is not zero, the input was not 0, so we bail.
+
+  // Round toward positive infinity.
+  Ceil_l_d(dest, src);
+
+  // Sign extend lower 32 bits to test if the result isn't an Int32.
   {
-    moveFromDoubleHi(src, scratch);
-    branch32(Assembler::NotEqual, scratch, zero, fail);
+    move32SignExtendToPtr(dest, scratch);
+    branchPtr(Assembler::NotEqual, dest, scratch, fail);
   }
 
-  bind(&performCeil);
-  Ceil_w_d(dest, src, scratch);
-  ma_b(scratch, Imm32(1), fail, NotEqual);
-  bind(&done);
+  // We have to check for (-1, -0] when the result is zero.
+  Label notZero;
+  ma_b(dest, zero, &notZero, Assembler::NotEqual, ShortJump);
+  {
+    fmv_x_d(scratch, src);
+    ma_b(scratch, scratch, fail, Assembler::Signed);
+  }
+  bind(&notZero);
 }
 
 void MacroAssembler::ceilFloat32ToInt32(FloatRegister src, Register dest,
                                         Label* fail) {
   UseScratchRegisterScope temps(this);
-  ScratchDoubleScope fscratch(*this);
-  Label performCeil, done;
-  // If x < -1 or x > 0 then perform ceil.
-  loadConstantFloat32(0, fscratch);
-  branchFloat(Assembler::DoubleGreaterThan, src, fscratch, &performCeil);
-  loadConstantFloat32(-1.0, fscratch);
-  branchFloat(Assembler::DoubleLessThanOrEqual, src, fscratch, &performCeil);
-
   Register scratch = temps.Acquire();
-  // If binary value is not zero, the input was not 0, so we bail.
+
+  // Round toward positive infinity.
+  Ceil_l_s(dest, src);
+
+  // Sign extend lower 32 bits to test if the result isn't an Int32.
+  {
+    move32SignExtendToPtr(dest, scratch);
+    branchPtr(Assembler::NotEqual, dest, scratch, fail);
+  }
+
+  // We have to check for (-1, -0] when the result is zero.
+  Label notZero;
+  ma_b(dest, zero, &notZero, Assembler::NotEqual, ShortJump);
   {
     fmv_x_w(scratch, src);
-    branch32(Assembler::NotEqual, scratch, zero, fail);
+    ma_b(scratch, scratch, fail, Assembler::Signed);
   }
-  bind(&performCeil);
-  Ceil_w_s(dest, src, scratch);
-  ma_b(scratch, Imm32(1), fail, NotEqual);
-  bind(&done);
+  bind(&notZero);
 }
+
 void MacroAssembler::comment(const char* msg) { Assembler::comment(msg); }
 
 template <typename T>
@@ -3493,26 +3587,46 @@ void MacroAssembler::flexibleRemainderPtr(Register rhs, Register srcDest,
 
 void MacroAssembler::floorDoubleToInt32(FloatRegister src, Register dest,
                                         Label* fail) {
-  JitSpew(JitSpew_Codegen, "[ %s", __FUNCTION__);
   UseScratchRegisterScope temps(this);
   Register scratch = temps.Acquire();
-  Floor_w_d(dest, src, scratch);
-  ma_b(scratch, Imm32(1), fail, NotEqual);
-  fmv_x_d(scratch, src);
-  ma_branch(fail, Equal, scratch, Operand(0x8000000000000000));
-  JitSpew(JitSpew_Codegen, "]");
+
+  // Round toward negative infinity.
+  Floor_l_d(dest, src);
+
+  // Sign extend lower 32 bits to test if the result isn't an Int32.
+  {
+    move32SignExtendToPtr(dest, scratch);
+    branchPtr(Assembler::NotEqual, dest, scratch, fail);
+  }
+
+  // Fail if the input is negative zero.
+  {
+    fclass_d(scratch, src);
+    ma_b(scratch, Imm32(FClassFlag::kNegativeZero), fail, Equal);
+  }
 }
+
 void MacroAssembler::floorFloat32ToInt32(FloatRegister src, Register dest,
                                          Label* fail) {
-  JitSpew(JitSpew_Codegen, "[ %s", __FUNCTION__);
   UseScratchRegisterScope temps(this);
   Register scratch = temps.Acquire();
-  Floor_w_s(dest, src, scratch);
-  ma_b(scratch, Imm32(1), fail, NotEqual);
-  fmv_x_w(scratch, src);
-  ma_branch(fail, Equal, scratch, Operand(int32_t(0x80000000)));
-  JitSpew(JitSpew_Codegen, "]");
+
+  // Round toward negative infinity.
+  Floor_l_s(dest, src);
+
+  // Sign extend lower 32 bits to test if the result isn't an Int32.
+  {
+    move32SignExtendToPtr(dest, scratch);
+    branchPtr(Assembler::NotEqual, dest, scratch, fail);
+  }
+
+  // Fail if the input is negative zero.
+  {
+    fclass_s(scratch, src);
+    ma_b(scratch, Imm32(FClassFlag::kNegativeZero), fail, Equal);
+  }
 }
+
 void MacroAssembler::flush() {}
 void MacroAssembler::loadStoreBuffer(Register ptr, Register buffer) {
   ma_and(buffer, ptr, Imm32(int32_t(~gc::ChunkMask)));
@@ -3584,144 +3698,55 @@ void MacroAssembler::nearbyIntFloat32(RoundingMode mode, FloatRegister src,
 void MacroAssembler::oolWasmTruncateCheckF32ToI32(
     FloatRegister input, Register output, TruncFlags flags,
     const wasm::TrapSiteDesc& trapSiteDesc, Label* rejoin) {
+  MOZ_ASSERT(!(flags & TRUNC_SATURATING));
+
   Label notNaN;
-  UseScratchRegisterScope temps(this);
-  Register scratch = temps.Acquire();
-  CompareIsNotNanF32(scratch, input, input);
-  ma_branch(&notNaN, Equal, scratch, Operand(1));
+  BranchFloat32(Assembler::DoubleOrdered, input, input, &notNaN, ShortJump);
   wasmTrap(wasm::Trap::InvalidConversionToInteger, trapSiteDesc);
   bind(&notNaN);
 
-  Label isOverflow;
-  const float two_31 = -float(INT32_MIN);
-  ScratchFloat32Scope fpscratch(*this);
-  if (flags & TRUNC_UNSIGNED) {
-    loadConstantFloat32(two_31 * 2, fpscratch);
-    ma_compareF32(scratch, Assembler::DoubleGreaterThanOrEqual, input,
-                  fpscratch);
-    ma_branch(&isOverflow, Equal, scratch, Operand(1));
-    loadConstantFloat32(-1.0f, fpscratch);
-    ma_compareF32(scratch, Assembler::DoubleGreaterThan, input, fpscratch);
-    ma_b(scratch, Imm32(1), rejoin, Equal);
-  } else {
-    loadConstantFloat32(two_31, fpscratch);
-    ma_compareF32(scratch, Assembler::DoubleGreaterThanOrEqual, input,
-                  fpscratch);
-    ma_branch(&isOverflow, Equal, scratch, Operand(1));
-    loadConstantFloat32(-two_31, fpscratch);
-    ma_compareF32(scratch, Assembler::DoubleGreaterThanOrEqual, input,
-                  fpscratch);
-    ma_b(scratch, Imm32(1), rejoin, Equal);
-  }
-  bind(&isOverflow);
   wasmTrap(wasm::Trap::IntegerOverflow, trapSiteDesc);
 }
 
 void MacroAssembler::oolWasmTruncateCheckF64ToI32(
     FloatRegister input, Register output, TruncFlags flags,
     const wasm::TrapSiteDesc& trapSiteDesc, Label* rejoin) {
+  MOZ_ASSERT(!(flags & TRUNC_SATURATING));
+
   Label notNaN;
-  UseScratchRegisterScope temps(this);
-  Register scratch = temps.Acquire();
-  CompareIsNotNanF64(scratch, input, input);
-  ma_branch(&notNaN, Equal, scratch, Operand(1));
+  BranchFloat64(Assembler::DoubleOrdered, input, input, &notNaN, ShortJump);
   wasmTrap(wasm::Trap::InvalidConversionToInteger, trapSiteDesc);
   bind(&notNaN);
 
-  Label isOverflow;
-  const double two_31 = -double(INT32_MIN);
-  ScratchDoubleScope fpscratch(*this);
-  if (flags & TRUNC_UNSIGNED) {
-    loadConstantDouble(two_31 * 2, fpscratch);
-    ma_compareF64(scratch, Assembler::DoubleGreaterThanOrEqual, input,
-                  fpscratch);
-    ma_branch(&isOverflow, Equal, scratch, Operand(1));
-    loadConstantDouble(-1.0, fpscratch);
-    ma_compareF64(scratch, Assembler::DoubleGreaterThan, input, fpscratch);
-    ma_b(scratch, Imm32(1), rejoin, Equal);
-  } else {
-    loadConstantDouble(two_31, fpscratch);
-    ma_compareF64(scratch, Assembler::DoubleGreaterThanOrEqual, input,
-                  fpscratch);
-    ma_branch(&isOverflow, Equal, scratch, Operand(1));
-    loadConstantDouble(-two_31 - 1, fpscratch);
-    ma_compareF64(scratch, Assembler::DoubleGreaterThan, input, fpscratch);
-    ma_b(scratch, Imm32(1), rejoin, Equal);
-  }
-  bind(&isOverflow);
   wasmTrap(wasm::Trap::IntegerOverflow, trapSiteDesc);
 }
 
 void MacroAssembler::oolWasmTruncateCheckF32ToI64(
     FloatRegister input, Register64 output, TruncFlags flags,
     const wasm::TrapSiteDesc& trapSiteDesc, Label* rejoin) {
+  MOZ_ASSERT(!(flags & TRUNC_SATURATING));
+
   Label notNaN;
-  UseScratchRegisterScope temps(this);
-  Register scratch = temps.Acquire();
-  CompareIsNotNanF32(scratch, input, input);
-  ma_branch(&notNaN, Equal, scratch, Operand(1));
+  BranchFloat32(Assembler::DoubleOrdered, input, input, &notNaN, ShortJump);
   wasmTrap(wasm::Trap::InvalidConversionToInteger, trapSiteDesc);
   bind(&notNaN);
 
-  Label isOverflow;
-  const float two_63 = -float(INT64_MIN);
-  ScratchFloat32Scope fpscratch(*this);
-  if (flags & TRUNC_UNSIGNED) {
-    loadConstantFloat32(two_63 * 2, fpscratch);
-    ma_compareF32(scratch, Assembler::DoubleGreaterThanOrEqual, input,
-                  fpscratch);
-    ma_branch(&isOverflow, Equal, scratch, Operand(1));
-    loadConstantFloat32(-1.0f, fpscratch);
-    ma_compareF32(scratch, Assembler::DoubleGreaterThan, input, fpscratch);
-    ma_b(scratch, Imm32(1), rejoin, Equal);
-  } else {
-    loadConstantFloat32(two_63, fpscratch);
-    ma_compareF32(scratch, Assembler::DoubleGreaterThanOrEqual, input,
-                  fpscratch);
-    ma_branch(&isOverflow, Equal, scratch, Operand(1));
-    loadConstantFloat32(-two_63, fpscratch);
-    ma_compareF32(scratch, Assembler::DoubleGreaterThanOrEqual, input,
-                  fpscratch);
-    ma_b(scratch, Imm32(1), rejoin, Equal);
-  }
-  bind(&isOverflow);
   wasmTrap(wasm::Trap::IntegerOverflow, trapSiteDesc);
 }
 
 void MacroAssembler::oolWasmTruncateCheckF64ToI64(
     FloatRegister input, Register64 output, TruncFlags flags,
     const wasm::TrapSiteDesc& trapSiteDesc, Label* rejoin) {
+  MOZ_ASSERT(!(flags & TRUNC_SATURATING));
+
   Label notNaN;
-  UseScratchRegisterScope temps(this);
-  Register scratch = temps.Acquire();
-  CompareIsNotNanF64(scratch, input, input);
-  ma_branch(&notNaN, Equal, scratch, Operand(1));
+  BranchFloat64(Assembler::DoubleOrdered, input, input, &notNaN, ShortJump);
   wasmTrap(wasm::Trap::InvalidConversionToInteger, trapSiteDesc);
   bind(&notNaN);
 
-  Label isOverflow;
-  const double two_63 = -double(INT64_MIN);
-  ScratchDoubleScope fpscratch(*this);
-  if (flags & TRUNC_UNSIGNED) {
-    loadConstantDouble(two_63 * 2, fpscratch);
-    ma_compareF64(scratch, Assembler::DoubleGreaterThanOrEqual, input,
-                  fpscratch);
-    ma_branch(&isOverflow, Equal, scratch, Operand(1));
-    loadConstantDouble(-1.0, fpscratch);
-    ma_compareF64(scratch, Assembler::DoubleGreaterThan, input, fpscratch);
-    ma_b(scratch, Imm32(1), rejoin, Equal);
-  } else {
-    loadConstantDouble(two_63, fpscratch);
-    ma_compareF64(scratch, Assembler::DoubleGreaterThanOrEqual, input,
-                  fpscratch);
-    ma_branch(&isOverflow, Equal, scratch, Operand(1));
-    loadConstantDouble(-two_63, fpscratch);
-    ma_compareF64(scratch, Assembler::DoubleGreaterThan, input, fpscratch);
-    ma_b(scratch, Imm32(1), rejoin, Equal);
-  }
-  bind(&isOverflow);
   wasmTrap(wasm::Trap::IntegerOverflow, trapSiteDesc);
 }
+
 void MacroAssembler::patchCallToNop(uint8_t* call) {
   uint32_t* p = reinterpret_cast<uint32_t*>(call) - 7;
   *reinterpret_cast<Instr*>(p) = kNopByte;
@@ -3934,38 +3959,32 @@ void MacroAssembler::PushRegsInMask(LiveRegisterSet set) {
 void MacroAssembler::roundFloat32ToInt32(FloatRegister src, Register dest,
                                          FloatRegister temp, Label* fail) {
   JitSpew(JitSpew_Codegen, "[ %s", __FUNCTION__);
-  ScratchDoubleScope fscratch(*this);
   Label negative, done;
+
   // Branch to a slow path if input < 0.0 due to complicated rounding rules.
-  // Note that Fcmp with NaN unsets the negative flag.
+  {
+    loadConstantFloat32(0.0f, temp);
+    BranchFloat32(Assembler::DoubleLessThan, src, temp, &negative, ShortJump);
+  }
+
+  // Fail if the input is negative zero.
   {
     UseScratchRegisterScope temps(this);
     Register scratch = temps.Acquire();
-    fmv_x_w(scratch, src);
-    ma_branch(fail, Equal, scratch, Operand(int32_t(0x80000000)));
-    fmv_w_x(temp, zero);
-    ma_compareF32(scratch, DoubleLessThan, src, temp);
-    ma_branch(&negative, Equal, scratch, Operand(1));
+
+    fclass_s(scratch, src);
+    ma_b(scratch, Imm32(FClassFlag::kNegativeZero), fail, Assembler::Equal);
   }
-  // Handle the simple case of a positive input, and also -0 and NaN.
+
+  // Handle the simple case of a positive input and NaN.
   // Rounding proceeds with consideration of the fractional part of the input:
   // 1. If > 0.5, round to integer with higher absolute value (so, up).
   // 2. If < 0.5, round to integer with lower absolute value (so, down).
   // 3. If = 0.5, round to +Infinity (so, up).
   {
-    // Convert to signed 32-bit integer, rounding halfway cases away from zero.
-    // In the case of overflow, the output is saturated.
-    // In the case of NaN and -0, the output is zero.
-    UseScratchRegisterScope temps(this);
-    Register scratch = temps.Acquire();
-    RoundFloatingPointToInteger(
-        dest, src, scratch,
-        [](MacroAssemblerRiscv64* masm, Register dst, FPURegister src) {
-          masm->fcvt_w_s(dst, src, RMM);
-        },
-        false);
-    ma_b(scratch, Imm32(1), fail, NotEqual);
-    jump(&done);
+    // Round, ties away from zero.
+    RoundMaxMag_l_s(dest, src);
+    ma_branch(&done);
   }
 
   // Handle the complicated case of a negative input.
@@ -3975,70 +3994,59 @@ void MacroAssembler::roundFloat32ToInt32(FloatRegister src, Register dest,
   // 3. If = 0.5, round to +Infinity (so, up).
   bind(&negative);
   {
-    // Inputs in [-0.5, 0) need 0.5 added; other negative inputs need
-    // the biggest double less than 0.5.
-    Label join;
-    loadConstantFloat32(GetBiggestNumberLessThan(0.5), temp);
-    loadConstantFloat32(-0.5, fscratch);
-    branchFloat(Assembler::DoubleLessThan, src, fscratch, &join);
-    loadConstantFloat32(0.5, temp);
-    bind(&join);
-    addFloat32(src, temp);
-    // Round all values toward -Infinity.
-    // In the case of overflow, the output is saturated.
-    // NaN and -0 are already handled by the "positive number" path above.
+    // Inputs in [-0.5, 0) are rounded to -0. Fail.
+    loadConstantFloat32(-0.5f, temp);
+    branchFloat(Assembler::DoubleGreaterThanOrEqual, src, temp, fail);
+
+    // Other negative inputs need the biggest float less than 0.5 added.
+    loadConstantFloat32(GetBiggestNumberLessThan(0.5f), temp);
+    fadd_s(temp, src, temp);
+
+    // Round toward negative infinity.
+    Floor_l_s(dest, temp);
+  }
+
+  // Sign extend lower 32 bits to test if the result isn't an Int32.
+  bind(&done);
+  {
     UseScratchRegisterScope temps(this);
     Register scratch = temps.Acquire();
-    RoundFloatingPointToInteger(
-        dest, temp, scratch,
-        [](MacroAssemblerRiscv64* masm, Register dst, FPURegister src) {
-          masm->fcvt_w_s(dst, src, RDN);
-        },
-        false);
-    ma_b(scratch, Imm32(1), fail, NotEqual);
-    // If output is zero, then the actual result is -0. Fail.
-    branchTest32(Assembler::Zero, dest, dest, fail);
+
+    move32SignExtendToPtr(dest, scratch);
+    branchPtr(Assembler::NotEqual, dest, scratch, fail);
   }
-  bind(&done);
   JitSpew(JitSpew_Codegen, "]");
 }
 
 void MacroAssembler::roundDoubleToInt32(FloatRegister src, Register dest,
                                         FloatRegister temp, Label* fail) {
   JitSpew(JitSpew_Codegen, "[ %s", __FUNCTION__);
-
-  ScratchDoubleScope fscratch(*this);
   Label negative, done;
+
   // Branch to a slow path if input < 0.0 due to complicated rounding rules.
-  // Note that Fcmp with NaN unsets the negative flag.
+  {
+    loadConstantDouble(0.0, temp);
+    BranchFloat64(Assembler::DoubleLessThan, src, temp, &negative, ShortJump);
+  }
+
+  // Fail if the input is negative zero.
   {
     UseScratchRegisterScope temps(this);
     Register scratch = temps.Acquire();
-    fmv_x_d(scratch, src);
-    ma_branch(fail, Equal, scratch, Operand(0x8000000000000000));
-    fmv_d_x(temp, zero);
-    ma_compareF64(scratch, DoubleLessThan, src, temp);
-    ma_branch(&negative, Equal, scratch, Operand(1));
+
+    fclass_d(scratch, src);
+    ma_b(scratch, Imm32(FClassFlag::kNegativeZero), fail, Equal);
   }
-  // Handle the simple case of a positive input, and also -0 and NaN.
+
+  // Handle the simple case of a positive input and NaN.
   // Rounding proceeds with consideration of the fractional part of the input:
   // 1. If > 0.5, round to integer with higher absolute value (so, up).
   // 2. If < 0.5, round to integer with lower absolute value (so, down).
   // 3. If = 0.5, round to +Infinity (so, up).
   {
-    // Convert to signed 32-bit integer, rounding halfway cases away from zero.
-    // In the case of overflow, the output is saturated.
-    // In the case of NaN and -0, the output is zero.
-    UseScratchRegisterScope temps(this);
-    Register scratch = temps.Acquire();
-    RoundFloatingPointToInteger(
-        dest, src, scratch,
-        [](MacroAssemblerRiscv64* masm, Register dst, FPURegister src) {
-          masm->fcvt_w_d(dst, src, RMM);
-        },
-        false);
-    ma_b(scratch, Imm32(1), fail, NotEqual);
-    jump(&done);
+    // Round, ties away from zero.
+    RoundMaxMag_l_d(dest, src);
+    ma_branch(&done);
   }
 
   // Handle the complicated case of a negative input.
@@ -4048,31 +4056,27 @@ void MacroAssembler::roundDoubleToInt32(FloatRegister src, Register dest,
   // 3. If = 0.5, round to +Infinity (so, up).
   bind(&negative);
   {
-    // Inputs in [-0.5, 0) need 0.5 added; other negative inputs need
-    // the biggest double less than 0.5.
-    Label join;
+    // Inputs in [-0.5, 0) are rounded to -0. Fail.
+    loadConstantDouble(-0.5, temp);
+    branchDouble(Assembler::DoubleGreaterThanOrEqual, src, temp, fail);
+
+    // Other negative inputs need the biggest double less than 0.5 added.
     loadConstantDouble(GetBiggestNumberLessThan(0.5), temp);
-    loadConstantDouble(-0.5, fscratch);
-    branchDouble(Assembler::DoubleLessThan, src, fscratch, &join);
-    loadConstantDouble(0.5, temp);
-    bind(&join);
-    addDouble(src, temp);
-    // Round all values toward -Infinity.
-    // In the case of overflow, the output is saturated.
-    // NaN and -0 are already handled by the "positive number" path above.
+    fadd_d(temp, src, temp);
+
+    // Round toward negative infinity.
+    Floor_l_d(dest, temp);
+  }
+
+  // Sign extend lower 32 bits to test if the result isn't an Int32.
+  bind(&done);
+  {
     UseScratchRegisterScope temps(this);
     Register scratch = temps.Acquire();
-    RoundFloatingPointToInteger(
-        dest, temp, scratch,
-        [](MacroAssemblerRiscv64* masm, Register dst, FPURegister src) {
-          masm->fcvt_w_d(dst, src, RDN);
-        },
-        false);
-    ma_b(scratch, Imm32(1), fail, NotEqual);
-    // If output is zero, then the actual result is -0. Fail.
-    branchTest32(Assembler::Zero, dest, dest, fail);
+
+    move32SignExtendToPtr(dest, scratch);
+    branchPtr(Assembler::NotEqual, dest, scratch, fail);
   }
-  bind(&done);
   JitSpew(JitSpew_Codegen, "]");
 }
 
@@ -4102,9 +4106,9 @@ void MacroAssembler::speculationBarrier() { MOZ_CRASH(); }
 void MacroAssembler::storeRegsInMask(LiveRegisterSet set, Address dest,
                                      Register) {
   FloatRegisterSet fpuSet(set.fpus().reduceSetForPush());
-  unsigned numFpu = fpuSet.size();
+  mozilla::DebugOnly<unsigned> numFpu = fpuSet.size();
   int32_t diffF = fpuSet.getPushSizeInBytes();
-  int32_t diffG = set.gprs().size() * sizeof(intptr_t);
+  mozilla::DebugOnly<int32_t> diffG = set.gprs().size() * sizeof(intptr_t);
 
   MOZ_ASSERT(dest.offset >= diffG + diffF);
 
@@ -4133,91 +4137,57 @@ void MacroAssembler::storeRegsInMask(LiveRegisterSet set, Address dest,
     }
   }
   MOZ_ASSERT(numFpu == 0);
+
   diffF -= diffF % sizeof(uintptr_t);
   MOZ_ASSERT(diffF == 0);
 }
 void MacroAssembler::truncDoubleToInt32(FloatRegister src, Register dest,
                                         Label* fail) {
-  UseScratchRegisterScope temps(this);
+  UseScratchRegisterScope temps(*this);
   Register scratch = temps.Acquire();
-  Label zeroCase, done;
-  // Convert scalar to signed 32-bit fixed-point, rounding toward zero.
-  // In the case of overflow, the output is saturated.
-  // In the case of NaN and -0, the output is zero.
-  RoundFloatingPointToInteger(
-      dest, src, scratch,
-      [](MacroAssemblerRiscv64* masm, Register dst, FPURegister src) {
-        masm->fcvt_w_d(dst, src, RTZ);
-      },
-      false);
-  ma_b(scratch, Imm32(1), fail, NotEqual);
-  // If the output was zero, worry about special cases.
-  branch32(Assembler::Equal, dest, Imm32(0), &zeroCase);
-  jump(&done);
-  // Handle the case of a zero output:
-  // 1. The input may have been NaN, requiring a failure.
-  // 2. The input may have been in (-1,-0], requiring a failure.
-  // 3. +0, return 0.
+
+  // Round toward zero.
+  Trunc_l_d(dest, src);
+
+  // Sign extend lower 32 bits to test if the result isn't an Int32.
   {
-    bind(&zeroCase);
-
-    // If input is a negative number that truncated to zero, the real
-    // output should be the non-integer -0.
-    // The use of "lt" instead of "lo" also catches unordered NaN input.
-    ScratchDoubleScope fscratch(*this);
-    fmv_d_x(fscratch, zero);
-    ma_compareF64(scratch, DoubleLessThan, src, fscratch);
-    ma_b(scratch, Imm32(1), fail, Equal);
-
-    // Check explicitly for -0, bitwise.
-    fmv_x_d(dest, src);
-    branchTestPtr(Assembler::Signed, dest, dest, fail);
-    movePtr(ImmWord(0), dest);
+    move32SignExtendToPtr(dest, scratch);
+    branchPtr(Assembler::NotEqual, dest, scratch, fail);
   }
 
-  bind(&done);
+  // We have to check for (-1, -0] when the result is zero.
+  Label notZero;
+  ma_b(dest, zero, &notZero, Assembler::NotEqual, ShortJump);
+  {
+    fmv_x_d(scratch, src);
+    ma_b(scratch, scratch, fail, Assembler::Signed);
+  }
+  bind(&notZero);
 }
 void MacroAssembler::truncFloat32ToInt32(FloatRegister src, Register dest,
                                          Label* fail) {
   UseScratchRegisterScope temps(this);
   Register scratch = temps.Acquire();
-  Label zeroCase, done;
-  // Convert scalar to signed 32-bit fixed-point, rounding toward zero.
-  // In the case of overflow, the output is saturated.
-  // In the case of NaN and -0, the output is zero.
-  RoundFloatingPointToInteger(
-      dest, src, scratch,
-      [](MacroAssemblerRiscv64* masm, Register dst, FPURegister src) {
-        masm->fcvt_w_s(dst, src, RTZ);
-      },
-      false);
-  ma_b(scratch, Imm32(1), fail, NotEqual);
-  // If the output was zero, worry about special cases.
-  branch32(Assembler::Equal, dest, Imm32(0), &zeroCase);
-  jump(&done);
-  // Handle the case of a zero output:
-  // 1. The input may have been NaN, requiring a failure.
-  // 2. The input may have been in (-1,-0], requiring a failure.
-  // 3. +0, return 0.
+
+  // Round toward zero.
+  Trunc_l_s(dest, src);
+
+  // Sign extend lower 32 bits to test if the result isn't an Int32.
   {
-    bind(&zeroCase);
-
-    // If input is a negative number that truncated to zero, the real
-    // output should be the non-integer -0.
-    // The use of "lt" instead of "lo" also catches unordered NaN input.
-    ScratchDoubleScope fscratch(*this);
-    fmv_w_x(fscratch, zero);
-    ma_compareF32(scratch, DoubleLessThan, src, fscratch);
-    ma_b(scratch, Imm32(1), fail, Equal);
-
-    // Check explicitly for -0, bitwise.
-    fmv_x_w(dest, src);
-    branchTestPtr(Assembler::Signed, dest, dest, fail);
-    movePtr(ImmWord(0), dest);
+    move32SignExtendToPtr(dest, scratch);
+    branchPtr(Assembler::NotEqual, dest, scratch, fail);
   }
 
-  bind(&done);
+  // We have to check for (-1, -0] when the result is zero.
+  Label notZero;
+  ma_b(dest, zero, &notZero, Assembler::NotEqual, ShortJump);
+  {
+    fmv_x_w(scratch, src);
+    ma_b(scratch, scratch, fail, Assembler::Signed);
+  }
+  bind(&notZero);
 }
+
 void MacroAssembler::wasmAtomicEffectOp(const wasm::MemoryAccessDesc& access,
                                         AtomicOp op, Register value,
                                         const Address& mem, Register valueTemp,
@@ -4547,48 +4517,51 @@ void MacroAssembler::wasmStoreI64(const wasm::MemoryAccessDesc& access,
 void MacroAssemblerRiscv64::Clear_if_nan_d(Register rd, FPURegister fs) {
   UseScratchRegisterScope temps(this);
   Register scratch = temps.Acquire();
-  Label no_nan;
+
   feq_d(scratch, fs, fs);
-  bnez(scratch, &no_nan);
-  mv(rd, zero_reg);
-  bind(&no_nan);
+  neg(scratch, scratch);
+  and_(rd, rd, scratch);
 }
 
 void MacroAssemblerRiscv64::Clear_if_nan_s(Register rd, FPURegister fs) {
   UseScratchRegisterScope temps(this);
   Register scratch = temps.Acquire();
-  Label no_nan;
+
   feq_s(scratch, fs, fs);
-  bnez(scratch, &no_nan);
-  mv(rd, zero_reg);
-  bind(&no_nan);
+  neg(scratch, scratch);
+  and_(rd, rd, scratch);
 }
 
 void MacroAssembler::wasmTruncateDoubleToInt32(FloatRegister input,
                                                Register output,
                                                bool isSaturating,
                                                Label* oolEntry) {
-  UseScratchRegisterScope temps(this);
-  Register scratch = temps.Acquire();
-  Trunc_w_d(output, input, scratch);
   if (isSaturating) {
+    Trunc_w_d(output, input);
     Clear_if_nan_d(output, input);
   } else {
-    ma_b(scratch, Imm32(1), oolEntry, Assembler::NotEqual);
+    UseScratchRegisterScope temps(this);
+    Register scratch = temps.Acquire();
+
+    Trunc_l_d(output, input);
+
+    // Sign extend lower 32 bits to test if the result isn't an Int32.
+    move32SignExtendToPtr(output, scratch);
+    branchPtr(Assembler::NotEqual, output, scratch, oolEntry);
   }
 }
 
 void MacroAssembler::wasmTruncateDoubleToInt64(
     FloatRegister input, Register64 output, bool isSaturating, Label* oolEntry,
     Label* oolRejoin, FloatRegister tempDouble) {
-  UseScratchRegisterScope temps(this);
-  Register scratch = temps.Acquire();
-  Trunc_l_d(output.reg, input, scratch);
   if (isSaturating) {
-    bind(oolRejoin);
+    Trunc_l_d(output.reg, input);
     Clear_if_nan_d(output.reg, input);
   } else {
-    ma_b(scratch, Imm32(1), oolEntry, Assembler::NotEqual);
+    UseScratchRegisterScope temps(this);
+    Register scratch = temps.Acquire();
+    Trunc_l_d(output.reg, input, scratch);
+    ma_b(scratch, Imm32(0), oolEntry, Assembler::Equal);
   }
 }
 
@@ -4596,27 +4569,28 @@ void MacroAssembler::wasmTruncateDoubleToUInt32(FloatRegister input,
                                                 Register output,
                                                 bool isSaturating,
                                                 Label* oolEntry) {
-  UseScratchRegisterScope temps(this);
-  Register scratch = temps.Acquire();
-  Trunc_uw_d(output, input, scratch);
   if (isSaturating) {
+    Trunc_uw_d(output, input);
     Clear_if_nan_d(output, input);
   } else {
-    ma_b(scratch, Imm32(1), oolEntry, Assembler::NotEqual);
+    UseScratchRegisterScope temps(this);
+    Register scratch = temps.Acquire();
+    Trunc_uw_d(output, input, scratch);
+    ma_b(scratch, Imm32(0), oolEntry, Assembler::Equal);
   }
 }
 
 void MacroAssembler::wasmTruncateDoubleToUInt64(
     FloatRegister input, Register64 output, bool isSaturating, Label* oolEntry,
     Label* oolRejoin, FloatRegister tempDouble) {
-  UseScratchRegisterScope temps(this);
-  Register scratch = temps.Acquire();
-  Trunc_ul_d(output.reg, input, scratch);
   if (isSaturating) {
-    bind(oolRejoin);
+    Trunc_ul_d(output.reg, input);
     Clear_if_nan_d(output.reg, input);
   } else {
-    ma_b(scratch, Imm32(1), oolEntry, Assembler::NotEqual);
+    UseScratchRegisterScope temps(this);
+    Register scratch = temps.Acquire();
+    Trunc_ul_d(output.reg, input, scratch);
+    ma_b(scratch, Imm32(0), oolEntry, Assembler::Equal);
   }
 }
 
@@ -4624,28 +4598,32 @@ void MacroAssembler::wasmTruncateFloat32ToInt32(FloatRegister input,
                                                 Register output,
                                                 bool isSaturating,
                                                 Label* oolEntry) {
-  UseScratchRegisterScope temps(this);
-  Register scratch = temps.Acquire();
-  Trunc_w_s(output, input, scratch);
   if (isSaturating) {
+    Trunc_w_s(output, input);
     Clear_if_nan_s(output, input);
   } else {
-    ma_b(scratch, Imm32(1), oolEntry, Assembler::NotEqual);
+    UseScratchRegisterScope temps(this);
+    Register scratch = temps.Acquire();
+
+    Trunc_l_s(output, input, scratch);
+
+    // Sign extend lower 32 bits to test if the result isn't an Int32.
+    move32SignExtendToPtr(output, scratch);
+    branchPtr(Assembler::NotEqual, output, scratch, oolEntry);
   }
 }
 
 void MacroAssembler::wasmTruncateFloat32ToInt64(
     FloatRegister input, Register64 output, bool isSaturating, Label* oolEntry,
     Label* oolRejoin, FloatRegister tempFloat) {
-  UseScratchRegisterScope temps(this);
-  Register scratch = temps.Acquire();
-  Trunc_l_s(output.reg, input, scratch);
-
   if (isSaturating) {
-    bind(oolRejoin);
+    Trunc_l_s(output.reg, input);
     Clear_if_nan_s(output.reg, input);
   } else {
-    ma_b(scratch, Imm32(1), oolEntry, Assembler::NotEqual);
+    UseScratchRegisterScope temps(this);
+    Register scratch = temps.Acquire();
+    Trunc_l_s(output.reg, input, scratch);
+    ma_b(scratch, Imm32(0), oolEntry, Assembler::Equal);
   }
 }
 
@@ -4653,28 +4631,28 @@ void MacroAssembler::wasmTruncateFloat32ToUInt32(FloatRegister input,
                                                  Register output,
                                                  bool isSaturating,
                                                  Label* oolEntry) {
-  UseScratchRegisterScope temps(this);
-  Register scratch = temps.Acquire();
-  Trunc_uw_s(output, input, scratch);
   if (isSaturating) {
+    Trunc_uw_s(output, input);
     Clear_if_nan_s(output, input);
   } else {
-    ma_b(scratch, Imm32(1), oolEntry, Assembler::NotEqual);
+    UseScratchRegisterScope temps(this);
+    Register scratch = temps.Acquire();
+    Trunc_uw_s(output, input, scratch);
+    ma_b(scratch, Imm32(0), oolEntry, Assembler::Equal);
   }
 }
 
 void MacroAssembler::wasmTruncateFloat32ToUInt64(
     FloatRegister input, Register64 output, bool isSaturating, Label* oolEntry,
     Label* oolRejoin, FloatRegister tempFloat) {
-  UseScratchRegisterScope temps(this);
-  Register scratch = temps.Acquire();
-  Trunc_ul_s(output.reg, input, scratch);
-
   if (isSaturating) {
-    bind(oolRejoin);
+    Trunc_ul_s(output.reg, input);
     Clear_if_nan_s(output.reg, input);
   } else {
-    ma_b(scratch, Imm32(1), oolEntry, Assembler::NotEqual);
+    UseScratchRegisterScope temps(this);
+    Register scratch = temps.Acquire();
+    Trunc_ul_s(output.reg, input, scratch);
+    ma_b(scratch, Imm32(0), oolEntry, Assembler::Equal);
   }
 }
 
@@ -4851,8 +4829,12 @@ bool MacroAssemblerRiscv64::BranchShortHelper(int32_t offset, Label* L,
   UseScratchRegisterScope temps(this);
   Register scratch = Register();
   if (rt.is_imm()) {
-    scratch = temps.Acquire();
-    ma_li(scratch, Imm64(rt.immediate()));
+    if (rt.immediate() == 0) {
+      scratch = zero;
+    } else {
+      scratch = temps.Acquire();
+      ma_li(scratch, Imm64(rt.immediate()));
+    }
   } else {
     MOZ_ASSERT(rt.is_reg());
     scratch = rt.rm();
@@ -4863,7 +4845,6 @@ bool MacroAssemblerRiscv64::BranchShortHelper(int32_t offset, Label* L,
       case Always:
         if (!CalculateOffset(L, &offset, OffsetSize::kOffset21)) return false;
         Assembler::j(offset);
-        EmitConstPoolWithJumpIfNeeded();
         break;
       case Equal:
         // rs == rt
@@ -5006,15 +4987,13 @@ void MacroAssemblerRiscv64::BranchLong(Label* L) {
   // Generate position independent long branch.
   UseScratchRegisterScope temps(this);
   Register scratch = temps.Acquire();
-  int32_t imm;
-  imm = branch_long_offset(L);
+  int32_t imm = branch_long_offset(L);
   GenPCRelativeJump(scratch, imm);
 }
 
 void MacroAssemblerRiscv64::BranchAndLinkLong(Label* L) {
   // Generate position independent long branch and link.
-  int32_t imm;
-  imm = branch_long_offset(L);
+  int32_t imm = branch_long_offset(L);
   UseScratchRegisterScope temps(this);
   Register scratch = temps.Acquire();
   GenPCRelativeJumpAndLink(scratch, imm);
@@ -5022,37 +5001,25 @@ void MacroAssemblerRiscv64::BranchAndLinkLong(Label* L) {
 
 void MacroAssemblerRiscv64::ma_branch(Label* L, Condition cond, Register rs,
                                       const Operand& rt, JumpKind jumpKind) {
-  if (L->used()) {
-    if (jumpKind == ShortJump && BranchShortCheck(0, L, cond, rs, rt)) {
-      return;
-    }
-    if (cond != Always) {
-      Label skip;
-      Condition neg_cond = InvertCondition(cond);
-      (void)BranchShort(&skip, neg_cond, rs, rt);  // Guaranteed to be short.
-      BranchLong(L);
-      bind(&skip);
-    } else {
-      BranchLong(L);
-      EmitConstPoolWithJumpIfNeeded();
-    }
+  // Always prefer short jumps when the label is already bound. (If the label is
+  // bound, BranchShort can cheaply determine if short jumps are possible.)
+  if (L->bound()) {
+    jumpKind = ShortJump;
+  }
+
+  if (jumpKind == ShortJump && BranchShort(L, cond, rs, rt)) {
+    return;
+  }
+
+  if (cond != Always) {
+    Label skip;
+    Condition neg_cond = InvertCondition(cond);
+    MOZ_ALWAYS_TRUE(
+        BranchShort(&skip, neg_cond, rs, rt));  // Guaranteed to be short.
+    BranchLong(L);
+    bind(&skip);
   } else {
-    if (jumpKind == LongJump) {
-      if (cond != Always) {
-        Label skip;
-        Condition neg_cond = InvertCondition(cond);
-        (void)BranchShort(&skip, neg_cond, rs, rt);  // Guaranteed to be short.
-        BranchLong(L);
-        bind(&skip);
-      } else {
-        BranchLong(L);
-        EmitConstPoolWithJumpIfNeeded();
-      }
-    } else {
-      if (!BranchShort(L, cond, rs, rt)) {
-        ma_branch(L, cond, rs, rt, LongJump);
-      }
-    }
+    BranchLong(L);
   }
 }
 
@@ -5071,27 +5038,42 @@ void MacroAssemblerRiscv64::ma_b(Register lhs, ImmPtr imm, Label* l,
   ma_b(lhs, ImmWord(uintptr_t(imm.value)), l, c, jumpKind);
 }
 
-// Branches when done from within loongarch-specific code.
+// Branches when done from within riscv code.
 void MacroAssemblerRiscv64::ma_b(Register lhs, ImmWord imm, Label* label,
                                  Condition c, JumpKind jumpKind) {
-  UseScratchRegisterScope temps(this);
-  Register scratch = temps.Acquire();
-  MOZ_ASSERT(lhs != scratch);
-  ma_li(scratch, imm);
-  ma_b(lhs, Register(scratch), label, c, jumpKind);
+  switch (c) {
+    case Always:
+      ma_branch(label, c, zero, Operand(zero), jumpKind);
+      break;
+    case Zero:
+    case NonZero:
+    case Signed:
+    case NotSigned:
+      MOZ_ASSERT(imm.value == 0);
+      ma_b(lhs, lhs, label, c, jumpKind);
+      break;
+    default:
+      ma_branch(label, c, lhs, Operand(imm.value), jumpKind);
+      break;
+  }
 }
 
 void MacroAssemblerRiscv64::ma_b(Register lhs, Imm32 imm, Label* label,
                                  Condition c, JumpKind jumpKind) {
-  if ((c == NonZero || c == Zero || c == Signed || c == NotSigned) &&
-      imm.value == 0) {
-    ma_b(lhs, lhs, label, c, jumpKind);
-  } else {
-    UseScratchRegisterScope temps(this);
-    Register scratch = temps.Acquire();
-    MOZ_ASSERT(lhs != scratch);
-    ma_li(scratch, imm);
-    ma_b(lhs, Register(scratch), label, c, jumpKind);
+  switch (c) {
+    case Always:
+      ma_branch(label, c, zero, Operand(zero), jumpKind);
+      break;
+    case Zero:
+    case NonZero:
+    case Signed:
+    case NotSigned:
+      MOZ_ASSERT(imm.value == 0);
+      ma_b(lhs, lhs, label, c, jumpKind);
+      break;
+    default:
+      ma_branch(label, c, lhs, Operand(imm.value), jumpKind);
+      break;
   }
 }
 
@@ -5106,10 +5088,6 @@ void MacroAssemblerRiscv64::ma_b(Address addr, Imm32 imm, Label* label,
 void MacroAssemblerRiscv64::ma_b(Register lhs, Register rhs, Label* label,
                                  Condition c, JumpKind jumpKind) {
   switch (c) {
-    case Equal:
-    case NotEqual:
-      ma_branch(label, c, lhs, rhs, jumpKind);
-      break;
     case Always:
       ma_branch(label, c, zero, Operand(zero), jumpKind);
       break;
@@ -5129,10 +5107,9 @@ void MacroAssemblerRiscv64::ma_b(Register lhs, Register rhs, Label* label,
       MOZ_ASSERT(lhs == rhs);
       ma_branch(label, GreaterThanOrEqual, lhs, Operand(zero), jumpKind);
       break;
-    default: {
+    default:
       ma_branch(label, c, lhs, rhs, jumpKind);
       break;
-    }
   }
 }
 
@@ -6200,24 +6177,26 @@ void MacroAssemblerRiscv64::ma_call(ImmPtr dest) {
 
 void MacroAssemblerRiscv64::CompareIsNotNanF32(Register rd, FPURegister cmp1,
                                                FPURegister cmp2) {
-  UseScratchRegisterScope temps(this);
-  BlockTrampolinePoolScope block_trampoline_pool(this, 3);
-  Register scratch = temps.Acquire();
+  feq_s(rd, cmp1, cmp1);  // rd <- !isNan(cmp1)
+  if (cmp1 != cmp2) {
+    UseScratchRegisterScope temps(this);
+    Register scratch = temps.Acquire();
 
-  feq_s(rd, cmp1, cmp1);       // rd <- !isNan(cmp1)
-  feq_s(scratch, cmp2, cmp2);  // scratch <- !isNaN(cmp2)
-  ma_and(rd, rd, scratch);     // rd <- !isNan(cmp1) && !isNan(cmp2)
+    feq_s(scratch, cmp2, cmp2);  // scratch <- !isNaN(cmp2)
+    ma_and(rd, rd, scratch);     // rd <- !isNan(cmp1) && !isNan(cmp2)
+  }
 }
 
 void MacroAssemblerRiscv64::CompareIsNotNanF64(Register rd, FPURegister cmp1,
                                                FPURegister cmp2) {
-  UseScratchRegisterScope temps(this);
-  BlockTrampolinePoolScope block_trampoline_pool(this, 3);
-  Register scratch = temps.Acquire();
+  feq_d(rd, cmp1, cmp1);  // rd <- !isNan(cmp1)
+  if (cmp1 != cmp2) {
+    UseScratchRegisterScope temps(this);
+    Register scratch = temps.Acquire();
 
-  feq_d(rd, cmp1, cmp1);       // rd <- !isNan(cmp1)
-  feq_d(scratch, cmp2, cmp2);  // scratch <- !isNaN(cmp2)
-  ma_and(rd, rd, scratch);     // rd <- !isNan(cmp1) && !isNan(cmp2)
+    feq_d(scratch, cmp2, cmp2);  // scratch <- !isNaN(cmp2)
+    ma_and(rd, rd, scratch);     // rd <- !isNan(cmp1) && !isNan(cmp2)
+  }
 }
 
 void MacroAssemblerRiscv64::CompareIsNanF32(Register rd, FPURegister cmp1,
@@ -6230,6 +6209,26 @@ void MacroAssemblerRiscv64::CompareIsNanF64(Register rd, FPURegister cmp1,
                                             FPURegister cmp2) {
   CompareIsNotNanF64(rd, cmp1, cmp2);  // rd <- !isNan(cmp1) && !isNan(cmp2)
   ma_xor(rd, rd, Operand(1));          // rd <- isNan(cmp1) || isNan(cmp2)
+}
+
+void MacroAssemblerRiscv64::BranchFloat32(DoubleCondition cc,
+                                          FloatRegister frs1,
+                                          FloatRegister frs2, Label* L,
+                                          JumpKind jumpKind) {
+  UseScratchRegisterScope temps(this);
+  Register scratch = temps.Acquire();
+  ma_compareF32(scratch, cc, frs1, frs2);
+  ma_b(scratch, Imm32(0), L, NotEqual, jumpKind);
+}
+
+void MacroAssemblerRiscv64::BranchFloat64(DoubleCondition cc,
+                                          FloatRegister frs1,
+                                          FloatRegister frs2, Label* L,
+                                          JumpKind jumpKind) {
+  UseScratchRegisterScope temps(this);
+  Register scratch = temps.Acquire();
+  ma_compareF64(scratch, cc, frs1, frs2);
+  ma_b(scratch, Imm32(0), L, NotEqual, jumpKind);
 }
 
 void MacroAssemblerRiscv64::Clz32(Register rd, Register xx) {
@@ -6663,11 +6662,13 @@ void MacroAssemblerRiscv64::FloatMinMaxHelper(FPURegister dst, FPURegister src1,
   MOZ_ASSERT((std::is_same<F_TYPE, float>::value) ||
              (std::is_same<F_TYPE, double>::value));
 
-  if (src1 == src2 && dst != src1) {
-    if (std::is_same<float, F_TYPE>::value) {
-      fmv_s(dst, src1);
-    } else {
-      fmv_d(dst, src1);
+  if (src1 == src2) {
+    if (dst != src1) {
+      if (std::is_same<float, F_TYPE>::value) {
+        fmv_s(dst, src1);
+      } else {
+        fmv_d(dst, src1);
+      }
     }
     return;
   }
@@ -6678,14 +6679,11 @@ void MacroAssemblerRiscv64::FloatMinMaxHelper(FPURegister dst, FPURegister src1,
   // operand is NaN; but for JS, if any operand is NaN, result is Nan. The
   // following handles the discrepency between handling of NaN between ISA and
   // JS semantics
-  UseScratchRegisterScope temps(this);
-  Register scratch = temps.Acquire();
   if (std::is_same<float, F_TYPE>::value) {
-    CompareIsNotNanF32(scratch, src1, src2);
+    BranchFloat32(Assembler::DoubleUnordered, src1, src2, &nan, ShortJump);
   } else {
-    CompareIsNotNanF64(scratch, src1, src2);
+    BranchFloat64(Assembler::DoubleUnordered, src1, src2, &nan, ShortJump);
   }
-  BranchFalseF(scratch, &nan);
 
   if (kind == MaxMinKind::kMax) {
     if (std::is_same<float, F_TYPE>::value) {
@@ -6735,38 +6733,6 @@ void MacroAssemblerRiscv64::Float64Min(FPURegister dst, FPURegister src1,
                                        FPURegister src2) {
   comment(__FUNCTION__);
   FloatMinMaxHelper<double>(dst, src1, src2, MaxMinKind::kMin);
-}
-
-void MacroAssemblerRiscv64::BranchTrueShortF(Register rs, Label* target) {
-  ma_branch(target, NotEqual, rs, Operand(zero_reg));
-}
-
-void MacroAssemblerRiscv64::BranchFalseShortF(Register rs, Label* target) {
-  ma_branch(target, Equal, rs, Operand(zero_reg));
-}
-
-void MacroAssemblerRiscv64::BranchTrueF(Register rs, Label* target) {
-  bool long_branch = target->bound() ? !is_near(target) : false;
-  if (long_branch) {
-    Label skip;
-    BranchFalseShortF(rs, &skip);
-    BranchLong(target);
-    bind(&skip);
-  } else {
-    BranchTrueShortF(rs, target);
-  }
-}
-
-void MacroAssemblerRiscv64::BranchFalseF(Register rs, Label* target) {
-  bool long_branch = target->bound() ? !is_near(target) : false;
-  if (long_branch) {
-    Label skip;
-    BranchTrueShortF(rs, &skip);
-    BranchLong(target);
-    bind(&skip);
-  } else {
-    BranchFalseShortF(rs, target);
-  }
 }
 
 void MacroAssemblerRiscv64::Ror(Register rd, Register rs, const Operand& rt) {

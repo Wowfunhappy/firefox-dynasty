@@ -11,8 +11,8 @@ use crate::dom::{TElement, TNode};
 use crate::invalidation::element::element_wrapper::{ElementSnapshot, ElementWrapper};
 use crate::invalidation::element::invalidation_map::*;
 use crate::invalidation::element::invalidator::{
-    note_scope_dependency_force_at_subject, DescendantInvalidationLists, InvalidationAddOverride,
-    InvalidationVector, SiblingTraversalMap,
+    any_next_has_scope_in_negation, note_scope_dependency_force_at_subject,
+    DescendantInvalidationLists, InvalidationVector, SiblingTraversalMap,
 };
 use crate::invalidation::element::invalidator::{Invalidation, InvalidationProcessor};
 use crate::invalidation::element::restyle_hints::RestyleHint;
@@ -563,17 +563,12 @@ where
             return;
         }
 
-        if self.check_dependency(dependency, set_scope)
-            || matches!(
-                dependency.invalidation_kind(),
-                DependencyInvalidationKind::Scope(_)
-            )
-        {
-            return self.note_dependency(dependency);
+        if self.check_dependency(dependency, set_scope) {
+            return self.note_dependency(dependency, set_scope);
         }
     }
 
-    fn note_dependency(&mut self, dependency: &'selectors Dependency) {
+    fn note_dependency(&mut self, dependency: &'selectors Dependency, set_scope: bool) {
         debug_assert!(self.dependency_may_be_relevant(dependency));
         let invalidation_kind = dependency.invalidation_kind();
         if matches!(
@@ -583,7 +578,7 @@ where
             if let Some(ref next) = dependency.next {
                 // We know something changed in the inner selector, go outwards
                 // now.
-                self.scan_dependency(&next.as_ref().slice()[0], false);
+                self.scan_dependency(&next.as_ref().slice()[0], set_scope);
             } else {
                 self.invalidates_self = true;
             }
@@ -592,21 +587,18 @@ where
 
         if let DependencyInvalidationKind::Scope(scope_kind) = invalidation_kind {
             if dependency.selector_offset == 0 {
-                if scope_kind == ScopeDependencyInvalidationKind::ScopeEnd {
+                let force_add = any_next_has_scope_in_negation(dependency);
+                if scope_kind == ScopeDependencyInvalidationKind::ScopeEnd || force_add {
                     let invalidations = note_scope_dependency_force_at_subject(
                         dependency,
                         self.matching_context.current_host.clone(),
+                        self.matching_context.scope_element,
+                        force_add,
                     );
-                    for (invalidation, override_type) in invalidations {
-                        match override_type {
-                            InvalidationAddOverride::Descendant => self
-                                .descendant_invalidations
-                                .dom_descendants
-                                .push(invalidation),
-                            InvalidationAddOverride::Sibling => {
-                                self.sibling_invalidations.push(invalidation)
-                            },
-                        }
+                    for invalidation in invalidations {
+                        self.descendant_invalidations
+                            .dom_descendants
+                            .push(invalidation);
                     }
                     self.invalidates_self = true;
                 } else if let Some(ref next) = dependency.next {
@@ -614,25 +606,8 @@ where
                         self.scan_dependency(dep, true);
                     }
                 }
-            } else {
-                let invalidation = Invalidation::new(
-                    &dependency,
-                    self.matching_context.current_host.clone(),
-                    None,
-                );
-
-                let combinator = dependency
-                    .selector
-                    .combinator_at_match_order(dependency.selector_offset - 1);
-                if combinator.is_sibling() {
-                    self.sibling_invalidations.push(invalidation);
-                } else {
-                    self.descendant_invalidations
-                        .dom_descendants
-                        .push(invalidation);
-                }
+                return;
             }
-            return;
         }
 
         debug_assert_ne!(dependency.selector_offset, 0);
@@ -684,7 +659,14 @@ pub(crate) fn push_invalidation<'a>(
         DependencyInvalidationKind::FullSelector => unreachable!(),
         DependencyInvalidationKind::Relative(_) => unreachable!(),
         DependencyInvalidationKind::Scope(_) => {
-            descendant_invalidations.dom_descendants.push(invalidation);
+            // Scope invalidation kind matters only upon reaching the subject.
+            // Examine the combinator to the right of the compound.
+            let combinator = invalidation.combinator_to_right();
+            if combinator.is_sibling() {
+                sibling_invalidations.push(invalidation);
+            } else {
+                descendant_invalidations.dom_descendants.push(invalidation);
+            }
             true
         },
         DependencyInvalidationKind::Normal(kind) => match kind {

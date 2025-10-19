@@ -48,6 +48,7 @@
 #include "mozilla/layers/WebRenderLayerManager.h"
 #include "mozilla/layers/APZInputBridge.h"
 #include "mozilla/layers/IAPZCTreeManager.h"
+#include "mozilla/widget/WindowOcclusionState.h"
 #include "mozilla/Likely.h"
 #include "mozilla/Maybe.h"
 #include "mozilla/MiscEvents.h"
@@ -645,10 +646,10 @@ void nsWindow::OnDestroy(void) {
   nsCOMPtr<nsIWidget> kungFuDeathGrip = this;
 
   // release references to children, device context, toolkit + app shell
-  nsBaseWidget::OnDestroy();
+  nsIWidget::OnDestroy();
 
   // Remove association between this object and its parent and siblings.
-  nsBaseWidget::Destroy();
+  nsIWidget::Destroy();
 
   NotifyWindowDestroyed();
 }
@@ -692,7 +693,7 @@ void nsWindow::Destroy() {
     }
   }
 
-  nsIRollupListener* rollupListener = nsBaseWidget::GetActiveRollupListener();
+  nsIRollupListener* rollupListener = nsIWidget::GetActiveRollupListener();
   if (rollupListener) {
     nsCOMPtr<nsIWidget> rollupWidget = rollupListener->GetRollupWidget();
     if (static_cast<nsIWidget*>(this) == rollupWidget) {
@@ -778,18 +779,6 @@ DesktopToLayoutDeviceScale nsWindow::GetDesktopToDeviceScale() {
 
   // In Gtk/X11, we manage windows using device pixels.
   return DesktopToLayoutDeviceScale(1.0);
-}
-
-DesktopToLayoutDeviceScale nsWindow::GetDesktopToDeviceScaleByScreen() {
-#ifdef MOZ_WAYLAND
-  if (GdkIsWaylandDisplay()) {
-    // In wayland there's no absolute screen position, so we need to use the
-    // scale factor of our top level, which is what FractionalScaleFactor does,
-    // luckily.
-    return DesktopToLayoutDeviceScale(FractionalScaleFactor());
-  }
-#endif
-  return nsBaseWidget::GetDesktopToDeviceScale();
 }
 
 bool nsWindow::WidgetTypeSupportsAcceleration() {
@@ -943,7 +932,7 @@ void nsWindow::ConstrainSize(int* aWidth, int* aHeight) {
   // need to also constrain inner sizes as inner, rather than outer.
   *aWidth -= mClientMargin.LeftRight();
   *aHeight -= mClientMargin.TopBottom();
-  nsBaseWidget::ConstrainSize(aWidth, aHeight);
+  nsIWidget::ConstrainSize(aWidth, aHeight);
   *aWidth += mClientMargin.LeftRight();
   *aHeight += mClientMargin.TopBottom();
 }
@@ -1128,29 +1117,23 @@ void nsWindow::ResizeInt(const Maybe<LayoutDeviceIntPoint>& aMove,
   NativeMoveResize(moved, resized);
 }
 
-void nsWindow::Resize(double aWidth, double aHeight, bool aRepaint) {
-  double scale =
-      BoundsUseDesktopPixels() ? GetDesktopToDeviceScale().scale : 1.0;
-  LOG("nsWindow::Resize %.2f x %.2f (scaled %.2f x %.2f)", aWidth, aHeight,
-      scale * aWidth, scale * aHeight);
-
-  auto size = LayoutDeviceIntSize::Round(scale * aWidth, scale * aHeight);
-
+void nsWindow::Resize(const DesktopSize& aSize, bool aRepaint) {
+  auto size = LayoutDeviceIntSize::Round(aSize * GetDesktopToDeviceScale());
+  LOG("nsWindow::Resize %s (scaled %s)", ToString(aSize).c_str(),
+      ToString(size).c_str());
   ResizeInt(Nothing(), size);
 }
 
-void nsWindow::Resize(double aX, double aY, double aWidth, double aHeight,
-                      bool aRepaint) {
-  double scale =
-      BoundsUseDesktopPixels() ? GetDesktopToDeviceScale().scale : 1.0;
-  auto size = LayoutDeviceIntSize::Round(scale * aWidth, scale * aHeight);
-  auto topLeft = LayoutDeviceIntPoint::Round(scale * aX, scale * aY);
+void nsWindow::Resize(const DesktopRect& aRect, bool aRepaint) {
+  auto size =
+      LayoutDeviceIntSize::Round(aRect.Size() * GetDesktopToDeviceScale());
+  auto topLeft =
+      LayoutDeviceIntPoint::Round(aRect.TopLeft() * GetDesktopToDeviceScale());
 
-  LOG("nsWindow::Resize [%.2f,%.2f] -> [%.2f x %.2f] scaled [%.2f,%.2f] -> "
-      "[%.2f x %.2f] "
-      "repaint %d\n",
-      aX, aY, aWidth, aHeight, scale * aX, scale * aY, scale * aWidth,
-      scale * aHeight, aRepaint);
+  LOG("nsWindow::Resize [%.2f,%.2f] -> [%.2f x %.2f] scaled [%d,%d] -> "
+      "[%d x %d] repaint %d\n",
+      aRect.x, aRect.y, aRect.width, aRect.height, topLeft.x.value,
+      topLeft.y.value, size.width, size.height, aRepaint);
 
   ResizeInt(Some(topLeft), size);
 }
@@ -1159,11 +1142,9 @@ void nsWindow::Enable(bool aState) { mEnabled = aState; }
 
 bool nsWindow::IsEnabled() const { return mEnabled; }
 
-void nsWindow::Move(double aX, double aY) {
-  double scale =
-      BoundsUseDesktopPixels() ? GetDesktopToDeviceScale().scale : 1.0;
-  const LayoutDeviceIntPoint request(NSToIntRound(aX * scale),
-                                     NSToIntRound(aY * scale));
+void nsWindow::Move(const DesktopPoint& aTopLeft) {
+  auto request =
+      LayoutDeviceIntPoint::Round(aTopLeft * GetDesktopToDeviceScale());
   LOG("nsWindow::Move to %d x %d\n", request.x.value, request.y.value);
 
   if (mSizeMode != nsSizeMode_Normal && IsTopLevelWidget()) {
@@ -3874,8 +3855,8 @@ void nsWindow::CreateCompositorVsyncDispatcher() {
   if (!mWaylandVsyncSource) {
     LOG_VSYNC(
         "  mWaylandVsyncSource is missing, create "
-        "nsBaseWidget::CompositorVsyncDispatcher()");
-    nsBaseWidget::CreateCompositorVsyncDispatcher();
+        "nsIWidget::CompositorVsyncDispatcher()");
+    nsIWidget::CreateCompositorVsyncDispatcher();
     return;
   }
   if (!mCompositorVsyncDispatcherLock) {
@@ -6003,7 +5984,7 @@ bool nsWindow::ConfigureX11GLVisual() {
 #endif
 
 nsAutoCString nsWindow::GetFrameTag() const {
-  if (nsIFrame* frame = GetFrame()) {
+  if (nsIFrame* frame = GetPopupFrame()) {
 #ifdef DEBUG_FRAME_DUMP
     return frame->ListTag();
 #else
@@ -6083,9 +6064,8 @@ void nsWindow::ConfigureCompositor() {
 }
 
 nsresult nsWindow::Create(nsIWidget* aParent, const LayoutDeviceIntRect& aRect,
-                          widget::InitData* aInitData) {
-  MOZ_DIAGNOSTIC_ASSERT(!aInitData ||
-                        aInitData->mWindowType != WindowType::Invisible);
+                          const widget::InitData& aInitData) {
+  MOZ_DIAGNOSTIC_ASSERT(aInitData.mWindowType != WindowType::Invisible);
 
 #ifdef ACCESSIBILITY
   // Send a DBus message to check whether a11y is enabled
@@ -6118,8 +6098,8 @@ nsresult nsWindow::Create(nsIWidget* aParent, const LayoutDeviceIntRect& aRect,
   mLastMoveRequest = mBounds.TopLeft();
 
   const bool popupNeedsAlphaVisual =
-      mWindowType == WindowType::Popup && aInitData &&
-      aInitData->mTransparencyMode == TransparencyMode::Transparent;
+      mWindowType == WindowType::Popup &&
+      aInitData.mTransparencyMode == TransparencyMode::Transparent;
 
   // Figure out our parent window.
   auto* parentnsWindow = static_cast<nsWindow*>(aParent);
@@ -6133,9 +6113,9 @@ nsresult nsWindow::Create(nsIWidget* aParent, const LayoutDeviceIntRect& aRect,
     return NS_ERROR_FAILURE;
   }
 
-  mAlwaysOnTop = aInitData && aInitData->mAlwaysOnTop;
-  mIsAlert = aInitData && aInitData->mIsAlert;
-  mIsDragPopup = aInitData && aInitData->mIsDragPopup;
+  mAlwaysOnTop = aInitData.mAlwaysOnTop;
+  mIsAlert = aInitData.mIsAlert;
+  mIsDragPopup = aInitData.mIsDragPopup;
 
   // For popups, use the standard GtkWindowType GTK_WINDOW_POPUP,
   // which will use a Window with the override-redirect attribute
@@ -6144,7 +6124,6 @@ nsresult nsWindow::Create(nsIWidget* aParent, const LayoutDeviceIntRect& aRect,
   // popup window position.
   GtkWindowType type = GTK_WINDOW_TOPLEVEL;
   if (mWindowType == WindowType::Popup) {
-    MOZ_ASSERT(aInitData);
     type = GTK_WINDOW_POPUP;
   }
   mShell = gtk_window_new(type);
@@ -6232,7 +6211,6 @@ nsresult nsWindow::Create(nsIWidget* aParent, const LayoutDeviceIntRect& aRect,
       LOG("  set parent window [%p]\n", parentnsWindow);
     }
   } else if (mWindowType == WindowType::Popup) {
-    MOZ_ASSERT(aInitData);
     mGtkWindowRoleName = "Popup";
 
     LOG("  nsWindow::Create() Popup");
@@ -6359,7 +6337,6 @@ nsresult nsWindow::Create(nsIWidget* aParent, const LayoutDeviceIntRect& aRect,
   }
 
   if (mWindowType == WindowType::Popup) {
-    MOZ_ASSERT(aInitData);
     // gdk does not automatically set the cursor for "temporary"
     // windows, which are what gtk uses for popups.
 
@@ -8840,7 +8817,7 @@ nsIWidget::WindowRenderer* nsWindow::GetWindowRenderer() {
     return mWindowRenderer;
   }
 
-  return nsBaseWidget::GetWindowRenderer();
+  return nsIWidget::GetWindowRenderer();
 }
 
 void nsWindow::DidGetNonBlankPaint() {
@@ -8862,10 +8839,10 @@ void nsWindow::DidGetNonBlankPaint() {
  * to render into with compositor.
  *
  * SetCompositorWidgetDelegate(delegate) is called from
- * nsBaseWidget::CreateCompositor(), i.e. nsWindow::GetWindowRenderer().
+ * nsIWidget::CreateCompositor(), i.e. nsWindow::GetWindowRenderer().
  *
  * SetCompositorWidgetDelegate(null) is called from
- * nsBaseWidget::DestroyCompositor().
+ * nsIWidget::DestroyCompositor().
  */
 void nsWindow::SetCompositorWidgetDelegate(CompositorWidgetDelegate* delegate) {
   LOG("nsWindow::SetCompositorWidgetDelegate %p mIsMapped %d "
@@ -9741,11 +9718,14 @@ void nsWindow::UpdateMozWindowActive() {
 void nsWindow::ForceTitlebarRedraw() {
   MOZ_ASSERT(mDrawInTitlebar, "We should not redraw invisible titlebar.");
 
-  if (!mWidgetListener || !mWidgetListener->GetPresShell()) {
+  if (!mWidgetListener) {
     return;
   }
-
-  nsIFrame* frame = GetFrame();
+  PresShell* ps = mWidgetListener->GetPresShell();
+  if (!ps) {
+    return;
+  }
+  nsIFrame* frame = ps->GetRootFrame();
   if (!frame) {
     return;
   }

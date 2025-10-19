@@ -61,7 +61,7 @@ namespace JS {
 // sees fit.
 using MicroTask = JS::Value;
 
-JS_PUBLIC_API bool IsJSMicroTask(Handle<JS::Value> hv);
+JS_PUBLIC_API bool IsJSMicroTask(const JS::Value& hv);
 
 // Run a MicroTask that is known to be a JS MicroTask. This will crash
 // if provided an invalid task kind.
@@ -157,6 +157,12 @@ JS_PUBLIC_API JSObject* MaybeGetHostDefinedGlobalFromJSMicroTask(
     const MicroTask& entry);
 
 JS_PUBLIC_API JSObject* MaybeGetPromiseFromJSMicroTask(const MicroTask& entry);
+
+// Get the flow ID from a JS microtask for profiler markers.
+// This only returns false if entry has become a dead wrapper,
+// in which case the microtask doesn't run anyhow.
+JS_PUBLIC_API bool GetFlowIdFromJSMicroTask(const MicroTask& entry,
+                                            uint64_t* uid);
 
 }  // namespace JS
 #endif /* js_friend_MicroTask_h */

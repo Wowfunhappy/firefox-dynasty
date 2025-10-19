@@ -89,6 +89,7 @@
 #include "nsImageFrame.h"
 #include "nsInlineFrame.h"
 #include "nsLayoutUtils.h"
+#include "nsMenuPopupFrame.h"
 #include "nsNameSpaceManager.h"
 #include "nsPlaceholderFrame.h"
 #include "nsPresContext.h"
@@ -351,9 +352,14 @@ bool nsIFrame::IsVisibleConsideringAncestors(uint32_t aFlags) const {
     // involves loading more memory. It's only allowed in chrome sheets so let's
     // only support it in the parent process so we can mostly optimize this out
     // in content processes.
-    if (XRE_IsParentProcess() &&
-        frame->StyleUIReset()->mMozSubtreeHiddenOnlyVisually) {
-      return false;
+    if (XRE_IsParentProcess()) {
+      if (const nsMenuPopupFrame* popup = do_QueryFrame(frame);
+          popup && !popup->IsOpen()) {
+        return false;
+      }
+      if (frame->StyleUIReset()->mMozSubtreeHiddenOnlyVisually) {
+        return false;
+      }
     }
 
     // This method is used to determine if a frame is focusable, because it's
@@ -937,8 +943,7 @@ void nsIFrame::Destroy(DestroyContext& aContext) {
     ps->ClearFrameRefs(this);
   }
 
-  nsView* view = GetView();
-  if (view) {
+  if (nsView* view = GetView()) {
     view->SetFrame(nullptr);
     view->Destroy();
   }
@@ -4175,8 +4180,9 @@ static bool ShouldSkipFrame(nsDisplayListBuilder* aBuilder,
       !aFrame->IsSelected()) {
     return true;
   }
-  static const nsFrameState skipFlags =
-      NS_FRAME_TOO_DEEP_IN_FRAME_TREE | NS_FRAME_IS_NONDISPLAY;
+  static const nsFrameState skipFlags = NS_FRAME_TOO_DEEP_IN_FRAME_TREE |
+                                        NS_FRAME_IS_NONDISPLAY |
+                                        NS_FRAME_POSITION_VISIBILITY_HIDDEN;
   if (aFrame->HasAnyStateBits(skipFlags)) {
     return true;
   }
@@ -7120,7 +7126,7 @@ LogicalSize nsIFrame::ComputeAbsolutePosAutoSize(
   const auto boxSizingAdjust = stylePos->mBoxSizing == StyleBoxSizing::Border
                                    ? aBorderPadding
                                    : LogicalSize(aWM);
-  auto shouldStretch = [](StyleSelfAlignment aAlignment, const nsIFrame* aFrame,
+  auto shouldStretch = [](StyleAlignFlags aAlignment, const nsIFrame* aFrame,
                           bool aStartIsAuto, bool aEndIsAuto) {
     if (aStartIsAuto || aEndIsAuto) {
       // Note(dshin, bug 1930427): This is not part of the current spec [1];
@@ -7134,13 +7140,13 @@ LogicalSize nsIFrame::ComputeAbsolutePosAutoSize(
       return false;
     }
     // Don't care about flag bits for auto-sizing.
-    aAlignment &= ~StyleSelfAlignment::FLAG_BITS;
+    aAlignment &= ~StyleAlignFlags::FLAG_BITS;
 
-    if (aAlignment == StyleSelfAlignment::STRETCH) {
+    if (aAlignment == StyleAlignFlags::STRETCH) {
       return true;
     }
 
-    if (aAlignment == StyleSelfAlignment::NORMAL) {
+    if (aAlignment == StyleAlignFlags::NORMAL) {
       // Some replaced elements behave as semi-replaced elements - we want them
       // to stretch (See bug 1740580).
       return !aFrame->HasReplacedSizing() && !aFrame->IsTableWrapperFrame();
@@ -7155,15 +7161,15 @@ LogicalSize nsIFrame::ComputeAbsolutePosAutoSize(
   // Self alignment properties translate `auto` to normal for this purpose.
   // https://drafts.csswg.org/css-align-3/#valdef-justify-self-auto
   const auto inlineAlignSelf = parentWM.IsOrthogonalTo(aWM)
-                                   ? stylePos->UsedAlignSelf(nullptr)._0
-                                   : stylePos->UsedJustifySelf(nullptr)._0;
+                                   ? stylePos->UsedAlignSelf(nullptr)
+                                   : stylePos->UsedJustifySelf(nullptr);
   const auto blockAlignSelf = parentWM.IsOrthogonalTo(aWM)
-                                  ? stylePos->UsedJustifySelf(nullptr)._0
-                                  : stylePos->UsedAlignSelf(nullptr)._0;
+                                  ? stylePos->UsedJustifySelf(nullptr)
+                                  : stylePos->UsedAlignSelf(nullptr);
   const auto iShouldStretch = shouldStretch(
-      inlineAlignSelf, this, iStartOffsetIsAuto, iEndOffsetIsAuto);
-  const auto bShouldStretch =
-      shouldStretch(blockAlignSelf, this, bStartOffsetIsAuto, bEndOffsetIsAuto);
+      inlineAlignSelf._0, this, iStartOffsetIsAuto, iEndOffsetIsAuto);
+  const auto bShouldStretch = shouldStretch(
+      blockAlignSelf._0, this, bStartOffsetIsAuto, bEndOffsetIsAuto);
   const auto iSizeIsAuto = styleISize->IsAuto();
   // Note(dshin, bug 1789477): `auto` in the context of abs-element uses
   // stretch-fit sizing, given specific alignment conditions [1]. Effectively,
@@ -7897,14 +7903,10 @@ nsRect nsIFrame::GetScreenRectInAppUnits() const {
         parentScreenRectAppUnits.TopLeft() + rootFrameOffsetInParent;
     rootScreenPos.x = NS_round(parentScale * rootPt.x);
     rootScreenPos.y = NS_round(parentScale * rootPt.y);
-  } else {
-    nsCOMPtr<nsIWidget> rootWidget =
-        presContext->PresShell()->GetViewManager()->GetRootWidget();
-    if (rootWidget) {
-      LayoutDeviceIntPoint rootDevPx = rootWidget->WidgetToScreenOffset();
-      rootScreenPos.x = presContext->DevPixelsToAppUnits(rootDevPx.x);
-      rootScreenPos.y = presContext->DevPixelsToAppUnits(rootDevPx.y);
-    }
+  } else if (nsCOMPtr<nsIWidget> rootWidget = presContext->GetRootWidget()) {
+    LayoutDeviceIntPoint rootDevPx = rootWidget->WidgetToScreenOffset();
+    rootScreenPos.x = presContext->DevPixelsToAppUnits(rootDevPx.x);
+    rootScreenPos.y = presContext->DevPixelsToAppUnits(rootDevPx.y);
   }
 
   return nsRect(rootScreenPos + GetOffsetTo(rootFrame), GetSize());
@@ -7932,16 +7934,44 @@ void nsIFrame::GetOffsetFromView(nsPoint& aOffset, nsView** aView) const {
 }
 
 nsIWidget* nsIFrame::GetNearestWidget() const {
-  return GetClosestView()->GetNearestWidget(nullptr);
+  if (!HasAnyStateBits(NS_FRAME_IN_POPUP)) {
+    return PresContext()->GetRootWidget();
+  }
+  nsPoint unused;
+  return GetNearestWidget(unused);
 }
 
 nsIWidget* nsIFrame::GetNearestWidget(nsPoint& aOffset) const {
-  nsPoint offsetToView;
-  nsPoint offsetToWidget;
-  nsIWidget* widget =
-      GetClosestView(&offsetToView)->GetNearestWidget(&offsetToWidget);
-  aOffset = offsetToView + offsetToWidget;
-  return widget;
+  aOffset.MoveTo(0, 0);
+  nsIFrame* frame = const_cast<nsIFrame*>(this);
+  do {
+    if (frame->IsMenuPopupFrame()) {
+      return static_cast<nsMenuPopupFrame*>(frame)->GetWidget();
+    }
+    if (auto* view = frame->GetView()) {
+      // NOTE(emilio): NS_FRAME_IN_POPUP gets propagated across documents, so we
+      // just need to be careful to not jump to the view hierarchy in this case,
+      // since popups are not part of it.
+      if (!frame->HasAnyStateBits(NS_FRAME_IN_POPUP)) {
+        nsPoint offsetToWidget;
+        nsIWidget* widget = view->GetNearestWidget(&offsetToWidget);
+        aOffset += offsetToWidget;
+        return widget;
+      }
+      MOZ_ASSERT(!view->GetWidget(),
+                 "Shouldn't have a nested widget inside a popup");
+    }
+    aOffset += frame->GetPosition();
+    nsPoint crossDocOffset;
+    frame =
+        nsLayoutUtils::GetCrossDocParentFrameInProcess(frame, &crossDocOffset);
+    aOffset += crossDocOffset;
+    MOZ_ASSERT(frame, "Root frame should have a widget");
+    if (!frame) {
+      break;
+    }
+  } while (true);
+  return PresContext()->GetRootWidget();
 }
 
 Matrix4x4Flagged nsIFrame::GetTransformMatrix(ViewportType aViewportType,
@@ -10392,9 +10422,7 @@ nsIFrame::SelectablePeekReport nsIFrame::GetFrameFromDirection(
       return result;
     }
 
-    bool atLineEdge;
-    MOZ_TRY_VAR(
-        atLineEdge,
+    bool atLineEdge = MOZ_TRY(
         needsVisualTraversal
             ? traversedFrame->IsVisuallyAtLineEdge(it, thisLine, aDirection)
             : traversedFrame->IsLogicallyAtLineEdge(it, thisLine, aDirection));

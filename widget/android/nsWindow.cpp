@@ -1345,7 +1345,7 @@ class LayerViewSupport final
       return;
     }
 
-    gkWindow->Resize(aLeft, aTop, aWidth, aHeight, /* repaint */ false);
+    gkWindow->DoResize(aLeft, aTop, aWidth, aHeight, /* repaint */ false);
   }
 
   void NotifyMemoryPressure() {
@@ -2243,7 +2243,7 @@ nsWindow::~nsWindow() {
   ALOG("nsWindow %p destructor", (void*)this);
   // The mCompositorSession should have been cleaned up in nsWindow::Destroy()
   // DestroyLayerManager() will call DestroyCompositor() which will crash if
-  // called from nsBaseWidget destructor. See Bug 1392705
+  // called from nsIWidget destructor. See Bug 1392705
   MOZ_ASSERT(!mCompositorSession);
 }
 
@@ -2253,7 +2253,7 @@ bool nsWindow::IsTopLevel() {
 }
 
 nsresult nsWindow::Create(nsIWidget* aParent, const LayoutDeviceIntRect& aRect,
-                          InitData* aInitData) {
+                          const InitData& aInitData) {
   ALOG("nsWindow[%p]::Create %p [%d %d %d %d]", (void*)this, (void*)aParent,
        aRect.x, aRect.y, aRect.width, aRect.height);
 
@@ -2270,8 +2270,7 @@ nsresult nsWindow::Create(nsIWidget* aParent, const LayoutDeviceIntRect& aRect,
   mBounds = rect;
   SetSizeConstraints(SizeConstraints());
 
-  MOZ_DIAGNOSTIC_ASSERT(!aInitData ||
-                        aInitData->mWindowType != WindowType::Invisible);
+  MOZ_DIAGNOSTIC_ASSERT(aInitData.mWindowType != WindowType::Invisible);
 
   BaseCreate(aParent, aInitData);
   MOZ_ASSERT_IF(!IsTopLevel(), aParent);
@@ -2290,7 +2289,7 @@ nsresult nsWindow::Create(nsIWidget* aParent, const LayoutDeviceIntRect& aRect,
 void nsWindow::Destroy() {
   MutexAutoLock lock(mDestroyMutex);
 
-  nsBaseWidget::mOnDestroyCalled = true;
+  nsIWidget::mOnDestroyCalled = true;
 
   // Disassociate our native object from GeckoView.
   mGeckoViewSupport.Detach();
@@ -2300,15 +2299,15 @@ void nsWindow::Destroy() {
 
   // Ensure the compositor has been shutdown before this nsWindow is potentially
   // deleted
-  nsBaseWidget::DestroyCompositor();
+  nsIWidget::DestroyCompositor();
 
-  nsBaseWidget::Destroy();
+  nsIWidget::Destroy();
 
   if (IsTopLevel()) {
     gTopLevelWindows.RemoveElement(this);
   }
 
-  nsBaseWidget::OnDestroy();
+  nsIWidget::OnDestroy();
 
 #ifdef DEBUG_ANDROID_WIDGET
   DumpWindows();
@@ -2470,7 +2469,7 @@ void nsWindow::Show(bool aState) {
 bool nsWindow::IsVisible() const { return mIsVisible; }
 
 void nsWindow::ConstrainPosition(DesktopIntPoint& aPoint) {
-  ALOG("nsWindow[%p]::ConstrainPosition [%d %d]", (void*)this, aPoint.x.value,
+  ALOG("nsWindow[%p]::ConstrainPosition [%d %d]", this, aPoint.x.value,
        aPoint.y.value);
 
   // Constrain toplevel windows; children we don't care about
@@ -2479,19 +2478,25 @@ void nsWindow::ConstrainPosition(DesktopIntPoint& aPoint) {
   }
 }
 
-void nsWindow::Move(double aX, double aY) {
-  if (IsTopLevel()) return;
+void nsWindow::Move(const DesktopPoint& aPoint) {
+  if (IsTopLevel()) {
+    return;
+  }
 
-  Resize(aX, aY, mBounds.width, mBounds.height, true);
+  DoResize(aPoint.x, aPoint.y, mBounds.width, mBounds.height, true);
 }
 
-void nsWindow::Resize(double aWidth, double aHeight, bool aRepaint) {
-  Resize(mBounds.x, mBounds.y, aWidth, aHeight, aRepaint);
+void nsWindow::Resize(const DesktopSize& aSize, bool aRepaint) {
+  DoResize(mBounds.x, mBounds.y, aSize.width, aSize.height, aRepaint);
 }
 
-void nsWindow::Resize(double aX, double aY, double aWidth, double aHeight,
-                      bool aRepaint) {
-  ALOG("nsWindow[%p]::Resize [%f %f %f %f] (repaint %d)", (void*)this, aX, aY,
+void nsWindow::Resize(const DesktopRect& aRect, bool aRepaint) {
+  DoResize(aRect.x, aRect.y, aRect.width, aRect.height, aRepaint);
+}
+
+void nsWindow::DoResize(double aX, double aY, double aWidth, double aHeight,
+                        bool aRepaint) {
+  ALOG("nsWindow[%p]::DoResize [%f %f %f %f] (repaint %d)", this, aX, aY,
        aWidth, aHeight, aRepaint);
 
   LayoutDeviceIntRect oldBounds = mBounds;
@@ -2709,7 +2714,7 @@ void nsWindow::CreateLayerManager() {
 
 void nsWindow::NotifyCompositorSessionLost(
     mozilla::layers::CompositorSession* aSession) {
-  nsBaseWidget::NotifyCompositorSessionLost(aSession);
+  nsIWidget::NotifyCompositorSessionLost(aSession);
 
   DispatchToUiThread("nsWindow::NotifyCompositorSessionLost",
                      [lvs = mLayerViewSupport] {
@@ -3257,7 +3262,7 @@ uint32_t nsWindow::GetMaxTouchPoints() const {
 void nsWindow::UpdateZoomConstraints(
     const uint32_t& aPresShellId, const ScrollableLayerGuid::ViewID& aViewId,
     const mozilla::Maybe<ZoomConstraints>& aConstraints) {
-  nsBaseWidget::UpdateZoomConstraints(aPresShellId, aViewId, aConstraints);
+  nsIWidget::UpdateZoomConstraints(aPresShellId, aViewId, aConstraints);
 }
 
 CompositorBridgeChild* nsWindow::GetCompositorBridgeChild() const {

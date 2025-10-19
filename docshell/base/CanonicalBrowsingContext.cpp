@@ -41,8 +41,10 @@
 #include "mozilla/StaticPrefs_browser.h"
 #include "mozilla/StaticPrefs_docshell.h"
 #include "mozilla/StaticPrefs_fission.h"
+#include "mozilla/StaticPrefs_security.h"
 #include "mozilla/glean/DomMetrics.h"
 #include "nsILayoutHistoryState.h"
+#include "nsIParentalControlsService.h"
 #include "nsIPrintSettings.h"
 #include "nsIPrintSettingsService.h"
 #include "nsISupports.h"
@@ -271,6 +273,7 @@ void CanonicalBrowsingContext::ReplacedBy(
   txn.SetForceOffline(GetForceOffline());
   txn.SetTopInnerSizeForRFP(GetTopInnerSizeForRFP());
   txn.SetIPAddressSpace(GetIPAddressSpace());
+  txn.SetParentalControlsEnabled(GetParentalControlsEnabled());
 
   if (!GetLanguageOverride().IsEmpty()) {
     // Reapply language override to update the corresponding realm.
@@ -672,38 +675,19 @@ CanonicalBrowsingContext::CreateLoadingSessionHistoryEntryForLoad(
       }
     }
 
-    nsCOMPtr<nsIURI> uri =
-        mActiveEntry ? mActiveEntry->GetURIOrInheritedForAboutBlank() : nullptr;
-    nsCOMPtr<nsIURI> targetURI = entry->GetURIOrInheritedForAboutBlank();
-    bool sameOrigin =
-        NS_SUCCEEDED(nsContentUtils::GetSecurityManager()->CheckSameOriginURI(
-            targetURI, uri, false, false));
-    if (entry->isInList() ||
-        (mActiveEntry && mActiveEntry->isInList() && sameOrigin)) {
-      nsSHistory::WalkContiguousEntriesInOrder(
-          entry->isInList() ? entry : mActiveEntry,
-          [activeEntry = mActiveEntry,
-           entries = &loadingInfo->mContiguousEntries,
-           navigationType = *navigationType](auto* aEntry) {
-            nsCOMPtr<SessionHistoryEntry> entry = do_QueryObject(aEntry);
-            MOZ_ASSERT(entry);
-            if (navigationType == NavigationType::Replace &&
-                entry == activeEntry) {
-              // In the case of a replace navigation, we end up dropping the
-              // active entry and all following entries.
-              return false;
-            }
-            entries->AppendElement(entry->Info());
-            // In the case of a push navigation, we end up keeping the
-            // current active entry but drop all following entries.
-            return !(navigationType == NavigationType::Push &&
-                     entry == activeEntry);
-          });
-    }
+    loadingInfo->mTriggeringEntry =
+        mActiveEntry ? Some(mActiveEntry->Info()) : Nothing();
+    MOZ_LOG_FMT(gNavigationAPILog, LogLevel::Verbose,
+                "Triggering entry was {}.",
+                fmt::ptr(loadingInfo->mTriggeringEntry
+                             .map([](auto& entry) { return &entry; })
+                             .valueOr(nullptr)));
 
-    if (!sessionHistoryLoad || !sameOrigin) {
-      loadingInfo->mContiguousEntries.AppendElement(entry->Info());
-    }
+    loadingInfo->mTriggeringNavigationType = navigationType;
+    MOZ_LOG_FMT(gNavigationAPILog, LogLevel::Verbose,
+                "Triggering navigation type was {}.", *navigationType);
+
+    GetContiguousEntriesForLoad(*loadingInfo, entry);
 
     if (MOZ_LOG_TEST(gNavigationAPILog, LogLevel::Debug)) {
       int32_t index = 0;
@@ -720,18 +704,6 @@ CanonicalBrowsingContext::CreateLoadingSessionHistoryEntryForLoad(
                     entry.GetURI()->GetSpecOrDefault());
       }
     }
-
-    loadingInfo->mTriggeringEntry =
-        mActiveEntry ? Some(mActiveEntry->Info()) : Nothing();
-    MOZ_LOG_FMT(gNavigationAPILog, LogLevel::Verbose,
-                "Triggering entry was {}.",
-                fmt::ptr(loadingInfo->mTriggeringEntry
-                             .map([](auto& entry) { return &entry; })
-                             .valueOr(nullptr)));
-
-    loadingInfo->mTriggeringNavigationType = navigationType;
-    MOZ_LOG_FMT(gNavigationAPILog, LogLevel::Verbose,
-                "Triggering navigation type was {}.", *navigationType);
 
     [[maybe_unused]] auto pred = [&](auto& entry) {
       return entry.NavigationKey() == loadingInfo->mInfo.NavigationKey();
@@ -775,7 +747,7 @@ CanonicalBrowsingContext::ReplaceLoadingSessionHistoryEntryForLoad(
       loadingEntry->SetInfo(&newInfo);
 
       if (IsTop()) {
-        // Only top level pages care about Get/SetPersist.
+        // Only top level pages care about Get/SetTransient.
         nsCOMPtr<nsIURI> uri;
         aNewChannel->GetURI(getter_AddRefs(uri));
         if (!nsDocShell::ShouldAddToSessionHistory(uri, aNewChannel)) {
@@ -786,12 +758,58 @@ CanonicalBrowsingContext::ReplaceLoadingSessionHistoryEntryForLoad(
       }
       loadingEntry->SetDocshellID(GetHistoryID());
       loadingEntry->SetIsDynamicallyAdded(CreatedDynamically());
+
       auto result = MakeUnique<LoadingSessionHistoryInfo>(loadingEntry, aInfo);
-      result->mContiguousEntries = aInfo->mContiguousEntries;
+      MOZ_LOG_FMT(
+          gNavigationAPILog, LogLevel::Debug,
+          "CanonicalBrowsingContext::ReplaceLoadingSessionHistoryEntryForLoad: "
+          "Recreating the contiguous entries list after redirected navigation "
+          "to {}.",
+          ToMaybeRef(result->mInfo.GetURI())
+              .map(std::mem_fn(&nsIURI::GetSpecOrDefault))
+              .valueOr("(null URI)."_ns));
+      GetContiguousEntriesForLoad(*result, loadingEntry);
       return result;
     }
   }
   return nullptr;
+}
+
+void CanonicalBrowsingContext::GetContiguousEntriesForLoad(
+    LoadingSessionHistoryInfo& aLoadingInfo,
+    const RefPtr<SessionHistoryEntry>& aEntry) {
+  nsCOMPtr<nsIURI> uri =
+      mActiveEntry ? mActiveEntry->GetURIOrInheritedForAboutBlank() : nullptr;
+  nsCOMPtr<nsIURI> targetURI = aEntry->GetURIOrInheritedForAboutBlank();
+  bool sameOrigin =
+      NS_SUCCEEDED(nsContentUtils::GetSecurityManager()->CheckSameOriginURI(
+          targetURI, uri, false, false));
+  if (aEntry->isInList() ||
+      (mActiveEntry && mActiveEntry->isInList() && sameOrigin)) {
+    nsSHistory::WalkContiguousEntriesInOrder(
+        aEntry->isInList() ? aEntry : mActiveEntry,
+        [activeEntry = mActiveEntry, entries = &aLoadingInfo.mContiguousEntries,
+         navigationType =
+             *aLoadingInfo.mTriggeringNavigationType](auto* aEntry) {
+          nsCOMPtr<SessionHistoryEntry> entry = do_QueryObject(aEntry);
+          MOZ_ASSERT(entry);
+          if (navigationType == NavigationType::Replace &&
+              entry == activeEntry) {
+            // In the case of a replace navigation, we end up dropping the
+            // active entry and all following entries.
+            return false;
+          }
+          entries->AppendElement(entry->Info());
+          // In the case of a push navigation, we end up keeping the
+          // current active entry but drop all following entries.
+          return !(navigationType == NavigationType::Push &&
+                   entry == activeEntry);
+        });
+  }
+
+  if (!aLoadingInfo.mLoadIsFromSessionHistory || !sameOrigin) {
+    aLoadingInfo.mContiguousEntries.AppendElement(aEntry->Info());
+  }
 }
 
 using PrintPromise = CanonicalBrowsingContext::PrintPromise;
@@ -2864,6 +2882,13 @@ void CanonicalBrowsingContext::SynchronizeLayoutHistoryState() {
   }
 }
 
+void CanonicalBrowsingContext::SynchronizeNavigationAPIState(
+    nsIStructuredCloneContainer* aState) {
+  if (mActiveEntry) {
+    mActiveEntry->SetNavigationAPIState(aState);
+  }
+}
+
 void CanonicalBrowsingContext::ResetScalingZoom() {
   // This currently only ever gets called in the parent process, and we
   // pass the message on to the WindowGlobalChild for the rootmost browsing
@@ -3669,6 +3694,23 @@ bool CanonicalBrowsingContext::CanOpenModalPicker() {
     // top browser window (and chromeDoc == doc).
   }
   return true;
+}
+
+bool CanonicalBrowsingContext::ShouldEnforceParentalControls() {
+  if (StaticPrefs::security_restrict_to_adults_always()) {
+    return true;
+  }
+  if (StaticPrefs::security_restrict_to_adults_respect_platform()) {
+    bool enabled;
+    nsCOMPtr<nsIParentalControlsService> pcs =
+        do_CreateInstance("@mozilla.org/parental-controls-service;1");
+    nsresult rv = pcs->GetParentalControlsEnabled(&enabled);
+    if (NS_FAILED(rv)) {
+      return false;
+    }
+    return enabled;
+  }
+  return false;
 }
 
 NS_IMPL_CYCLE_COLLECTION_CLASS(CanonicalBrowsingContext)

@@ -62,14 +62,14 @@ if (AppConstants.ENABLE_WEBDRIVER) {
     lazy,
     "Marionette",
     "@mozilla.org/remote/marionette;1",
-    "nsIMarionette"
+    Ci.nsIMarionette
   );
 
   XPCOMUtils.defineLazyServiceGetter(
     lazy,
     "RemoteAgent",
     "@mozilla.org/remote/agent;1",
-    "nsIRemoteAgent"
+    Ci.nsIRemoteAgent
   );
 } else {
   lazy.Marionette = { running: false };
@@ -77,10 +77,12 @@ if (AppConstants.ENABLE_WEBDRIVER) {
 }
 
 XPCOMUtils.defineLazyServiceGetters(lazy, {
-  BrowserHandler: ["@mozilla.org/browser/clh;1", "nsIBrowserHandler"],
+  BrowserHandler: ["@mozilla.org/browser/clh;1", Ci.nsIBrowserHandler],
 });
 
 ChromeUtils.defineESModuleGetters(lazy, {
+  LanguageDetector:
+    "resource://gre/modules/translations/LanguageDetector.sys.mjs",
   RemoteSettings: "resource://services-settings/remote-settings.sys.mjs",
   setTimeout: "resource://gre/modules/Timer.sys.mjs",
   TranslationsTelemetry:
@@ -445,6 +447,54 @@ export class TranslationsParent extends JSWindowActorParent {
   static LANGUAGE_MODEL_MAJOR_VERSION_MAX = 3;
 
   /**
+   * The shorter the text, the less confidence we should have in the result of the language
+   * identification. Add another heuristic to report the ID as not confident if the length
+   * of the code units of the text is less than this threshold.
+   *
+   * This was determined by plotting a kernel density estimation of the number of times the
+   * source language had to be changed in the SelectTranslationsPanel vs. the code units in
+   * the source text.
+   *
+   * 0013 code units or less - 49.5% of language changes
+   * 0036 code units or less - 74.9% of language changes
+   * 0153 code units or less - 90.0% of language changes
+   * 0200 code units or less - 91.5% of language changes
+   * 0427 code units or less - 95.0% of language changes
+   * 1382 code units or less - 98.0% of language changes
+   * 3506 code units or less - 99.0% of language changes
+   *
+   * @type {number}
+   */
+  static #DOC_CONFIDENCE_THRESHOLD = 150;
+
+  /**
+   * The maximum time that we will wait to react to the page's
+   * language after observing the DOMContentLoaded event.
+   *
+   * In an ideal scenario, we want to fully wait for the "load"
+   * event before we scrape the page for text, but we also need
+   * mindful that some pages may take a long time to fully load
+   * depending on the complexity of the page and the speed of
+   * the user's connection.
+   *
+   * This is the worst-case scenario where we will start scraping
+   * the page text even if it has not yet fully loaded.
+   */
+  static #REACT_TO_PAGE_LANGUAGE_TIMEOUT = 500;
+
+  /**
+   * A race that determines when to react to to the page's language tag.
+   *
+   * Ideally, we want to wait for the page to fully load, but we may have
+   * to take action before that.
+   *
+   * @see {TranslationsParent#REACT_TO_PAGE_LANGUAGE_TIMEOUT}
+   *
+   * @type {PromiseWithResolvers<string> | null}
+   */
+  #reactToPageLanguageRace = null;
+
+  /**
    * Contains the state that would affect UI. Anytime this state is changed, a dispatch
    * event is sent so that UI can react to it. The actor is inside of /toolkit and
    * needs a way of notifying /browser code (or other users) of when the state changes.
@@ -728,19 +778,6 @@ export class TranslationsParent extends JSWindowActorParent {
     const { documentURI } = this.browsingContext.currentWindowGlobal;
 
     if (
-      TranslationsParent.isInAutomation() &&
-      !TranslationsParent.testAutomaticPopup
-    ) {
-      // Do not offer translations in automation, as many tests do not expect this
-      // behavior.
-      lazy.console.log(
-        "maybeOfferTranslations - Do not offer translations in automation.",
-        documentURI?.spec
-      );
-      return;
-    }
-
-    if (
       !detectedLanguages.docLangTag ||
       !detectedLanguages.userLangTag ||
       !detectedLanguages.isDocLangTagSupported
@@ -795,7 +832,7 @@ export class TranslationsParent extends JSWindowActorParent {
     // popup will not be shown.
     if (detectedLanguages.htmlLangAttribute && !detectedLanguages.identified) {
       // Compare language langTagsMatch
-      detectedLanguages.identified = await this.queryIdentifyLanguage();
+      detectedLanguages.identified = await this.#identifyPageLanguage();
 
       if (
         !lazy.TranslationsUtils.langTagsMatch(
@@ -844,7 +881,7 @@ export class TranslationsParent extends JSWindowActorParent {
 
           if (
             !TranslationsParent.findCompatibleSourceLangTagSync(
-              detectedLanguages.identifiedLangTag,
+              detectedLanguages.identified.language,
               await TranslationsParent.getNonPivotLanguagePairs()
             )
           ) {
@@ -908,6 +945,19 @@ export class TranslationsParent extends JSWindowActorParent {
       // In Android, the active window is the active tab.
       isCurrentPage = documentURI?.spec === browser.documentURI?.spec;
     }
+
+    if (
+      TranslationsParent.isInAutomation() &&
+      !TranslationsParent.testAutomaticPopup
+    ) {
+      // Do not show the panel in automation, as many tests do not expect this behavior.
+      lazy.console.log(
+        "maybeOfferTranslations - Do not show the translations panel in automation.",
+        documentURI?.spec
+      );
+      return;
+    }
+
     if (isCurrentPage) {
       lazy.console.log(
         "maybeOfferTranslations - Offering a translation",
@@ -1527,58 +1577,92 @@ export class TranslationsParent extends JSWindowActorParent {
     return port2;
   }
 
+  /**
+   * Reacts to the page's language tag by considering the HTML lang attribute
+   * and also scraping a sample of the visible text on the page.
+   *
+   * An action is taken based on the agreement between the detected language
+   * and the HTML lang attribute (or lack thereof).
+   *
+   * @param {string} htmlLangAttribute
+   * @param {string} reason
+   */
+  async #reactToPageLanguage(htmlLangAttribute, reason) {
+    lazy.console.debug(`Reacting to page language due to "${reason}".`);
+
+    const detectedLanguages = await this.getDetectedLanguages(
+      htmlLangAttribute
+    ).catch(error => {
+      // Detecting the languages can fail if the page gets destroyed before it
+      // can be completed. This runs on every page that doesn't have a lang tag,
+      // so only report the error if you have Translations logging turned on to
+      // avoid console spam.
+      lazy.console.log("Failed to get the detected languages.", error);
+    });
+
+    if (this.#isDestroyed) {
+      return;
+    }
+
+    if (!detectedLanguages) {
+      // The actor was already destroyed, and the detectedLanguages weren't reported
+      // in time.
+      return;
+    }
+
+    this.languageState.detectedLanguages = detectedLanguages;
+
+    if (await this.shouldAutoTranslate(detectedLanguages)) {
+      if (this.#isDestroyed) {
+        return;
+      }
+
+      this.translate(
+        {
+          sourceLanguage: detectedLanguages.docLangTag,
+          targetLanguage: detectedLanguages.userLangTag,
+        },
+        true // reportAsAutoTranslate
+      );
+    } else {
+      if (this.#isDestroyed) {
+        return;
+      }
+
+      this.maybeOfferTranslations(detectedLanguages).catch(error =>
+        lazy.console.error(error)
+      );
+    }
+  }
+
   async receiveMessage({ name, data }) {
     if (this.#isDestroyed) {
       return undefined;
     }
 
     switch (name) {
-      case "Translations:ReportLangTags": {
-        const { htmlLangAttribute, href } = data;
-        const detectedLanguages = await this.getDetectedLanguages(
-          htmlLangAttribute,
-          href
-        ).catch(error => {
-          // Detecting the languages can fail if the page gets destroyed before it
-          // can be completed. This runs on every page that doesn't have a lang tag,
-          // so only report the error if you have Translations logging turned on to
-          // avoid console spam.
-          lazy.console.log("Failed to get the detected languages.", error);
+      case "Translations:DOMContentLoaded": {
+        const { htmlLangAttribute } = data;
+
+        this.#reactToPageLanguageRace = Promise.withResolvers();
+        const { promise, resolve } = this.#reactToPageLanguageRace;
+
+        promise.then(reason => {
+          if (this.#isDestroyed) {
+            return;
+          }
+          this.#reactToPageLanguage(htmlLangAttribute, reason);
+          this.#reactToPageLanguageRace = null;
         });
 
-        if (this.#isDestroyed) {
-          return undefined;
-        }
+        lazy.setTimeout(() => {
+          resolve("timeout");
+        }, TranslationsParent.#REACT_TO_PAGE_LANGUAGE_TIMEOUT);
 
-        if (!detectedLanguages) {
-          // The actor was already destroyed, and the detectedLanguages weren't reported
-          // in time.
-          return undefined;
-        }
-
-        this.languageState.detectedLanguages = detectedLanguages;
-
-        if (await this.shouldAutoTranslate(detectedLanguages)) {
-          if (this.#isDestroyed) {
-            return undefined;
-          }
-
-          this.translate(
-            {
-              sourceLanguage: detectedLanguages.docLangTag,
-              targetLanguage: detectedLanguages.userLangTag,
-            },
-            true // reportAsAutoTranslate
-          );
-        } else {
-          if (this.#isDestroyed) {
-            return undefined;
-          }
-
-          this.maybeOfferTranslations(detectedLanguages).catch(error =>
-            lazy.console.error(error)
-          );
-        }
+        return undefined;
+      }
+      case "Translations:Load": {
+        this.#reactToPageLanguageRace?.resolve("load");
         return undefined;
       }
       case "Translations:RequestPort": {
@@ -3470,23 +3554,57 @@ export class TranslationsParent extends JSWindowActorParent {
   }
 
   /**
+   * Uses the page extractor to identify the current page's language.
+   *
    * @returns {Promise<DetectionResult>}
    */
-  async queryIdentifyLanguage() {
-    if (
-      TranslationsParent.isInAutomation() &&
-      !TranslationsParent.#isTranslationsEngineMocked
-    ) {
-      // In automation assume English is the language, but don't be confident.
-      return { confident: false, language: "en", languages: [] };
+  async #identifyPageLanguage() {
+    if (this.languageState?.detectedLanguages?.identified) {
+      return this.languageState.detectedLanguages.identified;
     }
-    return this.sendQuery("Translations:IdentifyLanguage").catch(error => {
-      if (this.#isDestroyed) {
-        // The actor was destroyed while this message was still being resolved.
-        return null;
-      }
-      return Promise.reject(error);
-    });
+
+    const actor =
+      this.browsingContext?.currentWindowGlobal?.getActor("PageExtractor");
+
+    if (!actor) {
+      throw new Error("Unable to get the PageExtractor actor.");
+    }
+
+    const startTime = ChromeUtils.now();
+
+    // Manual profiling on 10 page loads of https://es.wikipedia.org/wiki/Felis_catus:
+    // -------------------------------------------------------------------------------
+    //
+    //   No limit: 2064 samples, 224/237/294 [min/med/max]ms (~85k code units)
+    // 8192 limit:  681 samples,  75/ 87/128 [min/med/max]ms
+    // 4096 limit:  457 samples,  51/ 55/ 97 [min/med/max]ms
+    // 2048 limit:  240 samples,  29/ 39/ 64 [min/med/max]ms
+    // 1024 limit:  142 samples,  19/ 28/ 58 [min/med/max]ms
+    //
+    // 2048 Code units feels like a decent length for performance and sample size.
+    const pageText = await actor.getText({ sufficientLength: 2048 });
+    if (this.#isDestroyed) {
+      return { language: "", confident: false, languages: [] };
+    }
+
+    const result = await lazy.LanguageDetector.detectLanguage(pageText);
+    if (this.#isDestroyed) {
+      return { language: "", confident: false, languages: [] };
+    }
+
+    const message = `Identified page language as "${result.language}": ${this.browsingContext?.currentURI?.spec}`;
+    ChromeUtils.addProfilerMarker(
+      "TranslationsParent",
+      { startTime, innerWindowId: this.innerWindowId },
+      message
+    );
+    lazy.console.debug(message);
+
+    if (pageText.length < TranslationsParent.#DOC_CONFIDENCE_THRESHOLD) {
+      result.confident = false;
+    }
+
+    return result;
   }
 
   /**
@@ -3529,7 +3647,7 @@ export class TranslationsParent extends JSWindowActorParent {
       // Do a final check that the identified language matches the reported language
       // tag to ensure that the page isn't reporting the incorrect languages. This
       // check is deferred to now for performance considerations.
-      langTags.identified = await this.queryIdentifyLanguage();
+      langTags.identified = await this.#identifyPageLanguage();
       langTags.docLangTag = langTags.identified.language;
 
       if (
@@ -3679,11 +3797,10 @@ export class TranslationsParent extends JSWindowActorParent {
    * rather than the child to remove the per-content process memory allocation amount.
    *
    * @param {string} [htmlLangAttribute]
-   * @param {string} [href]
    * @returns {Promise<LangTags | null>} - Returns null if the actor was destroyed before
    *   the result could be resolved.
    */
-  async getDetectedLanguages(htmlLangAttribute, href) {
+  async getDetectedLanguages(htmlLangAttribute) {
     if (this.languageState.detectedLanguages) {
       return this.languageState.detectedLanguages;
     }
@@ -3692,14 +3809,9 @@ export class TranslationsParent extends JSWindowActorParent {
       return null;
     }
 
-    if (htmlLangAttribute === undefined) {
-      htmlLangAttribute = await this.queryDocumentElementLang();
-      if (this.#isDestroyed) {
-        return null;
-      }
+    if (htmlLangAttribute) {
+      htmlLangAttribute = this.maybeRefineMacroLanguageTag(htmlLangAttribute);
     }
-
-    htmlLangAttribute = this.maybeRefineMacroLanguageTag(htmlLangAttribute);
 
     let languagePairs = await TranslationsParent.getNonPivotLanguagePairs();
     if (this.#isDestroyed) {
@@ -3712,7 +3824,7 @@ export class TranslationsParent extends JSWindowActorParent {
       userLangTag: null,
       isDocLangTagSupported: false,
       htmlLangAttribute: htmlLangAttribute ?? null,
-      identifiedLangTag: null,
+      identified: null,
     };
 
     /**
@@ -3763,7 +3875,7 @@ export class TranslationsParent extends JSWindowActorParent {
     if (!langTags.docLangTag) {
       // If the document's markup had no specified langTag, attempt to identify the
       // page's language.
-      langTags.identified = await this.queryIdentifyLanguage();
+      langTags.identified = await this.#identifyPageLanguage();
       langTags.docLangTag = langTags.identified.language;
       maybeNormalizeDocLangTag();
       langTags.identified.language = langTags.docLangTag;
@@ -3780,7 +3892,7 @@ export class TranslationsParent extends JSWindowActorParent {
         { innerWindowId: this.innerWindowId },
         message
       );
-      lazy.console.log(message, href);
+      lazy.console.log(message);
 
       const langTag = await TranslationsParent.getTopPreferredSupportedToLang();
       if (this.#isDestroyed) {
@@ -3810,7 +3922,8 @@ export class TranslationsParent extends JSWindowActorParent {
         { innerWindowId: this.innerWindowId },
         message
       );
-      lazy.console.log(message, href);
+      lazy.console.log(message);
+
       // The docLangTag will be set, while the userLangTag will be null.
       return langTags;
     }

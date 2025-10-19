@@ -27,7 +27,7 @@ struct ImmShiftedTag : public ImmWord {
 };
 
 struct ImmTag : public Imm32 {
-  ImmTag(JSValueTag mask) : Imm32(int32_t(mask)) {}
+  explicit ImmTag(JSValueTag mask) : Imm32(int32_t(mask)) {}
 };
 
 static constexpr ValueOperand JSReturnOperand{JSReturnReg};
@@ -193,7 +193,8 @@ class MacroAssemblerMIPS64 : public MacroAssemblerMIPSShared {
   void ma_pop(Register r);
   void ma_push(Register r);
 
-  void branchWithCode(InstImm code, Label* label, JumpKind jumpKind);
+  void branchWithCode(InstImm code, Label* label, JumpKind jumpKind,
+                      Register branchCodeScratch = InvalidReg);
   // branches when done from within mips-specific code
   void ma_b(Register lhs, ImmWord imm, Label* l, Condition c,
             JumpKind jumpKind = LongJump);

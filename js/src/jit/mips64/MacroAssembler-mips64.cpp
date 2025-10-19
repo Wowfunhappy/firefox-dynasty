@@ -494,7 +494,7 @@ void MacroAssemblerMIPS64::ma_addPtrTestOverflow(Register rd, Register rs,
     ma_move(scratch, rt);
     as_daddu(rd, rs, rt);
     as_xor(scratch, rd, scratch);
-    as_and(scratch, scratch, scratch2);
+    as_and(scratch2, scratch, scratch2);
   }
 
   ma_b(scratch2, zero, overflow, Assembler::LessThan);
@@ -520,7 +520,7 @@ void MacroAssemblerMIPS64::ma_addPtrTestOverflow(Register rd, Register rs,
 
     as_daddu(rd, rs, scratch);
     as_xor(scratch, rd, scratch);
-    as_and(scratch, scratch, scratch2);
+    as_and(scratch2, scratch, scratch2);
   }
   ma_b(scratch2, zero, overflow, Assembler::LessThan);
 }
@@ -1050,7 +1050,8 @@ void MacroAssemblerMIPS64::ma_bal(Label* label, DelaySlotFill delaySlotFill) {
 }
 
 void MacroAssemblerMIPS64::branchWithCode(InstImm code, Label* label,
-                                          JumpKind jumpKind) {
+                                          JumpKind jumpKind,
+                                          Register branchCodeScratch) {
   // simply output the pointer of one label as its id,
   // notice that after one label destructor, the pointer will be reused.
   spew("branch .Llabel %p", label);
@@ -1080,7 +1081,12 @@ void MacroAssemblerMIPS64::branchWithCode(InstImm code, Label* label,
       UseScratchRegisterScope temps(*this);
       // Handle long jump
       addLongJump(nextOffset(), BufferOffset(label->offset()));
-      Register scratch = temps.Acquire();
+      Register scratch = branchCodeScratch;
+      if (scratch == InvalidReg) {
+        // Request a new scratch register if |branchCodeScratch| is invalid.
+        // NB: |branchCodeScratch| must not be used before encoding |code|.
+        scratch = temps.Acquire();
+      }
       ma_liPatchable(scratch, ImmWord(LabelBase::INVALID_OFFSET));
       as_jr(scratch);
       as_nop();
@@ -1098,7 +1104,12 @@ void MacroAssemblerMIPS64::branchWithCode(InstImm code, Label* label,
     UseScratchRegisterScope temps(*this);
     // No need for a "nop" here because we can clobber scratch.
     addLongJump(nextOffset(), BufferOffset(label->offset()));
-    Register scratch = temps.Acquire();
+    Register scratch = branchCodeScratch;
+    if (scratch == InvalidReg) {
+      // Request a new scratch register if |branchCodeScratch| is invalid.
+      // NB: |branchCodeScratch| must not be used before encoding |code|.
+      scratch = temps.Acquire();
+    }
     ma_liPatchable(scratch, ImmWord(LabelBase::INVALID_OFFSET));
     as_jr(scratch);
     as_nop();
@@ -2523,9 +2534,9 @@ void MacroAssembler::PopRegsInMaskIgnore(LiveRegisterSet set,
 void MacroAssembler::storeRegsInMask(LiveRegisterSet set, Address dest,
                                      Register) {
   FloatRegisterSet fpuSet(set.fpus().reduceSetForPush());
-  unsigned numFpu = fpuSet.size();
+  mozilla::DebugOnly<unsigned> numFpu = fpuSet.size();
   int32_t diffF = fpuSet.getPushSizeInBytes();
-  int32_t diffG = set.gprs().size() * sizeof(intptr_t);
+  mozilla::DebugOnly<int32_t> diffG = set.gprs().size() * sizeof(intptr_t);
 
   MOZ_ASSERT(dest.offset >= diffG + diffF);
 
@@ -2554,6 +2565,7 @@ void MacroAssembler::storeRegsInMask(LiveRegisterSet set, Address dest,
     }
   }
   MOZ_ASSERT(numFpu == 0);
+
   diffF -= diffF % sizeof(uintptr_t);
   MOZ_ASSERT(diffF == 0);
 }

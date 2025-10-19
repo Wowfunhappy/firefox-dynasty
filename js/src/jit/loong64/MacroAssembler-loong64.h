@@ -39,7 +39,7 @@ struct ImmShiftedTag : public ImmWord {
 };
 
 struct ImmTag : public Imm32 {
-  ImmTag(JSValueTag mask) : Imm32(int32_t(mask)) {}
+  explicit ImmTag(JSValueTag mask) : Imm32(int32_t(mask)) {}
 };
 
 static const int defaultShift = 3;
@@ -370,13 +370,6 @@ class MacroAssemblerLOONG64 : public Assembler {
                          DoubleCondition c);
   void ma_cmp_set_float32(Register dst, FloatRegister lhs, FloatRegister rhs,
                           DoubleCondition c);
-
-  void moveToDoubleLo(Register src, FloatRegister dest) {
-    as_movgr2fr_w(dest, src);
-  }
-  void moveFromDoubleLo(FloatRegister src, Register dest) {
-    as_movfr2gr_s(dest, src);
-  }
 
   void moveToFloat32(Register src, FloatRegister dest) {
     as_movgr2fr_w(dest, src);

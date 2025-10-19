@@ -27,6 +27,7 @@ ChromeUtils.defineESModuleGetters(lazy, {
   FaviconFeed: "resource://newtab/lib/FaviconFeed.sys.mjs",
   HighlightsFeed: "resource://newtab/lib/HighlightsFeed.sys.mjs",
   ListsFeed: "resource://newtab/lib/Widgets/ListsFeed.sys.mjs",
+  NewTabAttributionFeed: "resource://newtab/lib/NewTabAttributionFeed.sys.mjs",
   NewTabInit: "resource://newtab/lib/NewTabInit.sys.mjs",
   NewTabMessaging: "resource://newtab/lib/NewTabMessaging.sys.mjs",
   NimbusFeatures: "resource://nimbus/ExperimentAPI.sys.mjs",
@@ -748,6 +749,13 @@ export const PREFS_CONFIG = new Map([
     {
       title:
         "Boolean flag to enable logging shortcuts interactions even if enabled is off",
+      value: false,
+    },
+  ],
+  [
+    "discoverystream.attribution.enabled",
+    {
+      title: "Boolean flag to enable newtab attribution",
       value: false,
     },
   ],
@@ -1508,6 +1516,12 @@ const FEEDS_DATA = [
     value: true,
   },
   {
+    name: "newtabattributionfeed",
+    factory: () => new lazy.NewTabAttributionFeed(),
+    title: "Handles a local DB for story and shortcuts clicks and impressions",
+    value: true,
+  },
+  {
     name: "newtabmessaging",
     factory: () => new lazy.NewTabMessaging(),
     title: "Handles fetching and triggering ASRouter messages in newtab",
@@ -1619,6 +1633,7 @@ export class ActivityStream {
     if (this.geo === "") {
       Services.obs.removeObserver(this, lazy.Region.REGION_TOPIC);
     }
+    delete this.geo;
 
     Services.obs.removeObserver(this, "intl:app-locales-changed");
 
@@ -1631,6 +1646,10 @@ export class ActivityStream {
   _updateDynamicPrefs() {
     // Save the geo pref if we have it
     if (lazy.Region.home) {
+      if (this.geo === "") {
+        // The observer has become obsolete.
+        Services.obs.removeObserver(this, lazy.Region.REGION_TOPIC);
+      }
       this.geo = lazy.Region.home;
     } else if (this.geo !== "") {
       // Watch for geo changes and use a dummy value for now

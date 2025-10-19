@@ -180,7 +180,7 @@ static void RollUpPopups(nsIRollupListener::AllowAnimations aAllowAnimations =
     pm->RollupTooltips();
   }
 
-  nsIRollupListener* rollupListener = nsBaseWidget::GetActiveRollupListener();
+  nsIRollupListener* rollupListener = nsIWidget::GetActiveRollupListener();
   if (!rollupListener) {
     return;
   }
@@ -356,7 +356,7 @@ void nsCocoaWindow::SetCursor(const Cursor& aCursor) {
     return;  // Don't change the cursor during dragging.
   }
 
-  nsBaseWidget::SetCursor(aCursor);
+  nsIWidget::SetCursor(aCursor);
 
   bool forceUpdate = mUpdateCursor;
   mUpdateCursor = false;
@@ -854,7 +854,7 @@ bool nsCocoaWindow::PaintWindowInDrawTarget(gfx::DrawTarget* aDT,
 
   nsAutoRetainCocoaObject kungFuDeathGrip(mChildView);
   if (GetWindowRenderer()->GetBackendType() == LayersBackend::LAYERS_NONE) {
-    nsBaseWidget::AutoLayerManagerSetup setupLayerManager(
+    nsIWidget::AutoLayerManagerSetup setupLayerManager(
         this, &targetContext);
     return PaintWindow(aRegion);
   }
@@ -930,6 +930,9 @@ void nsCocoaWindow::EnsureContentLayerForMainThreadPainting() {
 }
 
 void nsCocoaWindow::PaintWindowInContentLayer() {
+  if (GetClientBounds().IsEmpty()) {
+    return;
+  }
   EnsureContentLayerForMainThreadPainting();
   mPoolHandle->OnBeginFrame();
   RefPtr<DrawTarget> dt = mContentLayer->NextSurfaceAsDrawTarget(
@@ -983,7 +986,7 @@ void nsCocoaWindow::CreateCompositor(int aWidth, int aHeight) {
     // We have some early exit cases. Create an exit scope so we call
     // our superclass implemenation in all code paths.
     auto completionScope =
-    MakeScopeExit([&] { nsBaseWidget::CreateCompositor(aWidth, aHeight); });
+    MakeScopeExit([&] { nsIWidget::CreateCompositor(aWidth, aHeight); });
     
     // It's possible we might reach this before the GPU process has even
     // been started. That makes it hard to reason about the different
@@ -998,16 +1001,12 @@ void nsCocoaWindow::CreateCompositor(int aWidth, int aHeight) {
   // Make sure the gfxPlatform is initialized, which is necessary to create
   // the GPUProcessManager.
   Unused << gfxPlatform::GetPlatform();
-  auto* pm = mozilla::gfx::GPUProcessManager::Get();
   MOZ_ASSERT(
-      pm, "Getting the gfxPlatform should have created the GPUProcessManager.");
-
-  // Ensure the GPU process has had a chance to start. The logic in
-  // GetCompositorWidgetInitData will handle both success and error cases
-  // correctly, so we don't check an error code.
-  pm->EnsureGPUReady();
+      mozilla::gfx::GPUProcessManager::Get(),
+      "Getting the gfxPlatform should have created the GPUProcessManager.");
+ 
   // Do the rest of the compositor setup.
-  nsBaseWidget::CreateCompositor(aWidth, aHeight);
+  nsIWidget::CreateCompositor(aWidth, aHeight);
 }
 
 void nsCocoaWindow::GetCompositorWidgetInitData(
@@ -1096,7 +1095,7 @@ void nsCocoaWindow::DestroyCompositor() {
                           &NativeLayerRootRemoteMacParent::Close));
   }
 
-  nsBaseWidget::DestroyCompositor();
+  nsIWidget::DestroyCompositor();
 }
 
 void nsCocoaWindow::NotifyCompositorSessionLost(
@@ -1120,7 +1119,7 @@ void nsCocoaWindow::NotifyCompositorSessionLost(
                    withObject:nil
                    afterDelay:kTriggerPaintDelayAfterGpuProcessCrash];
 
-  nsBaseWidget::NotifyCompositorSessionLost(aSession);
+  nsIWidget::NotifyCompositorSessionLost(aSession);
 
 }
 
@@ -1281,7 +1280,7 @@ NSView<mozView>* nsCocoaWindow::GetEditorView() {
 #pragma mark -
 
 void nsCocoaWindow::CreateCompositor() {
-  nsBaseWidget::CreateCompositor();
+  nsIWidget::CreateCompositor();
   if (mCompositorBridgeChild) {
     [mChildView setUsingOMTCompositor:true];
   }
@@ -1306,7 +1305,7 @@ MOZ_NO_THREAD_SAFETY_ANALYSIS {
     mCompositingLock.Unlock();
 }
 
-RefPtr<layers::NativeLayerRoot> nsCocoaWindow::GetNativeLayerRoot() {
+layers::NativeLayerRoot* nsCocoaWindow::GetNativeLayerRoot() {
     return mNativeLayerRoot;
 }
 
@@ -2255,7 +2254,7 @@ static void DrawTopLeftCornerMask(CGContextRef aCtx, int aRadius) {
     return;
   }
 
-  nsIRollupListener* rollupListener = nsBaseWidget::GetActiveRollupListener();
+  nsIRollupListener* rollupListener = nsIWidget::GetActiveRollupListener();
   NS_ENSURE_TRUE_VOID(rollupListener);
   nsCOMPtr<nsIWidget> widget = rollupListener->GetRollupWidget();
   NS_ENSURE_TRUE_VOID(widget);
@@ -2278,7 +2277,7 @@ static void DrawTopLeftCornerMask(CGContextRef aCtx, int aRadius) {
 
   BOOL consumeEvent = NO;
 
-  nsIRollupListener* rollupListener = nsBaseWidget::GetActiveRollupListener();
+  nsIRollupListener* rollupListener = nsIWidget::GetActiveRollupListener();
   NS_ENSURE_TRUE(rollupListener, false);
 
   BOOL isWheelTypeEvent = [theEvent type] == NSEventTypeScrollWheel ||
@@ -5123,21 +5122,12 @@ DesktopToLayoutDeviceScale ParentBackingScaleFactor(nsIWidget* aParent) {
   return DesktopToLayoutDeviceScale(1.0);
 }
 
-// Returns the screen rectangle for the given widget.
-// Child widgets are positioned relative to this rectangle.
-// Exactly one of the arguments must be non-null.
-static DesktopRect GetWidgetScreenRectForChildren(nsIWidget* aWidget) {
-  mozilla::DesktopToLayoutDeviceScale scale =
-      aWidget->GetDesktopToDeviceScale();
-  return aWidget->GetClientBounds() / scale;
-}
-
 // aRect here is specified in desktop pixels
 //
 // For child windows aRect.{x,y} are offsets from the origin of the parent
 // window and not an absolute position.
 nsresult nsCocoaWindow::Create(nsIWidget* aParent, const DesktopIntRect& aRect,
-                               widget::InitData* aInitData) {
+                               const widget::InitData& aInitData) {
   NS_OBJC_BEGIN_TRY_BLOCK_RETURN;
 
   // Because the hidden window is created outside of an event loop,
@@ -5153,28 +5143,14 @@ nsresult nsCocoaWindow::Create(nsIWidget* aParent, const DesktopIntRect& aRect,
 
   Inherited::BaseCreate(aParent, aInitData);
 
-  mAlwaysOnTop = aInitData->mAlwaysOnTop;
-  mIsAlert = aInitData->mIsAlert;
+  mAlwaysOnTop = aInitData.mAlwaysOnTop;
+  mIsAlert = aInitData.mIsAlert;
 
-  // If we have a parent widget, the new widget will be offset from the
-  // parent widget by aRect.{x,y}. Otherwise, we'll use aRect for the
-  // new widget coordinates.
-  DesktopIntPoint parentOrigin;
-
-  // Do we have a parent widget?
-  if (aParent) {
-    DesktopRect parentDesktopRect = GetWidgetScreenRectForChildren(aParent);
-    parentOrigin = gfx::RoundedToInt(parentDesktopRect.TopLeft());
-  }
-
-  DesktopIntRect widgetRect = aRect + parentOrigin;
-
-  nsresult rv =
-      CreateNativeWindow(nsCocoaUtils::GeckoRectToCocoaRect(widgetRect),
-                         mBorderStyle, false, aInitData->mIsPrivate);
+  nsresult rv = CreateNativeWindow(nsCocoaUtils::GeckoRectToCocoaRect(aRect),
+                                   mBorderStyle, false, aInitData.mIsPrivate);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  mIsAnimationSuppressed = aInitData->mIsAnimationSuppressed;
+  mIsAnimationSuppressed = aInitData.mIsAnimationSuppressed;
 
   // create our content NSView and hook it up to our parent. Recall that
   // NS_NATIVE_WIDGET is the NSView.
@@ -5206,7 +5182,7 @@ nsresult nsCocoaWindow::Create(nsIWidget* aParent, const DesktopIntRect& aRect,
 
 nsresult nsCocoaWindow::Create(nsIWidget* aParent,
                                const LayoutDeviceIntRect& aRect,
-                               widget::InitData* aInitData) {
+                               const widget::InitData& aInitData) {
   DesktopIntRect desktopRect =
       RoundedToInt(aRect / ParentBackingScaleFactor(aParent));
   return Create(aParent, desktopRect, aInitData);
@@ -5469,8 +5445,8 @@ void nsCocoaWindow::Destroy() {
     DestroyNativeWindow();
   }
 
-  nsBaseWidget::OnDestroy();
-  nsBaseWidget::Destroy();
+  nsIWidget::OnDestroy();
+  nsIWidget::Destroy();
 }
 
 void* nsCocoaWindow::GetNativeData(uint32_t aDataType) {
@@ -5778,7 +5754,7 @@ bool nsCocoaWindow::ShouldUseOffMainThreadCompositing() {
     // Use main-thread BasicLayerManager for drawing menus.
     return false;
   }
-  return nsBaseWidget::ShouldUseOffMainThreadCompositing();
+  return nsIWidget::ShouldUseOffMainThreadCompositing();
 }
 
 TransparencyMode nsCocoaWindow::GetTransparencyMode() {
@@ -5891,13 +5867,13 @@ void nsCocoaWindow::SetSizeConstraints(const SizeConstraints& aConstraints) {
                                       : nsCocoaUtils::DevPixelsToCocoaPoints(
                                             c.mMaxSize.height, c.mScale.scale)};
   mWindow.maxSize = maxSize;
-  nsBaseWidget::SetSizeConstraints(c);
+  nsIWidget::SetSizeConstraints(c);
 
   NS_OBJC_END_TRY_IGNORE_BLOCK;
 }
 
 // Coordinates are desktop pixels
-void nsCocoaWindow::Move(double aX, double aY) {
+void nsCocoaWindow::Move(const DesktopPoint& aPoint) {
   NS_OBJC_BEGIN_TRY_IGNORE_BLOCK;
 
   if (!mWindow) {
@@ -5907,8 +5883,8 @@ void nsCocoaWindow::Move(double aX, double aY) {
   // The point we have is in Gecko coordinates (origin top-left). Convert
   // it to Cocoa ones (origin bottom-left).
   NSPoint coord = {
-      static_cast<float>(aX),
-      static_cast<float>(nsCocoaUtils::FlippedScreenY(NSToIntRound(aY)))};
+      static_cast<float>(aPoint.x),
+      static_cast<float>(nsCocoaUtils::FlippedScreenY(NSToIntRound(aPoint.y)))};
 
   NSRect frame = mWindow.frame;
   if (frame.origin.x != coord.x ||
@@ -6508,7 +6484,7 @@ void nsCocoaWindow::ProcessTransitions() {
           // show the Dock first, otherwise the newly-created window won't have
           // its minimize button enabled. See bug 526282.
           nsCocoaUtils::HideOSChromeOnScreen(true);
-          nsBaseWidget::InfallibleMakeFullScreen(true);
+          nsIWidget::InfallibleMakeFullScreen(true);
           mSuppressSizeModeEvents = false;
           UpdateFullscreenState(true, false);
         }
@@ -6538,7 +6514,7 @@ void nsCocoaWindow::ProcessTransitions() {
             // show the Dock first, otherwise the newly-created window won't
             // have its minimize button enabled. See bug 526282.
             nsCocoaUtils::HideOSChromeOnScreen(false);
-            nsBaseWidget::InfallibleMakeFullScreen(false);
+            nsIWidget::InfallibleMakeFullScreen(false);
             mSuppressSizeModeEvents = false;
             UpdateFullscreenState(false, false);
           }
@@ -6744,17 +6720,15 @@ void nsCocoaWindow::DoResize(double aX, double aY, double aWidth,
   NS_OBJC_END_TRY_IGNORE_BLOCK;
 }
 
-// Coordinates are desktop pixels
-void nsCocoaWindow::Resize(double aX, double aY, double aWidth, double aHeight,
-                           bool aRepaint) {
-  DoResize(aX, aY, aWidth, aHeight, aRepaint, false);
+void nsCocoaWindow::Resize(const DesktopRect& aRect, bool aRepaint) {
+  DoResize(aRect.x, aRect.y, aRect.width, aRect.height, aRepaint, false);
 }
 
 // Coordinates are desktop pixels
-void nsCocoaWindow::Resize(double aWidth, double aHeight, bool aRepaint) {
+void nsCocoaWindow::Resize(const DesktopSize& aSize, bool aRepaint) {
   double invScale = 1.0 / BackingScaleFactor();
-  DoResize(mBounds.x * invScale, mBounds.y * invScale, aWidth, aHeight,
-           aRepaint, true);
+  DoResize(mBounds.x * invScale, mBounds.y * invScale, aSize.width,
+           aSize.height, aRepaint, true);
 }
 
 // Return the area that the Gecko ChildView in our window should cover, as an
@@ -6799,12 +6773,14 @@ LayoutDeviceIntRect nsCocoaWindow::GetScreenBounds() {
 
 double nsCocoaWindow::GetDefaultScaleInternal() { return BackingScaleFactor(); }
 
-static CGFloat GetBackingScaleFactor(NSWindow* aWindow) {
-  NSRect frame = aWindow.frame;
-  if (frame.size.width > 0 && frame.size.height > 0) {
-    return nsCocoaUtils::GetBackingScaleFactor(aWindow);
+CGFloat nsCocoaWindow::ComputeBackingScaleFactor() const {
+  if (nsIWidget* parent = GetParent()) {
+    return parent->GetDesktopToDeviceScale().scale;
   }
-
+  NSRect frame = mWindow.frame;
+  if (frame.size.width > 0 && frame.size.height > 0) {
+    return nsCocoaUtils::GetBackingScaleFactor(mWindow);
+  }
   // For windows with zero width or height, the backingScaleFactor method
   // is broken - it will always return 2 on a retina macbook, even when
   // the window position implies it's on a non-hidpi external display
@@ -6815,18 +6791,17 @@ static CGFloat GetBackingScaleFactor(NSWindow* aWindow) {
   // NSBackingPropertyOldScaleFactorKey key when a window on an
   // external display is resized to/from zero height, even though it hasn't
   // really changed screens.
-
+  //
   // This causes us to handle popup window sizing incorrectly when the
   // popup is resized to zero height (bug 820327) - nsXULPopupManager
   // becomes (incorrectly) convinced the popup has been explicitly forced
   // to a non-default size and needs to have size attributes attached.
-
+  //
   // Workaround: instead of asking the window, we'll find the screen it is on
   // and ask that for *its* backing scale factor.
-
+  //
   // (See bug 853252 and additional comments in windowDidChangeScreen: below
   // for further complications this causes.)
-
   // First, expand the rect so that it actually has a measurable area,
   // for FindTargetScreenForRect to use.
   if (frame.size.width == 0) {
@@ -6835,7 +6810,6 @@ static CGFloat GetBackingScaleFactor(NSWindow* aWindow) {
   if (frame.size.height == 0) {
     frame.size.height = 1;
   }
-
   // Then identify the screen it belongs to, and return its scale factor.
   NSScreen* screen =
       FindTargetScreenForRect(nsCocoaUtils::CocoaRectToGeckoRect(frame));
@@ -6849,12 +6823,12 @@ CGFloat nsCocoaWindow::BackingScaleFactor() const {
   if (!mWindow) {
     return 1.0;
   }
-  mBackingScaleFactor = GetBackingScaleFactor(mWindow);
+  mBackingScaleFactor = ComputeBackingScaleFactor();
   return mBackingScaleFactor;
 }
 
 void nsCocoaWindow::BackingScaleFactorChanged() {
-  CGFloat newScale = GetBackingScaleFactor(mWindow);
+  CGFloat newScale = ComputeBackingScaleFactor();
 
   // Ignore notification if it hasn't really changed
   if (BackingScaleFactor() == newScale) {
@@ -7112,25 +7086,6 @@ LayoutDeviceIntPoint nsCocoaWindow::GetClientOffset() {
   NS_OBJC_END_TRY_BLOCK_RETURN(LayoutDeviceIntPoint(0, 0));
 }
 
-LayoutDeviceIntSize nsCocoaWindow::ClientToWindowSize(const LayoutDeviceIntSize& aClientSize) {
-  NS_OBJC_BEGIN_TRY_BLOCK_RETURN;
-
-  if (!mWindow || mWindow.drawsContentsIntoWindowFrame ||
-      mWindowType == WindowType::Popup) {
-    return {};
-  }
-
-  CGFloat backingScale = BackingScaleFactor();
-  LayoutDeviceIntRect r(0, 0, aClientSize.width, aClientSize.height);
-  NSRect rect = nsCocoaUtils::DevPixelsToCocoaPoints(r, backingScale);
-
-  NSRect maybeInflatedRect = [mWindow frameRectForChildViewRect:rect];
-  r = nsCocoaUtils::CocoaRectToGeckoRectDevPix(maybeInflatedRect, backingScale);
-  return r.Size();
-
-  NS_OBJC_END_TRY_BLOCK_RETURN(LayoutDeviceIntSize(0, 0));
-
-}
 
 nsMenuBarX* nsCocoaWindow::GetMenuBar() { return mMenuBar; }
 

@@ -47,6 +47,7 @@ class AddressRadixTree {
   void** mRoot;
 
  public:
+
   bool Init() MOZ_REQUIRES(gInitLock) MOZ_EXCLUDES(mLock);
 
   inline void* Get(void* aAddr) MOZ_EXCLUDES(mLock);

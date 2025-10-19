@@ -75,14 +75,14 @@ XPCOMUtils.defineLazyServiceGetter(
   lazy,
   "QueryStringStripper",
   "@mozilla.org/url-query-string-stripper;1",
-  "nsIURLQueryStringStripper"
+  Ci.nsIURLQueryStringStripper
 );
 
 XPCOMUtils.defineLazyServiceGetter(
   lazy,
   "clipboard",
   "@mozilla.org/widget/clipboardhelper;1",
-  "nsIClipboardHelper"
+  Ci.nsIClipboardHelper
 );
 
 XPCOMUtils.defineLazyPreferenceGetter(
@@ -1381,7 +1381,7 @@ export class nsContextMenu {
 
         count = 0;
       } else if (!menuItem.hidden) {
-        if (menuItem.localName == "menu") {
+        if (menuItem.localName == "menu" && menuItem.menupopup) {
           this.showHideSeparators(menuItem.menupopup);
         } else if (menuItem.localName == "menugroup") {
           this.showHideSeparators(menuItem);

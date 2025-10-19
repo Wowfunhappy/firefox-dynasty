@@ -463,9 +463,8 @@ nsresult BrowserChild::Init(mozIDOMWindowProxy* aParent,
     NS_ERROR("couldn't create fake widget");
     return NS_ERROR_FAILURE;
   }
-  mPuppetWidget->InfallibleCreate(nullptr,  // No parent
-                                  LayoutDeviceIntRect(0, 0, 0, 0),
-                                  nullptr);  // HandleWidgetEvent
+  mPuppetWidget->InfallibleCreate(nullptr, LayoutDeviceIntRect(),
+                                  widget::InitData());
 
   mWebBrowser = nsWebBrowser::Create(this, mPuppetWidget, mBrowsingContext,
                                      aInitialWindowChild);
@@ -1182,11 +1181,10 @@ mozilla::ipc::IPCResult BrowserChild::RecvUpdateDimensions(
   baseWin->SetPositionAndSize(0, 0, innerSize.width, innerSize.height,
                               nsIBaseWindow::eRepaint);
 
-  const LayoutDeviceIntRect outerRect =
-      GetOuterRect() + mClientOffset + mChromeOffset;
-
-  mPuppetWidget->Resize(outerRect.x, outerRect.y, innerSize.width,
-                        innerSize.height, true);
+  const LayoutDeviceIntRect widgetRect(
+      GetOuterRect().TopLeft() + mClientOffset + mChromeOffset, innerSize);
+  mPuppetWidget->Resize(widgetRect / mPuppetWidget->GetDesktopToDeviceScale(),
+                        true);
 
   RecvSafeAreaInsetsChanged(mPuppetWidget->GetSafeAreaInsets());
 
@@ -3633,10 +3631,10 @@ mozilla::ipc::IPCResult BrowserChild::RecvUIResolutionChanged(
     baseWin->SetPositionAndSize(0, 0, innerSize.width, innerSize.height,
                                 nsIBaseWindow::eRepaint);
 
-    const LayoutDeviceIntRect outerRect =
-        GetOuterRect() + mClientOffset + mChromeOffset;
-    mPuppetWidget->Resize(outerRect.x, outerRect.y, innerSize.width,
-                          innerSize.height, true);
+    const LayoutDeviceIntRect widgetRect(
+        GetOuterRect().TopLeft() + mClientOffset + mChromeOffset, innerSize);
+    mPuppetWidget->Resize(widgetRect / mPuppetWidget->GetDesktopToDeviceScale(),
+                          true);
   }
 
   nsCOMPtr<Document> document(GetTopLevelDocument());

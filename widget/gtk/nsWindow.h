@@ -24,7 +24,7 @@
 #include "mozilla/gfx/BaseMargin.h"
 #include "mozilla/widget/WindowSurface.h"
 #include "mozilla/widget/WindowSurfaceProvider.h"
-#include "nsBaseWidget.h"
+#include "nsIWidget.h"
 #include "nsGkAtoms.h"
 #include "nsIDragService.h"
 #include "nsRefPtrHashtable.h"
@@ -102,6 +102,7 @@ typedef uintptr_t Window;
 
 class gfxPattern;
 class nsIFrame;
+class nsMenuPopupFrame;
 #if !GTK_CHECK_VERSION(3, 18, 0)
 struct _GdkEventTouchpadPinch;
 typedef struct _GdkEventTouchpadPinch GdkEventTouchpadPinch;
@@ -152,7 +153,7 @@ class WaylandSurfaceLock;
 
 class gfxImageSurface;
 
-class nsWindow final : public nsBaseWidget {
+class nsWindow final : public nsIWidget {
  public:
   typedef mozilla::gfx::DrawTarget DrawTarget;
   typedef mozilla::WidgetEventTime WidgetEventTime;
@@ -164,7 +165,7 @@ class nsWindow final : public nsBaseWidget {
 
   static void ReleaseGlobals();
 
-  NS_INLINE_DECL_REFCOUNTING_INHERITED(nsWindow, nsBaseWidget)
+  NS_INLINE_DECL_REFCOUNTING_INHERITED(nsWindow, nsIWidget)
 
   nsresult DispatchEvent(mozilla::WidgetGUIEvent* aEvent,
                          nsEventStatus& aStatus) override;
@@ -176,27 +177,24 @@ class nsWindow final : public nsBaseWidget {
   bool AreBoundsSane();
 
   // nsIWidget
-  using nsBaseWidget::Create;  // for Create signature not overridden here
+  using nsIWidget::Create;  // for Create signature not overridden here
   [[nodiscard]] nsresult Create(nsIWidget* aParent,
                                 const LayoutDeviceIntRect& aRect,
-                                InitData* aInitData) override;
+                                const InitData&) override;
   void Destroy() override;
   float GetDPI() override;
   double GetDefaultScaleInternal() override;
   mozilla::DesktopToLayoutDeviceScale GetDesktopToDeviceScale() override;
-  mozilla::DesktopToLayoutDeviceScale GetDesktopToDeviceScaleByScreen()
-      override;
   void SetModal(bool aModal) override;
   bool IsVisible() const override;
   bool IsMapped() const override;
   void ConstrainPosition(DesktopIntPoint&) override;
   void SetSizeConstraints(const SizeConstraints&) override;
   void LockAspectRatio(bool aShouldLock) override;
-  void Move(double aX, double aY) override;
+  void Move(const DesktopPoint&) override;
   void Show(bool aState) override;
-  void Resize(double aWidth, double aHeight, bool aRepaint) override;
-  void Resize(double aX, double aY, double aWidth, double aHeight,
-              bool aRepaint) override;
+  void Resize(const DesktopSize&, bool aRepaint) override;
+  void Resize(const DesktopRect&, bool aRepaint) override;
   bool IsEnabled() const override;
 
   nsSizeMode SizeMode() override { return mSizeMode; }
@@ -207,6 +205,7 @@ class nsWindow final : public nsBaseWidget {
   void SetFocus(Raise, mozilla::dom::CallerType aCallerType) override;
   LayoutDeviceIntRect GetScreenBounds() override;
   LayoutDeviceIntRect GetClientBounds() override;
+  LayoutDeviceIntRect GetBounds() override { return mBounds; }
   LayoutDeviceIntSize GetClientSize() override;
   LayoutDeviceIntPoint GetClientOffset() override {
     return LayoutDeviceIntPoint(mClientMargin.left, mClientMargin.top);
@@ -625,6 +624,8 @@ class nsWindow final : public nsBaseWidget {
   LayoutDeviceIntPoint mLastMoveRequest;
   // Margin from mBounds to the client rect (including CSD decorations).
   LayoutDeviceIntMargin mClientMargin;
+  // Bounds of the window, as in GetBounds().
+  LayoutDeviceIntRect mBounds;
 
   // This field omits duplicate scroll events caused by GNOME bug 726878.
   guint32 mLastScrollEventTime = GDK_CURRENT_TIME;
@@ -838,7 +839,7 @@ class nsWindow final : public nsBaseWidget {
 
   bool IsAlwaysUndecoratedWindow() const;
 
-  // nsBaseWidget
+  // nsIWidget
   WindowRenderer* GetWindowRenderer() override;
   void DidGetNonBlankPaint() override;
 

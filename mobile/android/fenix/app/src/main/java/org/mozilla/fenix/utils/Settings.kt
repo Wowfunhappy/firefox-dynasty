@@ -49,6 +49,7 @@ import org.mozilla.fenix.debugsettings.addresses.SharedPrefsAddressesDebugLocale
 import org.mozilla.fenix.ext.TALL_SCREEN_HEIGHT_DP
 import org.mozilla.fenix.ext.WIDE_SCREEN_WIDTH_DP
 import org.mozilla.fenix.ext.components
+import org.mozilla.fenix.ext.getApplicationInstalledTime
 import org.mozilla.fenix.ext.getPreferenceKey
 import org.mozilla.fenix.ext.pixelSizeFor
 import org.mozilla.fenix.home.pocket.ContentRecommendationsFeatureHelper
@@ -70,6 +71,7 @@ import org.mozilla.fenix.settings.registerOnSharedPreferenceChangeListener
 import org.mozilla.fenix.settings.sitepermissions.AUTOPLAY_BLOCK_ALL
 import org.mozilla.fenix.settings.sitepermissions.AUTOPLAY_BLOCK_AUDIBLE
 import org.mozilla.fenix.tabstray.DefaultTabManagementFeatureHelper
+import org.mozilla.fenix.termsofuse.TOU_VERSION
 import org.mozilla.fenix.wallpapers.Wallpaper
 import java.security.InvalidParameterException
 import java.util.UUID
@@ -224,6 +226,15 @@ class Settings(private val appContext: Context) : PreferencesHolder {
         appContext.getPreferenceKey(R.string.pref_key_pocket_homescreen_recommendations),
         featureFlag = ContentRecommendationsFeatureHelper.isContentRecommendationsFeatureEnabled(appContext),
         default = { homescreenSections[HomeScreenSection.POCKET] == true },
+    )
+
+    /**
+     * Indicates what toolbar shortcut key is currently selected.
+     */
+    var toolbarShortcutKey: String by stringPreference(
+        key = appContext.getPreferenceKey(R.string.pref_key_toolbar_shortcut),
+        default = { "new_tab" },
+        persistDefaultIfNotExists = true,
     )
 
     /**
@@ -597,6 +608,33 @@ class Settings(private val appContext: Context) : PreferencesHolder {
     )
 
     /**
+     * The date the user accepted the Terms of Use.
+     */
+    var termsOfUseAcceptedTimeInMillis by longPreference(
+        key = appContext.getPreferenceKey(R.string.pref_key_terms_accepted_date),
+        default = { if (hasAcceptedTermsOfService) applicationInstalledTime else 0L },
+    )
+
+    /**
+     * Temporary testing helper to set the date the user accepted the Terms of Use.
+     *
+     * Will be addressed in a more permanent refactor as part of
+     * https://bugzilla.mozilla.org/show_bug.cgi?id=1993949.
+     *
+     * ⚠️ Only mutate from tests.
+     */
+    @VisibleForTesting
+    internal var applicationInstalledTime = appContext.getApplicationInstalledTime(logger)
+
+    /**
+     * The version of the Terms of Use that the user has accepted.
+     */
+    var termsOfUseAcceptedVersion by intPreference(
+        key = appContext.getPreferenceKey(R.string.pref_key_terms_accepted_version),
+        default = { if (hasAcceptedTermsOfService) TOU_VERSION else 0 },
+    )
+
+    /**
      * Returns true if the terms of use feature flag is enabled
      */
     var isTermsOfUsePromptEnabled by lazyFeatureFlagPreference(
@@ -607,8 +645,10 @@ class Settings(private val appContext: Context) : PreferencesHolder {
 
     /**
      * The maximum number of times the Terms of Use prompt should be displayed.
+     *
+     * Use a function to ensure the most up-to-date Nimbus value is retrieved.
      */
-    var termsOfUseMaxDisplayCount = FxNimbus.features.termsOfUsePrompt.value().maxDisplayCount
+    fun getTermsOfUseMaxDisplayCount() = FxNimbus.features.termsOfUsePrompt.value().maxDisplayCount
 
     /**
      * The total number of times the Terms of Use prompt has been displayed.
@@ -640,22 +680,6 @@ class Settings(private val appContext: Context) : PreferencesHolder {
         appContext.getPreferenceKey(R.string.pref_key_debug_terms_trigger_time),
         default = false,
         persistDefaultIfNotExists = true,
-    )
-
-    /**
-     * Used to determine users who have interacted with any links from the Terms of Use prompt.
-     */
-    var hasClickedTermOfUsePromptLink by booleanPreference(
-        appContext.getPreferenceKey(R.string.pref_key_terms_clicked_link),
-        default = false,
-    )
-
-    /**
-     * Used to determine users who clicked the "remind me later" action.
-     */
-    var hasClickedTermOfUsePromptRemindMeLater by booleanPreference(
-        appContext.getPreferenceKey(R.string.pref_key_terms_clicked_remind_me_later),
-        default = false,
     )
 
     /**
@@ -1379,13 +1403,8 @@ class Settings(private val appContext: Context) : PreferencesHolder {
         persistDefaultIfNotExists = true,
     )
 
-    var shouldShowSimpleToolbarCustomization by booleanPreference(
-        key = appContext.getPreferenceKey(R.string.pref_key_enable_simple_toolbar_customization),
-        default = { FxNimbus.features.toolbarRedesignOption.value().showSimpleCustomization },
-    )
-
-    var shouldShowExpandedToolbarCustomization by booleanPreference(
-        key = appContext.getPreferenceKey(R.string.pref_key_enable_expanded_toolbar_customization),
+    var shouldShowToolbarCustomization by booleanPreference(
+        key = appContext.getPreferenceKey(R.string.pref_key_enable_toolbar_customization),
         default = { FxNimbus.features.toolbarRedesignOption.value().showExpandedCustomization },
     )
 

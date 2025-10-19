@@ -39,7 +39,6 @@
 #include "mozilla/RefPtr.h"
 #include "mozilla/SourceLocation.h"
 #include "mozilla/TimeStamp.h"
-#include "mozilla/UniquePtr.h"
 #include "mozilla/dom/BindingDeclarations.h"
 #include "mozilla/dom/CacheExpirationTime.h"
 #include "mozilla/dom/FetchPriority.h"
@@ -3043,8 +3042,6 @@ class nsContentUtils {
   static mozilla::LayoutDeviceIntPoint ToWidgetPoint(
       const mozilla::CSSPoint& aPoint, const nsPoint& aOffset,
       nsPresContext* aPresContext);
-  static nsView* GetViewToDispatchEvent(nsPresContext* aPresContext,
-                                        mozilla::PresShell** aPresShell);
 
   /**
    * Synthesize a mouse event to the given widget

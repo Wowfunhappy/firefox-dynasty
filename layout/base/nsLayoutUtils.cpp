@@ -1499,10 +1499,9 @@ nsPoint GetEventCoordinatesRelativeTo(nsIWidget* aWidget,
     return nsPoint(NS_UNCONSTRAINEDSIZE, NS_UNCONSTRAINEDSIZE);
   }
 
-  nsView* view = frame->GetView();
-  if (view) {
+  if (nsView* view = frame->GetView()) {
     nsIWidget* frameWidget = view->GetWidget();
-    if (frameWidget && frameWidget == aWidget) {
+    if (frameWidget == aWidget) {
       // Special case this cause it happens a lot.
       // This also fixes bug 664707, events in the extra-special case of select
       // dropdown popups that are transformed.
@@ -1582,7 +1581,7 @@ nsIFrame* nsLayoutUtils::GetPopupFrameForEventCoordinates(
                                guiEvent->mRefPoint);
 }
 
-nsIFrame* nsLayoutUtils::GetPopupFrameForPoint(
+nsMenuPopupFrame* nsLayoutUtils::GetPopupFrameForPoint(
     nsPresContext* aRootPresContext, nsIWidget* aWidget,
     const mozilla::LayoutDeviceIntPoint& aPoint,
     GetPopupFrameForPointFlags aFlags /* = GetPopupFrameForPointFlags(0) */) {
@@ -1861,9 +1860,14 @@ nsRect nsLayoutUtils::MatrixTransformRect(const nsRect& aBounds,
                  NSAppUnitsToDoublePixels(aBounds.width, aFactor),
                  NSAppUnitsToDoublePixels(aBounds.height, aFactor));
 
+  // We clip from nscoord_MIN to nscoord_MAX which allows the resulting rect to
+  // have a size that goes up to 2*nscoord_MAX. We then rely on
+  // RoundGfxRectToAppRect to handle this situation intelligently to give us a
+  // size representable as an nscoord by shifting the rect to its mid point and
+  // shrinking the size to nscoord_MAX.
   RectDouble maxBounds = RectDouble(
-      double(nscoord_MIN) / aFactor * 0.5, double(nscoord_MIN) / aFactor * 0.5,
-      double(nscoord_MAX) / aFactor, double(nscoord_MAX) / aFactor);
+      double(nscoord_MIN) / aFactor, double(nscoord_MIN) / aFactor,
+      double(nscoord_MAX) / aFactor * 2.0, double(nscoord_MAX) / aFactor * 2.0);
 
   image = aMatrix.TransformAndClipBounds(image, maxBounds);
 
@@ -1879,9 +1883,10 @@ nsRect nsLayoutUtils::MatrixTransformRect(const nsRect& aBounds,
                  NSAppUnitsToDoublePixels(aBounds.width, aFactor),
                  NSAppUnitsToDoublePixels(aBounds.height, aFactor));
 
+  // See comment above about these maxBounds.
   RectDouble maxBounds = RectDouble(
-      double(nscoord_MIN) / aFactor * 0.5, double(nscoord_MIN) / aFactor * 0.5,
-      double(nscoord_MAX) / aFactor, double(nscoord_MAX) / aFactor);
+      double(nscoord_MIN) / aFactor, double(nscoord_MIN) / aFactor,
+      double(nscoord_MAX) / aFactor * 2.0, double(nscoord_MAX) / aFactor * 2.0);
 
   image = aMatrix.TransformAndClipBounds(image, maxBounds);
 

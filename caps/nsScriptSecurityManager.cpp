@@ -66,7 +66,6 @@
 #include "mozilla/dom/ScriptSettings.h"
 #include "mozilla/ClearOnShutdown.h"
 #include "mozilla/ExtensionPolicyService.h"
-#include "mozilla/ResultExtensions.h"
 #include "mozilla/StaticPtr.h"
 #include "mozilla/dom/TrustedTypeUtils.h"
 #include "mozilla/dom/WorkerCommon.h"
@@ -494,10 +493,6 @@ bool nsScriptSecurityManager::ContentSecurityPolicyPermitsJSAction(
   // Check if Eval is allowed per firefox hardening policy
   bool contextForbidsEval =
       (subjectPrincipal->IsSystemPrincipal() || XRE_IsE10sParentProcess());
-#if defined(ANDROID)
-  contextForbidsEval = false;
-#endif
-
   if (contextForbidsEval) {
     nsAutoJSString scriptSample;
     if (aKind == JS::RuntimeCode::JS &&

@@ -68,7 +68,8 @@ static nsStaticAtom* const kRelationAttrs[] = {
     nsGkAtoms::aria_controls,     nsGkAtoms::aria_flowto,
     nsGkAtoms::aria_errormessage, nsGkAtoms::_for,
     nsGkAtoms::control,           nsGkAtoms::popovertarget,
-    nsGkAtoms::commandfor,        nsGkAtoms::aria_activedescendant};
+    nsGkAtoms::commandfor,        nsGkAtoms::aria_activedescendant,
+    nsGkAtoms::aria_actions};
 
 static const uint32_t kRelationAttrsLen = std::size(kRelationAttrs);
 
@@ -1183,13 +1184,9 @@ void* DocAccessible::GetNativeWindow() const {
   if (!mPresShell) {
     return nullptr;
   }
-
-  nsViewManager* vm = mPresShell->GetViewManager();
-  if (!vm) return nullptr;
-
-  nsCOMPtr<nsIWidget> widget = vm->GetRootWidget();
-  if (widget) return widget->GetNativeData(NS_NATIVE_WINDOW);
-
+  if (nsIWidget* widget = mPresShell->GetRootWidget()) {
+    return widget->GetNativeData(NS_NATIVE_WINDOW);
+  }
   return nullptr;
 }
 

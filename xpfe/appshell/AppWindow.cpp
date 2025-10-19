@@ -213,7 +213,7 @@ nsresult AppWindow::Initialize(nsIAppWindow* aParent, nsIAppWindow* aOpener,
   mWindow->SetWidgetListener(&mWidgetListenerDelegate);
   rv = mWindow->Create(parentWidget.get(),  // Parent nsIWidget
                        deskRect,            // Widget dimensions
-                       &widgetInitData);    // Widget initialization data
+                       widgetInitData);     // Widget initialization data
   NS_ENSURE_SUCCESS(rv, rv);
 
   LayoutDeviceIntRect r = mWindow->GetClientBounds();
@@ -386,9 +386,7 @@ static LayoutDeviceIntSize GetOuterToInnerSizeDifference(nsIWidget* aWindow) {
   if (!aWindow) {
     return LayoutDeviceIntSize();
   }
-  LayoutDeviceIntSize baseSize(200, 200);
-  LayoutDeviceIntSize windowSize = aWindow->ClientToWindowSize(baseSize);
-  return windowSize - baseSize;
+  return aWindow->NormalSizeModeClientToWindowSizeDifference();
 }
 
 static CSSIntSize GetOuterToInnerSizeDifferenceInCSSPixels(
@@ -710,15 +708,14 @@ nsresult AppWindow::MoveResize(const Maybe<DesktopPoint>& aPosition,
   }
 
   if (aPosition && aSize) {
-    mWindow->Resize(aPosition->x, aPosition->y, aSize->width, aSize->height,
-                    aRepaint);
+    mWindow->Resize(DesktopRect(*aPosition, *aSize), aRepaint);
     dirtyAttributes = {PersistentAttribute::Size,
                        PersistentAttribute::Position};
   } else if (aSize) {
-    mWindow->Resize(aSize->width, aSize->height, aRepaint);
+    mWindow->Resize(*aSize, aRepaint);
     dirtyAttributes = {PersistentAttribute::Size};
   } else if (aPosition) {
-    mWindow->Move(aPosition->x, aPosition->y);
+    mWindow->Move(*aPosition);
     dirtyAttributes = {PersistentAttribute::Position};
   }
 

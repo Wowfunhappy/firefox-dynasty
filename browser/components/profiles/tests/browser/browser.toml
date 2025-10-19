@@ -23,6 +23,11 @@ skip-if = [
 
 ["browser_delete_profile_page_test.js"]
 
+["browser_desktop_shortcut_test.js"]
+run-if = [
+  "os == 'win'",
+] # Desktop shortcuts are only supported on Windows.
+
 ["browser_edit_profile_test.js"]
 skip-if = [
   "os == 'linux' && os_version == '18.04' && processor == 'x86_64' && debug", # Bug 1942961
@@ -46,8 +51,10 @@ fail-if = ["a11y_checks"] # Bug 1955503
 ["browser_refresh_button.js"]
 
 ["browser_test_current_theme_from_amo.js"]
+skip-if = ["os == 'win'"] # Bug 1994086
 
 ["browser_test_last_tab.js"]
+skip-if = ["os == 'win'"] # Bug 1994086
 
 ["browser_test_nimbus_feature.js"]
 

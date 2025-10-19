@@ -14,7 +14,6 @@
 #endif
 
 #include "nsISupports.h"
-#include "nsBaseWidget.h"
 #include "nsIWeakReferenceUtils.h"
 #include "TextInputHandler.h"
 #include "nsCocoaUtils.h"

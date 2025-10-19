@@ -9,6 +9,9 @@ import { RootBiDiModule } from "chrome://remote/content/webdriver-bidi/modules/R
 const lazy = {};
 
 ChromeUtils.defineESModuleGetters(lazy, {
+  NetworkHelper:
+    "resource://devtools/shared/network-observer/NetworkHelper.sys.mjs",
+
   assert: "chrome://remote/content/shared/webdriver/Assert.sys.mjs",
   CacheBehavior: "chrome://remote/content/shared/NetworkCacheManager.sys.mjs",
   error: "chrome://remote/content/shared/webdriver/Errors.sys.mjs",
@@ -16,6 +19,7 @@ ChromeUtils.defineESModuleGetters(lazy, {
   Log: "chrome://remote/content/shared/Log.sys.mjs",
   matchURLPattern:
     "chrome://remote/content/shared/webdriver/URLPattern.sys.mjs",
+  NavigableManager: "chrome://remote/content/shared/NavigableManager.sys.mjs",
   NetworkDecodedBodySizeMap:
     "chrome://remote/content/shared/NetworkDecodedBodySizeMap.sys.mjs",
   NetworkListener:
@@ -26,7 +30,6 @@ ChromeUtils.defineESModuleGetters(lazy, {
   parseURLPattern:
     "chrome://remote/content/shared/webdriver/URLPattern.sys.mjs",
   pprint: "chrome://remote/content/shared/Format.sys.mjs",
-  TabManager: "chrome://remote/content/shared/TabManager.sys.mjs",
   truncate: "chrome://remote/content/shared/Format.sys.mjs",
   updateCacheBehavior:
     "chrome://remote/content/shared/NetworkCacheManager.sys.mjs",
@@ -1881,7 +1884,7 @@ class NetworkModule extends RootBiDiModule {
   }
 
   #getBrowsingContext(contextId) {
-    const context = lazy.TabManager.getBrowsingContextById(contextId);
+    const context = lazy.NavigableManager.getBrowsingContextById(contextId);
     if (context === null) {
       throw new lazy.error.NoSuchFrameError(
         `Browsing Context with id ${contextId} not found`
@@ -2124,7 +2127,8 @@ class NetworkModule extends RootBiDiModule {
    */
   #matchCollectorForNavigable(collector, navigable) {
     if (collector.contexts.size) {
-      const navigableId = lazy.TabManager.getIdForBrowsingContext(navigable);
+      const navigableId =
+        lazy.NavigableManager.getIdForBrowsingContext(navigable);
       return collector.contexts.has(navigableId);
     }
 
@@ -2184,18 +2188,21 @@ class NetworkModule extends RootBiDiModule {
       return;
     }
 
-    if (!(response instanceof lazy.NetworkResponse)) {
+    if (!(response instanceof lazy.NetworkResponse) && !response.isDataURL) {
       lazy.logger.trace(
         `Network data not collected for request "${request.requestId}" and data type "${DataType.Response}"` +
-          `: unsupported response (data scheme or cached resource)`
+          `: unsupported response (read from memory cache)`
       );
       // Cached stencils do not return any response body.
-      // TODO: Handle response body for data URLs.
+      collectedData.pending = false;
       collectedData.networkDataCollected.resolve();
+      this.#collectedNetworkData.delete(
+        `${collectedData.request}-${collectedData.type}`
+      );
       return;
     }
 
-    const browsingContext = lazy.TabManager.getBrowsingContextById(
+    const browsingContext = lazy.NavigableManager.getBrowsingContextById(
       request.contextId
     );
     if (!browsingContext) {
@@ -2242,10 +2249,26 @@ class NetworkModule extends RootBiDiModule {
     // body. Since this is handled by the DevTools NetworkResponseListener, so
     // here we wait until the response content is set.
     try {
-      const bytesOrNull = await response.readResponseBody();
-      if (bytesOrNull !== null) {
-        bytes = bytesOrNull;
-        size = response.encodedBodySize;
+      if (response.isDataURL) {
+        // Handle data URLs as a special case since the response is not provided
+        // by the DevTools ResponseListener in this case.
+        const url = request.serializedURL;
+        const body = url.substring(url.indexOf(",") + 1);
+        const isText =
+          response.mimeType &&
+          lazy.NetworkHelper.isTextMimeType(response.mimeType);
+        // TODO: Reuse a common interface being introduced in Bug 1988955.
+        bytes = {
+          getDecodedResponseBody: () => body,
+          encoding: isText ? null : "base64",
+        };
+        size = body.length;
+      } else {
+        const bytesOrNull = await response.readResponseBody();
+        if (bytesOrNull !== null) {
+          bytes = bytesOrNull;
+          size = response.encodedBodySize;
+        }
       }
     } catch {
       // Let processBodyError be this step: Do nothing.
@@ -2290,7 +2313,7 @@ class NetworkModule extends RootBiDiModule {
 
     let isBlocked = false;
     try {
-      const browsingContext = lazy.TabManager.getBrowsingContextById(
+      const browsingContext = lazy.NavigableManager.getBrowsingContextById(
         request.contextId
       );
       if (!browsingContext) {
@@ -2363,7 +2386,7 @@ class NetworkModule extends RootBiDiModule {
       return;
     }
 
-    const browsingContext = lazy.TabManager.getBrowsingContextById(
+    const browsingContext = lazy.NavigableManager.getBrowsingContextById(
       request.contextId
     );
     if (!browsingContext) {
@@ -2421,7 +2444,7 @@ class NetworkModule extends RootBiDiModule {
   #onFetchError = (name, data) => {
     const { request } = data;
 
-    const browsingContext = lazy.TabManager.getBrowsingContextById(
+    const browsingContext = lazy.NavigableManager.getBrowsingContextById(
       request.contextId
     );
     if (!browsingContext) {
@@ -2463,7 +2486,7 @@ class NetworkModule extends RootBiDiModule {
   #onResponseEvent = async (name, data) => {
     const { request, response } = data;
 
-    const browsingContext = lazy.TabManager.getBrowsingContextById(
+    const browsingContext = lazy.NavigableManager.getBrowsingContextById(
       request.contextId
     );
     if (!browsingContext) {
@@ -2540,8 +2563,9 @@ class NetworkModule extends RootBiDiModule {
     if (request.contextId) {
       // Retrieve the top browsing context id for this network event.
       contextId = request.contextId;
-      const browsingContext = lazy.TabManager.getBrowsingContextById(contextId);
-      topContextId = lazy.TabManager.getIdForBrowsingContext(
+      const browsingContext =
+        lazy.NavigableManager.getBrowsingContextById(contextId);
+      topContextId = lazy.NavigableManager.getIdForBrowsingContext(
         browsingContext.top
       );
     }

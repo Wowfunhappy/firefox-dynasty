@@ -897,6 +897,13 @@ export class TranslationsDocument {
   #scheduler;
 
   /**
+   * The script direction of the source language.
+   *
+   * @type {("ltr"|"rtl")}
+   */
+  #sourceScriptDirection;
+
+  /**
    * The script direction of the target language.
    *
    * @type {("ltr"|"rtl")}
@@ -1093,6 +1100,8 @@ export class TranslationsDocument {
     this.#documentLanguage = documentLanguage;
     this.#translationsCache = translationsCache;
     this.#actorReportFirstVisibleChange = reportVisibleChange;
+    this.#sourceScriptDirection =
+      Services.intl.getScriptDirection(documentLanguage);
     this.#targetScriptDirection =
       Services.intl.getScriptDirection(targetLanguage);
     this.#translationsMode = isFindBarOpen ? "content-eager" : "lazy";
@@ -3204,6 +3213,42 @@ export class TranslationsDocument {
   }
 
   /**
+   * Updates the script direction of a given element,
+   * only if the source and target script directions differ.
+   *
+   * If the element is contained within a list item, then this
+   * also updates the script direction of the list item as well
+   * as the containing list.
+   *
+   * This is a special-case scenario that really improves the layout
+   * of lists on pages when translating to the reverse script direciton.
+   *
+   * @param {Element?} element
+   */
+  #maybeUpdateScriptDirection(element) {
+    if (
+      !element ||
+      this.#sourceScriptDirection === this.#targetScriptDirection
+    ) {
+      return;
+    }
+
+    const targetScriptDirection = this.#targetScriptDirection;
+
+    element.setAttribute("dir", targetScriptDirection);
+
+    const listItemAncestor = element.closest("li");
+    if (!listItemAncestor) {
+      return;
+    }
+
+    listItemAncestor.setAttribute("dir", targetScriptDirection);
+    listItemAncestor
+      .closest("ul, ol")
+      ?.setAttribute("dir", targetScriptDirection);
+  }
+
+  /**
    * Updates all nodes that have completed attribute translation requests.
    *
    * This function is called asynchronously, so nodes may already be dead. Before
@@ -3250,10 +3295,15 @@ export class TranslationsDocument {
           );
 
           updateElement(translationsDocument, element);
+          this.#maybeUpdateScriptDirection(element);
+
           this.#processedContentNodes.add(targetNode);
         } else {
           textNodeCount++;
+
           targetNode.textContent = translatedContent;
+          this.#maybeUpdateScriptDirection(asElement(targetNode.parentNode));
+
           this.#processedContentNodes.add(targetNode);
         }
 

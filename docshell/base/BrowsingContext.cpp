@@ -62,7 +62,6 @@
 #include "mozilla/HashTable.h"
 #include "mozilla/Logging.h"
 #include "mozilla/MediaFeatureChange.h"
-#include "mozilla/ResultExtensions.h"
 #include "mozilla/Services.h"
 #include "mozilla/StaticPrefs_fission.h"
 #include "mozilla/StaticPrefs_media.h"
@@ -489,6 +488,18 @@ already_AddRefed<BrowsingContext> BrowsingContext::CreateDetached(
   fields.Get<IDX_IPAddressSpace>() = inherit
                                          ? inherit->GetIPAddressSpace()
                                          : nsILoadInfo::IPAddressSpace::Unknown;
+
+  bool parentalControlsEnabled;
+  if (inherit) {
+    parentalControlsEnabled = inherit->GetParentalControlsEnabled();
+  } else if (XRE_IsParentProcess()) {
+    parentalControlsEnabled =
+        CanonicalBrowsingContext::ShouldEnforceParentalControls();
+  } else {
+    parentalControlsEnabled = false;
+  }
+
+  fields.Get<IDX_ParentalControlsEnabled>() = parentalControlsEnabled;
 
   fields.Get<IDX_IsPopupRequested>() = aOptions.isPopupRequested;
 
@@ -2436,10 +2447,11 @@ BrowsingContext::CheckURLAndCreateLoadState(nsIURI* aURI,
 // https://html.spec.whatwg.org/#navigate
 // In its current state, this method is not closely following the spec.
 // https://bugzil.la/1974717 tracks the work to align this method with the spec.
-void BrowsingContext::Navigate(nsIURI* aURI, nsIPrincipal& aSubjectPrincipal,
-                               ErrorResult& aRv,
-                               NavigationHistoryBehavior aHistoryHandling,
-                               bool aNeedsCompletelyLoadedDocument) {
+void BrowsingContext::Navigate(
+    nsIURI* aURI, nsIPrincipal& aSubjectPrincipal, ErrorResult& aRv,
+    NavigationHistoryBehavior aHistoryHandling,
+    bool aNeedsCompletelyLoadedDocument,
+    nsIStructuredCloneContainer* aNavigationAPIState) {
   MOZ_LOG_FMT(gNavigationAPILog, LogLevel::Debug, "Navigate to {} as {}", *aURI,
               aHistoryHandling);
   CallerType callerType = aSubjectPrincipal.IsSystemPrincipal()
@@ -2481,6 +2493,7 @@ void BrowsingContext::Navigate(nsIURI* aURI, nsIPrincipal& aSubjectPrincipal,
 
   loadState->SetLoadFlags(nsIWebNavigation::LOAD_FLAGS_NONE);
   loadState->SetFirstParty(true);
+  loadState->SetNavigationAPIState(aNavigationAPIState);
 
   rv = LoadURI(loadState);
   if (NS_WARN_IF(NS_FAILED(rv))) {
@@ -4482,6 +4495,25 @@ void BrowsingContext::ConsumeHistoryActivation() {
       windowContext->UpdateLastHistoryActivation();
     }
   });
+}
+
+void BrowsingContext::SynchronizeNavigationAPIState(
+    nsIStructuredCloneContainer* aState) {
+  if (!aState) {
+    return;
+  }
+
+  if (XRE_IsContentProcess()) {
+    ClonedMessageData data;
+    DebugOnly<bool> result = static_cast<nsStructuredCloneContainer*>(aState)
+                                 ->BuildClonedMessageData(data);
+    MOZ_ASSERT(result);
+
+    MOZ_ASSERT(ContentChild::GetSingleton());
+    ContentChild::GetSingleton()->SendSynchronizeNavigationAPIState(this, data);
+  } else {
+    Canonical()->SynchronizeNavigationAPIState(aState);
+  }
 }
 
 }  // namespace dom

@@ -69,19 +69,20 @@ bool ModuleLoader::CanStartLoad(ModuleLoadRequest* aRequest, nsresult* aRvOut) {
     return false;
   }
 
-  // If this document is sandboxed without 'allow-scripts', abort.
-  if (GetScriptLoader()->GetDocument()->HasScriptsBlockedBySandbox()) {
-    *aRvOut = NS_OK;
-    return false;
-  }
-
-  // To prevent dynamic code execution, content scripts can only
-  // load moz-extension URLs.
   nsCOMPtr<nsIPrincipal> principal = aRequest->TriggeringPrincipal();
-  if (BasePrincipal::Cast(principal)->ContentScriptAddonPolicy() &&
-      !aRequest->mURI->SchemeIs("moz-extension")) {
-    *aRvOut = NS_ERROR_DOM_WEBEXT_CONTENT_SCRIPT_URI;
-    return false;
+  if (BasePrincipal::Cast(principal)->ContentScriptAddonPolicy()) {
+    // To prevent dynamic code execution, content scripts can only
+    // load moz-extension URLs.
+    if (!aRequest->mURI->SchemeIs("moz-extension")) {
+      *aRvOut = NS_ERROR_DOM_WEBEXT_CONTENT_SCRIPT_URI;
+      return false;
+    }
+  } else {
+    // If this document is sandboxed without 'allow-scripts', abort.
+    if (GetScriptLoader()->GetDocument()->HasScriptsBlockedBySandbox()) {
+      *aRvOut = NS_ERROR_CONTENT_BLOCKED;
+      return false;
+    }
   }
 
   if (LOG_ENABLED()) {
@@ -95,7 +96,7 @@ bool ModuleLoader::CanStartLoad(ModuleLoadRequest* aRequest, nsresult* aRvOut) {
 }
 
 nsresult ModuleLoader::StartFetch(ModuleLoadRequest* aRequest) {
-  if (aRequest->IsStencil()) {
+  if (aRequest->IsCachedStencil()) {
     GetScriptLoader()->EmulateNetworkEvents(aRequest);
     SetModuleFetchStarted(aRequest);
     return aRequest->OnFetchComplete(NS_OK);
@@ -235,7 +236,7 @@ nsresult ModuleLoader::CompileJavaScriptModule(
     JS::MutableHandle<JSObject*> aModuleOut) {
   GetScriptLoader()->CalculateCacheFlag(aRequest);
 
-  if (aRequest->IsStencil()) {
+  if (aRequest->IsCachedStencil()) {
     JS::InstantiateOptions instantiateOptions(aOptions);
     RefPtr<JS::Stencil> stencil = aRequest->GetStencil();
     aModuleOut.set(
@@ -262,6 +263,8 @@ nsresult ModuleLoader::CompileJavaScriptModule(
       return NS_ERROR_FAILURE;
     }
 
+    aRequest->SetStencil(stencil);
+
     JS::InstantiateOptions instantiateOptions(aOptions);
     aModuleOut.set(JS::InstantiateModuleStencil(aCx, instantiateOptions,
                                                 stencil, &storage));
@@ -278,7 +281,7 @@ nsresult ModuleLoader::CompileJavaScriptModule(
       MOZ_ASSERT(!alreadyStarted);
     }
 
-    GetScriptLoader()->TryCacheRequest(aRequest, stencil);
+    GetScriptLoader()->TryCacheRequest(aRequest);
 
     return NS_OK;
   }
@@ -311,6 +314,8 @@ nsresult ModuleLoader::CompileJavaScriptModule(
     return NS_ERROR_FAILURE;
   }
 
+  aRequest->SetStencil(stencil);
+
   JS::InstantiateOptions instantiateOptions(aOptions);
   aModuleOut.set(
       JS::InstantiateModuleStencil(aCx, instantiateOptions, stencil));
@@ -327,7 +332,7 @@ nsresult ModuleLoader::CompileJavaScriptModule(
     MOZ_ASSERT(!alreadyStarted);
   }
 
-  GetScriptLoader()->TryCacheRequest(aRequest, stencil);
+  GetScriptLoader()->TryCacheRequest(aRequest);
 
   return NS_OK;
 }
