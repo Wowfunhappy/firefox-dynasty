@@ -409,12 +409,20 @@ nsresult DictionaryCacheEntry::Write(nsICacheEntry* aCacheEntry) {
   MakeMetadataEntry(metadata);
   DICTIONARY_LOG(
       ("DictionaryCacheEntry::Write %s %s", mURI.get(), metadata.get()));
-  return aCacheEntry->SetMetaDataElement(mURI.get(), metadata.get());
+  nsresult rv = aCacheEntry->SetMetaDataElement(mURI.get(), metadata.get());
+  if (NS_FAILED(rv)) {
+    return rv;
+  }
+  return aCacheEntry->MetaDataReady();
 }
 
 nsresult DictionaryCacheEntry::RemoveEntry(nsICacheEntry* aCacheEntry) {
   DICTIONARY_LOG(("RemoveEntry from metadata for %s", mURI.get()));
-  return aCacheEntry->SetMetaDataElement(mURI.BeginReading(), nullptr);
+  nsresult rv = aCacheEntry->SetMetaDataElement(mURI.BeginReading(), nullptr);
+  if (NS_FAILED(rv)) {
+    return rv;
+  }
+  return aCacheEntry->MetaDataReady();
 }
 
 // Parse - | for field seperator; \ for escape of | or \ .
@@ -447,7 +455,6 @@ bool DictionaryCacheEntry::ParseMetadata(const char* aSrc) {
   if (version != METADATA_VERSION) {
     return false;
   }
-  aSrc = GetEncodedString(aSrc, mHash);
   aSrc = GetEncodedString(aSrc, mHash);
   aSrc = GetEncodedString(aSrc, mPattern);
   aSrc = GetEncodedString(aSrc, mId);

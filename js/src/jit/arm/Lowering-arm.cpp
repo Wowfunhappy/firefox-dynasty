@@ -1138,15 +1138,12 @@ void LIRGenerator::visitCopySign(MCopySign* ins) {
   MOZ_ASSERT(lhs->type() == rhs->type());
   MOZ_ASSERT(lhs->type() == ins->type());
 
-  LInstructionHelper<1, 2, 2>* lir;
+  LInstructionHelper<1, 2, 0>* lir;
   if (lhs->type() == MIRType::Double) {
     lir = new (alloc()) LCopySignD();
   } else {
     lir = new (alloc()) LCopySignF();
   }
-
-  lir->setTemp(0, temp());
-  lir->setTemp(1, temp());
 
   lowerForFPU(lir, ins, lhs, rhs);
 }

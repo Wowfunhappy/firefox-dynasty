@@ -1669,22 +1669,6 @@ void CodeGenerator::visitWasmTruncateToInt32(LWasmTruncateToInt32* lir) {
   MOZ_ASSERT(!ool || !ool->rejoin()->bound(), "ool path doesn't return");
 }
 
-void CodeGenerator::visitCopySignF(LCopySignF* ins) {
-  FloatRegister lhs = ToFloatRegister(ins->lhs());
-  FloatRegister rhs = ToFloatRegister(ins->rhs());
-  FloatRegister output = ToFloatRegister(ins->output());
-
-  masm.fsgnj_s(output, lhs, rhs);
-}
-
-void CodeGenerator::visitCopySignD(LCopySignD* ins) {
-  FloatRegister lhs = ToFloatRegister(ins->lhs());
-  FloatRegister rhs = ToFloatRegister(ins->rhs());
-  FloatRegister output = ToFloatRegister(ins->output());
-
-  masm.fsgnj_d(output, lhs, rhs);
-}
-
 void CodeGenerator::visitTestDAndBranch(LTestDAndBranch* test) {
   FloatRegister input = ToFloatRegister(test->input());
   ScratchDoubleScope fpscratch(masm);

@@ -126,6 +126,7 @@
 #include "mozilla/gfx/Types.h"
 #include "mozilla/glean/GfxMetrics.h"
 #include "mozilla/glean/LayoutMetrics.h"
+#include "mozilla/glue/Debug.h"
 #include "mozilla/layers/APZPublicUtils.h"
 #include "mozilla/layers/CompositorBridgeChild.h"
 #include "mozilla/layers/FocusTarget.h"
@@ -2097,7 +2098,7 @@ void PresShell::SetIgnoreFrameDestruction(bool aIgnore) {
   if (mDocument) {
     // We need to tell the ImageLoader to drop all its references to frames
     // because they're about to go away and it won't get notifications of that.
-    mDocument->StyleImageLoader()->ClearFrames(mPresContext);
+    mDocument->EnsureStyleImageLoader().ClearFrames(mPresContext);
   }
   mIgnoreFrameDestruction = aIgnore;
 }
@@ -2110,7 +2111,7 @@ void PresShell::NotifyDestroyingFrame(nsIFrame* aFrame) {
 
   if (!mIgnoreFrameDestruction) {
     if (aFrame->HasImageRequest()) {
-      mDocument->StyleImageLoader()->DropRequestsForFrame(aFrame);
+      mDocument->EnsureStyleImageLoader().DropRequestsForFrame(aFrame);
     }
 
     mFrameConstructor->NotifyDestroyingFrame(aFrame);
@@ -5610,7 +5611,8 @@ PresShell::CanvasBackground PresShell::ComputeCanvasBackground() const {
 }
 
 nscolor PresShell::ComputeBackstopColor(nsIFrame* aDisplayRoot) {
-  nsIWidget* widget = aDisplayRoot ? aDisplayRoot->GetNearestWidget() : nullptr;
+  nsIWidget* widget =
+      aDisplayRoot ? aDisplayRoot->GetNearestWidget() : GetNearestWidget();
   if (widget &&
       (widget->GetTransparencyMode() != widget::TransparencyMode::Opaque ||
        widget->WidgetPaintsBackground())) {
@@ -5630,14 +5632,28 @@ struct PaintParams {
 
 WindowRenderer* PresShell::GetWindowRenderer() {
   NS_ASSERTION(mViewManager, "Should have view manager");
-
-  nsView* rootView = mViewManager->GetRootView();
-  if (rootView) {
+  if (nsView* rootView = mViewManager->GetRootView()) {
     if (nsIWidget* widget = rootView->GetWidget()) {
       return widget->GetWindowRenderer();
     }
   }
   return nullptr;
+}
+
+nsIWidget* PresShell::GetNearestWidget() const {
+  if (mViewManager) {
+    if (auto* root = mViewManager->GetRootView()) {
+      if (nsIWidget* widget = root->GetWidget()) {
+        return widget;
+      }
+    }
+  }
+  if (auto* el = mDocument->GetEmbedderElement()) {
+    if (auto* f = el->GetPrimaryFrame()) {
+      return f->GetNearestWidget();
+    }
+  }
+  return GetRootWidget();
 }
 
 bool PresShell::AsyncPanZoomEnabled() {

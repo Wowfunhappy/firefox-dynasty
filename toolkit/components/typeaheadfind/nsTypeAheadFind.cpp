@@ -503,6 +503,12 @@ nsresult nsTypeAheadFind::FindItNow(uint32_t aMode, bool aIsLinksOnly,
       }
       mSelectionController = do_GetWeakReference(selectionController);
 
+      // Reveal hidden-until-found and closed details elements for the match.
+      // https://html.spec.whatwg.org/#interaction-with-details-and-hidden=until-found
+      if (RefPtr startNode = returnRange->GetStartContainer()) {
+        startNode->QueueAncestorRevealingAlgorithm();
+      }
+
       // Select the found text
       if (selection) {
         selection->RemoveAllRanges(IgnoreErrors());
@@ -647,22 +653,10 @@ nsresult nsTypeAheadFind::GetSearchContainers(
 
   if (!doc) return NS_ERROR_FAILURE;
 
-  nsCOMPtr<nsIContent> rootContent;
-  if (doc->IsHTMLOrXHTML()) {
-    rootContent = doc->GetBody();
-  }
-
-  if (!rootContent) {
-    rootContent = doc->GetRootElement();
-    if (!rootContent) {
-      return NS_ERROR_FAILURE;
-    }
-  }
-
   if (!mSearchRange) {
     mSearchRange = nsRange::Create(doc);
   }
-  nsCOMPtr<nsINode> searchRootNode(rootContent);
+  nsCOMPtr<nsINode> searchRootNode(doc);
 
   mSearchRange->SelectNodeContents(*searchRootNode, IgnoreErrors());
 

@@ -16,6 +16,7 @@
 #include "mozilla/dom/SanitizerBinding.h"
 #include "mozilla/dom/SanitizerDefaultConfig.h"
 #include "nsContentUtils.h"
+#include "nsFmtString.h"
 #include "nsGenericHTMLElement.h"
 #include "nsIContentInlines.h"
 #include "nsNameSpaceManager.h"
@@ -289,10 +290,12 @@ static CanonicalElementAttributes CanonicalizeElementAttributes(
       for (const auto& attribute : elem.mAttributes.Value()) {
         // Step 2.1.2.1. Append the result of canonicalize a sanitizer attribute
         // with attribute to attributes.
-        if (!attributes.EnsureInserted(CanonicalizeAttribute(attribute))) {
+        CanonicalName canonicalAttr = CanonicalizeAttribute(attribute);
+        if (!attributes.EnsureInserted(canonicalAttr)) {
           if (aErrorMsg) {
-            aErrorMsg->AssignLiteral(
-                "Duplicate attribute in local 'attributes'");
+            aErrorMsg->Assign(nsFmtCString(
+                FMT_STRING("Duplicate attribute {} in 'attributes' of {}."),
+                canonicalAttr, CanonicalizeElement(aElement)));
             return CanonicalElementAttributes();
           }
         }
@@ -311,10 +314,13 @@ static CanonicalElementAttributes CanonicalizeElementAttributes(
       for (const auto& attribute : elem.mRemoveAttributes.Value()) {
         // Step 2.2.2.1. Append the result of canonicalize a sanitizer attribute
         // with attribute to attributes.
-        if (!attributes.EnsureInserted(CanonicalizeAttribute(attribute))) {
+        CanonicalName canonicalAttr = CanonicalizeAttribute(attribute);
+        if (!attributes.EnsureInserted(canonicalAttr)) {
           if (aErrorMsg) {
-            aErrorMsg->AssignLiteral(
-                "Duplicate attribute in local 'removeAttributes'");
+            aErrorMsg->Assign(nsFmtCString(
+                FMT_STRING(
+                    "Duplicate attribute {} in 'removeAttributes' of {}."),
+                canonicalAttr, CanonicalizeElement(aElement)));
             return CanonicalElementAttributes();
           }
         }
@@ -369,16 +375,18 @@ void Sanitizer::CanonicalizeConfiguration(const SanitizerConfig& aConfig,
     for (const auto& element : aConfig.mElements.Value()) {
       // Step 3.3.2.1. Append the result of canonicalize a sanitizer element
       // with attributes element to elements.
-
       CanonicalName elementName = CanonicalizeElement(element);
       if (elements.Contains(elementName)) {
-        return aRv.ThrowTypeError("Duplicate element in 'elements'");
+        aRv.ThrowTypeError(nsFmtCString(
+            FMT_STRING("Duplicate element {} in 'elements'."), elementName));
+        return;
       }
 
       CanonicalElementAttributes elementAttributes =
           CanonicalizeElementAttributes(element, &errorMsg);
       if (!errorMsg.IsEmpty()) {
-        return aRv.ThrowTypeError(errorMsg);
+        aRv.ThrowTypeError(errorMsg);
+        return;
       }
 
       elements.InsertOrUpdate(elementName, std::move(elementAttributes));
@@ -397,8 +405,11 @@ void Sanitizer::CanonicalizeConfiguration(const SanitizerConfig& aConfig,
     for (const auto& element : aConfig.mRemoveElements.Value()) {
       // Step 4.2.1. Append the result of canonicalize a sanitizer element
       // element to elements.
-      if (!elements.EnsureInserted(CanonicalizeElement(element))) {
-        aRv.ThrowTypeError("Duplicate element in 'removeElements'");
+      CanonicalName canonical = CanonicalizeElement(element);
+      if (!elements.EnsureInserted(canonical)) {
+        aRv.ThrowTypeError(nsFmtCString(
+            FMT_STRING("Duplicate element {} in 'removeElements'."),
+            canonical));
         return;
       }
     }
@@ -417,9 +428,12 @@ void Sanitizer::CanonicalizeConfiguration(const SanitizerConfig& aConfig,
     for (const auto& element : aConfig.mReplaceWithChildrenElements.Value()) {
       // Step 5.2.1. Append the result of canonicalize a sanitizer element
       // element to elements.
-      if (!elements.EnsureInserted(CanonicalizeElement(element))) {
-        aRv.ThrowTypeError(
-            "Duplicate element in 'replaceWithChildrenElements'");
+      CanonicalName canonical = CanonicalizeElement(element);
+      if (!elements.EnsureInserted(canonical)) {
+        aRv.ThrowTypeError(nsFmtCString(
+            FMT_STRING(
+                "Duplicate element {} in 'replaceWithChildrenElements'."),
+            canonical));
         return;
       }
     }
@@ -437,8 +451,10 @@ void Sanitizer::CanonicalizeConfiguration(const SanitizerConfig& aConfig,
     for (const auto& attribute : aConfig.mAttributes.Value()) {
       // Step 6.2.1. Append the result of canonicalize a sanitizer attribute
       // attribute to attributes.
-      if (!attributes.EnsureInserted(CanonicalizeAttribute(attribute))) {
-        aRv.ThrowTypeError("Duplicate attribute in 'attributes'");
+      CanonicalName canonical = CanonicalizeAttribute(attribute);
+      if (!attributes.EnsureInserted(canonical)) {
+        aRv.ThrowTypeError(nsFmtCString(
+            FMT_STRING("Duplicate attribute {} in 'attributes'."), canonical));
         return;
       }
     }
@@ -456,8 +472,11 @@ void Sanitizer::CanonicalizeConfiguration(const SanitizerConfig& aConfig,
     for (const auto& attribute : aConfig.mRemoveAttributes.Value()) {
       // Step 7.2.2. Append the result of canonicalize a sanitizer attribute
       // attribute to attributes.
-      if (!attributes.EnsureInserted(CanonicalizeAttribute(attribute))) {
-        aRv.ThrowTypeError("Duplicate attribute in 'removeAttributes'");
+      CanonicalName canonical = CanonicalizeAttribute(attribute);
+      if (!attributes.EnsureInserted(canonical)) {
+        aRv.ThrowTypeError(nsFmtCString(
+            FMT_STRING("Duplicate attribute {} in 'removeAttributes'."),
+            canonical));
         return;
       }
     }
@@ -494,7 +513,7 @@ void Sanitizer::IsValid(ErrorResult& aRv) {
              "Must have either due to CanonicalizeConfiguration");
   if (mElements && mRemoveElements) {
     aRv.ThrowTypeError(
-        "'elements' and 'removeElements' are not allowed at the same time");
+        "'elements' and 'removeElements' are not allowed at the same time.");
     return;
   }
 
@@ -505,7 +524,7 @@ void Sanitizer::IsValid(ErrorResult& aRv) {
   if (mAttributes && mRemoveAttributes) {
     aRv.ThrowTypeError(
         "'attributes' and 'removeAttributes' are not allowed at the same "
-        "time");
+        "time.");
     return;
   }
 
@@ -517,6 +536,10 @@ void Sanitizer::IsValid(ErrorResult& aRv) {
   // Step 4. None of config[elements], config[removeElements],
   // config[replaceWithChildrenElements], config[attributes], or
   // config[removeAttributes], if they exist, has duplicates.
+  //
+  // NOTE: The Sanitizer::CanonicalizeConfiguration method would have already
+  // thrown an error for duplicate elements/attributes by this point. The map
+  // and sets can't have duplicates by definition.
 
   // Step 5. If both config[elements] and config[replaceWithChildrenElements]
   // exist, then the intersection of config[elements] and
@@ -525,8 +548,9 @@ void Sanitizer::IsValid(ErrorResult& aRv) {
     for (const CanonicalName& name : mElements->Keys()) {
       if (mReplaceWithChildrenElements->Contains(name)) {
         aRv.ThrowTypeError(
-            "Element can't be in both 'elements' and "
-            "'replaceWithChildrenElements'");
+            nsFmtCString(FMT_STRING("Element {} can't be in both 'elements' "
+                                    "and 'replaceWithChildrenElements'."),
+                         name));
         return;
       }
     }
@@ -538,9 +562,10 @@ void Sanitizer::IsValid(ErrorResult& aRv) {
   if (mRemoveElements && mReplaceWithChildrenElements) {
     for (const CanonicalName& name : *mRemoveElements) {
       if (mReplaceWithChildrenElements->Contains(name)) {
-        aRv.ThrowTypeError(
-            "Element can't be in both 'removeElements' and "
-            "'replaceWithChildrenElements'");
+        aRv.ThrowTypeError(nsFmtCString(
+            FMT_STRING("Element {} can't be in both 'removeElements' and "
+                       "'replaceWithChildrenElements'."),
+            name));
         return;
       }
     }
@@ -556,14 +581,22 @@ void Sanitizer::IsValid(ErrorResult& aRv) {
 
         // Step 7.1.1.1. Neither element[attributes] or
         // element[removeAttributes], if they exist, has duplicates.
+        //
+        // NOTE: The Sanitizer::CanonicalizeConfiguration (specifically
+        // CanonicalizeElementAttributes) method would have already thrown an
+        // error for duplicate attributes by this point. The attribute sets
+        // can't have duplicates by definition.
 
         // Step 7.1.1.2. The intersection of config[attributes] and
         // element[attributes] with default « [] » is empty.
         if (elemAttributes.mAttributes) {
           for (const CanonicalName& name : *elemAttributes.mAttributes) {
             if (mAttributes->Contains(name)) {
-              aRv.ThrowTypeError(
-                  "Same attribute both in local and global 'attributes'");
+              aRv.ThrowTypeError(nsFmtCString(
+                  FMT_STRING(
+                      "Attribute {} can't be part of both the 'attributes' of "
+                      "the element {} and the global 'attributes'."),
+                  name, entry.GetKey()));
               return;
             }
           }
@@ -574,9 +607,11 @@ void Sanitizer::IsValid(ErrorResult& aRv) {
         if (elemAttributes.mRemoveAttributes) {
           for (const CanonicalName& name : *elemAttributes.mRemoveAttributes) {
             if (!mAttributes->Contains(name)) {
-              aRv.ThrowTypeError(
-                  "Attribute in local 'removeAttributes' but not in global "
-                  "'attributes'");
+              aRv.ThrowTypeError(nsFmtCString(
+                  FMT_STRING(
+                      "Attribute {} can't be in 'removeAttributes' of the "
+                      "element {} but not in the global 'attributes'."),
+                  name, entry.GetKey()));
               return;
             }
           }
@@ -592,9 +627,11 @@ void Sanitizer::IsValid(ErrorResult& aRv) {
           // data attribute.
           for (const CanonicalName& name : *elemAttributes.mAttributes) {
             if (name.IsDataAttribute()) {
-              aRv.ThrowTypeError(
-                  "Local 'attributes' contains a data attribute, which is "
-                  "redundant with 'dataAttributes' being true");
+              aRv.ThrowTypeError(nsFmtCString(
+                  FMT_STRING(
+                      "Data attribute {} in the 'attributes' of the element {} "
+                      "is redundant with 'dataAttributes' being true."),
+                  name, entry.GetKey()));
               return;
             }
           }
@@ -611,9 +648,10 @@ void Sanitizer::IsValid(ErrorResult& aRv) {
       // attribute.
       for (const CanonicalName& name : *mAttributes) {
         if (name.IsDataAttribute()) {
-          aRv.ThrowTypeError(
-              "Global 'attributes' contains a data attribute, which is "
-              "redundant with 'dataAttributes' being true");
+          aRv.ThrowTypeError(nsFmtCString(
+              FMT_STRING("Data attribute {} in the global 'attributes' is "
+                         "redundant with 'dataAttributes' being true."),
+              name));
           return;
         }
       }
@@ -628,27 +666,48 @@ void Sanitizer::IsValid(ErrorResult& aRv) {
       for (const auto& entry : *mElements) {
         const CanonicalElementAttributes& elemAttributes = entry.GetData();
 
-        // Step 8.1.1. The intersection of config[removeAttributes] and
+        // Step 8.1.1. Not both element[attributes] and
+        // element[removeAttributes] exist.
+        if (elemAttributes.mAttributes && elemAttributes.mRemoveAttributes) {
+          return aRv.ThrowTypeError(
+              nsFmtCString(FMT_STRING("Element {} can't have both 'attributes' "
+                                      "and 'removeAttributes'."),
+                           entry.GetKey()));
+        }
+
+        // Step 8.1.2. Neither element[attributes] nor
+        // element[removeAttributes], if they exist, has duplicates.
+        //
+        // NOTE: The Sanitizer::CanonicalizeConfiguration (specifically
+        // CanonicalizeElementAttributes) method would have already thrown an
+        // error for duplicate attributes by this point. The attribute sets
+        // can't have duplicates by definition.
+
+        // Step 8.1.3. The intersection of config[removeAttributes] and
         // element[attributes] with default « [] » is empty.
         if (elemAttributes.mAttributes) {
           for (const CanonicalName& name : *elemAttributes.mAttributes) {
             if (mRemoveAttributes->Contains(name)) {
-              aRv.ThrowTypeError(
-                  "Same attribute both in local 'attributes' and global "
-                  "'removeAttributes'.");
+              aRv.ThrowTypeError(nsFmtCString(
+                  FMT_STRING(
+                      "Attribute {} can't be in 'attributes' of the element {} "
+                      "while in the global 'removeAttributes'."),
+                  name, entry.GetKey()));
               return;
             }
           }
         }
 
-        // Step 8.1.2. The intersection of config[removeAttributes] and
+        // Step 8.1.4. The intersection of config[removeAttributes] and
         // element[removeAttributes] with default « [] » is empty.
         if (elemAttributes.mRemoveAttributes) {
           for (const CanonicalName& name : *elemAttributes.mRemoveAttributes) {
             if (mRemoveAttributes->Contains(name)) {
-              aRv.ThrowTypeError(
-                  "Same attribute both in local and global "
-                  "'removeAttributes'.");
+              aRv.ThrowTypeError(nsFmtCString(
+                  FMT_STRING("Attribute {} can't be part of both the "
+                             "'removeAttributes' of the element {} and the "
+                             "global 'removeAttributes'."),
+                  name, entry.GetKey()));
               return;
             }
           }
@@ -660,7 +719,7 @@ void Sanitizer::IsValid(ErrorResult& aRv) {
     if (mDataAttributes) {
       aRv.ThrowTypeError(
           "'removeAttributes' and 'dataAttributes' aren't allowed at the "
-          "same time");
+          "same time.");
     }
   }
 }
@@ -852,78 +911,111 @@ bool Sanitizer::AllowElement(
     // Step 2.2. Comment: We need to make sure the per-element attributes do
     // not overlap with global attributes.
 
-    // Step 2.3. If element["attributes"] exists:
-    if (elementAttributes.mAttributes) {
-      CanonicalNameSet attributes;
-      for (const CanonicalName& attr : *elementAttributes.mAttributes) {
-        // Step 2.3.1. Set element["attributes"] to remove duplicates from
-        // element["attributes"].
-        MOZ_ASSERT(!attributes.Contains(attr));
+    // Step 2.3. If configuration["attributes"] exists:
+    if (mAttributes) {
+      // Step 2.3.1. If element["attributes"] exists:
+      if (elementAttributes.mAttributes) {
+        CanonicalNameSet attributes;
+        for (const CanonicalName& attr : *elementAttributes.mAttributes) {
+          // Step 2.3.1.1. Set element["attributes"] to remove duplicates from
+          // element["attributes"].
+          MOZ_ASSERT(!attributes.Contains(attr));
 
-        // Step 2.3.2. If configuration["attributes"] exists:
-        if (mAttributes) {
-          // Step 2.3.2.1. Set element["attributes"] to the difference of
+          // Step 2.3.1.2. Set element["attributes"] to the difference of
           // element["attributes"] and configuration["attributes"].
           if (mAttributes->Contains(attr)) {
             continue;
           }
 
+          // Step 2.3.1.3. If configuration["dataAttributes"] is true:
           MOZ_ASSERT(mDataAttributes.isSome(),
                      "mDataAttributes exists iff mAttributes");
-
-          // Step 2.3.2.2. If configuration["dataAttributes"] is true:
           if (*mDataAttributes) {
-            // Step 2.3.2.2.1. Remove all items item from element["attributes"]
+            // Step 2.3.1.3.1 Remove all items item from element["attributes"]
             // where item is a custom data attribute.
             if (attr.IsDataAttribute()) {
               continue;
             }
           }
-        }
 
-        // Step 2.3.3. If configuration["removeAttributes"] exists:
-        if (mRemoveAttributes) {
-          // Step 2.3.3.1. Set element["attributes"] to the difference of
-          // element["attributes"] and configuration["removeAttributes"].
-          if (mRemoveAttributes->Contains(attr)) {
-            continue;
-          }
+          attributes.Insert(attr.Clone());
         }
-
-        attributes.Insert(attr.Clone());
+        elementAttributes.mAttributes = Some(std::move(attributes));
       }
-      elementAttributes.mAttributes = Some(std::move(attributes));
-    }
 
-    // Step 2.4. If element["removeAttributes"] exists:
-    if (elementAttributes.mRemoveAttributes) {
-      CanonicalNameSet removeAttributes;
-      for (const CanonicalName& attr : *elementAttributes.mRemoveAttributes) {
-        // Step 2.4.1. Set element["removeAttributes"] to remove duplicates from
-        // element["removeAttributes"].
-        MOZ_ASSERT(!removeAttributes.Contains(attr));
+      // Step 2.3.2. If element["removeAttributes"] exists:
+      if (elementAttributes.mRemoveAttributes) {
+        CanonicalNameSet removeAttributes;
+        for (const CanonicalName& attr : *elementAttributes.mRemoveAttributes) {
+          // Step 2.3.2.1. Set element["removeAttributes"] to remove duplicates
+          // from element["removeAttributes"].
+          //
+          // NOTE: CanonicalizeElementAttributes removed all duplicates for us.
+          MOZ_ASSERT(!removeAttributes.Contains(attr));
 
-        // Step 2.4.2. If configuration["attributes"] exists:
-        if (mAttributes) {
-          // Step 2.4.2.1. Set element["removeAttributes"] to the intersection
+          // Step 2.3.2.2. Set element["removeAttributes"] to the intersection
           // of element["removeAttributes"] and configuration["attributes"].
           if (!mAttributes->Contains(attr)) {
             continue;
           }
-        }
 
-        // Step 2.4.3. If configuration["removeAttributes"] exists:
-        if (mRemoveAttributes) {
-          // Step 2.4.3.1. Set element["removeAttributes"] to the difference of
+          removeAttributes.Insert(attr.Clone());
+        }
+        elementAttributes.mRemoveAttributes = Some(std::move(removeAttributes));
+      }
+    } else {
+      // Step 2.4. Otherwise:
+
+      // Step 2.4.1. If element["attributes"] exists:
+      if (elementAttributes.mAttributes) {
+        CanonicalNameSet attributes;
+        for (const CanonicalName& attr : *elementAttributes.mAttributes) {
+          // Step 2.4.1.1. Set element["attributes"] to remove duplicates from
+          // element["attributes"].
+          //
+          // NOTE: CanonicalizeElementAttributes removed all duplicates for us.
+          MOZ_ASSERT(!attributes.Contains(attr));
+
+          // Step 2.4.1.2. Set element["attributes"] to the difference of
+          // element["attributes"] and element["removeAttributes"] with default
+          // « ».
+          if (elementAttributes.mRemoveAttributes &&
+              elementAttributes.mRemoveAttributes->Contains(attr)) {
+            continue;
+          }
+
+          // Step 2.4.1.4. Set element["attributes"] to the difference of
+          // element["attributes"] and configuration["removeAttributes"].
+          if (mRemoveAttributes->Contains(attr)) {
+            continue;
+          }
+
+          attributes.Insert(attr.Clone());
+        }
+        elementAttributes.mAttributes = Some(std::move(attributes));
+
+        // Step 2.4.1.3. Remove element["removeAttributes"].
+        elementAttributes.mRemoveAttributes = Nothing();
+      }
+
+      // Step 2.4.2. If element["removeAttributes"] exists:
+      if (elementAttributes.mRemoveAttributes) {
+        CanonicalNameSet removeAttributes;
+        for (const CanonicalName& attr : *elementAttributes.mRemoveAttributes) {
+          // Step 2.4.2.1. Set element["removeAttributes"] to remove duplicates
+          // from element["removeAttributes"].
+          MOZ_ASSERT(!removeAttributes.Contains(attr));
+
+          // Step 2.4.2.2. Set element["removeAttributes"] to the difference of
           // element["removeAttributes"] and configuration["removeAttributes"].
           if (mRemoveAttributes->Contains(attr)) {
             continue;
           }
-        }
 
-        removeAttributes.Insert(attr.Clone());
+          removeAttributes.Insert(attr.Clone());
+        }
+        elementAttributes.mRemoveAttributes = Some(std::move(removeAttributes));
       }
-      elementAttributes.mRemoveAttributes = Some(std::move(removeAttributes));
     }
 
     // Step 2.5. If configuration["elements"] does not contain element:

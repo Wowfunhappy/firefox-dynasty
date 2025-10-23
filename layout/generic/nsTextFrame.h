@@ -161,7 +161,7 @@ class nsTextFrame : public nsIFrame {
     void InitializeForMeasure();
 
     bool GetSpacing(Range aRange, Spacing* aSpacing) const final;
-    gfxFloat GetHyphenWidth() const final;
+    nscoord GetHyphenWidth() const final;
     void GetHyphenationBreaks(Range aRange,
                               HyphenType* aBreakBefore) const final;
     mozilla::StyleHyphens GetHyphensOption() const final {
@@ -259,10 +259,10 @@ class nsTextFrame : public nsIFrame {
     int32_t mLength;
 
     // space for each whitespace char
-    const gfxFloat mWordSpacing;
+    const nscoord mWordSpacing;
 
     // space for each letter
-    const gfxFloat mLetterSpacing;
+    const nscoord mLetterSpacing;
 
     // If TextAutospace exists, inter-script spacing applies.
     Maybe<mozilla::TextAutospace> mTextAutospace;
@@ -270,8 +270,8 @@ class nsTextFrame : public nsIFrame {
     // min advance for <tab> char
     mutable gfxFloat mMinTabAdvance;
 
-    mutable gfxFloat mHyphenWidth;
-    mutable gfxFloat mOffsetFromBlockOriginForTabs;
+    mutable nscoord mHyphenWidth;
+    mutable nscoord mOffsetFromBlockOriginForTabs;
 
     // The values in mJustificationSpacings corresponds to unskipped
     // characters start from mJustificationArrayStart.
@@ -937,7 +937,7 @@ class nsTextFrame : public nsIFrame {
 
   void PaintOneShadow(const PaintShadowParams& aParams,
                       const mozilla::StyleSimpleShadow& aShadowDetails,
-                      gfxRect& aBoundingBox, uint32_t aBlurFlags);
+                      const gfxRect& aBoundingBox, uint32_t aBlurFlags);
 
   void PaintShadows(mozilla::Span<const mozilla::StyleSimpleShadow>,
                     const PaintShadowParams& aParams);

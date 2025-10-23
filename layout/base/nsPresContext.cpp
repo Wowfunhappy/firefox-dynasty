@@ -1344,7 +1344,7 @@ void nsPresContext::SetImageAnimationMode(uint16_t aMode) {
   if (mPresShell) {
     dom::Document* doc = mPresShell->GetDocument();
     if (doc) {
-      doc->StyleImageLoader()->SetAnimationMode(aMode);
+      doc->EnsureStyleImageLoader().SetAnimationMode(aMode);
 
       Element* rootElement = doc->GetRootElement();
       if (rootElement) {
@@ -2721,27 +2721,30 @@ bool nsPresContext::HasStoppedGeneratingLCP() const {
 
 void nsPresContext::NotifyContentfulPaint() {
   if (mHadFirstContentfulPaint && HasStoppedGeneratingLCP()) {
+    MOZ_ASSERT(mHadNonTickContentfulPaint);
     return;
   }
   nsRootPresContext* rootPresContext = GetRootPresContext();
   if (!rootPresContext) {
     return;
   }
+
   if (!mHadNonTickContentfulPaint) {
 #ifdef MOZ_WIDGET_ANDROID
     (new AsyncEventDispatcher(mDocument, u"MozFirstContentfulPaint"_ns,
                               CanBubble::eYes, ChromeOnlyDispatch::eYes))
         ->PostDOMEvent();
 #endif
+    mHadNonTickContentfulPaint = true;
   }
+
   if (!rootPresContext->RefreshDriver()->IsInRefresh()) {
-    if (!mHadNonTickContentfulPaint) {
-      rootPresContext->RefreshDriver()
-          ->AddForceNotifyContentfulPaintPresContext(this);
-      mHadNonTickContentfulPaint = true;
-    }
+    rootPresContext->RefreshDriver()->AddForceNotifyContentfulPaintPresContext(
+        this);
     return;
   }
+
+  // From here on we know that we are inside a refresh tick.
 
   if (!mHadFirstContentfulPaint) {
     mHadFirstContentfulPaint = true;

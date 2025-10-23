@@ -2178,7 +2178,7 @@ XMLHttpRequestMainThread::OnStartRequest(nsIRequest* request) {
 
     rv = NS_NewDOMDocument(
         getter_AddRefs(mResponseXML), emptyStr, emptyStr, nullptr, docURI,
-        baseURI, requestingPrincipal, true, global,
+        baseURI, requestingPrincipal, LoadedAsData::AsData, global,
         mIsHtml ? DocumentFlavor::HTML : DocumentFlavor::LegacyGuess);
     NS_ENSURE_SUCCESS(rv, rv);
     mResponseXML->SetChromeXHRDocURI(chromeXHRDocURI);
@@ -3071,6 +3071,12 @@ bool XMLHttpRequestMainThread::CanSend(ErrorResult& aRv) {
 
   if (NS_FAILED(CheckCurrentGlobalCorrectness())) {
     aRv.Throw(NS_ERROR_DOM_INVALID_STATE_XHR_HAS_INVALID_CONTEXT);
+    return false;
+  }
+
+  // Backstop against late workers.
+  if (AppShutdown::IsInOrBeyond(ShutdownPhase::XPCOMShutdownThreads)) {
+    aRv.Throw(NS_ERROR_ILLEGAL_DURING_SHUTDOWN);
     return false;
   }
 

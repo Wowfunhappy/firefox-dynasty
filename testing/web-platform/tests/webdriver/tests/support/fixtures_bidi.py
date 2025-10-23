@@ -28,6 +28,7 @@ from webdriver.bidi.modules.network import (
     NetworkStringValue,
 )
 from webdriver.bidi.modules.script import ContextTarget
+from webdriver.bidi.undefined import UNDEFINED
 from webdriver.error import TimeoutException
 
 
@@ -241,7 +242,30 @@ def current_time(bidi_session, top_context):
 
 
 @pytest.fixture
-def add_and_remove_iframe(bidi_session):
+def create_iframe(bidi_session):
+    """
+    Create an iframe and wait for it to load. Return the iframe's context id.
+    """
+
+    async def create_iframe(context, url):
+        resp = await bidi_session.script.call_function(
+            function_declaration="""(url) => {
+                const iframe = document.createElement("iframe");
+                iframe.src = url;
+                document.documentElement.lastElementChild.append(iframe);
+                return new Promise(resolve => iframe.onload = () => resolve(iframe.contentWindow));
+            }""",
+            arguments=[{"type": "string", "value": url}],
+            target=ContextTarget(context["context"]),
+            await_promise=True)
+        assert resp["type"] == "window"
+        return resp["value"]
+
+    return create_iframe
+
+
+@pytest.fixture
+def add_and_remove_iframe(bidi_session, create_iframe):
     """Create a frame, wait for load, and remove it.
 
     Return the frame's context id, which allows to test for invalid
@@ -507,8 +531,8 @@ async def create_user_context(bidi_session):
 
     user_contexts = []
 
-    async def create_user_context(accept_insecure_certs=None, proxy=None,
-            unhandled_prompt_behavior=None):
+    async def create_user_context(accept_insecure_certs=UNDEFINED, proxy=UNDEFINED,
+            unhandled_prompt_behavior=UNDEFINED):
         nonlocal user_contexts
         user_context = await bidi_session.browser.create_user_context(
             accept_insecure_certs=accept_insecure_certs, proxy=proxy,

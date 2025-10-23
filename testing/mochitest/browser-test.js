@@ -143,7 +143,7 @@ function testInit() {
 
     let processCount = Services.prefs.getIntPref("dom.ipc.processCount", 1);
     if (processCount > 1) {
-      // Currently starting a content process is slow, to aviod timeouts, let's
+      // Currently starting a content process is slow, to avoid timeouts, let's
       // keep alive content processes.
       Services.prefs.setIntPref("dom.ipc.keepProcessesAlive.web", processCount);
     }
@@ -342,6 +342,10 @@ Tester.prototype = {
         "resource://testing-common/CoverageUtils.sys.mjs"
       );
       this._coverageCollector = new CoverageCollector(coveragePath);
+    }
+
+    if (gConfig.debugger || gConfig.debuggerInteractive || gConfig.jsdebugger) {
+      gTimeoutSeconds = 24 * 60 * 60 * 1000; // 24 hours
     }
 
     this.structuredLogger.info("*** Start BrowserChrome Test Results ***");
@@ -1237,9 +1241,7 @@ Tester.prototype = {
     let currentScope = currentTest.scope;
     let desc = isSetup ? "setup" : "test";
     currentScope.SimpleTest.info(`Entering ${desc} ${task.name}`);
-    // This newtab train-hop compatibility shim can be removed once Firefox 144
-    // makes it to the release channel.
-    let startTimestamp = ChromeUtils.now?.() || performance.now();
+    let startTimestamp = ChromeUtils.now();
     let controller = new AbortController();
     currentScope.__signal = controller.signal;
     if (isSetup) {
@@ -1468,9 +1470,7 @@ Tester.prototype = {
 
     // Import the test script.
     try {
-      // This newtab train-hop compatibility shim can be removed once Firefox 144
-      // makes it to the release channel.
-      this.lastStartTimestamp = ChromeUtils.now?.() || performance.now();
+      this.lastStartTimestamp = ChromeUtils.now();
       this.TestUtils.promiseTestFinished = new Promise(resolve => {
         this.resolveFinishTestPromise = resolve;
       });
