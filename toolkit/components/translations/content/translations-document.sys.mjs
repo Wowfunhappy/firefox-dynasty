@@ -3213,39 +3213,45 @@ export class TranslationsDocument {
   }
 
   /**
-   * Updates the script direction of a given element,
-   * only if the source and target script directions differ.
+   * Ensure the element and certain structured ancestors use the target
+   * script direction when it differs from the source script direction.
    *
-   * If the element is contained within a list item, then this
-   * also updates the script direction of the list item as well
-   * as the containing list.
+   * No-op if the source and target directions match.
    *
-   * This is a special-case scenario that really improves the layout
-   * of lists on pages when translating to the reverse script direciton.
-   *
-   * @param {Element?} element
+   * @param {Element | null} element
    */
   #maybeUpdateScriptDirection(element) {
-    if (
-      !element ||
-      this.#sourceScriptDirection === this.#targetScriptDirection
-    ) {
-      return;
-    }
-
     const targetScriptDirection = this.#targetScriptDirection;
 
-    element.setAttribute("dir", targetScriptDirection);
-
-    const listItemAncestor = element.closest("li");
-    if (!listItemAncestor) {
+    if (!element || this.#sourceScriptDirection === targetScriptDirection) {
       return;
     }
 
-    listItemAncestor.setAttribute("dir", targetScriptDirection);
-    listItemAncestor
-      .closest("ul, ol")
-      ?.setAttribute("dir", targetScriptDirection);
+    /** @param {Element?} [el] */
+    const ensureDirection = el => {
+      el?.setAttribute("dir", targetScriptDirection);
+    };
+
+    ensureDirection(element);
+
+    const listItemAncestor = element.closest("li");
+    if (listItemAncestor) {
+      ensureDirection(listItemAncestor);
+      ensureDirection(listItemAncestor.closest("ul, ol"));
+    }
+
+    const tableCell = element.closest("th, td, caption");
+    if (tableCell) {
+      ensureDirection(tableCell);
+
+      const row = tableCell.closest("tr");
+      ensureDirection(row);
+
+      const body = row?.closest("tbody");
+      ensureDirection(body);
+
+      ensureDirection(body?.closest("table"));
+    }
   }
 
   /**
@@ -5821,13 +5827,19 @@ class TranslationScheduler {
 }
 
 /**
- * Returns true if an HTML element is hidden based on factors such as collapsed state and
+ * Returns true if a node is hidden based on factors such as collapsed state and
  * computed style, otherwise false.
  *
- * @param {HTMLElement} element
+ * @param {Node} node
  * @returns {boolean}
  */
-function isHTMLElementHidden(element) {
+function isNodeHidden(node) {
+  const element = getHTMLElementForStyle(node);
+
+  if (!element) {
+    return true;
+  }
+
   // This is a cheap and easy check that will not compute style or force reflow.
   if (element.hidden) {
     // The element is explicitly hidden.
@@ -5854,6 +5866,15 @@ function isHTMLElementHidden(element) {
       element.offsetHeight ||
       element.getClientRects().length
     )
+  ) {
+    return true;
+  }
+
+  // The element may still have a zero-sized bounding client rectangle.
+  const boundingClientRect = element.getBoundingClientRect();
+  if (
+    boundingClientRect &&
+    (boundingClientRect.width === 0 || boundingClientRect.height === 0)
   ) {
     return true;
   }
@@ -5941,7 +5962,7 @@ function getNodeSpatialContext(node) {
     return {};
   }
 
-  if (isHTMLElementHidden(element)) {
+  if (isNodeHidden(element)) {
     // If the element is hidden, then the spatial context is not important.
     return {};
   }

@@ -167,6 +167,18 @@
       }
     },
 
+    "BrowserDataBackup": {
+      "type": ["boolean", "object"],
+      "properties": {
+        "AllowBackup": {
+          "type": "boolean"
+        },
+        "AllowRestore": {
+          "type": "boolean"
+        }
+      }
+    },
+
     "CaptivePortal": {
       "type": "boolean"
     },
@@ -848,6 +860,9 @@
           "type": "boolean"
         },
         "ImproveSuggest": {
+          "type": "boolean"
+        },
+        "OnlineEnabled": {
           "type": "boolean"
         },
         "Locked": {

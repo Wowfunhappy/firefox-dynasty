@@ -933,22 +933,31 @@ impl<'a, 'b: 'a> StyleAdjuster<'a, 'b> {
     /// NOTE(emilio): If we ever perform the interleaving dance, this could / should probably move
     /// around to the specific properties' to_computed_value implementations, but that seems
     /// overkill for now.
-    fn adjust_for_try_tactic(&mut self, tactic: PositionTryFallbacksTryTactic) {
+    fn adjust_for_try_tactic(&mut self, tactic: &PositionTryFallbacksTryTactic) {
         debug_assert!(!tactic.is_empty());
-        let horizontal = self.style.writing_mode.is_horizontal();
+        // TODO: This is supposed to use the containing block's WM (bug 1995256).
+        let wm = self.style.writing_mode;
         // TODO: Flip inset / margin / sizes percentages and anchor lookup sides as necessary.
-        for tactic in tactic.into_iter() {
+        for tactic in tactic.iter() {
+            use PositionTryFallbacksTryTacticKeyword::*;
             match tactic {
-                PositionTryFallbacksTryTacticKeyword::None => break,
-                PositionTryFallbacksTryTacticKeyword::FlipBlock => {
+                FlipBlock => {
                     self.flip_self_alignment(/* block = */ true);
-                    self.flip_insets_and_margins(!horizontal);
+                    self.flip_insets_and_margins(/* horizontal = */ wm.is_vertical());
                 },
-                PositionTryFallbacksTryTacticKeyword::FlipInline => {
+                FlipInline => {
                     self.flip_self_alignment(/* block = */ false);
-                    self.flip_insets_and_margins(horizontal);
+                    self.flip_insets_and_margins(/* horizontal = */ wm.is_horizontal());
                 },
-                PositionTryFallbacksTryTacticKeyword::FlipStart => {
+                FlipX => {
+                    self.flip_self_alignment(/* block = */ wm.is_vertical());
+                    self.flip_insets_and_margins(/* horizontal = */ true);
+                },
+                FlipY => {
+                    self.flip_self_alignment(/* block = */ wm.is_horizontal());
+                    self.flip_insets_and_margins(/* horizontal = */ false);
+                },
+                FlipStart => {
                     self.flip_start();
                 },
             }
@@ -1117,7 +1126,7 @@ impl<'a, 'b: 'a> StyleAdjuster<'a, 'b> {
         &mut self,
         layout_parent_style: &ComputedValues,
         element: Option<E>,
-        try_tactic: PositionTryFallbacksTryTactic,
+        try_tactic: &PositionTryFallbacksTryTactic,
     ) where
         E: TElement,
     {

@@ -4,6 +4,8 @@ head = "head.js"
 firefox-appdir = "browser"
 prefs = [
   "browser.backup.log=true",
+  "browser.backup.archive.enabled=true",
+  "browser.backup.restore.enabled=true",
 ]
 
 ["test_AddonsBackupResource.js"]
@@ -26,6 +28,7 @@ support-files = [
 ]
 
 ["test_BackupService_archive.js"]
+requesttimeoutfactor = 2  # Slow on macOS debug
 support-files = [
   "data/corrupt.zip",
   "data/break_over_unicode.html",
@@ -44,6 +47,8 @@ run-if = ["os == 'win'"]
 run-sequentially = ["true"] # Mock Windows registry interferes with normal operations
 
 ["test_BackupService_recoverFromSnapshotFolder.js"]
+
+["test_BackupService_recoverFromSnapshotFolderIntoSelectableProfile.js"]
 
 ["test_BackupService_regeneration.js"]
 

@@ -5,7 +5,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "SimpleChannel.h"
-#include "mozilla/ArrayUtils.h"
 #include "mozilla/Attributes.h"
 #include "mozilla/AutoRestore.h"
 
@@ -43,7 +42,6 @@
 #include "mozilla/ScopeExit.h"
 #include "mozilla/StaticPrefs_network.h"
 #include "mozilla/Tokenizer.h"
-#include "mozilla/Unused.h"
 
 //----------------------------------------------------------------------------
 
@@ -679,7 +677,7 @@ class AsyncGetPACURIRequestOrSystemWPADSetting final : public nsIRunnable {
         mResetPACThread(aResetPACThread),
         mSystemWPADAllowed(aSystemWPADAllowed) {
     MOZ_ASSERT(NS_IsMainThread());
-    Unused << mIsMainThreadOnly;
+    (void)mIsMainThreadOnly;
   }
 
   NS_IMETHOD Run() override {
@@ -2358,7 +2356,7 @@ bool nsProtocolProxyService::ApplyFilter(
 
   if (filterLink->filter) {
     nsCOMPtr<nsIURI> uri;
-    Unused << GetProxyURI(channel, getter_AddRefs(uri));
+    (void)GetProxyURI(channel, getter_AddRefs(uri));
     if (!uri) {
       return false;
     }

@@ -38,7 +38,6 @@
 #include "mozilla/StaticPrefs_widget.h"
 #include "mozilla/glean/GfxMetrics.h"
 #include "mozilla/TimeStamp.h"
-#include "mozilla/Unused.h"
 #include "mozilla/IntegerPrintfMacros.h"
 #include "mozilla/Base64.h"
 #include "mozilla/VsyncDispatcher.h"
@@ -313,10 +312,10 @@ class LogForwarderEvent : public Runnable {
 
     if (XRE_IsContentProcess()) {
       dom::ContentChild* cc = dom::ContentChild::GetSingleton();
-      Unused << cc->SendGraphicsError(mMessage);
+      (void)cc->SendGraphicsError(mMessage);
     } else if (XRE_IsGPUProcess()) {
       GPUParent* gp = GPUParent::GetSingleton();
-      Unused << gp->SendGraphicsError(mMessage);
+      (void)gp->SendGraphicsError(mMessage);
     }
 
     return NS_OK;
@@ -341,10 +340,10 @@ void CrashStatsLogForwarder::Log(const std::string& aString) {
     if (NS_IsMainThread()) {
       if (XRE_IsContentProcess()) {
         dom::ContentChild* cc = dom::ContentChild::GetSingleton();
-        Unused << cc->SendGraphicsError(stringToSend);
+        (void)cc->SendGraphicsError(stringToSend);
       } else if (XRE_IsGPUProcess()) {
         GPUParent* gp = GPUParent::GetSingleton();
-        Unused << gp->SendGraphicsError(stringToSend);
+        (void)gp->SendGraphicsError(stringToSend);
       }
     } else {
       nsCOMPtr<nsIRunnable> r1 = new LogForwarderEvent(stringToSend);
@@ -571,6 +570,8 @@ static void WebRenderDebugPrefChangeCallback(const char* aPrefName, void*) {
                       wr::DebugFlags::MISSING_SNAPSHOT_PINK)
   GFX_WEBRENDER_DEBUG(".highlight-backdrop-filters",
                       wr::DebugFlags::HIGHLIGHT_BACKDROP_FILTERS)
+  GFX_WEBRENDER_DEBUG(".external-composite-borders",
+                      wr::DebugFlags::EXTERNAL_COMPOSITE_BORDERS)
 #undef GFX_WEBRENDER_DEBUG
   gfx::gfxVars::SetWebRenderDebugFlags(flags._0);
 
@@ -862,10 +863,6 @@ void gfxPlatform::Init() {
   // interpret these cryptic strings.
   {
     nsAutoCString forcedPrefs;
-    // D2D prefs
-    forcedPrefs.AppendPrintf(
-        "FP(D%d%d", StaticPrefs::gfx_direct2d_disabled_AtStartup(),
-        StaticPrefs::gfx_direct2d_force_enabled_AtStartup());
     // Layers prefs
     forcedPrefs.AppendPrintf(
         "-L%d%d%d%d",
@@ -959,7 +956,7 @@ void gfxPlatform::Init() {
 
   if (gfxConfig::IsEnabled(Feature::GPU_PROCESS)) {
     GPUProcessManager* gpu = GPUProcessManager::Get();
-    Unused << gpu->LaunchGPUProcess();
+    (void)gpu->LaunchGPUProcess();
   }
 
   if (XRE_IsParentProcess()) {
@@ -1208,7 +1205,7 @@ void gfxPlatform::MaybeInitializeCMS() {
     gCMSInitialized = true;
     return;
   }
-  Unused << GetPlatform();
+  (void)GetPlatform();
 }
 
 /* static */
@@ -1796,8 +1793,6 @@ already_AddRefed<DrawTarget> gfxPlatform::CreateDrawTargetForData(
 BackendType gfxPlatform::BackendTypeForName(const nsCString& aName) {
   if (aName.EqualsLiteral("cairo")) return BackendType::CAIRO;
   if (aName.EqualsLiteral("skia")) return BackendType::SKIA;
-  if (aName.EqualsLiteral("direct2d")) return BackendType::DIRECT2D;
-  if (aName.EqualsLiteral("direct2d1.1")) return BackendType::DIRECT2D1_1;
   return BackendType::NONE;
 }
 
@@ -2292,7 +2287,7 @@ void gfxPlatform::ForceGlobalReflow(GlobalReflowFlags aFlags) {
     // Propagate the change to child processes.
     for (auto* process :
          dom::ContentParent::AllProcesses(dom::ContentParent::eLive)) {
-      Unused << process->SendForceGlobalReflow(aFlags);
+      (void)process->SendForceGlobalReflow(aFlags);
     }
   }
 }
@@ -2494,20 +2489,9 @@ void gfxPlatform::InitAcceleration() {
                       "FEATURE_REMOTE_CANVAS_NO_GPU_PROCESS"_ns);
     }
 
-#ifdef XP_WIN
-    // If D2D is explicitly disabled on Windows, then don't use remote canvas.
-    // This prevents it from interfering with Accelerated Canvas2D.
-    if (StaticPrefs::gfx_direct2d_disabled_AtStartup() &&
-        !StaticPrefs::gfx_direct2d_force_enabled_AtStartup()) {
-      gfxConfig::ForceDisable(Feature::REMOTE_CANVAS, FeatureStatus::Blocked,
-                              "Disabled without Direct2D",
-                              "FEATURE_REMOTE_CANVAS_NO_DIRECT2D"_ns);
-    }
-#else
     gfxConfig::ForceDisable(Feature::REMOTE_CANVAS, FeatureStatus::Blocked,
-                            "Platform not supported",
-                            "FEATURE_REMOTE_CANVAS_NOT_WINDOWS"_ns);
-#endif
+                            "Remote Canvas not supported",
+                            "FEATURE_REMOTE_CANVAS_NOT_SUPPORTED"_ns);
 
     gfxVars::SetRemoteCanvasEnabled(feature.IsEnabled());
   }

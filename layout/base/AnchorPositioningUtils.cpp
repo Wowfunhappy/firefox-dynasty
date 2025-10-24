@@ -640,8 +640,6 @@ static void ApplyFallbackTactic(
     StylePositionArea& aPhysicalArea,
     StylePositionTryFallbacksTryTacticKeyword aTactic, WritingMode aWM) {
   switch (aTactic) {
-    case StylePositionTryFallbacksTryTacticKeyword::None:
-      return;
     case StylePositionTryFallbacksTryTacticKeyword::FlipBlock:
       FlipInAxis(aPhysicalArea, aWM.PhysicalAxis(LogicalAxis::Block));
       return;
@@ -651,15 +649,21 @@ static void ApplyFallbackTactic(
     case StylePositionTryFallbacksTryTacticKeyword::FlipStart:
       FlipStartsAndEnds(aPhysicalArea, aWM);
       return;
+    case StylePositionTryFallbacksTryTacticKeyword::FlipX:
+      FlipInAxis(aPhysicalArea, PhysicalAxis::Horizontal);
+      return;
+    case StylePositionTryFallbacksTryTacticKeyword::FlipY:
+      FlipInAxis(aPhysicalArea, PhysicalAxis::Vertical);
+      return;
   }
 }
 
-static void ApplyFallbackTactic(StylePositionArea& aArea,
-                                StylePositionTryFallbacksTryTactic aTactic,
-                                WritingMode aWM) {
-  ApplyFallbackTactic(aArea, aTactic._0, aWM);
-  ApplyFallbackTactic(aArea, aTactic._1, aWM);
-  ApplyFallbackTactic(aArea, aTactic._2, aWM);
+static void ApplyFallbackTactic(
+    StylePositionArea& aArea, const StylePositionTryFallbacksTryTactic& aTactic,
+    WritingMode aWM) {
+  for (auto t : aTactic) {
+    ApplyFallbackTactic(aArea, t, aWM);
+  }
 }
 
 /**

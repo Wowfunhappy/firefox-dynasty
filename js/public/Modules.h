@@ -79,7 +79,8 @@ enum class ModuleType : uint32_t {
 using ModuleLoadHook = bool (*)(JSContext* cx, Handle<JSScript*> referrer,
                                 Handle<JSObject*> moduleRequest,
                                 Handle<Value> hostDefined,
-                                Handle<Value> payload);
+                                Handle<Value> payload, uint32_t lineNumber,
+                                JS::ColumnNumberOneOrigin columnNumber);
 
 /**
  * Get the HostLoadImportedModule hook for the runtime.
@@ -274,27 +275,6 @@ enum ModuleErrorBehaviour {
 extern JS_PUBLIC_API bool ThrowOnModuleEvaluationFailure(
     JSContext* cx, Handle<JSObject*> evaluationPromise,
     ModuleErrorBehaviour errorBehaviour = ReportModuleErrorsAsync);
-
-/*
- * Functions to access the module specifiers of a source text module record used
- * to request module imports.
- *
- * Clients can use GetRequestedModulesCount() to get the number of specifiers
- * and GetRequestedModuleSpecifier() / GetRequestedModuleSourcePos() to get the
- * individual elements.
- */
-extern JS_PUBLIC_API uint32_t
-GetRequestedModulesCount(JSContext* cx, Handle<JSObject*> moduleRecord);
-
-extern JS_PUBLIC_API JSString* GetRequestedModuleSpecifier(
-    JSContext* cx, Handle<JSObject*> moduleRecord, uint32_t index);
-
-/*
- * Get the position of a requested module's name in the source.
- */
-extern JS_PUBLIC_API void GetRequestedModuleSourcePos(
-    JSContext* cx, Handle<JSObject*> moduleRecord, uint32_t index,
-    uint32_t* lineNumber, JS::ColumnNumberOneOrigin* columnNumber);
 
 /*
  * Get the module type of a requested module.

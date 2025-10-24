@@ -657,27 +657,41 @@ static nscoord OffsetToAlignedStaticPos(
     // alignment values: https://drafts.csswg.org/css-position-3/#abspos-layout
     // Skip if the raw self alignment for this element is `auto` to preserve
     // legacy behaviour.
-    // We've already aligned as if unsafe. Now get the union of inset-reduced
-    // containing block and the containing block.
-    const auto unionedStartOffset =
-        std::min(0, aNonAutoAlignParams->mCurrentStartInset);
+    // Follows https://drafts.csswg.org/css-align-3/#auto-safety-position
     const auto cbSize = aAbsPosCBSize.Size(aAbsPosCBAxis, aAbsPosCBWM);
-    const auto unionedEndOffset =
-        std::max(cbSize, cbSize - aNonAutoAlignParams->mCurrentEndInset);
-    const auto kidSizeInAxis =
-        aKidSizeInAbsPosCBWM.Size(aAbsPosCBAxis, aAbsPosCBWM);
-    if (unionedEndOffset - unionedStartOffset < kidSizeInAxis) {
-      // Kid is bigger than the union - start align it.
-      offset = -aNonAutoAlignParams->mCurrentStartInset + unionedStartOffset;
-    } else {
-      const auto start = aNonAutoAlignParams->mCurrentStartInset;
-      const auto end = start + kidSizeInAxis;
-      // Nudge into the union
-      if (start < unionedStartOffset) {
-        offset = unionedStartOffset - start;
-      } else if (end > unionedEndOffset) {
-        offset = unionedEndOffset - end;
+    // IMCB stands for "Inset-Modified Containing Block."
+    const auto imcbStart = aNonAutoAlignParams->mCurrentStartInset;
+    const auto imcbEnd = cbSize - aNonAutoAlignParams->mCurrentEndInset;
+    const auto kidSize = aKidSizeInAbsPosCBWM.Size(aAbsPosCBAxis, aAbsPosCBWM);
+    const auto kidStart = aNonAutoAlignParams->mCurrentStartInset + offset;
+    const auto kidEnd = kidStart + kidSize;
+    // "[...] the overflow limit rect is the bounding rectangle of the alignment
+    // subject’s inset-modified containing block and its original containing
+    // block."
+    const auto overflowLimitRectStart = std::min(0, imcbStart);
+    const auto overflowLimitRectEnd = std::max(cbSize, imcbEnd);
+
+    if (kidStart >= imcbStart && kidEnd <= imcbEnd) {
+      // 1. We fit inside the IMCB, no action needed.
+    } else if (kidSize <= overflowLimitRectEnd - overflowLimitRectStart) {
+      // 2. We overflowed IMCB, try to cover IMCB completely, if it's not.
+      if (kidEnd < imcbEnd) {
+        offset += imcbEnd - kidEnd;
+      } else if (kidStart > imcbStart) {
+        offset -= kidStart - imcbStart;
+      } else {
+        // IMCB already covered, ensure that we aren't escaping the limit rect.
+        if (kidStart < overflowLimitRectStart) {
+          offset += overflowLimitRectStart - kidStart;
+        } else if (kidEnd > overflowLimitRectEnd) {
+          offset -= kidEnd - overflowLimitRectEnd;
+        }
       }
+    } else {
+      // 3. We'll overflow the limit rect. Start align the subject int overflow
+      // limit rect.
+      offset =
+          -aNonAutoAlignParams->mCurrentStartInset + overflowLimitRectStart;
     }
   }
 
@@ -1191,9 +1205,13 @@ void AbsoluteContainingBlock::ReflowAbsoluteFrame(
 
     aKidFrame->DidReflow(aPresContext, &kidReflowInput);
 
-    if (usedCb.Contains(aKidFrame->GetRect()) && aStatus.IsComplete()) {
-      // We don't overflow our CB, no further fallback needed.
-      isOverflowingCB = false;
+    const bool fits =
+        aStatus.IsComplete() && usedCb.Contains(aKidFrame->GetRect());
+    if (fallbacks.IsEmpty() || fits) {
+      // We completed the reflow - Either we had a fallback that fit, or we
+      // didn't have any to try in the first place.
+      // TODO(dshin, bug 1987963): Hypothetical scroll will be committed here.
+      isOverflowingCB = !fits;
       break;
     }
 

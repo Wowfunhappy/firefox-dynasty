@@ -7022,24 +7022,6 @@
   mirror: once
 
 
-# Whether to disable the automatic detection and use of direct2d.
-- name: gfx.direct2d.disabled
-  type: bool
-  value: true
-  mirror: once
-
-# Whether to attempt to enable Direct2D regardless of automatic detection or
-# blacklisting.
-- name: gfx.direct2d.force-enabled
-  type: bool
-  value: false
-  mirror: once
-
-- name: gfx.direct2d.target-independent-rasterization.disabled
-  type: bool
-  value: false
-  mirror: once
-
 - name: gfx.direct3d11.reuse-decoder-device
   type: bool
   value: true
@@ -9048,12 +9030,6 @@
   mirror: always
   set_spidermonkey_pref: always
 
-- name: javascript.options.experimental.json_parse_with_source
-  type: bool
-  value: true
-  mirror: always
-  set_spidermonkey_pref: always
-
 # Dictionary Teleporting
 - name: javascript.options.experimental.dictionary_teleporting
   type: bool
@@ -9550,12 +9526,10 @@
 
 - name: layers.gpu-process.enabled
   type: bool
-#if defined(XP_WIN) || defined(MOZ_WIDGET_ANDROID)
+#if defined(XP_WIN) || defined(MOZ_WIDGET_ANDROID) || defined(XP_MACOSX)
   value: true
 #elif defined(MOZ_X11)
   value: false  # we'd like this to be @IS_NIGHTLY_BUILD@, see Bug 1927058
-#elif defined(XP_MACOSX)
-  value: @IS_NIGHTLY_BUILD@
 #else
   value: false
 #endif
@@ -9627,7 +9601,7 @@
 
 - name: layers.gpu-process.startup_timeout_ms
   type: int32_t
-  value: 5000
+  value: 10000
   mirror: once
 
 - name: layers.gpu-process.crash-also-crashes-browser

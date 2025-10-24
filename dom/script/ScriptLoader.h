@@ -10,7 +10,8 @@
 #include "ModuleLoader.h"
 #include "SharedScriptCache.h"
 #include "js/TypeDecls.h"
-#include "js/Utility.h"  // JS::FreePolicy
+#include "js/Utility.h"                     // JS::FreePolicy
+#include "js/experimental/CompileScript.h"  // JS::FrontendContext
 #include "js/loader/LoadedScript.h"
 #include "js/loader/ModuleLoaderBase.h"
 #include "js/loader/ScriptKind.h"
@@ -486,8 +487,9 @@ class ScriptLoader final : public JS::loader::ScriptLoaderInterface {
    * request if any.
    */
   void TryUseCache(
-      ScriptLoadRequest* aRequest, nsIScriptElement* aElement = nullptr,
-      const nsAString& aNonce = u""_ns,
+      ReferrerPolicy aReferrerPolicy, ScriptFetchOptions* aFetchOptions,
+      nsIURI* aURI, ScriptLoadRequest* aRequest,
+      nsIScriptElement* aElement = nullptr, const nsAString& aNonce = u""_ns,
       ScriptLoadRequestType aRequestType = ScriptLoadRequestType::External);
 
   /**
@@ -546,7 +548,8 @@ class ScriptLoader final : public JS::loader::ScriptLoaderInterface {
    */
   nsresult CheckContentPolicy(nsIScriptElement* aElement,
                               const nsAString& aNonce,
-                              ScriptLoadRequest* aRequest);
+                              ScriptLoadRequest* aRequest,
+                              ScriptFetchOptions* aFetchOptions, nsIURI* aURI);
 
   /**
    * Helper function to determine whether an about: page loads a chrome: URI.
@@ -714,22 +717,22 @@ class ScriptLoader final : public JS::loader::ScriptLoaderInterface {
   // cleanup the script load request fields otherwise.
   //
   // This method must be called after executing the script.
-  nsresult MaybePrepareForCacheAfterExecute(ScriptLoadRequest* aRequest,
-                                            nsresult aRv);
+  nsresult MaybePrepareForDiskCacheAfterExecute(ScriptLoadRequest* aRequest,
+                                                nsresult aRv);
 
   // Queue the top-level module load request for caching if we decided to cache
   // it, or cleanup the module load request fields otherwise.
   //
   // This method must be called after executing the script.
-  nsresult MaybePrepareModuleForCacheAfterExecute(ModuleLoadRequest* aRequest,
-                                                  nsresult aRv) override;
+  nsresult MaybePrepareModuleForDiskCacheAfterExecute(
+      ModuleLoadRequest* aRequest, nsresult aRv) override;
 
   // Implements https://html.spec.whatwg.org/#run-a-classic-script
   nsresult EvaluateScript(nsIGlobalObject* aGlobalObject,
                           ScriptLoadRequest* aRequest);
 
   /**
-   * Register the script load request to be cached.
+   * Register the script load request to be cached on the disk.
    *
    * The caller can call this at the same time instantiating the stencil,
    * and also start collecting delazifications.
@@ -737,45 +740,34 @@ class ScriptLoader final : public JS::loader::ScriptLoaderInterface {
    * The cache handling will be performed when the page initialization ends.
    * The page initialization end is defined as being the time when the load
    * event got received, and when no more scripts are waiting to be executed.
-   *
-   * The initial stencil and collected delazifications will be stored into
-   *   - the in-memory cache, and/or
-   *   - the necko cache
    */
-  void RegisterForCache(ScriptLoadRequest* aRequest);
+  void RegisterForDiskCache(ScriptLoadRequest* aRequest);
 
   /**
    * Check if all conditions are met, i-e that the onLoad event fired and that
    * no more script have to be processed.  If all conditions are met, queue an
-   * event to perform the cache handling, which does:
-   *   - finish collecting the delazifications
-   *   - optionally save to the necko cache
+   * event to perform the cache handling, which saves them to the necko cache.
    */
-  void MaybeUpdateCache() override;
+  void MaybeUpdateDiskCache() override;
 
   /**
-   * Iterate over all script load request and perform the caching operations,
-   * which is:
-   *   - finish collecting delazifications
-   *   - encode and save it to the necko cache
+   * Iterate over all scripts and save them to the necko cache.
    */
-  void UpdateCache();
+  void UpdateDiskCache();
 
   /**
    * Encode the stencils and save the bytecode to the necko cache.
    */
-  void EncodeBytecodeAndSave(JSContext* aCx,
+  void EncodeBytecodeAndSave(JS::FrontendContext* aFc,
                              JS::loader::LoadedScript* aLoadedScript);
 
   /**
-   * Stop collecting delazifications for all requests.
+   * Discard all disk-cache-related info for scripts queued for the disk cache.
+   *
    * This should be used when the ScriptLoader is getting destroyed, or
    * when it hits any critical error.
-   *
-   * The delazifications collected so far are reflected to the stencils,
-   * but they won't be encoded.
    */
-  void GiveUpCaching();
+  void GiveUpDiskCaching();
 
   already_AddRefed<nsIGlobalObject> GetGlobalForRequest(
       ScriptLoadRequest* aRequest);
@@ -811,7 +803,7 @@ class ScriptLoader final : public JS::loader::ScriptLoaderInterface {
   //   * necko alternative stream as Stencil XDR
   //
   // If the request is a non-top-level module request and it passed the
-  // condition, it's stored into mCacheableDependencyModules in order
+  // condition, it's stored into mDiskCacheableDependencyModules in order
   // to iterate over them later.
   void CalculateCacheFlag(ScriptLoadRequest* aRequest);
 
@@ -858,15 +850,16 @@ class ScriptLoader final : public JS::loader::ScriptLoaderInterface {
   // the original list if any.
   JS::loader::ScriptLoadRequestList mOffThreadCompilingRequests;
 
-  // Holds non-top-level module requests which passed caching conditions, until
-  // it's queued to mCachingQueue.
+  // Holds non-top-level module requests which passed disk caching conditions,
+  // until it's queued to mDiskCacheQueue.
   //
   // TODO: Remove this and per-ScriptLoader caching queue (bug 1902951).
-  JS::loader::ScriptLoadRequestList mCacheableDependencyModules;
+  JS::loader::ScriptLoadRequestList mDiskCacheableDependencyModules;
 
-  // Holds already-evaluted requests that are holding a buffer which has to be
-  // saved on the cache, until it's cached or the caching is aborted.
-  JS::loader::ScriptLoadRequestList mCachingQueue;
+  // Holds already-evaluted requests' script that are holding a stencil which
+  // has to be saved on the disk cache, until it's cached or the caching is
+  // aborted.
+  nsTArray<RefPtr<JS::loader::LoadedScript>> mDiskCacheQueue;
 
   // In mRequests, the additional information here is stored by the element.
   struct PreloadInfo {
@@ -906,7 +899,7 @@ class ScriptLoader final : public JS::loader::ScriptLoaderInterface {
   bool mDeferCheckpointReached;
   bool mBlockingDOMContentLoaded;
   bool mLoadEventFired;
-  bool mGiveUpCaching;
+  bool mGiveUpDiskCaching;
   bool mContinueParsingDocumentAfterCurrentScript;
 
   TimeDuration mMainThreadParseTime;

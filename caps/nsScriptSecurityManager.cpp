@@ -6,7 +6,6 @@
 
 #include "nsScriptSecurityManager.h"
 
-#include "mozilla/ArrayUtils.h"
 #include "mozilla/SourceLocation.h"
 #include "mozilla/StaticPrefs_extensions.h"
 #include "mozilla/StaticPrefs_security.h"
@@ -1271,13 +1270,13 @@ nsScriptSecurityManager::CheckLoadURIWithPrincipalFromJS(
       CheckLoadURIWithPrincipal(aPrincipal, aTargetURI, aFlags, aInnerWindowID);
   if (NS_FAILED(rv)) {
     nsAutoCString uriStr;
-    Unused << aTargetURI->GetSpec(uriStr);
+    (void)aTargetURI->GetSpec(uriStr);
 
     nsAutoCString message("Load of ");
     message.Append(uriStr);
 
     nsAutoCString principalStr;
-    Unused << aPrincipal->GetSpec(principalStr);
+    (void)aPrincipal->GetSpec(principalStr);
     if (!principalStr.IsEmpty()) {
       message.AppendPrintf(" from %s", principalStr.get());
     }

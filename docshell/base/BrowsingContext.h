@@ -79,6 +79,7 @@ class Sequence;
 class SessionHistoryInfo;
 class SessionStorageManager;
 class StructuredCloneHolder;
+struct NavigationAPIMethodTracker;
 class WindowContext;
 class WindowGlobalChild;
 struct WindowPostMessageOptions;
@@ -459,11 +460,13 @@ class BrowsingContext : public nsILoadContext, public nsWrapperCache {
 
   nsresult InternalLoad(nsDocShellLoadState* aLoadState);
 
-  void Navigate(nsIURI* aURI, nsIPrincipal& aSubjectPrincipal, ErrorResult& aRv,
-                NavigationHistoryBehavior aHistoryHandling =
-                    NavigationHistoryBehavior::Auto,
-                bool aNeedsCompletelyLoadedDocument = false,
-                nsIStructuredCloneContainer* aNavigationAPIState = nullptr);
+  void Navigate(
+      nsIURI* aURI, nsIPrincipal& aSubjectPrincipal, ErrorResult& aRv,
+      NavigationHistoryBehavior aHistoryHandling =
+          NavigationHistoryBehavior::Auto,
+      bool aNeedsCompletelyLoadedDocument = false,
+      nsIStructuredCloneContainer* aNavigationAPIState = nullptr,
+      dom::NavigationAPIMethodTracker* aNavigationAPIMethodTracker = nullptr);
 
   // Removes the root document for this BrowsingContext tree from the BFCache,
   // if it is cached, and returns true if it was.
@@ -673,7 +676,7 @@ class BrowsingContext : public nsILoadContext, public nsWrapperCache {
   }
 
   void SetCurrentIPAddressSpace(nsILoadInfo::IPAddressSpace aIPAddressSpace) {
-    Unused << SetIPAddressSpace(aIPAddressSpace);
+    (void)SetIPAddressSpace(aIPAddressSpace);
   }
 
   bool ForceDesktopViewport() const { return GetForceDesktopViewport(); }
@@ -745,7 +748,7 @@ class BrowsingContext : public nsILoadContext, public nsWrapperCache {
   void ResetOrientationOverride() {
     MOZ_ASSERT(IsTop());
 
-    Unused << SetHasOrientationOverride(false);
+    (void)SetHasOrientationOverride(false);
   }
 
   void SetRDMPaneMaxTouchPoints(uint8_t aMaxTouchPoints, ErrorResult& aRv) {
@@ -1445,6 +1448,8 @@ class BrowsingContext : public nsILoadContext, public nsWrapperCache {
   void DidSet(FieldIndex<IDX_IsSyntheticDocumentContainer>);
 
   void DidSet(FieldIndex<IDX_IsUnderHiddenEmbedderElement>, bool aOldValue);
+
+  void DidSet(FieldIndex<IDX_ForceOffline>, bool aOldValue);
 
   // Allow if the process attemping to set field is the same as the owning
   // process. Deprecated. New code that might use this should generally be moved

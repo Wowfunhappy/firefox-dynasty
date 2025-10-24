@@ -15,7 +15,6 @@
 #include "js/GCAPI.h"
 #include "js/Utility.h"
 #include "jsapi.h"
-#include "mozilla/ArrayUtils.h"
 #include "mozilla/AsyncEventDispatcher.h"
 #include "mozilla/AutoRestore.h"
 #include "mozilla/CycleCollectedJSRuntime.h"
@@ -26,7 +25,6 @@
 #include "mozilla/ProfilerRunnable.h"
 #include "mozilla/Sprintf.h"
 #include "mozilla/StaticPrefs_javascript.h"
-#include "mozilla/Unused.h"
 #include "mozilla/dom/DOMException.h"
 #include "mozilla/dom/DOMJSClass.h"
 #include "mozilla/dom/FinalizationRegistryBinding.h"
@@ -977,7 +975,7 @@ SuppressedMicroTaskList::~SuppressedMicroTaskList() {
 
 // Run a microtask. Handles both non-JS (enqueued MicroTaskRunnables) and JS
 // microtasks.
-static bool MOZ_CAN_RUN_SCRIPT
+static void MOZ_CAN_RUN_SCRIPT
 RunMicroTask(JSContext* aCx, JS::MutableHandle<JS::MicroTask> task) {
   if (RefPtr<MicroTaskRunnable> runnable =
           MaybeUnwrapTaskToOwnedRunnable(task)) {
@@ -987,7 +985,7 @@ RunMicroTask(JSContext* aCx, JS::MutableHandle<JS::MicroTask> task) {
         "RunMicroTaskRunnable", OTHER, Flow::FromPointer(runnable.get()));
     AutoSlowOperation aso;
     runnable->Run(aso);
-    return true;
+    return;
   }
 
   MOZ_ASSERT(task.isObject());
@@ -1064,7 +1062,7 @@ RunMicroTask(JSContext* aCx, JS::MutableHandle<JS::MicroTask> task) {
     }
   }
 
-  if (incumbentGlobal && schedulingState) {
+  if (incumbentGlobal) {
     // https://wicg.github.io/scheduling-apis/#sec-patches-html-hostcalljobcallback
     // 2. Set event loop’s current scheduling state to
     // callback.[[HostDefined]].[[SchedulingState]].
@@ -1082,17 +1080,19 @@ RunMicroTask(JSContext* aCx, JS::MutableHandle<JS::MicroTask> task) {
                   "promise callback" /* Some tests care about this string. */,
                   dom::CallbackObject::eReportExceptions);
   if (!setup.GetContext()) {
-    return false;
+    return;
   }
-  bool v = JS::RunJSMicroTask(aCx, task);
+
+  // Note: We're dropping the return value on the floor here, however
+  // cleanup and exception handling are done as part of the CallSetup
+  // destructor if necessary.
+  (void)JS::RunJSMicroTask(aCx, task);
 
   // (The step after step 7): Set event loop’s current scheduling
   // state to null
-  if (incumbentGlobal && schedulingState) {
+  if (incumbentGlobal) {
     incumbentGlobal->SetWebTaskSchedulingState(nullptr);
   }
-
-  return v;
 }
 
 static bool IsSuppressed(JS::Handle<JS::MicroTask> task) {
@@ -1120,6 +1120,12 @@ bool CycleCollectedJSContext::PerformMicroTaskCheckPoint(bool aForce) {
   JSContext* cx = Context();
 
   if (StaticPrefs::javascript_options_use_js_microtask_queue()) {
+    // If we have no JSContext we are not capable of checking for
+    // nor running microtasks, and so simply return false early here.
+    if (!cx) {
+      return false;
+    }
+
     if (!JS::HasAnyMicroTasks(cx)) {
       MOZ_ASSERT(mDebuggerMicroTaskQueue.empty());
       MOZ_ASSERT(mPendingMicroTaskRunnables.empty());
@@ -1212,10 +1218,7 @@ bool CycleCollectedJSContext::PerformMicroTaskCheckPoint(bool aForce) {
         }
         didProcess = true;
 
-        // Note: We're dropping the return value on the floor here, however
-        // cleanup and exception handling are done as part of the CallSetup
-        // destructor if necessary.
-        (void)RunMicroTask(cx, &job);
+        RunMicroTask(cx, &job);
       }
     }
 
@@ -1273,8 +1276,8 @@ bool CycleCollectedJSContext::PerformMicroTaskCheckPoint(bool aForce) {
         }
         didProcess = true;
         AUTO_PROFILER_TERMINATING_FLOW_MARKER_FLOW_ONLY(
-            "CycleCollectedJSContext::PerformDebuggerMicroTaskCheckpoint",
-            OTHER, Flow::FromPointer(runnable.get()));
+            "CycleCollectedJSContext::PerformMicroTaskCheckpoint", OTHER,
+            Flow::FromPointer(runnable.get()));
         LogMicroTaskRunnable::Run log(runnable.get());
         runnable->Run(aso);
         runnable = nullptr;
@@ -1306,19 +1309,8 @@ void CycleCollectedJSContext::PerformDebuggerMicroTaskCheckpoint() {
       MOZ_ASSERT(mPendingMicroTaskRunnables.empty());
 
       JS::Rooted<JS::MicroTask> job(cx, JS::DequeueNextDebuggerMicroTask(cx));
-      // Bug 1991164: Need to support LogMicroTaskQueueEntry with JS micro
-      // tasks. LogMicroTaskQueueEntry::Run log(job);
 
-      // Bug 1990870: Need to support flows with JS microtasks
-      //   AUTO_PROFILER_TERMINATING_FLOW_MARKER_FLOW_ONLY(
-      // "CycleCollectedJSContext::PerformMicroTaskCheckPoint", OTHER,
-      // Flow::FromPointer(runnable.get()));
-
-      // Note: We're dropping the return value on the floor here. This is
-      // consistent with the previous implementation, which left the exception
-      // if it was there pending on the context, but likely should be
-      // changed.
-      (void)RunMicroTask(cx, &job);
+      RunMicroTask(cx, &job);
     }
   } else {
     MOZ_ASSERT(!JS::HasAnyMicroTasks(cx));
@@ -1347,7 +1339,7 @@ void CycleCollectedJSContext::PerformDebuggerMicroTaskCheckpoint() {
       }
 
       AUTO_PROFILER_TERMINATING_FLOW_MARKER_FLOW_ONLY(
-          "CycleCollectedJSContext::PerformMicroTaskCheckPoint", OTHER,
+          "CycleCollectedJSContext::PerformDebuggerMicroTaskCheckPoint", OTHER,
           Flow::FromPointer(runnable.get()));
 
       runnable->Run(aso);

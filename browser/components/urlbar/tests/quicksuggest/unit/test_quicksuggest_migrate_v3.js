@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-// Tests quick suggest prefs migration from version 2 to 3.
+// Tests quick suggest prefs migration from version 2 to 4.
 
 "use strict";
 
@@ -25,7 +25,7 @@ add_setup(async () => {
   await UrlbarTestUtils.initNimbusFeature();
 });
 
-// The following tasks test OFFLINE version 2 to version 3 when SUGGEST IS ENABLED.
+// The following tasks test OFFLINE version 2 to version 4 when SUGGEST IS ENABLED.
 
 // Migrating from:
 // * User enabled `quicksuggest.dataCollection.enabled`
@@ -34,7 +34,7 @@ add_setup(async () => {
 // * Yes
 //
 // Expected:
-// * quicksuggest.settingsUi set to FULL on the User Branch
+// * quicksuggest.settingsUi is not set on the user branch.
 add_task(async function test_migrate_with_datacollection_enabled() {
   await doMigrateTest({
     testOverrides: TEST_OVERRIDES,
@@ -45,7 +45,6 @@ add_task(async function test_migrate_with_datacollection_enabled() {
       defaultBranch: DEFAULT_PREFS,
       userBranch: {
         "quicksuggest.dataCollection.enabled": true,
-        "quicksuggest.settingsUi": QuickSuggest.SETTINGS_UI.FULL,
       },
     },
   });

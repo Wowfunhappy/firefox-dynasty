@@ -11,7 +11,6 @@
 #include "js/friend/ErrorMessages.h"  // js::GetErrorMessage, JSMSG_*
 #include "js/loader/ModuleLoadRequest.h"
 #include "mozilla/ScopeExit.h"
-#include "mozilla/Unused.h"
 #include "mozilla/dom/StructuredCloneHolder.h"
 #include "mozilla/dom/Worklet.h"
 #include "mozilla/dom/WorkletFetchHandler.h"
@@ -79,12 +78,12 @@ already_AddRefed<ModuleLoadRequest> WorkletModuleLoader::CreateRequest(
   const nsMainThreadPtrHandle<WorkletFetchHandler>& handlerRef =
       context->GetHandlerRef();
   RefPtr<WorkletLoadContext> loadContext = new WorkletLoadContext(handlerRef);
-  RefPtr<ModuleLoadRequest> request = new ModuleLoadRequest(
-      aURI, moduleType, aReferrerPolicy, aOptions, SRIMetadata(), aBaseURL,
-      loadContext, ModuleLoadRequest::Kind::StaticImport, this, root);
+  RefPtr<ModuleLoadRequest> request =
+      new ModuleLoadRequest(moduleType, SRIMetadata(), aBaseURL, loadContext,
+                            ModuleLoadRequest::Kind::StaticImport, this, root);
 
-  request->mURL = request->mURI->GetSpecOrDefault();
-  request->NoCacheEntryFound();
+  request->mURL = aURI->GetSpecOrDefault();
+  request->NoCacheEntryFound(aReferrerPolicy, aOptions, aURI);
   return request.forget();
 }
 
@@ -94,11 +93,11 @@ bool WorkletModuleLoader::CanStartLoad(ModuleLoadRequest* aRequest,
 }
 
 nsresult WorkletModuleLoader::StartFetch(ModuleLoadRequest* aRequest) {
-  InsertRequest(aRequest->mURI, aRequest);
+  InsertRequest(aRequest->URI(), aRequest);
 
   RefPtr<StartFetchRunnable> runnable =
       new StartFetchRunnable(aRequest->GetWorkletLoadContext()->GetHandlerRef(),
-                             aRequest->mURI, aRequest->mReferrer);
+                             aRequest->URI(), aRequest->mReferrer);
   NS_DispatchToMainThread(runnable.forget());
   return NS_OK;
 }
@@ -244,7 +243,7 @@ AddModuleThrowErrorRunnable::Run() {
   JS::Rooted<JS::Value> error(cx);
   ErrorResult result;
   Read(global, cx, &error, result);
-  Unused << NS_WARN_IF(result.Failed());
+  (void)NS_WARN_IF(result.Failed());
   mHandlerRef->ExecutionFailed(error);
 
   return NS_OK;

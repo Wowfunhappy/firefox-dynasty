@@ -39,6 +39,7 @@ https_first_disabled = true
 ["browser_bfcache_exemption_about_pages.js"]
 run-if = ["fission"]
 skip-if = [
+  "verify-standalone",
   "os == 'linux' && os_version == '18.04' && processor == 'x86_64' && debug", # Bug 1934436
   "os == 'linux' && os_version == '24.04' && processor == 'x86_64' && display == 'x11' && debug", # Bug 1934436
 ]
@@ -554,6 +555,9 @@ tags = "vertical-tabs"
 
 ["browser_tab_manager_groups.js"]
 tags = "vertical-tabs"
+skip-if = [
+  "os == 'mac' && os_version == '15.30' && arch == 'aarch64'", # Bug 1994900
+]
 
 ["browser_tab_manager_keyboard_access.js"]
 tags = "vertical-tabs"

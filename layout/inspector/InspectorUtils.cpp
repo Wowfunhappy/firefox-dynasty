@@ -10,7 +10,6 @@
 #include "Units.h"
 #include "gfxTextRun.h"
 #include "inLayoutUtils.h"
-#include "mozilla/ArrayUtils.h"
 #include "mozilla/DeclarationBlock.h"
 #include "mozilla/EventStateManager.h"
 #include "mozilla/PresShell.h"
@@ -571,7 +570,7 @@ static uint32_t CollectAtRules(ServoCSSRuleList& aRuleList,
       case StyleCssRuleType::LayerBlock:
       case StyleCssRuleType::Property:
       case StyleCssRuleType::Container: {
-        Unused << aResult.AppendElement(OwningNonNull(*rule), fallible);
+        (void)aResult.AppendElement(OwningNonNull(*rule), fallible);
         break;
       }
       case StyleCssRuleType::Style:

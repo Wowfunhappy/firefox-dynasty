@@ -28,7 +28,6 @@
 #include "GtkCompositorWidget.h"
 #include "imgIContainer.h"
 #include "InputData.h"
-#include "mozilla/ArrayUtils.h"
 #include "mozilla/Assertions.h"
 #include "mozilla/Components.h"
 #include "mozilla/GRefPtr.h"
@@ -3769,7 +3768,7 @@ void nsWindow::CaptureRollupEvents(bool aDoCapture) {
                          /* owner_events = */ true, kCaptureEventsMask,
                          /* confine_to = */ nullptr,
                          /* cursor = */ nullptr, GetLastUserInputTime());
-    Unused << NS_WARN_IF(status != GDK_GRAB_SUCCESS);
+    (void)NS_WARN_IF(status != GDK_GRAB_SUCCESS);
     LOG(" > pointer grab with status %d", int(status));
     gtk_grab_add(GTK_WIDGET(mContainer));
   } else {
@@ -6139,7 +6138,7 @@ nsresult nsWindow::Create(nsIWidget* aParent, const LayoutDeviceIntRect& aRect,
 
   // Ensure gfxPlatform is initialized, since that is what initializes
   // gfxVars, used below.
-  Unused << gfxPlatform::GetPlatform();
+  (void)gfxPlatform::GetPlatform();
 
   if (IsTopLevelWidget()) {
     mGtkWindowDecoration = GetSystemGtkWindowDecoration();
@@ -6850,7 +6849,7 @@ void nsWindow::NativeShow(bool aAction) {
 
         auto* shellClass = GTK_WIDGET_GET_CLASS(mShell);
         for (unsigned int i = 0; i < mPendingConfigures; i++) {
-          Unused << shellClass->configure_event(mShell, &event);
+          (void)shellClass->configure_event(mShell, &event);
         }
         mPendingConfigures = 0;
       }

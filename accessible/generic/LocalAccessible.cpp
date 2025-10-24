@@ -1706,6 +1706,12 @@ void LocalAccessible::ApplyARIAState(uint64_t* aState) const {
     aria::MapToState(aria::eARIAPressed, element, aState);
   }
 
+  if (!IsTextField() && IsEditableRoot()) {
+    // HTML text fields will have their own multi/single line calcuation in
+    // NativeState.
+    aria::MapToState(aria::eARIAMultilineByDefault, element, aState);
+  }
+
   if (!roleMapEntry) return;
 
   *aState |= roleMapEntry->state;
@@ -1755,18 +1761,16 @@ void LocalAccessible::Value(nsString& aValue) const {
   }
 
   const nsRoleMapEntry* roleMapEntry = ARIARoleMap();
-  if (!roleMapEntry) {
-    return;
-  }
 
   // Value of textbox is a textified subtree.
-  if (roleMapEntry->Is(nsGkAtoms::textbox)) {
+  if ((roleMapEntry && roleMapEntry->Is(nsGkAtoms::textbox)) ||
+      (IsGeneric() && IsEditableRoot())) {
     nsTextEquivUtils::GetTextEquivFromSubtree(this, aValue);
     return;
   }
 
   // Value of combobox is a text of current or selected item.
-  if (roleMapEntry->Is(nsGkAtoms::combobox)) {
+  if (roleMapEntry && roleMapEntry->Is(nsGkAtoms::combobox)) {
     LocalAccessible* option = CurrentItem();
     if (!option) {
       uint32_t childCount = ChildCount();
@@ -2532,6 +2536,11 @@ bool LocalAccessible::IsScrollable() const {
 bool LocalAccessible::IsPopover() const {
   dom::Element* el = Elm();
   return el && el->IsHTMLElement() && el->HasAttr(nsGkAtoms::popover);
+}
+
+bool LocalAccessible::IsEditable() const {
+  dom::Element* el = Elm();
+  return el && el->State().HasState(dom::ElementState::READWRITE);
 }
 
 void LocalAccessible::AppendTextTo(nsAString& aText, uint32_t aStartOffset,
@@ -3822,7 +3831,17 @@ already_AddRefed<AccAttributes> LocalAccessible::BundleFieldsForCache(
   }
 
   if (aCacheDomain & CacheDomain::ScrollPosition && frame) {
-    const auto [scrollPosition, scrollRange] = mDoc->ComputeScrollData(this);
+    // We request these values unscaled when caching because the scaled values
+    // have resolution multiplied in. We can encounter a race condition when
+    // using APZ where the resolution is not propogated back to content in time
+    // for it to be multipled into the scroll position calculation. Even if we
+    // end up with the correct resolution cached in parent, our final bounds
+    // will be incorrect. Instead of scaling here, we scale in parent with our
+    // cached resolution so any incorrectness will be consistent and dependent
+    // on a single cache update (Resolution) instead of two (Resolution and
+    // ScrollPosition).
+    const auto [scrollPosition, scrollRange] =
+        mDoc->ComputeScrollData(this, /* aShouldScaleByResolution */ false);
     if (scrollRange.width || scrollRange.height) {
       // If the scroll range is 0 by 0, this acc is not scrollable. We
       // can't simply check scrollPosition != 0, since it's valid for scrollable

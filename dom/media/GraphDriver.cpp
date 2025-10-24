@@ -17,7 +17,6 @@
 #include "mozilla/SchedulerGroup.h"
 #include "mozilla/SharedThreadPool.h"
 #include "mozilla/StaticPrefs_media.h"
-#include "mozilla/Unused.h"
 #include "mozilla/dom/AudioContext.h"
 #include "mozilla/dom/AudioDeviceInfo.h"
 #include "mozilla/dom/BaseAudioContextBinding.h"
@@ -150,7 +149,7 @@ void ThreadedDriver::Start() {
   MOZ_ASSERT(!ThreadRunning());
   LOG(LogLevel::Debug,
       ("Starting thread for a SystemClockDriver  %p", mGraphInterface.get()));
-  Unused << NS_WARN_IF(mThread);
+  (void)NS_WARN_IF(mThread);
   MOZ_ASSERT(!mThread);  // Ensure we haven't already started it
 
   nsCOMPtr<nsIRunnable> event = new MediaTrackGraphInitThreadRunnable(this);
@@ -262,8 +261,8 @@ TimeDuration SystemClockDriver::NextIterationWaitDuration() {
 }
 
 OfflineClockDriver::OfflineClockDriver(GraphInterface* aGraphInterface,
-                                       uint32_t aSampleRate, GraphTime aSlice)
-    : ThreadedDriver(aGraphInterface, nullptr, aSampleRate), mSlice(aSlice) {}
+                                       uint32_t aSampleRate)
+    : ThreadedDriver(aGraphInterface, nullptr, aSampleRate) {}
 
 OfflineClockDriver::~OfflineClockDriver() = default;
 
@@ -277,7 +276,7 @@ void OfflineClockDriver::RunThread() {
 
 MediaTime OfflineClockDriver::GetIntervalForIteration() {
   return MediaTrackGraphImpl::RoundUpToEndOfAudioBlock(
-      MillisecondsToMediaTime(mSlice));
+      MillisecondsToMediaTime(MEDIA_GRAPH_TARGET_PERIOD_MS));
 }
 
 /* Helper to proxy the GraphInterface methods used by a running

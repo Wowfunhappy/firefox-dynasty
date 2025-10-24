@@ -403,57 +403,6 @@ JS_PUBLIC_API bool JS::ThrowOnModuleEvaluationFailure(
   return OnModuleEvaluationFailure(cx, evaluationPromise, errorBehaviour);
 }
 
-JS_PUBLIC_API uint32_t
-JS::GetRequestedModulesCount(JSContext* cx, Handle<JSObject*> moduleRecord) {
-  AssertHeapIsIdle();
-  CHECK_THREAD(cx);
-  cx->check(moduleRecord);
-
-  return moduleRecord->as<ModuleObject>().requestedModules().Length();
-}
-
-JS_PUBLIC_API JSString* JS::GetRequestedModuleSpecifier(
-    JSContext* cx, Handle<JSObject*> moduleRecord, uint32_t index) {
-  AssertHeapIsIdle();
-  CHECK_THREAD(cx);
-  cx->check(moduleRecord);
-
-  auto* moduleRequest = moduleRecord->as<ModuleObject>()
-                            .requestedModules()[index]
-                            .moduleRequest();
-
-  // This implements step 7.1.1 in HostLoadImportedModule.
-  // https://html.spec.whatwg.org/multipage/webappapis.html#hostloadimportedmodule
-  //
-  // If moduleRequest.[[Attributes]] contains a Record entry such that
-  // entry.[[Key]] is not "type",
-  if (moduleRequest->hasFirstUnsupportedAttributeKey()) {
-    UniqueChars printableKey = AtomToPrintableString(
-        cx, moduleRequest->getFirstUnsupportedAttributeKey());
-    JS_ReportErrorNumberASCII(
-        cx, GetErrorMessage, nullptr,
-        JSMSG_IMPORT_ATTRIBUTES_STATIC_IMPORT_UNSUPPORTED_ATTRIBUTE,
-        printableKey ? printableKey.get() : "");
-    return nullptr;
-  }
-
-  return moduleRequest->specifier();
-}
-
-JS_PUBLIC_API void JS::GetRequestedModuleSourcePos(
-    JSContext* cx, Handle<JSObject*> moduleRecord, uint32_t index,
-    uint32_t* lineNumber, JS::ColumnNumberOneOrigin* columnNumber) {
-  AssertHeapIsIdle();
-  CHECK_THREAD(cx);
-  cx->check(moduleRecord);
-  MOZ_ASSERT(lineNumber);
-  MOZ_ASSERT(columnNumber);
-
-  auto& module = moduleRecord->as<ModuleObject>();
-  *lineNumber = module.requestedModules()[index].lineNumber();
-  *columnNumber = module.requestedModules()[index].columnNumber();
-}
-
 JS_PUBLIC_API JS::ModuleType JS::GetRequestedModuleType(
     JSContext* cx, Handle<JSObject*> moduleRecord, uint32_t index) {
   AssertHeapIsIdle();
@@ -813,7 +762,8 @@ static void ThrowUnexpectedModuleStatus(JSContext* cx, ModuleStatus status) {
 bool js::HostLoadImportedModule(JSContext* cx, Handle<JSScript*> referrer,
                                 Handle<JSObject*> moduleRequest,
                                 Handle<Value> hostDefined,
-                                Handle<Value> payload) {
+                                Handle<Value> payload, uint32_t lineNumber,
+                                JS::ColumnNumberOneOrigin columnNumber) {
   MOZ_ASSERT(moduleRequest);
   MOZ_ASSERT(!payload.isUndefined());
 
@@ -823,7 +773,8 @@ bool js::HostLoadImportedModule(JSContext* cx, Handle<JSScript*> referrer,
     return false;
   }
 
-  bool ok = moduleLoadHook(cx, referrer, moduleRequest, hostDefined, payload);
+  bool ok = moduleLoadHook(cx, referrer, moduleRequest, hostDefined, payload,
+                           lineNumber, columnNumber);
 
   if (!ok) {
     MOZ_ASSERT(JS_IsExceptionPending(cx));
@@ -1561,7 +1512,8 @@ static bool InnerModuleLoading(JSContext* cx,
         Rooted<Value> hostDefined(cx, state->hostDefined());
         Rooted<Value> payload(cx, ObjectValue(*state));
         if (!HostLoadImportedModule(cx, referrer, moduleRequest, hostDefined,
-                                    payload)) {
+                                    payload, request.lineNumber(),
+                                    request.columnNumber())) {
           return false;
         }
       }
@@ -1734,7 +1686,7 @@ static bool ModuleLink(JSContext* cx, Handle<ModuleObject*> module) {
       MOZ_ASSERT(m->status() == ModuleStatus::Linking);
       // Step 4.a.ii. Set m.[[Status]] to unlinked.
       m->setStatus(ModuleStatus::Unlinked);
-      m->clearDfsIndexes();
+      m->clearDfsAncestorIndex();
     }
 
     // Step 4.b. Assert: module.[[Status]] is unlinked.
@@ -1797,8 +1749,8 @@ static bool InnerModuleLinking(JSContext* cx, Handle<ModuleObject*> module,
   // Step 4. Set module.[[Status]] to linking.
   module->setStatus(ModuleStatus::Linking);
 
-  // Step 5. Set module.[[DFSIndex]] to index.
-  module->setDfsIndex(index);
+  // Step 5. Let moduleIndex be index.
+  size_t moduleIndex = index;
 
   // Step 6. Set module.[[DFSAncestorIndex]] to index.
   module->setDfsAncestorIndex(index);
@@ -1865,11 +1817,11 @@ static bool InnerModuleLinking(JSContext* cx, Handle<ModuleObject*> module,
   // Step 11. Assert: module occurs exactly once in stack.
   MOZ_ASSERT(CountElements(stack, module) == 1);
 
-  // Step 12. Assert: module.[[DFSAncestorIndex]] <= module.[[DFSIndex]].
-  MOZ_ASSERT(module->dfsAncestorIndex() <= module->dfsIndex());
+  // Step 12. Assert: module.[[DFSAncestorIndex]] <= moduleIndex.
+  MOZ_ASSERT(module->dfsAncestorIndex() <= moduleIndex);
 
-  // Step 13. If module.[[DFSAncestorIndex]] = module.[[DFSIndex]], then
-  if (module->dfsAncestorIndex() == module->dfsIndex()) {
+  // Step 13. If module.[[DFSAncestorIndex]] = moduleIndex, then
+  if (module->dfsAncestorIndex() == moduleIndex) {
     // Step 13.a.
     bool done = false;
 
@@ -2100,8 +2052,8 @@ static bool InnerModuleEvaluation(JSContext* cx, Handle<ModuleObject*> module,
   // Step 5. Set module.[[Status]] to evaluating.
   module->setStatus(ModuleStatus::Evaluating);
 
-  // Step 6. Set module.[[DFSIndex]] to index.
-  module->setDfsIndex(index);
+  // Step 6. Let moduleIndex be index.
+  size_t moduleIndex = index;
 
   // Step 7. Set module.[[DFSAncestorIndex]] to index.
   module->setDfsAncestorIndex(index);
@@ -2215,11 +2167,11 @@ static bool InnerModuleEvaluation(JSContext* cx, Handle<ModuleObject*> module,
   // Step 14. Assert: module occurs exactly once in stack.
   MOZ_ASSERT(CountElements(stack, module) == 1);
 
-  // Step 15. Assert: module.[[DFSAncestorIndex]] <= module.[[DFSIndex]].
-  MOZ_ASSERT(module->dfsAncestorIndex() <= module->dfsIndex());
+  // Step 15. Assert: module.[[DFSAncestorIndex]] <= moduleIndex.
+  MOZ_ASSERT(module->dfsAncestorIndex() <= moduleIndex);
 
-  // Step 16. If module.[[DFSAncestorIndex]] = module.[[DFSIndex]], then:
-  if (module->dfsAncestorIndex() == module->dfsIndex()) {
+  // Step 16. If module.[[DFSAncestorIndex]] = momoduleIndex, then:
+  if (module->dfsAncestorIndex() == moduleIndex) {
     // Step 16.a. Let done be false.
     bool done = false;
 

@@ -16,7 +16,6 @@
 #include "TouchEvents.h"
 #include "X11UndefineNone.h"
 #include "base/thread.h"
-#include "mozilla/ArrayUtils.h"
 #include "mozilla/Attributes.h"
 #include "mozilla/GlobalKeyListener.h"
 #include "mozilla/IMEStateManager.h"
@@ -35,7 +34,6 @@
 #include "mozilla/TextEventDispatcher.h"
 #include "mozilla/TextEventDispatcherListener.h"
 #include "mozilla/UniquePtr.h"
-#include "mozilla/Unused.h"
 #include "mozilla/VsyncDispatcher.h"
 #include "mozilla/dom/BrowserParent.h"
 #include "mozilla/dom/ContentChild.h"
@@ -526,8 +524,8 @@ LayoutDeviceIntRect nsIWidget::MaybeRoundToDisplayPixels(
   auto size = aTransparency == TransparencyMode::Opaque
                   ? aRect.Size().TruncatedToMultiple(aRound)
                   : aRect.Size().CeiledToMultiple(aRound);
-  Unused << NS_WARN_IF(aTransparency == TransparencyMode::Opaque &&
-                       size != aRect.Size());
+  (void)NS_WARN_IF(aTransparency == TransparencyMode::Opaque &&
+                   size != aRect.Size());
   return {aRect.TopLeft().RoundedToMultiple(aRound), size};
 }
 

@@ -514,6 +514,23 @@
       }
     ]
   },
+  "1729435": {
+    "label": "milkbarstore.com",
+    "bugs": {
+      "1729435": {
+        "issue": "broken-interactive-elements",
+        "matches": ["*://milkbarstore.com/*"]
+      }
+    },
+    "interventions": [
+      {
+        "platforms": ["all"],
+        "content_scripts": {
+          "css": ["1729435_milkbarstore.com-fix-cart-quantity-counts.css"]
+        }
+      }
+    ]
+  },
   "1739489": {
     "label": "Sites using draft.js",
     "bugs": {
@@ -2011,6 +2028,21 @@
       }
     ]
   },
+  "1898898": {
+    "label": "app.libry.jp",
+    "bugs": {
+      "1898898": {
+        "issue": "firefox-blocked-completely",
+        "matches": ["*://app.libry.jp/*"]
+      }
+    },
+    "interventions": [
+      {
+        "platforms": ["all"],
+        "ua_string": ["add_Chrome"]
+      }
+    ]
+  },
   "1898904": {
     "label": "indigo.shireburn.com",
     "bugs": {
@@ -2052,6 +2084,21 @@
     "interventions": [
       {
         "platforms": ["all"],
+        "ua_string": ["add_Chrome"]
+      }
+    ]
+  },
+  "1898936": {
+    "label": "app.stormx.io",
+    "bugs": {
+      "1898936": {
+        "issue": "firefox-blocked-completely",
+        "matches": ["*://app.stormx.io/*"]
+      }
+    },
+    "interventions": [
+      {
+        "platforms": ["desktop"],
         "ua_string": ["add_Chrome"]
       }
     ]
@@ -2317,6 +2364,23 @@
       {
         "platforms": ["all"],
         "ua_string": ["add_Chrome"]
+      }
+    ]
+  },
+  "1898951": {
+    "label": "hexagame.io",
+    "bugs": {
+      "1898951": {
+        "issue": "unsupported-warning",
+        "matches": ["*://hexagame.io/*"]
+      }
+    },
+    "interventions": [
+      {
+        "platforms": ["desktop"],
+        "content_scripts": {
+          "js": ["bug1898951-hexagame.io-prevent-unsupported-alert.js"]
+        }
       }
     ]
   },
@@ -3172,6 +3236,66 @@
       }
     ]
   },
+  "1902463": {
+    "label": "stage.metareal.com",
+    "bugs": {
+      "1902463": {
+        "issue": "firefox-blocked-completely",
+        "matches": ["*://stage.metareal.com/*"]
+      }
+    },
+    "interventions": [
+      {
+        "platforms": ["all"],
+        "ua_string": ["add_Chrome"]
+      }
+    ]
+  },
+  "1902450": {
+    "label": "hilokal.com",
+    "bugs": {
+      "1902450": {
+        "issue": "firefox-blocked-completely",
+        "matches": ["*://www.hilokal.com/*"]
+      }
+    },
+    "interventions": [
+      {
+        "platforms": ["desktop"],
+        "ua_string": ["add_Chrome"]
+      }
+    ]
+  },
+  "1902454": {
+    "label": "onvideo.kuaishou.com",
+    "bugs": {
+      "1902454": {
+        "issue": "firefox-blocked-completely",
+        "matches": ["*://onvideo.kuaishou.com/*"]
+      }
+    },
+    "interventions": [
+      {
+        "platforms": ["desktop"],
+        "ua_string": ["add_Chrome"]
+      }
+    ]
+  },
+  "1902457": {
+    "label": "www.vpropel.in",
+    "bugs": {
+      "1902457": {
+        "issue": "firefox-blocked-completely",
+        "matches": ["*://www.vpropel.in/*"]
+      }
+    },
+    "interventions": [
+      {
+        "platforms": ["all"],
+        "ua_string": ["add_Chrome"]
+      }
+    ]
+  },
   "1902459": {
     "label": "coupangplay.com",
     "bugs": {
@@ -3497,6 +3621,25 @@
       {
         "platforms": ["all"],
         "ua_string": ["add_Chrome"]
+      }
+    ]
+  },
+  "1913668": {
+    "label": "workbench.researchallofus.org",
+    "bugs": {
+      "1913668": {
+        "issue": "firefox-blocked-completely",
+        "matches": ["*://workbench.researchallofus.org/*"]
+      }
+    },
+    "interventions": [
+      {
+        "platforms": ["all"],
+        "content_scripts": {
+          "css": [
+            "bug1913668-workbench.researchallofus.org-hide-browser-warning.css"
+          ]
+        }
       }
     ]
   },
@@ -4390,6 +4533,21 @@
       }
     ]
   },
+  "1949152": {
+    "label": "gatufotogruppen.com",
+    "bugs": {
+      "1949152": {
+        "issue": "firefox-blocked-completely",
+        "matches": ["*://www.gatufotogruppen.se/*"]
+      }
+    },
+    "interventions": [
+      {
+        "platforms": ["all"],
+        "ua_string": ["Chrome_with_FxQuantum"]
+      }
+    ]
+  },
   "1949466": {
     "label": "lapalabradeldia.com",
     "bugs": {
@@ -5003,6 +5161,25 @@
       }
     ]
   },
+  "1970810": {
+    "label": "camper-van-week-end.fr",
+    "bugs": {
+      "1970810": {
+        "issue": "page-fails-to-load",
+        "matches": ["*://www.camper-van-week-end.fr/*"]
+      }
+    },
+    "interventions": [
+      {
+        "platforms": ["linux"],
+        "content_scripts": {
+          "js": [
+            "bug1970810-www.camper-van-week-end.fr-appVersion-linux-fix.js"
+          ]
+        }
+      }
+    ]
+  },
   "1972511": {
     "label": "cmyportal.tkc.co.jp",
     "bugs": {
@@ -5207,6 +5384,21 @@
       }
     ]
   },
+  "1980129": {
+    "label": "app.simplenote.com",
+    "bugs": {
+      "1980129": {
+        "issue": "broken-interactive-elements",
+        "matches": ["*://app.simplenote.com/*"]
+      }
+    },
+    "interventions": [
+      {
+        "platforms": ["all"],
+        "ua_string": ["change_Firefox_to_FireFox"]
+      }
+    ]
+  },
   "1980382": {
     "label": "www.fidrec.com.sg",
     "bugs": {
@@ -5304,6 +5496,21 @@
             "bug1983538-incontrol.landrover.com-alias-WebKitMutationObserver.js"
           ]
         }
+      }
+    ]
+  },
+  "1983778": {
+    "label": "daotranslate.com",
+    "bugs": {
+      "1983778": {
+        "issue": "firefox-blocked-completely",
+        "matches": ["*://daotranslate.com/*"]
+      }
+    },
+    "interventions": [
+      {
+        "platforms": ["all"],
+        "ua_string": ["change_Firefox_to_FireFox"]
       }
     ]
   },
@@ -5543,6 +5750,58 @@
         "platforms": ["desktop"],
         "content_scripts": {
           "css": ["1994142-virtual-cards.exnode.ru-fix-table-layout.css"]
+        }
+      }
+    ]
+  },
+  "1994571": {
+    "label": "chick-fil-a.com",
+    "bugs": {
+      "1994571": {
+        "issue": "broken-images",
+        "matches": ["*://www.chick-fil-a.com/*"]
+      }
+    },
+    "interventions": [
+      {
+        "platforms": ["desktop"],
+        "content_scripts": {
+          "css": ["1994571-chick-fil-a.com-fix-icon-heights.css"]
+        }
+      }
+    ]
+  },
+  "1994704": {
+    "label": "avlguest.justice.nsw.gov.au",
+    "bugs": {
+      "1994704": {
+        "issue": "page-fails-to-load",
+        "matches": ["*://avlguest.justice.nsw.gov.au/*"]
+      }
+    },
+    "interventions": [
+      {
+        "platforms": ["desktop"],
+        "content_scripts": {
+          "all_frames": true,
+          "js": ["1994704-avlguest.justice.nsw.gov.au-shim-mozRTC-APIs.js"]
+        }
+      }
+    ]
+  },
+  "1995452": {
+    "label": "polymarket.com",
+    "bugs": {
+      "1995452": {
+        "issue": "extra-scrollbars",
+        "matches": ["*://polymarket.com/*"]
+      }
+    },
+    "interventions": [
+      {
+        "platforms": ["desktop"],
+        "content_scripts": {
+          "css": ["1995452-polymarket.com-hide-scrollbars.css"]
         }
       }
     ]

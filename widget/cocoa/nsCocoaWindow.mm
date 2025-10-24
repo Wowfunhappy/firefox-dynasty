@@ -7,7 +7,7 @@
 #include "nsCocoaWindow.h"
 
 #include "nsArrayUtils.h"
-#include "nsCursorManager.h"
+#include "MOZDynamicCursor.h"
 #include "nsIAppStartup.h"
 #include "nsIDOMWindowUtils.h"
 #include "CocoaCompositorWidget.h"
@@ -360,14 +360,14 @@ void nsCocoaWindow::SetCursor(const Cursor& aCursor) {
 
   bool forceUpdate = mUpdateCursor;
   mUpdateCursor = false;
-  if (mCustomCursorAllowed && NS_SUCCEEDED([[nsCursorManager sharedInstance]
-        setCustomCursor:aCursor
-        widgetScaleFactor:BackingScaleFactor()
-        forceUpdate:forceUpdate])) {
+  if (mCustomCursorAllowed && NS_SUCCEEDED([MOZDynamicCursor.sharedInstance
+                                    setCustomCursor:aCursor
+                                  widgetScaleFactor:BackingScaleFactor()
+                                       forceUpdate:forceUpdate])) {
     return;
   }
 
-  [[nsCursorManager sharedInstance] setNonCustomCursor:aCursor];
+  [MOZDynamicCursor.sharedInstance setNonCustomCursor:aCursor];
 
   NS_OBJC_END_TRY_IGNORE_BLOCK;
 }
@@ -1000,7 +1000,7 @@ void nsCocoaWindow::CreateCompositor(int aWidth, int aHeight) {
 
   // Make sure the gfxPlatform is initialized, which is necessary to create
   // the GPUProcessManager.
-  Unused << gfxPlatform::GetPlatform();
+  (void)gfxPlatform::GetPlatform();
   MOZ_ASSERT(
       mozilla::gfx::GPUProcessManager::Get(),
       "Getting the gfxPlatform should have created the GPUProcessManager.");
@@ -4085,6 +4085,10 @@ actualRange:(NSRangePointer)actualRange {
   NS_OBJC_END_TRY_BLOCK_RETURN(NSDragOperationNone);
 }
 
+- (void)resetCursorRects {
+  [self addCursorRect:self.bounds cursor:MOZDynamicCursor.sharedInstance];
+}
+
 // NSDraggingDestination
 - (NSDragOperation)draggingEntered:(id<NSDraggingInfo>)sender {
   NS_OBJC_BEGIN_TRY_BLOCK_RETURN;
@@ -4901,12 +4905,12 @@ void ChildViewMouseTracker::ReEvaluateMouseEnterState(NSEvent* aEvent,
     // After the cursor exits the window set it to a visible regular arrow
     // cursor.
     if (exitFrom == WidgetMouseEvent::ePlatformTopLevel) {
-      [[nsCursorManager sharedInstance]
-        setNonCustomCursor:nsIWidget::Cursor{eCursor_standard}];
+      [MOZDynamicCursor.sharedInstance
+          setNonCustomCursor:nsIWidget::Cursor{eCursor_standard}];
     }
     [sLastMouseEventView sendMouseEnterOrExitEvent:aEvent
-      enter:YES
-        exitFrom:exitFrom];
+                                             enter:YES
+                                          exitFrom:exitFrom];
   }
 }
 
@@ -5369,7 +5373,6 @@ nsresult nsCocoaWindow::CreateNativeWindow(const NSRect& aRect,
   [mWindow setCollectionBehavior:newBehavior];
 
   [mWindow setContentMinSize:NSMakeSize(60, 60)];
-  [mWindow disableCursorRects];
 
   // Make the window use CoreAnimation from the start, so that we don't
   // switch from a non-CA window to a CA-window in the middle.

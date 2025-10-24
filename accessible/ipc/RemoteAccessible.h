@@ -392,6 +392,8 @@ class RemoteAccessible : public Accessible, public HyperTextAccessibleBase {
 
   virtual bool HasPrimaryAction() const override;
 
+  virtual bool IsEditable() const override;
+
 #if !defined(XP_WIN)
   void Announce(const nsString& aAnnouncement, uint16_t aPriority);
 #endif  // !defined(XP_WIN)
@@ -457,7 +459,7 @@ class RemoteAccessible : public Accessible, public HyperTextAccessibleBase {
   void SetParent(RemoteAccessible* aParent);
   Maybe<nsRect> RetrieveCachedBounds() const;
   bool ApplyTransform(nsRect& aCumulativeBounds) const;
-  bool ApplyScrollOffset(nsRect& aBounds) const;
+  bool ApplyScrollOffset(nsRect& aBounds, float aResolution) const;
   void ApplyCrossDocOffset(nsRect& aBounds) const;
   void ApplyVisualViewportOffset(nsRect& aBounds) const;
   LayoutDeviceIntRect BoundsWithOffset(

@@ -18,7 +18,6 @@
 #include "mozilla/dom/CanonicalBrowsingContext.h"
 #include "mozilla/gfx/Matrix.h"
 #include "nsAccessibilityService.h"
-#include "mozilla/Unused.h"
 #include "nsAccUtils.h"
 #include "nsFocusManager.h"
 #include "nsTextEquivUtils.h"
@@ -29,9 +28,9 @@
 
 #ifdef A11Y_LOG
 #  include "Logging.h"
-#  define VERIFY_CACHE(domain)                                     \
-    if (logging::IsEnabled(logging::eCache)) {                     \
-      Unused << mDoc->SendVerifyCache(mID, domain, mCachedFields); \
+#  define VERIFY_CACHE(domain)                                 \
+    if (logging::IsEnabled(logging::eCache)) {                 \
+      (void)mDoc->SendVerifyCache(mID, domain, mCachedFields); \
     }
 #else
 #  define VERIFY_CACHE(domain) \
@@ -302,7 +301,8 @@ void RemoteAccessible::Value(nsString& aValue) const {
 
     const nsRoleMapEntry* roleMapEntry = ARIARoleMap();
     // Value of textbox is a textified subtree.
-    if (roleMapEntry && roleMapEntry->Is(nsGkAtoms::textbox)) {
+    if ((roleMapEntry && roleMapEntry->Is(nsGkAtoms::textbox)) ||
+        (IsGeneric() && IsEditableRoot())) {
       nsTextEquivUtils::GetTextEquivFromSubtree(this, aValue);
       return;
     }
@@ -420,7 +420,7 @@ bool RemoteAccessible::SetCurValue(double aValue) {
     return false;
   }
 
-  Unused << mDoc->SendSetCurValue(mID, aValue);
+  (void)mDoc->SendSetCurValue(mID, aValue);
   return true;
 }
 
@@ -776,7 +776,8 @@ bool RemoteAccessible::ApplyTransform(nsRect& aCumulativeBounds) const {
   return true;
 }
 
-bool RemoteAccessible::ApplyScrollOffset(nsRect& aBounds) const {
+bool RemoteAccessible::ApplyScrollOffset(nsRect& aBounds,
+                                         float aResolution) const {
   ASSERT_DOMAINS_ACTIVE(CacheDomain::ScrollPosition);
   Maybe<const nsTArray<int32_t>&> maybeScrollPosition =
       mCachedFields->GetAttribute<nsTArray<int32_t>>(CacheKey::ScrollPosition);
@@ -793,7 +794,8 @@ bool RemoteAccessible::ApplyScrollOffset(nsRect& aBounds) const {
   // moves up/closer to the origin).
   nsPoint scrollOffset(-scrollPosition[0], -scrollPosition[1]);
 
-  aBounds.MoveBy(scrollOffset.x, scrollOffset.y);
+  aBounds.MoveBy(scrollOffset.x * aResolution * aResolution,
+                 scrollOffset.y * aResolution * aResolution);
 
   // Return true here even if the scroll offset was 0,0 because the RV is used
   // as a scroll container indicator. Non-scroll containers won't have cached
@@ -893,11 +895,16 @@ LayoutDeviceIntRect RemoteAccessible::BoundsWithOffset(
       bounds.SetRectY(bounds.y + internalRect.y, internalRect.height);
     }
 
-    Unused << ApplyTransform(bounds);
+    (void)ApplyTransform(bounds);
     // Now apply the parent-relative offset.
     bounds.MoveBy(maybeBounds->TopLeft());
 
     ApplyCrossDocOffset(bounds);
+
+    Maybe<float> res =
+        mDoc->mCachedFields->GetAttribute<float>(CacheKey::Resolution);
+    MOZ_ASSERT(res, "No cached document resolution found.");
+    const float resolution = res.valueOr(1.0f);
 
     LayoutDeviceIntRect devPxBounds;
     const Accessible* acc = Parent();
@@ -948,7 +955,8 @@ LayoutDeviceIntRect RemoteAccessible::BoundsWithOffset(
           // happens in this loop instead of both inside and outside of
           // the loop (like ApplyTransform).
           // Never apply scroll offsets past a fixed container.
-          const bool hasScrollArea = remoteAcc->ApplyScrollOffset(bounds);
+          const bool hasScrollArea =
+              remoteAcc->ApplyScrollOffset(bounds, resolution);
 
           // If we are hit testing and the Accessible has a scroll area, ensure
           // that the bounds we've calculated so far are constrained to the
@@ -974,7 +982,7 @@ LayoutDeviceIntRect RemoteAccessible::BoundsWithOffset(
           // The transform matrix we cache (if any) is meant to operate on
           // self-relative rects. Therefore, we must apply the transform before
           // we make bounds parent-relative.
-          Unused << remoteAcc->ApplyTransform(bounds);
+          (void)remoteAcc->ApplyTransform(bounds);
           // Regardless of whether this is a doc, we should offset `bounds`
           // by the bounds retrieved here. This is how we build screen
           // coordinates from relative coordinates.
@@ -1547,7 +1555,7 @@ void RemoteAccessible::DOMNodeClass(nsString& aClass) const {
 
 void RemoteAccessible::ScrollToPoint(uint32_t aScrollType, int32_t aX,
                                      int32_t aY) {
-  Unused << mDoc->SendScrollToPoint(mID, aScrollType, aX, aY);
+  (void)mDoc->SendScrollToPoint(mID, aScrollType, aX, aY);
 }
 
 bool RemoteAccessible::IsScrollable() const {
@@ -1561,10 +1569,26 @@ bool RemoteAccessible::IsPopover() const {
   return mCachedFields && mCachedFields->HasAttribute(CacheKey::PopupType);
 }
 
+bool RemoteAccessible::IsEditable() const {
+  if (RequestDomainsIfInactive(CacheDomain::State)) {
+    return false;
+  }
+
+  if (mCachedFields) {
+    if (auto rawState =
+            mCachedFields->GetAttribute<uint64_t>(CacheKey::State)) {
+      VERIFY_CACHE(CacheDomain::State);
+      return (*rawState & states::EDITABLE) != 0;
+    }
+  }
+
+  return false;
+}
+
 #if !defined(XP_WIN)
 void RemoteAccessible::Announce(const nsString& aAnnouncement,
                                 uint16_t aPriority) {
-  Unused << mDoc->SendAnnounce(mID, aAnnouncement, aPriority);
+  (void)mDoc->SendAnnounce(mID, aAnnouncement, aPriority);
 }
 #endif  // !defined(XP_WIN)
 
@@ -1585,8 +1609,8 @@ void RemoteAccessible::ScrollSubstringToPoint(int32_t aStartOffset,
                                               int32_t aEndOffset,
                                               uint32_t aCoordinateType,
                                               int32_t aX, int32_t aY) {
-  Unused << mDoc->SendScrollSubstringToPoint(mID, aStartOffset, aEndOffset,
-                                             aCoordinateType, aX, aY);
+  (void)mDoc->SendScrollSubstringToPoint(mID, aStartOffset, aEndOffset,
+                                         aCoordinateType, aX, aY);
 }
 
 RefPtr<const AccAttributes> RemoteAccessible::GetCachedTextAttributes() {
@@ -2039,7 +2063,7 @@ bool RemoteAccessible::DoAction(uint8_t aIndex) const {
     return false;
   }
 
-  Unused << mDoc->SendDoActionAsync(mID, aIndex);
+  (void)mDoc->SendDoActionAsync(mID, aIndex);
   return true;
 }
 
@@ -2067,7 +2091,7 @@ bool RemoteAccessible::RemoveFromSelection(int32_t aSelectionNum) {
     return false;
   }
 
-  Unused << mDoc->SendRemoveTextSelection(mID, aSelectionNum);
+  (void)mDoc->SendRemoveTextSelection(mID, aSelectionNum);
 
   return true;
 }
@@ -2182,7 +2206,7 @@ bool RemoteAccessible::HasPrimaryAction() const {
 }
 
 void RemoteAccessible::TakeFocus() const {
-  Unused << mDoc->SendTakeFocus(mID);
+  (void)mDoc->SendTakeFocus(mID);
   auto* bp = static_cast<dom::BrowserParent*>(mDoc->Manager());
   MOZ_ASSERT(bp);
   if (nsFocusManager::GetFocusedElementStatic() == bp->GetOwnerElement()) {
@@ -2213,7 +2237,7 @@ void RemoteAccessible::TakeFocus() const {
     if (embeddedDoc->IsTopLevelInContentProcess()) {
       // We only need to focus OOP iframes because these are where we cross
       // process boundaries.
-      Unused << embedderRemote->mDoc->SendTakeFocus(embedderRemote->mID);
+      (void)embedderRemote->mDoc->SendTakeFocus(embedderRemote->mID);
     }
     embeddedDoc = embedderRemote->mDoc;
     embedder = embeddedDoc->Parent();
@@ -2221,7 +2245,7 @@ void RemoteAccessible::TakeFocus() const {
 }
 
 void RemoteAccessible::ScrollTo(uint32_t aHow) const {
-  Unused << mDoc->SendScrollTo(mID, aHow);
+  (void)mDoc->SendScrollTo(mID, aHow);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2362,12 +2386,10 @@ bool RemoteAccessible::UnselectAll() {
   return success;
 }
 
-void RemoteAccessible::TakeSelection() {
-  Unused << mDoc->SendTakeSelection(mID);
-}
+void RemoteAccessible::TakeSelection() { (void)mDoc->SendTakeSelection(mID); }
 
 void RemoteAccessible::SetSelected(bool aSelect) {
-  Unused << mDoc->SendSetSelected(mID, aSelect);
+  (void)mDoc->SendSetSelected(mID, aSelect);
 }
 
 TableAccessible* RemoteAccessible::AsTable() {
@@ -2526,27 +2548,27 @@ void RemoteAccessible::Language(nsAString& aLocale) {
 }
 
 void RemoteAccessible::ReplaceText(const nsAString& aText) {
-  Unused << mDoc->SendReplaceText(mID, aText);
+  (void)mDoc->SendReplaceText(mID, aText);
 }
 
 void RemoteAccessible::InsertText(const nsAString& aText, int32_t aPosition) {
-  Unused << mDoc->SendInsertText(mID, aText, aPosition);
+  (void)mDoc->SendInsertText(mID, aText, aPosition);
 }
 
 void RemoteAccessible::CopyText(int32_t aStartPos, int32_t aEndPos) {
-  Unused << mDoc->SendCopyText(mID, aStartPos, aEndPos);
+  (void)mDoc->SendCopyText(mID, aStartPos, aEndPos);
 }
 
 void RemoteAccessible::CutText(int32_t aStartPos, int32_t aEndPos) {
-  Unused << mDoc->SendCutText(mID, aStartPos, aEndPos);
+  (void)mDoc->SendCutText(mID, aStartPos, aEndPos);
 }
 
 void RemoteAccessible::DeleteText(int32_t aStartPos, int32_t aEndPos) {
-  Unused << mDoc->SendDeleteText(mID, aStartPos, aEndPos);
+  (void)mDoc->SendDeleteText(mID, aStartPos, aEndPos);
 }
 
 void RemoteAccessible::PasteText(int32_t aPosition) {
-  Unused << mDoc->SendPasteText(mID, aPosition);
+  (void)mDoc->SendPasteText(mID, aPosition);
 }
 
 size_t RemoteAccessible::SizeOfIncludingThis(MallocSizeOf aMallocSizeOf) {

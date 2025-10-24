@@ -34,13 +34,6 @@ LTableSwitchV* LIRGeneratorX86Shared::newLTableSwitchV(
   return new (alloc()) LTableSwitchV(in, temp(), tempDouble(), temp());
 }
 
-void LIRGenerator::visitPowHalf(MPowHalf* ins) {
-  MDefinition* input = ins->input();
-  MOZ_ASSERT(input->type() == MIRType::Double);
-  LPowHalfD* lir = new (alloc()) LPowHalfD(useRegisterAtStart(input));
-  define(lir, ins);
-}
-
 LUse LIRGeneratorX86Shared::useShiftRegister(MDefinition* mir) {
   // Unless BMI2 is available, the shift register must be ecx. x86 can't shift a
   // non-ecx register.
@@ -158,8 +151,7 @@ void LIRGeneratorX86Shared::lowerForALU(LInstructionHelper<1, 2, 0>* ins,
   defineReuseInput(ins, mir, 0);
 }
 
-template <size_t Temps>
-void LIRGeneratorX86Shared::lowerForFPU(LInstructionHelper<1, 2, Temps>* ins,
+void LIRGeneratorX86Shared::lowerForFPU(LInstructionHelper<1, 2, 0>* ins,
                                         MDefinition* mir, MDefinition* lhs,
                                         MDefinition* rhs) {
   // Without AVX, we'll need to use the x86 encodings where one of the
@@ -175,13 +167,6 @@ void LIRGeneratorX86Shared::lowerForFPU(LInstructionHelper<1, 2, Temps>* ins,
     define(ins, mir);
   }
 }
-
-template void LIRGeneratorX86Shared::lowerForFPU(
-    LInstructionHelper<1, 2, 0>* ins, MDefinition* mir, MDefinition* lhs,
-    MDefinition* rhs);
-template void LIRGeneratorX86Shared::lowerForFPU(
-    LInstructionHelper<1, 2, 1>* ins, MDefinition* mir, MDefinition* lhs,
-    MDefinition* rhs);
 
 void LIRGeneratorX86Shared::lowerNegI(MInstruction* ins, MDefinition* input) {
   defineReuseInput(new (alloc()) LNegI(useRegisterAtStart(input)), ins, 0);

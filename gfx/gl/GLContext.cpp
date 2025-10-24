@@ -2747,7 +2747,7 @@ void MesaMemoryLeakWorkaround() {
 
   if (foundPath) {
     // Deliberately leak to prevent unload
-    Unused << dlopen(foundPath->get(), RTLD_LAZY);
+    (void)dlopen(foundPath->get(), RTLD_LAZY);
   }
 #endif  // XP_LINUX but not ANDROID
 }

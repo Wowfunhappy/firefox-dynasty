@@ -292,7 +292,9 @@ const PREF_URLBAR_DEFAULTS = /** @type {PreferenceDefinition[]} */ ([
   // impression.
   ["quicksuggest.contextualOptIn.impressionDaysLimit", 5],
 
-  // Whether the user has opted in to data collection for quick suggest.
+  // TODO: Remove this pref, which is the old opt-in pref for online Firefox
+  // Suggest. We need to keep it for now because some live Nimbus experiments
+  // use a targeting filter that depends on it.
   ["quicksuggest.dataCollection.enabled", false],
 
   // Comma-separated list of Suggest dynamic suggestion types to enable.
@@ -337,6 +339,18 @@ const PREF_URLBAR_DEFAULTS = /** @type {PreferenceDefinition[]} */ ([
 
   // Whether Suggest will use the ML backend in addition to Rust.
   ["quicksuggest.mlEnabled", false],
+
+  // NOTE: You should most likely access this pref via its Nimbus variable
+  // instead: `UrlbarPrefs.get("quickSuggestOnlineAvailable"). It's listed here
+  // mainly so tests can access it easily via `UrlbarPrefs`.
+  //
+  // Whether online Suggest is available to the user. This is only relevant when
+  // Suggest overall is enabled.
+  ["quicksuggest.online.available", false],
+
+  // Whether online Suggest is enabled for the user. This is only relevant when
+  // Suggest overall is enabled and online Suggest is available to the user.
+  ["quicksuggest.online.enabled", true],
 
   // The last time (as seconds) the user selected 'Not Now' on Realtime
   // suggestion opt-in result.
@@ -1011,7 +1025,7 @@ class Preferences {
    *           `browser.urlbar.` branch, the name will be relative to the branch.
    *           For other prefs, the name will be the full name.
    *         - `onNimbusChanged` invoked when a Nimbus value changes. It will be
-   *           passed the name of the changed Nimbus variable.
+   *           passed the name of the changed Nimbus variable and the new value.
    */
   addObserver(observer) {
     this._observerWeakRefs.push(Cu.getWeakReference(observer));
@@ -1097,7 +1111,7 @@ class Preferences {
         oldNimbus.hasOwnProperty(name) != newNimbus.hasOwnProperty(name) ||
         oldNimbus[name] !== newNimbus[name]
       ) {
-        this.#notifyObservers("onNimbusChanged", name);
+        this.#notifyObservers("onNimbusChanged", name, newNimbus[name]);
       }
     }
   }
@@ -1326,7 +1340,7 @@ class Preferences {
     );
   }
 
-  #notifyObservers(method, changed) {
+  #notifyObservers(method, changed, ...rest) {
     for (let i = 0; i < this._observerWeakRefs.length; ) {
       let observer = this._observerWeakRefs[i].get();
       if (!observer) {
@@ -1336,7 +1350,7 @@ class Preferences {
       }
       if (method in observer) {
         try {
-          observer[method](changed);
+          observer[method](changed, ...rest);
         } catch (ex) {
           console.error(ex);
         }

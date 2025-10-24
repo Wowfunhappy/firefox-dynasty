@@ -33,7 +33,6 @@
 #include "imgIContainer.h"
 #include "imgIRequest.h"
 #include "mozilla/AccessibleCaretEventHub.h"
-#include "mozilla/ArrayUtils.h"
 #include "mozilla/Baseline.h"
 #include "mozilla/BasicEvents.h"
 #include "mozilla/ClearOnShutdown.h"
@@ -75,7 +74,6 @@
 #include "mozilla/StaticPtr.h"
 #include "mozilla/StyleAnimationValue.h"
 #include "mozilla/ToString.h"
-#include "mozilla/Unused.h"
 #include "mozilla/ViewportFrame.h"
 #include "mozilla/ViewportUtils.h"
 #include "mozilla/WheelHandlingHelper.h"  // for WheelHandlingUtils
@@ -1390,7 +1388,9 @@ static nsIFrame* GetNearestScrollableOrOverflowClipFrame(
     if ((aFlags & nsLayoutUtils::SCROLLABLE_FIXEDPOS_FINDS_ROOT) &&
         f->StyleDisplay()->mPosition == StylePositionProperty::Fixed &&
         nsLayoutUtils::IsReallyFixedPos(f)) {
-      return f->PresShell()->GetRootScrollContainerFrame();
+      if (nsIFrame* root = f->PresShell()->GetRootScrollContainerFrame()) {
+        return root;
+      }
     }
   }
   return nullptr;
@@ -1671,44 +1671,13 @@ void nsLayoutUtils::GetContainerAndOffsetAtEvent(PresShell* aPresShell,
   }
 }
 
-void nsLayoutUtils::ConstrainToCoordValues(float& aStart, float& aSize) {
-  MOZ_ASSERT(aSize >= 0);
-
-  // Here we try to make sure that the resulting nsRect will continue to cover
-  // as much of the area that was covered by the original gfx Rect as possible.
-
-  // We clamp the bounds of the rect to {nscoord_MIN,nscoord_MAX} since
-  // nsRect::X/Y() and nsRect::XMost/YMost() can't return values outwith this
-  // range:
-  float end = aStart + aSize;
-  aStart = std::clamp(aStart, float(nscoord_MIN), float(nscoord_MAX));
-  end = std::clamp(end, float(nscoord_MIN), float(nscoord_MAX));
-
-  aSize = end - aStart;
-
-  // We must also clamp aSize to {0,nscoord_MAX} since nsRect::Width/Height()
-  // can't return a value greater than nscoord_MAX. If aSize is greater than
-  // nscoord_MAX then we reduce it to nscoord_MAX while keeping the rect
-  // centered:
-  if (MOZ_UNLIKELY(std::isnan(aSize))) {
-    // Can happen if aStart is -inf and aSize is +inf for example.
-    aStart = 0.0f;
-    aSize = float(nscoord_MAX);
-  } else if (aSize > float(nscoord_MAX)) {
-    float excess = aSize - float(nscoord_MAX);
-    excess /= 2;
-    aStart += excess;
-    aSize = float(nscoord_MAX);
-  }
-}
-
 /**
- * Given a gfxFloat, constrains its value to be between nscoord_MIN and
- * nscoord_MAX.
+ * Given a floating point value, constrains its value to be between nscoord_MIN
+ * and nscoord_MAX.
  *
  * @param aVal The value to constrain (in/out)
  */
-static void ConstrainToCoordValues(gfxFloat& aVal) {
+static void ConstrainToCoordValues(double& aVal) {
   if (aVal <= nscoord_MIN) {
     aVal = nscoord_MIN;
   } else if (aVal >= nscoord_MAX) {
@@ -1716,28 +1685,42 @@ static void ConstrainToCoordValues(gfxFloat& aVal) {
   }
 }
 
-void nsLayoutUtils::ConstrainToCoordValues(gfxFloat& aStart, gfxFloat& aSize) {
-  gfxFloat max = aStart + aSize;
+/* static */ void nsLayoutUtils::ConstrainToCoordValues(double& aStart,
+                                                        double& aSize) {
+  MOZ_ASSERT(std::isnan(aSize) || aSize >= 0);
+
+  double max = aStart + aSize;
 
   // Clamp the end points to within nscoord range
   ::ConstrainToCoordValues(aStart);
   ::ConstrainToCoordValues(max);
+
+  // Here we try to make sure that the resulting nsRect will continue to cover
+  // as much of the area that was covered by the original gfx Rect as possible.
+
+  // We must also clamp aSize to {0,nscoord_MAX} since nsRect::Width/Height()
+  // can't return a value greater than nscoord_MAX. If aSize is greater than
+  // nscoord_MAX then we reduce it to nscoord_MAX while keeping the rect
+  // centered:
 
   aSize = max - aStart;
   // If the width if still greater than the max nscoord, then bring both
   // endpoints in by the same amount until it fits.
   if (MOZ_UNLIKELY(std::isnan(aSize))) {
     // Can happen if aStart is -inf and aSize is +inf for example.
+    // If either aStart or aSize is NaN on entry to this function then the
+    // calculations above this will make the other one NaN too, so this check
+    // ensures that we do not return NaN for either value.
     aStart = 0.0f;
     aSize = nscoord_MAX;
   } else if (aSize > nscoord_MAX) {
-    gfxFloat excess = aSize - nscoord_MAX;
+    double excess = aSize - nscoord_MAX;
     excess /= 2;
 
     aStart += excess;
     aSize = nscoord_MAX;
   } else if (aSize < nscoord_MIN) {
-    gfxFloat excess = aSize - nscoord_MIN;
+    double excess = aSize - nscoord_MIN;
     excess /= 2;
 
     aStart -= excess;
@@ -2202,9 +2185,9 @@ static Rect TransformGfxRectToAncestor(
   }
   const nsIFrame* ancestor = aOutAncestor ? *aOutAncestor : aAncestor.mFrame;
   float factor = ancestor->PresContext()->AppUnitsPerDevPixel();
-  Rect maxBounds =
-      Rect(float(nscoord_MIN) / factor * 0.5, float(nscoord_MIN) / factor * 0.5,
-           float(nscoord_MAX) / factor, float(nscoord_MAX) / factor);
+  Rect maxBounds = Rect(
+      float(nscoord_MIN) / factor, float(nscoord_MIN) / factor,
+      float(nscoord_MAX) / factor * 2.0, float(nscoord_MAX) / factor * 2.0);
   return ctm.TransformAndClipBounds(aRect, maxBounds);
 }
 
@@ -2408,13 +2391,8 @@ nsRect nsLayoutUtils::TransformFrameRectToAncestor(
       aMatrixCache, aStopAtStackingContextAndDisplayPortAndOOFFrame,
       aOutAncestor);
 
-  float destAppUnitsPerDevPixel =
-      aAncestor.mFrame->PresContext()->AppUnitsPerDevPixel();
-  return nsRect(
-      NSFloatPixelsToAppUnits(float(result.x), destAppUnitsPerDevPixel),
-      NSFloatPixelsToAppUnits(float(result.y), destAppUnitsPerDevPixel),
-      NSFloatPixelsToAppUnits(float(result.width), destAppUnitsPerDevPixel),
-      NSFloatPixelsToAppUnits(float(result.height), destAppUnitsPerDevPixel));
+  return ScaleThenRoundGfxRectToAppRect(
+      result, aAncestor.mFrame->PresContext()->AppUnitsPerDevPixel());
 }
 
 
@@ -2924,7 +2902,7 @@ void nsLayoutUtils::PaintFrame(gfxContext* aRenderingContext, nsIFrame* aFrame,
       MOZ_UNLIKELY(gfxUtils::DumpDisplayList()) ||
       MOZ_UNLIKELY(gfxEnv::MOZ_DUMP_PAINT())) {
     if (Document* doc = presContext->Document()) {
-      Unused << doc->GetDocumentURI(uri);
+      (void)doc->GetDocumentURI(uri);
     }
   }
 
@@ -3009,7 +2987,7 @@ void nsLayoutUtils::PaintFrame(gfxContext* aRenderingContext, nsIFrame* aFrame,
   if (rootScrollContainerFrame && !aFrame->GetParent()) {
     nsRect displayPortBase = rootInkOverflow;
     nsRect temp = displayPortBase;
-    Unused << rootScrollContainerFrame->DecideScrollableLayer(
+    (void)rootScrollContainerFrame->DecideScrollableLayer(
         builder, &displayPortBase, &temp,
         /* aSetBase = */ true);
   }

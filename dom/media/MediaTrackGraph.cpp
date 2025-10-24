@@ -17,7 +17,6 @@
 #include "mozilla/Attributes.h"
 #include "mozilla/Logging.h"
 #include "mozilla/MathAlgorithms.h"
-#include "mozilla/Unused.h"
 #include "nsContentUtils.h"
 #include "nsGlobalWindowInner.h"
 #include "nsPrintfCString.h"
@@ -1307,8 +1306,8 @@ void MediaTrackGraphImpl::ProduceDataForTracksBlockByBlock(
     }
     mProcessedTime = next;
   }
-  NS_ASSERTION(mProcessedTime == mStateComputedTime,
-               "Something went wrong with rounding to block boundaries");
+  MOZ_ASSERT(mProcessedTime == mStateComputedTime,
+             "Something went wrong with rounding to block boundaries");
 }
 
 void MediaTrackGraphImpl::RunMessageAfterProcessing(
@@ -3374,7 +3373,7 @@ already_AddRefed<MediaInputPort> ProcessedMediaTrack::AllocateInputPort(
       mPort->Init();
       // The graph holds its reference implicitly
       mPort->GraphImpl()->SetTrackOrderDirty();
-      Unused << mPort.forget();
+      NS_ADDREF(mPort.get());
     }
     void RunDuringShutdown() override { Run(); }
     RefPtr<MediaInputPort> mPort;
@@ -3509,8 +3508,7 @@ void MediaTrackGraphImpl::Init(GraphDriverType aDriverRequested,
     LOG(LogLevel::Debug, ("%p: document title: %s", this, streamName.get()));
     mDriver->SetStreamName(streamName);
   } else {
-    mDriver =
-        new OfflineClockDriver(this, mSampleRate, MEDIA_GRAPH_TARGET_PERIOD_MS);
+    mDriver = new OfflineClockDriver(this, mSampleRate);
   }
 
   mLastMainThreadUpdate = TimeStamp::Now();

@@ -65,9 +65,7 @@ template void LIRGeneratorRiscv64::lowerForShiftInt64(LRotateI64* ins,
 void LIRGeneratorRiscv64::lowerForALU(LInstructionHelper<1, 1, 0>* ins,
                                       MDefinition* mir, MDefinition* input) {
   ins->setOperand(0, useRegister(input));
-  define(
-      ins, mir,
-      LDefinition(LDefinition::TypeFrom(mir->type()), LDefinition::REGISTER));
+  define(ins, mir);
 }
 
 // z = x + y
@@ -76,9 +74,7 @@ void LIRGeneratorRiscv64::lowerForALU(LInstructionHelper<1, 2, 0>* ins,
                                       MDefinition* rhs) {
   ins->setOperand(0, useRegister(lhs));
   ins->setOperand(1, useRegisterOrConstant(rhs));
-  define(
-      ins, mir,
-      LDefinition(LDefinition::TypeFrom(mir->type()), LDefinition::REGISTER));
+  define(ins, mir);
 }
 
 void LIRGeneratorRiscv64::lowerForALUInt64(
@@ -121,31 +117,17 @@ void LIRGeneratorRiscv64::lowerForMulInt64(LMulI64* ins, MMul* mir,
 
 void LIRGeneratorRiscv64::lowerForFPU(LInstructionHelper<1, 1, 0>* ins,
                                       MDefinition* mir, MDefinition* input) {
-  ins->setOperand(0, useRegister(input));
-  define(
-      ins, mir,
-      LDefinition(LDefinition::TypeFrom(mir->type()), LDefinition::REGISTER));
+  ins->setOperand(0, useRegisterAtStart(input));
+  define(ins, mir);
 }
 
-template <size_t Temps>
-void LIRGeneratorRiscv64::lowerForFPU(LInstructionHelper<1, 2, Temps>* ins,
+void LIRGeneratorRiscv64::lowerForFPU(LInstructionHelper<1, 2, 0>* ins,
                                       MDefinition* mir, MDefinition* lhs,
                                       MDefinition* rhs) {
-  ins->setOperand(0, useRegister(lhs));
-  ins->setOperand(1, useRegister(rhs));
-  define(
-      ins, mir,
-      LDefinition(LDefinition::TypeFrom(mir->type()), LDefinition::REGISTER));
+  ins->setOperand(0, useRegisterAtStart(lhs));
+  ins->setOperand(1, useRegisterAtStart(rhs));
+  define(ins, mir);
 }
-
-template void LIRGeneratorRiscv64::lowerForFPU(LInstructionHelper<1, 2, 0>* ins,
-                                               MDefinition* mir,
-                                               MDefinition* lhs,
-                                               MDefinition* rhs);
-template void LIRGeneratorRiscv64::lowerForFPU(LInstructionHelper<1, 2, 1>* ins,
-                                               MDefinition* mir,
-                                               MDefinition* lhs,
-                                               MDefinition* rhs);
 
 LBoxAllocation LIRGeneratorRiscv64::useBoxFixed(MDefinition* mir, Register reg1,
                                                 Register reg2,
@@ -424,8 +406,7 @@ void LIRGeneratorRiscv64::lowerWasmBuiltinTruncateToInt32(
   }
 
   define(new (alloc()) LWasmBuiltinTruncateFToInt32(
-             useRegister(opd), useFixed(ins->instance(), InstanceReg),
-             LDefinition::BogusTemp()),
+             useRegister(opd), LAllocation(), LDefinition::BogusTemp()),
          ins);
 }
 
@@ -555,13 +536,6 @@ void LIRGenerator::visitCopySign(MCopySign* ins) {
   lir->setOperand(0, useRegisterAtStart(lhs));
   lir->setOperand(1, useRegisterAtStart(rhs));
   define(lir, ins);
-}
-
-void LIRGenerator::visitPowHalf(MPowHalf* ins) {
-  MDefinition* input = ins->input();
-  MOZ_ASSERT(input->type() == MIRType::Double);
-  LPowHalfD* lir = new (alloc()) LPowHalfD(useRegisterAtStart(input));
-  defineReuseInput(lir, ins, 0);
 }
 
 void LIRGenerator::visitExtendInt32ToInt64(MExtendInt32ToInt64* ins) {

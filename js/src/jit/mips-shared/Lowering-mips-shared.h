@@ -49,9 +49,8 @@ class LIRGeneratorMIPSShared : public LIRGeneratorShared {
                           MDefinition* rhs);
 
   void lowerForFPU(LInstructionHelper<1, 1, 0>* ins, MDefinition* mir,
-                   MDefinition* src);
-  template <size_t Temps>
-  void lowerForFPU(LInstructionHelper<1, 2, Temps>* ins, MDefinition* mir,
+                   MDefinition* input);
+  void lowerForFPU(LInstructionHelper<1, 2, 0>* ins, MDefinition* mir,
                    MDefinition* lhs, MDefinition* rhs);
 
   void lowerWasmBuiltinTruncateToInt32(MWasmBuiltinTruncateToInt32* ins);

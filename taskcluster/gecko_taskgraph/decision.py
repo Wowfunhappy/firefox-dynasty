@@ -13,13 +13,6 @@ import yaml
 from redo import retry
 from taskgraph import create
 from taskgraph.create import create_tasks
-
-# TODO: Let standalone taskgraph generate parameters instead of calling internals
-from taskgraph.decision import (
-    _determine_more_accurate_base_ref,
-    _determine_more_accurate_base_rev,
-    _get_env_prefix,
-)
 from taskgraph.generator import TaskGraphGenerator
 from taskgraph.parameters import Parameters
 from taskgraph.taskgraph import TaskGraph
@@ -311,21 +304,6 @@ def get_decision_parameters(graph_config, options):
     except UnicodeDecodeError:
         commit_message = ""
 
-    parameters["base_ref"] = _determine_more_accurate_base_ref(
-        repo,
-        candidate_base_ref=options.get("base_ref"),
-        head_ref=options.get("head_ref"),
-        base_rev=options.get("base_rev"),
-    )
-
-    parameters["base_rev"] = _determine_more_accurate_base_rev(
-        repo,
-        base_ref=parameters["base_ref"],
-        candidate_base_rev=options.get("base_rev"),
-        head_rev=options.get("head_rev"),
-        env_prefix=_get_env_prefix(graph_config),
-    )
-
     # Set some vcs specific parameters
     if parameters["repository_type"] == "hg":
         if head_git_rev := get_hg_revision_info(
@@ -512,7 +490,7 @@ def set_decision_indexes(decision_task_id, params, graph_config):
     subs["trust-domain"] = graph_config["trust-domain"]
 
     for index_path in index_paths:
-        insert_index(index_path.format(**subs), decision_task_id, use_proxy=True)
+        insert_index(index_path.format(**subs), decision_task_id)
 
 
 def write_artifact(filename, data):

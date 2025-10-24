@@ -16,12 +16,10 @@
 #include "nsIFileStreams.h"
 #include "nsNetUtil.h"
 #include "nsString.h"
-#include "mozilla/ArrayUtils.h"
 #include "mozilla/DebugOnly.h"
 #include "mozilla/EnumeratedRange.h"
 #include "mozilla/Services.h"
 #include "nsIObserverService.h"
-#include "mozilla/Unused.h"
 #include "mozilla/RuntimeExceptionModule.h"
 #include "mozilla/ScopeExit.h"
 #include "mozilla/Sprintf.h"
@@ -29,7 +27,6 @@
 #include "mozilla/SyncRunnable.h"
 #include "mozilla/ToString.h"
 #include "mozilla/TimeStamp.h"
-#include "mozilla/Unused.h"
 
 #include "nsPrintfCString.h"
 #include "nsThreadUtils.h"
@@ -428,7 +425,7 @@ static inline void my_u64tostring(uint64_t aValue, char* aBuffer,
 #endif
 
 static void CreateFileFromPath(const xpstring& path, nsIFile** file) {
-  Unused << NS_NewPathStringLocalFile(
+  (void)NS_NewPathStringLocalFile(
       DependentPathString(path.c_str(), path.size()), file);
 }
 
@@ -923,7 +920,7 @@ static void AnnotateMemoryStatus(AnnotationWriter& aWriter) {
       // No /proc/meminfo? Well, fail silently.
       return;
     }
-    auto Guard = MakeScopeExit([fd]() { mozilla::Unused << sys_close(fd); });
+    auto Guard = MakeScopeExit([fd]() { (void)sys_close(fd); });
 
     ssize_t bytesRead = 0;
     do {
@@ -1259,7 +1256,7 @@ static bool LaunchProgram(const XP_CHAR* aProgramPath,
   if (pid == -1) {
     return false;
   } else if (pid == 0) {
-    Unused << execl(aProgramPath, aProgramPath, aMinidumpPath, nullptr);
+    (void)execl(aProgramPath, aProgramPath, aMinidumpPath, nullptr);
     _exit(1);
   }
 #  endif  // XP_MACOSX
@@ -1291,14 +1288,14 @@ static bool LaunchCrashHandlerService(const XP_CHAR* aProgramPath,
   else if (pid == 0) {
     // Invoke the crash handler service using am
     if (androidUserSerial) {
-      Unused << execlp(
+      (void)execlp(
           "/system/bin/am", "/system/bin/am", androidStartServiceCommand,
           "--user", androidUserSerial, "-a", "org.mozilla.gecko.ACTION_CRASHED",
           "-n", aProgramPath, "--es", "minidumpPath", aMinidumpPath, "--es",
           "extrasPath", extrasPath, "--ez", "fatal", "true", "--es",
           "processVisibility", "MAIN", "--es", "processType", "main", (char*)0);
     } else {
-      Unused << execlp(
+      (void)execlp(
           "/system/bin/am", "/system/bin/am", androidStartServiceCommand, "-a",
           "org.mozilla.gecko.ACTION_CRASHED", "-n", aProgramPath, "--es",
           "minidumpPath", aMinidumpPath, "--es", "extrasPath", extrasPath,
@@ -1312,7 +1309,7 @@ static bool LaunchCrashHandlerService(const XP_CHAR* aProgramPath,
     // everything will be killed by the ActivityManager as soon as the signal
     // handler exits
     int status;
-    Unused << HANDLE_EINTR(sys_waitpid(pid, &status, __WALL));
+    (void)HANDLE_EINTR(sys_waitpid(pid, &status, __WALL));
   }
 
   return true;
@@ -2572,8 +2569,8 @@ AutoRecordAnnotation::AutoRecordAnnotation(Annotation key,
 
 AutoRecordAnnotation::~AutoRecordAnnotation() {
   if (GetEnabled()) {
-    Unused << mozannotation_register_nscstring(static_cast<uint32_t>(mKey),
-                                               mPrevious);
+    (void)mozannotation_register_nscstring(static_cast<uint32_t>(mKey),
+                                           mPrevious);
   }
 }
 

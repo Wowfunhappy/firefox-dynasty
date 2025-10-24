@@ -312,12 +312,6 @@ class MacroAssemblerLOONG64 : public Assembler {
   void ma_mul32TestOverflow(Register rd, Register rj, Imm32 imm,
                             Label* overflow);
 
-  // divisions
-  void ma_div_branch_overflow(Register rd, Register rj, Register rk,
-                              Label* overflow);
-  void ma_div_branch_overflow(Register rd, Register rj, Imm32 imm,
-                              Label* overflow);
-
   // fast mod, uses scratch registers, and thus needs to be in the assembler
   // implicitly assumes that we can overwrite dest at the beginning of the
   // sequence
@@ -475,8 +469,6 @@ class MacroAssemblerLOONG64Compat : public MacroAssemblerLOONG64 {
   void convertInt32ToFloat16(Register src, FloatRegister dest) {
     MOZ_CRASH("Not supported for this target");
   }
-
-  void movq(Register rj, Register rd);
 
   void computeScaledAddress(const BaseIndex& address, Register dest);
   void computeScaledAddress32(const BaseIndex& address, Register dest);

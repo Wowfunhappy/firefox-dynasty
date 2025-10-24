@@ -9,7 +9,6 @@
 #include "ScriptLoadHandler.h"          // ScriptLoadHandler
 #include "ScriptLoader.h"               // ScriptLoader
 #include "mozilla/Maybe.h"              // Maybe, Some, Nothing
-#include "mozilla/Unused.h"             // Unused
 #include "mozilla/dom/ContentParent.h"  // dom::ContentParent
 #include "nsIMemoryReporter.h"  // nsIMemoryReporter, MOZ_DEFINE_MALLOC_SIZE_OF, RegisterWeakMemoryReporter, UnregisterWeakMemoryReporter, MOZ_COLLECT_REPORT, KIND_HEAP, UNITS_BYTES
 #include "nsIPrefBranch.h"   // nsIPrefBranch, NS_PREFBRANCH_PREFCHANGE_TOPIC_ID
@@ -20,17 +19,19 @@
 
 namespace mozilla::dom {
 
-ScriptHashKey::ScriptHashKey(ScriptLoader* aLoader,
-                             const JS::loader::ScriptLoadRequest* aRequest)
+ScriptHashKey::ScriptHashKey(
+    ScriptLoader* aLoader, const JS::loader::ScriptLoadRequest* aRequest,
+    const JS::loader::ScriptFetchOptions* aFetchOptions,
+    const nsCOMPtr<nsIURI> aURI)
     : PLDHashEntryHdr(),
-      mURI(aRequest->mURI),
+      mKind(aRequest->mKind),
+      mCORSMode(aFetchOptions->mCORSMode),
+      mIsLinkRelPreload(aRequest->GetScriptLoadContext()->IsPreload()),
+      mURI(aURI),
       mLoaderPrincipal(aLoader->LoaderPrincipal()),
       mPartitionPrincipal(aLoader->PartitionedPrincipal()),
-      mCORSMode(aRequest->CORSMode()),
       mSRIMetadata(aRequest->mIntegrity),
-      mKind(aRequest->mKind),
-      mNonce(aRequest->Nonce()),
-      mIsLinkRelPreload(aRequest->GetScriptLoadContext()->IsPreload()) {
+      mNonce(aFetchOptions->mNonce) {
   if (mKind == JS::loader::ScriptKind::eClassic) {
     if (aRequest->GetScriptLoadContext()->HasScriptElement()) {
       aRequest->GetScriptLoadContext()->GetHintCharset(mHintCharset);
@@ -39,6 +40,12 @@ ScriptHashKey::ScriptHashKey(ScriptLoader* aLoader,
 
   MOZ_COUNT_CTOR(ScriptHashKey);
 }
+
+ScriptHashKey::ScriptHashKey(ScriptLoader* aLoader,
+                             const JS::loader::ScriptLoadRequest* aRequest,
+                             const JS::loader::LoadedScript* aLoadedScript)
+    : ScriptHashKey(aLoader, aRequest, aLoadedScript->GetFetchOptions(),
+                    aLoadedScript->GetURI()) {}
 
 ScriptHashKey::ScriptHashKey(const ScriptLoadData& aLoadData)
     : ScriptHashKey(aLoadData.CacheKey()) {}
@@ -85,11 +92,12 @@ bool ScriptHashKey::KeyEquals(const ScriptHashKey& aKey) const {
 NS_IMPL_ISUPPORTS(ScriptLoadData, nsISupports)
 
 ScriptLoadData::ScriptLoadData(ScriptLoader* aLoader,
-                               JS::loader::ScriptLoadRequest* aRequest)
+                               JS::loader::ScriptLoadRequest* aRequest,
+                               JS::loader::LoadedScript* aLoadedScript)
     : mExpirationTime(aRequest->ExpirationTime()),
       mLoader(aLoader),
-      mKey(aLoader, aRequest),
-      mLoadedScript(aRequest->getLoadedScript()),
+      mKey(aLoader, aRequest, aLoadedScript),
+      mLoadedScript(aLoadedScript),
       mNetworkMetadata(aRequest->mNetworkMetadata) {}
 
 NS_IMPL_ISUPPORTS(SharedScriptCache, nsIMemoryReporter)
@@ -137,8 +145,8 @@ void SharedScriptCache::Clear(const Maybe<bool>& aChrome,
 
   if (XRE_IsParentProcess()) {
     for (auto* cp : ContentParent::AllProcesses(ContentParent::eLive)) {
-      Unused << cp->SendClearScriptCache(aChrome, aPrincipal, aSchemelessSite,
-                                         aPattern, aURL);
+      (void)cp->SendClearScriptCache(aChrome, aPrincipal, aSchemelessSite,
+                                     aPattern, aURL);
     }
   }
 

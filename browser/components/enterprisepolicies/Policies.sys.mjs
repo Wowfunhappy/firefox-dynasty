@@ -395,6 +395,55 @@ export var Policies = {
     },
   },
 
+  BrowserDataBackup: {
+    onBeforeUIStartup(manager, param) {
+      if (typeof param === "boolean") {
+        setAndLockPref("browser.backup.enabled", param);
+        setAndLockPref("browser.backup.archive.enabled", param);
+        setAndLockPref("browser.backup.restore.enabled", param);
+      } else {
+        const hasBackup = "AllowBackup" in param;
+        const hasRestore = "AllowRestore" in param;
+        let serviceValue;
+
+        if (hasBackup && hasRestore) {
+          // both present but could be set to false
+          serviceValue = param.AllowBackup || param.AllowRestore;
+        } else if (hasBackup && param.AllowBackup) {
+          // only AllowBackup is true
+          serviceValue = true;
+        } else if (hasRestore && param.AllowRestore) {
+          // only AllowRestore is true
+          serviceValue = true;
+        }
+
+        if (serviceValue !== undefined) {
+          PoliciesUtils.setDefaultPref(
+            "browser.backup.enabled",
+            serviceValue,
+            true
+          );
+        }
+
+        if (hasBackup) {
+          PoliciesUtils.setDefaultPref(
+            "browser.backup.archive.enabled",
+            param.AllowBackup,
+            true
+          );
+        }
+
+        if (hasRestore) {
+          PoliciesUtils.setDefaultPref(
+            "browser.backup.restore.enabled",
+            param.AllowRestore,
+            true
+          );
+        }
+      }
+    },
+  },
+
   CaptivePortal: {
     onBeforeAddons(manager, param) {
       setAndLockPref("network.captive-portal-service.enabled", param);
@@ -1592,10 +1641,11 @@ export var Policies = {
             param.Locked
           );
         }
-        if ("ImproveSuggest" in param) {
+        // `ImproveSuggest` is deprecated and replaced with `OnlineEnabled`.
+        if ("OnlineEnabled" in param || "ImproveSuggest" in param) {
           PoliciesUtils.setDefaultPref(
-            "browser.urlbar.quicksuggest.dataCollection.enabled",
-            param.ImproveSuggest,
+            "browser.urlbar.quicksuggest.online.enabled",
+            param.OnlineEnabled ?? param.ImproveSuggest,
             param.Locked
           );
         }
@@ -1608,15 +1658,17 @@ export var Policies = {
       const defaultValue = "Enabled" in param ? param.Enabled : undefined;
 
       const features = [
-        ["Chatbot", "browser.ml.chat.enabled"],
-        ["LinkPreviews", "browser.ml.linkPreview.optin"],
-        ["TabGroups", "browser.tabs.groups.smart.userEnabled"],
+        ["Chatbot", ["browser.ml.chat.enabled", "browser.ml.chat.page"]],
+        ["LinkPreviews", ["browser.ml.linkPreview.optin"]],
+        ["TabGroups", ["browser.tabs.groups.smart.userEnabled"]],
       ];
 
-      for (const [key, pref] of features) {
+      for (const [key, prefs] of features) {
         const value = key in param ? param[key] : defaultValue;
         if (value !== undefined) {
-          PoliciesUtils.setDefaultPref(pref, value, param.Locked);
+          for (const pref of prefs) {
+            PoliciesUtils.setDefaultPref(pref, value, param.Locked);
+          }
         }
       }
     },

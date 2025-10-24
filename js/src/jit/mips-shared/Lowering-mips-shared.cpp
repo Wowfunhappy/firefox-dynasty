@@ -38,9 +38,7 @@ LDefinition LIRGeneratorMIPSShared::tempByteOpRegister() { return temp(); }
 void LIRGeneratorMIPSShared::lowerForALU(LInstructionHelper<1, 1, 0>* ins,
                                          MDefinition* mir, MDefinition* input) {
   ins->setOperand(0, useRegister(input));
-  define(
-      ins, mir,
-      LDefinition(LDefinition::TypeFrom(mir->type()), LDefinition::REGISTER));
+  define(ins, mir);
 }
 
 // z = x+y
@@ -49,9 +47,7 @@ void LIRGeneratorMIPSShared::lowerForALU(LInstructionHelper<1, 2, 0>* ins,
                                          MDefinition* rhs) {
   ins->setOperand(0, useRegister(lhs));
   ins->setOperand(1, useRegisterOrConstant(rhs));
-  define(
-      ins, mir,
-      LDefinition(LDefinition::TypeFrom(mir->type()), LDefinition::REGISTER));
+  define(ins, mir);
 }
 
 void LIRGeneratorMIPSShared::lowerForALUInt64(
@@ -119,29 +115,17 @@ template void LIRGeneratorMIPSShared::lowerForShiftInt64(LRotateI64* ins,
 
 void LIRGeneratorMIPSShared::lowerForFPU(LInstructionHelper<1, 1, 0>* ins,
                                          MDefinition* mir, MDefinition* input) {
-  ins->setOperand(0, useRegister(input));
-  define(
-      ins, mir,
-      LDefinition(LDefinition::TypeFrom(mir->type()), LDefinition::REGISTER));
+  ins->setOperand(0, useRegisterAtStart(input));
+  define(ins, mir);
 }
 
-template <size_t Temps>
-void LIRGeneratorMIPSShared::lowerForFPU(LInstructionHelper<1, 2, Temps>* ins,
+void LIRGeneratorMIPSShared::lowerForFPU(LInstructionHelper<1, 2, 0>* ins,
                                          MDefinition* mir, MDefinition* lhs,
                                          MDefinition* rhs) {
-  ins->setOperand(0, useRegister(lhs));
-  ins->setOperand(1, useRegister(rhs));
-  define(
-      ins, mir,
-      LDefinition(LDefinition::TypeFrom(mir->type()), LDefinition::REGISTER));
+  ins->setOperand(0, useRegisterAtStart(lhs));
+  ins->setOperand(1, useRegisterAtStart(rhs));
+  define(ins, mir);
 }
-
-template void LIRGeneratorMIPSShared::lowerForFPU(
-    LInstructionHelper<1, 2, 0>* ins, MDefinition* mir, MDefinition* lhs,
-    MDefinition* rhs);
-template void LIRGeneratorMIPSShared::lowerForFPU(
-    LInstructionHelper<1, 2, 1>* ins, MDefinition* mir, MDefinition* lhs,
-    MDefinition* rhs);
 
 void LIRGeneratorMIPSShared::lowerWasmBuiltinTruncateToInt32(
     MWasmBuiltinTruncateToInt32* ins) {
@@ -263,13 +247,6 @@ void LIRGeneratorMIPSShared::lowerModI(MMod* mod) {
     assignSnapshot(lir, mod->bailoutKind());
   }
   define(lir, mod);
-}
-
-void LIRGenerator::visitPowHalf(MPowHalf* ins) {
-  MDefinition* input = ins->input();
-  MOZ_ASSERT(input->type() == MIRType::Double);
-  LPowHalfD* lir = new (alloc()) LPowHalfD(useRegisterAtStart(input));
-  defineReuseInput(lir, ins, 0);
 }
 
 void LIRGeneratorMIPSShared::lowerWasmSelectI(MWasmSelect* select) {

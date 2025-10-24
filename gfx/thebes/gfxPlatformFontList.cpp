@@ -44,7 +44,6 @@
 #include "mozilla/ipc/FileDescriptorUtils.h"
 #include "mozilla/ResultExtensions.h"
 #include "mozilla/TextUtils.h"
-#include "mozilla/Unused.h"
 
 #include "base/eintr_wrapper.h"
 
@@ -665,10 +664,8 @@ bool gfxPlatformFontList::InitFontList() {
 
   InitializeCodepointsWithNoFonts();
 
-  // Try to initialize the cross-process shared font list if enabled by prefs,
-  // but not if we're running in Safe Mode.
-  if (StaticPrefs::gfx_e10s_font_list_shared_AtStartup() &&
-      !gfxPlatform::InSafeMode()) {
+  // Try to initialize the cross-process shared font list if enabled by prefs.
+  if (StaticPrefs::gfx_e10s_font_list_shared_AtStartup()) {
     for (const auto& entry : mFontEntries.Values()) {
       if (!entry) {
         continue;
@@ -1514,7 +1511,7 @@ class LoadCmapsRunnable final : public IdleRunnable,
         continue;
       }
       // Fully initialize this family.
-      Unused << pfl->InitializeFamily(&family, true);
+      (void)pfl->InitializeFamily(&family, true);
       // TODO(emilio): It'd make sense to use mDeadline here to determine
       // whether we can do more work, but that is surprisingly a performance
       // regression in practice, see bug 1936489. Investigate if we can be
@@ -2100,7 +2097,7 @@ void gfxPlatformFontList::MaybeRemoveCmap(gfxCharacterMap* aCharMap) {
   if (found && found->GetKey() == aCharMap && aCharMap->RefCount() == 1) {
     // Forget our reference to the object that's being deleted, without
     // calling Release() on it.
-    Unused << found->mCharMap.forget();
+    found->mCharMap.forget().leak();
 
     // Do the deletion.
     delete aCharMap;
@@ -3236,7 +3233,7 @@ void gfxPlatformFontList::InitializeFamily(uint32_t aGeneration,
   }
   fontlist::Family* family = list->Families() + aFamilyIndex;
   if (!family->IsInitialized() || aLoadCmaps) {
-    Unused << InitializeFamily(family, aLoadCmaps);
+    (void)InitializeFamily(family, aLoadCmaps);
   }
 }
 

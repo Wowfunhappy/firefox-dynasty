@@ -365,12 +365,6 @@ class MacroAssemblerRiscv64 : public Assembler {
   void ma_mul32TestOverflow(Register rd, Register rj, Imm32 imm,
                             Label* overflow);
 
-  // divisions
-  void ma_div_branch_overflow(Register rd, Register rj, Register rk,
-                              Label* overflow);
-  void ma_div_branch_overflow(Register rd, Register rj, Imm32 imm,
-                              Label* overflow);
-
   // fast mod, uses scratch registers, and thus needs to be in the assembler
   // implicitly assumes that we can overwrite dest at the beginning of the
   // sequence
@@ -555,6 +549,9 @@ class MacroAssemblerRiscv64 : public Assembler {
   void ByteSwap(Register dest, Register src, int operand_size,
                 Register scratch);
 
+  void Rol(Register rd, Register rs, const Operand& rt);
+  void Drol(Register rd, Register rs, const Operand& rt);
+
   void Ror(Register rd, Register rs, const Operand& rt);
   void Dror(Register rd, Register rs, const Operand& rt);
 
@@ -634,7 +631,7 @@ class MacroAssemblerRiscv64Compat : public MacroAssemblerRiscv64 {
     MOZ_CRASH("Not supported for this target");
   }
 
-  void movq(Register rj, Register rd);
+  void truncateFloat32ModUint32(FloatRegister src, Register dest);
 
   void computeEffectiveAddress(const Address& address, Register dest) {
     ma_add64(dest, address.base, Imm32(address.offset));
@@ -1120,7 +1117,7 @@ class MacroAssemblerRiscv64Compat : public MacroAssemblerRiscv64 {
   FaultingCodeOffset loadDouble(const BaseIndex& src, FloatRegister dest) {
     UseScratchRegisterScope temps(this);
     Register scratch = temps.Acquire();
-    computeScaledAddress(src, scratch);
+    computeEffectiveAddress(src, scratch);
     FaultingCodeOffset fco = FaultingCodeOffset(currentOffset());
     fld(dest, scratch, 0);
     return fco;
@@ -1133,7 +1130,7 @@ class MacroAssemblerRiscv64Compat : public MacroAssemblerRiscv64 {
   FaultingCodeOffset loadFloat32(const BaseIndex& src, FloatRegister dest) {
     UseScratchRegisterScope temps(this);
     Register scratch = temps.Acquire();
-    computeScaledAddress(src, scratch);
+    computeEffectiveAddress(src, scratch);
     FaultingCodeOffset fco = FaultingCodeOffset(currentOffset());
     flw(dest, scratch, 0);
     return fco;

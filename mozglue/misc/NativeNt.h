@@ -15,7 +15,6 @@
 #include <algorithm>
 #include <utility>
 
-#include "mozilla/ArrayUtils.h"
 #include "mozilla/Attributes.h"
 #include "mozilla/CheckedArithmetic.h"
 #include "mozilla/DebugOnly.h"
@@ -1512,7 +1511,7 @@ class CrossExecTransferManager final {
   AutoVirtualProtect Protect(void* aLocalAddress, size_t aLength,
                              DWORD aProtFlags) {
     // If EnsureRemoteImagebase() fails, a subsequent operaion will fail.
-    Unused << EnsureRemoteImagebase();
+    (void)EnsureRemoteImagebase();
     return AutoVirtualProtect(LocalExecToRemoteExec(aLocalAddress), aLength,
                               aProtFlags, mRemoteProcess);
   }

@@ -1867,7 +1867,7 @@ nsresult AppWindow::MaybeSaveEarlyWindowPersistentValues(
 
   settings.verticalTabs = Preferences::GetBool("sidebar.verticalTabs", false);
 
-  Unused << PersistPreXULSkeletonUIValues(settings);
+  (void)PersistPreXULSkeletonUIValues(settings);
 #endif
 
   return NS_OK;
@@ -1943,7 +1943,7 @@ void AppWindow::MaybeSavePersistentPositionAndSize(
       sizeString.AppendInt(NSToIntRound(rect.X() / posScale.scale));
       aRootElement.SetAttr(nsGkAtoms::screenX, sizeString, IgnoreErrors());
       if (aShouldPersist) {
-        Unused << SetPersistentValue(nsGkAtoms::screenX, sizeString);
+        (void)SetPersistentValue(nsGkAtoms::screenX, sizeString);
       }
     }
     if (aPersistString.Find(u"screenY") >= 0) {
@@ -1951,7 +1951,7 @@ void AppWindow::MaybeSavePersistentPositionAndSize(
       sizeString.AppendInt(NSToIntRound(rect.Y() / posScale.scale));
       aRootElement.SetAttr(nsGkAtoms::screenY, sizeString, IgnoreErrors());
       if (aShouldPersist) {
-        Unused << SetPersistentValue(nsGkAtoms::screenY, sizeString);
+        (void)SetPersistentValue(nsGkAtoms::screenY, sizeString);
       }
     }
   }
@@ -1964,7 +1964,7 @@ void AppWindow::MaybeSavePersistentPositionAndSize(
       sizeString.AppendInt(NSToIntRound(innerRect.Width() / sizeScale.scale));
       aRootElement.SetAttr(nsGkAtoms::width, sizeString, IgnoreErrors());
       if (aShouldPersist) {
-        Unused << SetPersistentValue(nsGkAtoms::width, sizeString);
+        (void)SetPersistentValue(nsGkAtoms::width, sizeString);
       }
     }
     if (aPersistString.Find(u"height") >= 0) {
@@ -1972,12 +1972,12 @@ void AppWindow::MaybeSavePersistentPositionAndSize(
       sizeString.AppendInt(NSToIntRound(innerRect.Height() / sizeScale.scale));
       aRootElement.SetAttr(nsGkAtoms::height, sizeString, IgnoreErrors());
       if (aShouldPersist) {
-        Unused << SetPersistentValue(nsGkAtoms::height, sizeString);
+        (void)SetPersistentValue(nsGkAtoms::height, sizeString);
       }
     }
   }
 
-  Unused << MaybeSaveEarlyWindowPersistentValues(rect);
+  (void)MaybeSaveEarlyWindowPersistentValues(rect);
 }
 
 void AppWindow::MaybeSavePersistentMiscAttributes(
@@ -1999,7 +1999,7 @@ void AppWindow::MaybeSavePersistentMiscAttributes(
     }
     aRootElement.SetAttr(nsGkAtoms::sizemode, sizeString, IgnoreErrors());
     if (aShouldPersist && aPersistString.Find(u"sizemode") >= 0) {
-      Unused << SetPersistentValue(nsGkAtoms::sizemode, sizeString);
+      (void)SetPersistentValue(nsGkAtoms::sizemode, sizeString);
     }
   }
   aRootElement.SetAttribute(u"gtktiledwindow"_ns,

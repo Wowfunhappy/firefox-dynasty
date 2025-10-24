@@ -19,9 +19,8 @@ ChromeUtils.defineESModuleGetters(lazy, {
     "moz-src:///browser/components/urlbar/UrlbarProviderSemanticHistorySearch.sys.mjs",
   UrlbarProvidersManager:
     "moz-src:///browser/components/urlbar/UrlbarProvidersManager.sys.mjs",
-  UrlbarTokenizer:
-    "moz-src:///browser/components/urlbar/UrlbarTokenizer.sys.mjs",
   UrlbarUtils: "moz-src:///browser/components/urlbar/UrlbarUtils.sys.mjs",
+  UrlUtils: "resource://gre/modules/UrlUtils.sys.mjs",
 });
 
 ChromeUtils.defineLazyGetter(lazy, "logger", () =>
@@ -322,12 +321,17 @@ export class UrlbarController {
       }
 
       let { queryContext } = this._lastQueryContextWrapper;
-      let handled = this.view.oneOffSearchButtons?.handleKeyDown(
-        event,
-        this.view.visibleRowCount,
-        this.view.allowEmptySelection,
-        queryContext.searchString
-      );
+      let handled = false;
+      if (lazy.UrlbarPrefs.get("scotchBonnet.enableOverride")) {
+        handled = this.input.searchModeSwitcher.handleKeyDown(event);
+      } else {
+        handled = this.view.oneOffSearchButtons?.handleKeyDown(
+          event,
+          this.view.visibleRowCount,
+          this.view.allowEmptySelection,
+          queryContext.searchString
+        );
+      }
       if (handled) {
         return;
       }
@@ -391,14 +395,14 @@ export class UrlbarController {
             // Button. Then make urlbar results selectable by tab + shift.
             event.preventDefault();
             this.view.selectedRowIndex = -1;
-            this.#focusOnUnifiedSearchButton();
+            this.focusOnUnifiedSearchButton();
             break;
           } else if (
             !this.view.selectedElement &&
             this.input.focusedViaMousedown
           ) {
             if (event.shiftKey) {
-              this.#focusOnUnifiedSearchButton();
+              this.focusOnUnifiedSearchButton();
             } else {
               this.view.selectBy(1, {
                 userPressedTab: true,
@@ -719,7 +723,7 @@ export class UrlbarController {
     }
   }
 
-  #focusOnUnifiedSearchButton() {
+  focusOnUnifiedSearchButton() {
     this.input.setUnifiedSearchButtonAvailability(true);
 
     /** @type {HTMLElement} */
@@ -1517,7 +1521,7 @@ class TelemetryEvent {
     let searchWords = searchString
       .substring(0, lazy.UrlbarUtils.MAX_TEXT_LENGTH)
       .trim()
-      .split(lazy.UrlbarTokenizer.REGEXP_SPACES)
+      .split(lazy.UrlUtils.REGEXP_SPACES)
       .filter(t => t);
     let numWords = searchWords.length.toString();
 
@@ -1619,22 +1623,30 @@ class TelemetryEvent {
 
   #PING_PREFS = {
     maxRichResults: Glean.urlbar.prefMaxResults,
-    "quicksuggest.dataCollection.enabled":
-      Glean.urlbar.prefSuggestDataCollection,
+    "quicksuggest.online.available": Glean.urlbar.prefSuggestOnlineAvailable,
+    "quicksuggest.online.enabled": Glean.urlbar.prefSuggestOnlineEnabled,
     "suggest.quicksuggest.nonsponsored": Glean.urlbar.prefSuggestNonsponsored,
     "suggest.quicksuggest.sponsored": Glean.urlbar.prefSuggestSponsored,
     "suggest.topsites": Glean.urlbar.prefSuggestTopsites,
   };
 
+  // Used to record telemetry for prefs that are fallbacks for Nimbus variables.
+  // `onNimbusChanged` is called for these variables rather than `onPrefChanged`
+  // but we want to record telemetry as if the prefs themselves changed. This
+  // object maps Nimbus variable names to their fallback prefs.
+  #PING_NIMBUS_VARIABLES = {
+    quickSuggestOnlineAvailable: "quicksuggest.online.available",
+  };
+
   #readPingPrefs() {
     for (const p of Object.keys(this.#PING_PREFS)) {
-      this.onPrefChanged(p);
+      this.#recordPref(p);
     }
   }
 
-  onPrefChanged(pref) {
+  #recordPref(pref, newValue = undefined) {
     const metric = this.#PING_PREFS[pref];
-    const prefValue = lazy.UrlbarPrefs.get(pref);
+    const prefValue = newValue ?? lazy.UrlbarPrefs.get(pref);
     if (metric) {
       metric.set(prefValue);
     }
@@ -1645,6 +1657,16 @@ class TelemetryEvent {
         if (!prefValue) {
           this.handleDisableSuggest();
         }
+    }
+  }
+
+  onPrefChanged(pref) {
+    this.#recordPref(pref);
+  }
+
+  onNimbusChanged(name, newValue) {
+    if (this.#PING_NIMBUS_VARIABLES.hasOwnProperty(name)) {
+      this.#recordPref(this.#PING_NIMBUS_VARIABLES[name], newValue);
     }
   }
 

@@ -265,7 +265,6 @@ void CodeGenerator::visitMulI(LMulI* ins) {
         masm.mul32(lhsreg, scratch, destreg, onOverflow);
 
         if (onOverflow) {
-          MOZ_ASSERT(lhsreg != destreg);
           bailoutFrom(&bailout, ins->snapshot());
         }
         return;
@@ -883,10 +882,18 @@ void CodeGenerator::visitShiftI(LShiftI* ins) {
     int32_t shift = ToInt32(rhs) & 0x1F;
     switch (ins->bitop()) {
       case JSOp::Lsh:
-        masm.Lsl(dest, lhs, shift);
+        if (shift) {
+          masm.Lsl(dest, lhs, shift);
+        } else {
+          masm.Mov(dest, lhs);
+        }
         break;
       case JSOp::Rsh:
-        masm.Asr(dest, lhs, shift);
+        if (shift) {
+          masm.Asr(dest, lhs, shift);
+        } else {
+          masm.Mov(dest, lhs);
+        }
         break;
       case JSOp::Ursh:
         if (shift) {
@@ -932,18 +939,22 @@ void CodeGenerator::visitShiftIntPtr(LShiftIntPtr* ins) {
 
   if (rhs->isConstant()) {
     int32_t shift = ToIntPtr(rhs) & 0x3F;
-    switch (ins->bitop()) {
-      case JSOp::Lsh:
-        masm.Lsl(dest, lhs, shift);
-        break;
-      case JSOp::Rsh:
-        masm.Asr(dest, lhs, shift);
-        break;
-      case JSOp::Ursh:
-        masm.Lsr(dest, lhs, shift);
-        break;
-      default:
-        MOZ_CRASH("Unexpected shift op");
+    if (shift == 0) {
+      masm.Mov(dest, lhs);
+    } else {
+      switch (ins->bitop()) {
+        case JSOp::Lsh:
+          masm.Lsl(dest, lhs, shift);
+          break;
+        case JSOp::Rsh:
+          masm.Asr(dest, lhs, shift);
+          break;
+        case JSOp::Ursh:
+          masm.Lsr(dest, lhs, shift);
+          break;
+        default:
+          MOZ_CRASH("Unexpected shift op");
+      }
     }
   } else {
     ARMRegister rhsreg = toXRegister(rhs);
@@ -964,25 +975,22 @@ void CodeGenerator::visitShiftIntPtr(LShiftIntPtr* ins) {
 }
 
 void CodeGenerator::visitUrshD(LUrshD* ins) {
-  const ARMRegister lhs = toWRegister(ins->lhs());
+  ARMRegister lhs = toWRegister(ins->lhs());
   const LAllocation* rhs = ins->rhs();
-  const FloatRegister out = ToFloatRegister(ins->output());
-
-  const Register temp = ToRegister(ins->temp0());
-  const ARMRegister temp32 = toWRegister(ins->temp0());
+  FloatRegister out = ToFloatRegister(ins->output());
+  ARMRegister temp = toWRegister(ins->temp0());
 
   if (rhs->isConstant()) {
     int32_t shift = ToInt32(rhs) & 0x1F;
     if (shift) {
-      masm.Lsr(temp32, lhs, shift);
-      masm.convertUInt32ToDouble(temp, out);
+      masm.Lsr(temp, lhs, shift);
+      masm.convertUInt32ToDouble(temp.asUnsized(), out);
     } else {
-      masm.convertUInt32ToDouble(ToRegister(ins->lhs()), out);
+      masm.convertUInt32ToDouble(lhs.asUnsized(), out);
     }
   } else {
-    masm.And(temp32, toWRegister(rhs), Operand(0x1F));
-    masm.Lsr(temp32, lhs, temp32);
-    masm.convertUInt32ToDouble(temp, out);
+    masm.Lsr(temp, lhs, toWRegister(rhs));
+    masm.convertUInt32ToDouble(temp.asUnsized(), out);
   }
 }
 
@@ -1005,8 +1013,7 @@ void CodeGenerator::visitPowHalfD(LPowHalfD* ins) {
     masm.branchDouble(cond, input, scratch, &sqrt);
 
     // Math.pow(-Infinity, 0.5) == Infinity.
-    masm.zeroDouble(output);
-    masm.subDouble(scratch, output);
+    masm.Fneg(ARMFPRegister(output, 64), ARMFPRegister(scratch, 64));
     masm.jump(&done);
 
     masm.bind(&sqrt);
@@ -2022,9 +2029,7 @@ void CodeGenerator::visitShiftI64(LShiftI64* lir) {
   if (rhsAlloc->isConstant()) {
     int32_t shift = int32_t(rhsAlloc->toConstant()->toInt64() & 0x3F);
     if (shift == 0) {
-      if (lhs.code() != dest.code()) {
-        masm.Mov(dest, lhs);
-      }
+      masm.Mov(dest, lhs);
     } else {
       switch (lir->bitop()) {
         case JSOp::Lsh:

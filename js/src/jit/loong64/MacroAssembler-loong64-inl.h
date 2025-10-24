@@ -593,39 +593,39 @@ void MacroAssembler::inc64(AbsoluteAddress dest) {
   as_st_d(scratch2, scratch, 0);
 }
 
-void MacroAssembler::quotient32(Register rhs, Register srcDest,
+void MacroAssembler::quotient32(Register lhs, Register rhs, Register dest,
                                 bool isUnsigned) {
   if (isUnsigned) {
-    as_div_wu(srcDest, srcDest, rhs);
+    as_div_wu(dest, lhs, rhs);
   } else {
-    as_div_w(srcDest, srcDest, rhs);
+    as_div_w(dest, lhs, rhs);
   }
 }
 
-void MacroAssembler::quotient64(Register rhs, Register srcDest,
+void MacroAssembler::quotient64(Register lhs, Register rhs, Register dest,
                                 bool isUnsigned) {
   if (isUnsigned) {
-    as_div_du(srcDest, srcDest, rhs);
+    as_div_du(dest, lhs, rhs);
   } else {
-    as_div_d(srcDest, srcDest, rhs);
+    as_div_d(dest, lhs, rhs);
   }
 }
 
-void MacroAssembler::remainder32(Register rhs, Register srcDest,
+void MacroAssembler::remainder32(Register lhs, Register rhs, Register dest,
                                  bool isUnsigned) {
   if (isUnsigned) {
-    as_mod_wu(srcDest, srcDest, rhs);
+    as_mod_wu(dest, lhs, rhs);
   } else {
-    as_mod_w(srcDest, srcDest, rhs);
+    as_mod_w(dest, lhs, rhs);
   }
 }
 
-void MacroAssembler::remainder64(Register rhs, Register srcDest,
+void MacroAssembler::remainder64(Register lhs, Register rhs, Register dest,
                                  bool isUnsigned) {
   if (isUnsigned) {
-    as_mod_du(srcDest, srcDest, rhs);
+    as_mod_du(dest, lhs, rhs);
   } else {
-    as_mod_d(srcDest, srcDest, rhs);
+    as_mod_d(dest, lhs, rhs);
   }
 }
 
@@ -735,7 +735,7 @@ void MacroAssembler::lshift32(Imm32 imm, Register dest) {
 }
 
 void MacroAssembler::lshift32(Imm32 imm, Register src, Register dest) {
-  as_slli_w(dest, src, imm.value % 32);
+  as_slli_w(dest, src, imm.value & 0x1f);
 }
 
 void MacroAssembler::flexibleLshift32(Register src, Register dest) {
@@ -777,7 +777,7 @@ void MacroAssembler::rshift32(Imm32 imm, Register dest) {
 }
 
 void MacroAssembler::rshift32(Imm32 imm, Register src, Register dest) {
-  as_srli_w(dest, src, imm.value % 32);
+  as_srli_w(dest, src, imm.value & 0x1f);
 }
 
 void MacroAssembler::flexibleRshift32(Register src, Register dest) {
@@ -794,7 +794,7 @@ void MacroAssembler::rshift32Arithmetic(Imm32 imm, Register dest) {
 
 void MacroAssembler::rshift32Arithmetic(Imm32 imm, Register src,
                                         Register dest) {
-  as_srai_w(dest, src, imm.value % 32);
+  as_srai_w(dest, src, imm.value & 0x1f);
 }
 
 void MacroAssembler::flexibleRshift32Arithmetic(Register src, Register dest) {

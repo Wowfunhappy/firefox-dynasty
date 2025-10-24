@@ -13,7 +13,6 @@
 #include "mozilla/layers/TextureForwarder.h"
 #include "mozilla/StaticPrefs_layers.h"
 #include "mozilla/UniquePtr.h"
-#include "mozilla/Unused.h"
 #include "YCbCrUtils.h"
 
 #ifdef XP_MACOSX
@@ -181,7 +180,7 @@ bool MacIOSurfaceImage::SetData(ImageContainer* aContainer,
       auto rowDst = dst + stride * i;
 
       for (const auto j : IntegerRange(ySize.width)) {
-        Unused << j;
+        (void)j;
 
         *rowDst = safeShift10BitBy6(*rowSrc);
         rowDst++;
@@ -201,7 +200,7 @@ bool MacIOSurfaceImage::SetData(ImageContainer* aContainer,
       uint16_t* rowDst = dst + stride * i;
 
       for (const auto j : IntegerRange(cbcrSize.width)) {
-        Unused << j;
+        (void)j;
 
         *rowDst = safeShift10BitBy6(*rowCbSrc);
         rowDst++;
@@ -224,7 +223,7 @@ bool MacIOSurfaceImage::SetData(ImageContainer* aContainer,
       auto rowDst = dst + stride * i;
 
       for (const auto j : IntegerRange(ySize.width)) {
-        Unused << j;
+        (void)j;
 
         *rowDst = safeShift10BitBy6(*rowSrc);
         rowDst++;
@@ -246,7 +245,7 @@ bool MacIOSurfaceImage::SetData(ImageContainer* aContainer,
       uint16_t* rowDst = dst + stride * i;
 
       for (const auto j : IntegerRange(cbcrSize.width)) {
-        Unused << j;
+        (void)j;
 
         *rowDst = safeShift10BitBy6(*rowCbSrc);
         rowDst++;

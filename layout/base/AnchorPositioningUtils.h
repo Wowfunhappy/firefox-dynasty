@@ -17,6 +17,9 @@ class nsIFrame;
 template <class T>
 class nsTArray;
 
+template <class T>
+class CopyableTArray;
+
 namespace mozilla {
 
 struct AnchorPosInfo {
@@ -78,8 +81,11 @@ class AnchorPosReferenceData {
 };
 
 struct StylePositionArea;
-struct StylePositionTryFallbacksTryTactic;
 class WritingMode;
+
+enum class StylePositionTryFallbacksTryTacticKeyword : uint8_t;
+using StylePositionTryFallbacksTryTactic =
+    CopyableTArray<StylePositionTryFallbacksTryTacticKeyword>;
 
 /**
  * AnchorPositioningUtils is a namespace class used for various anchor

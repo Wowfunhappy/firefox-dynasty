@@ -48,36 +48,36 @@ void MacroAssemblerMIPSShared::ma_liPatchable(Register dest, Imm32 imm) {
 
 // Shifts
 void MacroAssemblerMIPSShared::ma_sll(Register rd, Register rt, Imm32 shift) {
-  as_sll(rd, rt, shift.value % 32);
+  as_sll(rd, rt, shift.value & 0x1f);
 }
 void MacroAssemblerMIPSShared::ma_srl(Register rd, Register rt, Imm32 shift) {
-  as_srl(rd, rt, shift.value % 32);
+  as_srl(rd, rt, shift.value & 0x1f);
 }
 
 void MacroAssemblerMIPSShared::ma_sra(Register rd, Register rt, Imm32 shift) {
-  as_sra(rd, rt, shift.value % 32);
+  as_sra(rd, rt, shift.value & 0x1f);
 }
 
 void MacroAssemblerMIPSShared::ma_ror(Register rd, Register rt, Imm32 shift) {
   if (hasR2()) {
-    as_rotr(rd, rt, shift.value % 32);
+    as_rotr(rd, rt, shift.value & 0x1f);
   } else {
     UseScratchRegisterScope temps(*this);
     Register scratch = temps.Acquire();
-    as_srl(scratch, rt, shift.value % 32);
-    as_sll(rd, rt, (32 - (shift.value % 32)) % 32);
+    as_srl(scratch, rt, shift.value & 0x1f);
+    as_sll(rd, rt, 32 - (shift.value & 0x1f));
     as_or(rd, rd, scratch);
   }
 }
 
 void MacroAssemblerMIPSShared::ma_rol(Register rd, Register rt, Imm32 shift) {
   if (hasR2()) {
-    as_rotr(rd, rt, (32 - (shift.value % 32)) % 32);
+    as_rotr(rd, rt, 32 - (shift.value & 0x1f));
   } else {
     UseScratchRegisterScope temps(*this);
     Register scratch = temps.Acquire();
-    as_srl(scratch, rt, (32 - (shift.value % 32)) % 32);
-    as_sll(rd, rt, shift.value % 32);
+    as_srl(scratch, rt, 32 - (shift.value & 0x1f));
+    as_sll(rd, rt, shift.value & 0x1f);
     as_or(rd, rd, scratch);
   }
 }
@@ -357,62 +357,33 @@ void MacroAssemblerMIPSShared::ma_mul32TestOverflow(Register rd, Register rs,
                                                     Register rt,
                                                     Label* overflow) {
   UseScratchRegisterScope temps(*this);
-  Register scratch2 = temps.Acquire();
   Register scratch = temps.Acquire();
+
 #ifdef MIPSR6
-  if (rd == rs) {
-    ma_move(scratch2, rs);
-    rs = scratch2;
-  }
-  as_mul(rd, rs, rt);
-  as_muh(scratch2, rs, rt);
+  as_dmul(rd, rs, rt);
 #else
-  as_mult(rs, rt);
+  as_dmult(rs, rt);
   as_mflo(rd);
-  as_mfhi(scratch2);
 #endif
-  as_sra(scratch, rd, 31);
-  ma_b(scratch, scratch2, overflow, Assembler::NotEqual);
+  ma_sll(scratch, rd, Imm32(0));
+  ma_b(rd, scratch, overflow, Assembler::NotEqual);
 }
 
 void MacroAssemblerMIPSShared::ma_mul32TestOverflow(Register rd, Register rs,
                                                     Imm32 imm,
                                                     Label* overflow) {
-  ma_li(rd, imm);
-  ma_mul32TestOverflow(rd, rs, rd, overflow);
-}
-
-void MacroAssemblerMIPSShared::ma_div_branch_overflow(Register rd, Register rs,
-                                                      Register rt,
-                                                      Label* overflow) {
   UseScratchRegisterScope temps(*this);
   Register scratch = temps.Acquire();
+
+  ma_li(scratch, imm);
 #ifdef MIPSR6
-  if (rd == rs) {
-    Register scratch2 = temps.Acquire();
-    ma_move(scratch2, rs);
-    rs = scratch2;
-  }
-  as_mod(scratch, rs, rt);
+  as_dmul(rd, rs, scratch);
 #else
-  as_div(rs, rt);
-  as_mfhi(scratch);
-#endif
-  ma_b(scratch, scratch, overflow, Assembler::NonZero);
-#ifdef MIPSR6
-  as_div(rd, rs, rt);
-#else
+  as_dmult(rs, scratch);
   as_mflo(rd);
 #endif
-}
-
-void MacroAssemblerMIPSShared::ma_div_branch_overflow(Register rd, Register rs,
-                                                      Imm32 imm,
-                                                      Label* overflow) {
-  UseScratchRegisterScope temps(*this);
-  Register scratch = temps.Acquire();
-  ma_li(scratch, imm);
-  ma_div_branch_overflow(rd, rs, scratch, overflow);
+  ma_sll(scratch, rd, Imm32(0));
+  ma_b(rd, scratch, overflow, Assembler::NotEqual);
 }
 
 void MacroAssemblerMIPSShared::ma_mod_mask(Register src, Register dest,
@@ -3105,44 +3076,40 @@ void MacroAssembler::atomicEffectOpJS(Scalar::Type arrayType,
 
 void MacroAssembler::atomicPause() { as_sync(); }
 
-void MacroAssembler::flexibleQuotient32(Register rhs, Register srcDest,
-                                        bool isUnsigned,
+void MacroAssembler::flexibleQuotient32(Register lhs, Register rhs,
+                                        Register dest, bool isUnsigned,
                                         const LiveRegisterSet&) {
-  quotient32(rhs, srcDest, isUnsigned);
+  quotient32(lhs, rhs, dest, isUnsigned);
 }
 
-void MacroAssembler::flexibleRemainder32(Register rhs, Register srcDest,
-                                         bool isUnsigned,
+void MacroAssembler::flexibleRemainder32(Register lhs, Register rhs,
+                                         Register dest, bool isUnsigned,
                                          const LiveRegisterSet&) {
-  remainder32(rhs, srcDest, isUnsigned);
+  remainder32(lhs, rhs, dest, isUnsigned);
 }
 
-void MacroAssembler::flexibleDivMod32(Register rhs, Register srcDest,
-                                      Register remOutput, bool isUnsigned,
-                                      const LiveRegisterSet&) {
-  UseScratchRegisterScope temps(*this);
+void MacroAssembler::flexibleDivMod32(Register lhs, Register rhs,
+                                      Register divOutput, Register remOutput,
+                                      bool isUnsigned, const LiveRegisterSet&) {
+  MOZ_ASSERT(lhs != divOutput && lhs != remOutput, "lhs is preserved");
+  MOZ_ASSERT(rhs != divOutput && rhs != remOutput, "rhs is preserved");
+
+#ifdef MIPSR6
   if (isUnsigned) {
-#ifdef MIPSR6
-    Register scratch = temps.Acquire();
-    as_divu(scratch, srcDest, rhs);
-    as_modu(remOutput, srcDest, rhs);
-    ma_move(srcDest, scratch);
-#else
-    as_divu(srcDest, rhs);
-#endif
+    as_divu(divOutput, lhs, rhs);
+    as_modu(remOutput, rhs, rhs);
   } else {
-#ifdef MIPSR6
-    Register scratch = temps.Acquire();
-    as_div(scratch, srcDest, rhs);
-    as_mod(remOutput, srcDest, rhs);
-    ma_move(srcDest, scratch);
-#else
-    as_div(srcDest, rhs);
-#endif
+    as_div(divOutput, lhs, rhs);
+    as_mod(remOutput, lhs, rhs);
   }
-#ifndef MIPSR6
+#else
+  if (isUnsigned) {
+    as_divu(lhs, rhs);
+  } else {
+    as_div(lhs, rhs);
+  }
   as_mfhi(remOutput);
-  as_mflo(srcDest);
+  as_mflo(divOutput);
 #endif
 }
 
