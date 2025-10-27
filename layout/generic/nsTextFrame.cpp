@@ -5786,10 +5786,9 @@ static gfxFloat ComputeDecorationLineOffset(
 // Helper to determine decoration trim offset.
 // Returns false if the trim would cut off the decoration entirely.
 static bool ComputeDecorationTrim(
-    const nsTextFrame* aFrame, const nsPresContext* aPresCtx,
+    nsTextFrame* aFrame, const nsPresContext* aPresCtx,
     const nsIFrame* aDecFrame, const gfxFont::Metrics& aMetrics,
     nsCSSRendering::DecorationRectParams& aParams) {
-  const gfxFloat app = aPresCtx->AppUnitsPerDevPixel();
   const WritingMode wm = aDecFrame->GetWritingMode();
   bool verticalDec = wm.IsVertical();
 
@@ -5799,16 +5798,17 @@ static bool ComputeDecorationTrim(
   // Find the trim values for this frame.
   const StyleTextDecorationTrim& cssTrim =
       aDecFrame->StyleTextReset()->mTextDecorationTrim;
-  gfxFloat trimLeft, trimRight;
+  nscoord trimLeft, trimRight;
   if (cssTrim.IsAuto()) {
     // Use a trim factor of 1/12.5, so we get 2px of trim (resulting in a 4px
     // gap between adjacent lines) at font-size 25px.
     constexpr gfxFloat kAutoTrimFactor = 1.0 / 12.5;
     // Use the EM size multiplied by kAutoTrimFactor, with a minimum of one
     // CSS pixel to ensure that at least some separation occurs.
-    const gfxFloat scale = aPresCtx->CSSToDevPixelScale().scale;
     const nscoord autoDecorationTrim =
-        std::max(aMetrics.emHeight * kAutoTrimFactor, scale);
+        std::max(aPresCtx->DevPixelsToAppUnits(
+                     NS_round(aMetrics.emHeight * kAutoTrimFactor)),
+                 nsPresContext::CSSPixelsToAppUnits(1));
     trimLeft = autoDecorationTrim;
     trimRight = autoDecorationTrim;
   } else {
@@ -5819,41 +5819,107 @@ static bool ComputeDecorationTrim(
       // walking up and back down the frame tree, and walking continuations.
       return true;
     }
-    trimLeft = NSAppUnitsToDoublePixels(length.start.ToAppUnits(), app);
-    trimRight = NSAppUnitsToDoublePixels(length.end.ToAppUnits(), app);
+    trimLeft = length.start.ToAppUnits();
+    trimRight = length.end.ToAppUnits();
   }
 
-  if (wm.IsBidiRTL()) {
+  if (wm.IsInlineReversed()) {
     std::swap(trimLeft, trimRight);
   }
-  const nsPoint offset = aFrame->GetOffsetTo(aDecFrame);
-  const nsSize decSize = aDecFrame->GetSize();
-  const nsSize size = aFrame->GetSize();
-  nscoord start, end, max;
-  if (verticalDec) {
-    start = offset.y;
-    max = size.height;
-    end = decSize.height - (size.height + offset.y);
+
+  // These rects must be based on the same origin.
+  // If the decorating frame is an inline frame, then these rects are relative
+  // to the decorating frame.
+  // Otherwise, these rects are relative to the line container.
+  nsRect inlineRect, frameRect;
+
+  // If the decorating frame is an inline frame, we can use it as the
+  // reference frame for measurements.
+  // If the decorating frame is not inline, then we will need to consider
+  // text indentation and calculate geometry using line boxes.
+  if (aDecFrame->IsInlineFrame()) {
+    frameRect = nsRect{aFrame->GetOffsetTo(aDecFrame), aFrame->GetSize()};
+    inlineRect = nsRect{nsPoint(0, 0), aDecFrame->GetSize()};
   } else {
-    start = offset.x;
-    max = size.width;
-    end = decSize.width - (size.width + offset.x);
+    nsIFrame* const lineContainer = FindLineContainer(aFrame);
+    nsILineIterator* const iter = lineContainer->GetLineIterator();
+    MOZ_ASSERT(iter,
+               "Line container of a text frame must be able to produce a "
+               "line iterator");
+    MOZ_ASSERT(
+        lineContainer->GetWritingMode().IsVertical() == wm.IsVertical(),
+        "Decorating frame and line container must have writing modes in the "
+        "same axis");
+    const int32_t lineNum = GetFrameLineNum(aFrame, iter);
+    const nsILineIterator::LineInfo lineInfo = iter->GetLine(lineNum).unwrap();
+
+    // Create the rects, relative to the line container.
+    frameRect = nsRect{aFrame->GetOffsetTo(lineContainer), aFrame->GetSize()};
+    inlineRect = lineInfo.mLineBounds;
+
+    // Account for text-indent, which will push text frames into the line box.
+    const StyleTextIndent& textIndent = aFrame->StyleText()->mTextIndent;
+    if (!textIndent.length.IsDefinitelyZero()) {
+      bool isFirstLineOrAfterHardBreak = true;
+      if (lineNum > 0 && !textIndent.each_line) {
+        isFirstLineOrAfterHardBreak = false;
+      } else if (nsBlockFrame* prevBlock =
+                     do_QueryFrame(lineContainer->GetPrevInFlow())) {
+        if (!(textIndent.each_line &&
+              (prevBlock->Lines().empty() ||
+               !prevBlock->LinesEnd().prev()->IsLineWrapped()))) {
+          isFirstLineOrAfterHardBreak = false;
+        }
+      }
+      if (isFirstLineOrAfterHardBreak != textIndent.hanging) {
+        // Determine which side to shrink.
+        const Side side = wm.PhysicalSide(LogicalSide::IStart);
+        // Calculate the text indent, and shrink the line box by this amount to
+        // acount for the indent size at the start of the line.
+        const nscoord basis = lineContainer->GetLogicalSize(wm).ISize(wm);
+        nsMargin indentMargin;
+        indentMargin.Side(side) = textIndent.length.Resolve(basis);
+        inlineRect.Deflate(indentMargin);
+      }
+    }
+  }
+
+  // Find the margin of the of this frame inside its container.
+  nscoord marginLeft, marginRight, frameSize;
+  const nsMargin difference = inlineRect - frameRect;
+  if (verticalDec) {
+    marginLeft = difference.top;
+    marginRight = difference.bottom;
+    frameSize = frameRect.height;
+  } else {
+    marginLeft = difference.left;
+    marginRight = difference.right;
+    frameSize = frameRect.width;
   }
 
   const bool cloneDecBreak = aDecFrame->StyleBorder()->mBoxDecorationBreak ==
                              StyleBoxDecorationBreak::Clone;
   // TODO alaskanemily: This will not correctly account for the case that the
   // continuations are bidi continuations.
-  const bool applyLeft = cloneDecBreak || !aDecFrame->GetPrevContinuation();
-  if (applyLeft) {
-    trimLeft -= NSAppUnitsToDoublePixels(start, app);
+  bool applyLeft = cloneDecBreak || (!aFrame->GetPrevContinuation() &&
+                                     !aDecFrame->GetPrevContinuation());
+  bool applyRight = cloneDecBreak || (!aFrame->GetNextContinuation() &&
+                                      !aDecFrame->GetNextContinuation());
+  if (wm.IsInlineReversed()) {
+    std::swap(applyLeft, applyRight);
   }
-  const bool applyRight = cloneDecBreak || !aDecFrame->GetNextContinuation();
+  if (applyLeft) {
+    trimLeft -= marginLeft;
+  } else {
+    trimLeft = 0;
+  }
   if (applyRight) {
-    trimRight -= NSAppUnitsToDoublePixels(end, app);
+    trimRight -= marginRight;
+  } else {
+    trimRight = 0;
   }
 
-  if (trimLeft >= NSAppUnitsToDoublePixels(max, app) - trimRight) {
+  if (trimLeft + trimRight >= frameSize) {
     // This frame does not contain the decoration at all.
     return false;
   }
@@ -5868,11 +5934,11 @@ static bool ComputeDecorationTrim(
   // I am unsure if it's possible that the first/last frame might be inset
   // for some reason, as well, in which case we will not draw the outset
   // decorations.
-  if (applyLeft && (trimLeft > 0.0 || start == 0)) {
-    aParams.trimLeft = trimLeft;
+  if (trimLeft > 0 || marginLeft == 0) {
+    aParams.trimLeft = aPresCtx->AppUnitsToFloatDevPixels(trimLeft);
   }
-  if (applyRight && (trimRight > 0.0 || end == 0)) {
-    aParams.trimRight = trimRight;
+  if (trimRight > 0 || marginRight == 0) {
+    aParams.trimRight = aPresCtx->AppUnitsToFloatDevPixels(trimRight);
   }
   return true;
 }

@@ -106,7 +106,7 @@ use style::invalidation::element::relative_selector::{
 };
 use style::invalidation::element::restyle_hints::RestyleHint;
 use style::invalidation::stylesheets::RuleChangeKind;
-use style::logical_geometry::{PhysicalAxis, PhysicalSide};
+use style::logical_geometry::{PhysicalAxis, PhysicalSide, WritingMode};
 use style::media_queries::MediaList;
 use style::parser::{Parse, ParserContext};
 use style::properties::declaration_block::PropertyTypedValue;
@@ -162,7 +162,7 @@ use style::values::computed::font::{
 use style::values::computed::length_percentage::{
     AllowAnchorPosResolutionInCalcPercentage, Unpacked,
 };
-use style::values::computed::position::AnchorFunction;
+use style::values::computed::position::{AnchorFunction, PositionArea};
 use style::values::computed::{self, ContentVisibility, Context, ToComputedValue};
 use style::values::distance::{ComputeSquaredDistance, SquaredDistance};
 use style::values::generics::color::ColorMixFlags;
@@ -2064,11 +2064,14 @@ pub extern "C" fn Servo_StyleSheet_GetRules(sheet: &StylesheetContents) -> Stron
 #[no_mangle]
 pub extern "C" fn Servo_StyleSheet_Clone(
     contents: &StylesheetContents,
+    data: *mut URLExtraData,
 ) -> Strong<StylesheetContents> {
-    use style::shared_lock::DeepCloneWithLock;
     let global_style_data = &*GLOBAL_STYLE_DATA;
     let guard = global_style_data.shared_lock.read();
-    Arc::new(contents.deep_clone_with_lock(&global_style_data.shared_lock, &guard)).into()
+    let url_data = unsafe { UrlExtraData::from_ptr_ref(&data) };
+    contents
+        .deep_clone(&global_style_data.shared_lock, Some(url_data), &guard)
+        .into()
 }
 
 #[no_mangle]
@@ -10748,4 +10751,13 @@ pub extern "C" fn Servo_ResolveAnchorSizeFunctionForMaxSize(
         &offset_params_from_base_params(params),
         AllowAnchorPosResolutionInCalcPercentage::AnchorSizeOnly(prop_axis),
     );
+}
+
+#[no_mangle]
+pub extern "C" fn Servo_PhysicalizePositionArea(
+    area: &mut PositionArea,
+    cb_wm: &WritingMode,
+    self_wm: &WritingMode,
+) {
+    *area = area.to_physical(*cb_wm, *self_wm);
 }

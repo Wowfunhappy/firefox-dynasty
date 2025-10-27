@@ -182,6 +182,9 @@ void LIRGeneratorARM::lowerForALU(LInstructionHelper<1, 2, 0>* ins,
 void LIRGeneratorARM::lowerForALUInt64(
     LInstructionHelper<INT64_PIECES, INT64_PIECES, 0>* ins, MDefinition* mir,
     MDefinition* input) {
+  // Reuse the input.  Define + use-at-start would create risk that the output
+  // uses the same register pair as the input but in reverse order.  Reusing
+  // probably has less spilling than the alternative, define + use.
   ins->setInt64Operand(0, useInt64RegisterAtStart(input));
   defineInt64ReuseInput(ins, mir, 0);
 }
@@ -350,22 +353,6 @@ void LIRGeneratorARM::lowerDivI(MDiv* div) {
   }
 
   defineReturn(lir, div);
-}
-
-void LIRGeneratorARM::lowerNegI(MInstruction* ins, MDefinition* input) {
-  define(new (alloc()) LNegI(useRegisterAtStart(input)), ins);
-}
-
-void LIRGeneratorARM::lowerNegI64(MInstruction* ins, MDefinition* input) {
-  // Reuse the input.  Define + use-at-start would create risk that the output
-  // uses the same register pair as the input but in reverse order.  Reusing
-  // probably has less spilling than the alternative, define + use.
-  defineInt64ReuseInput(new (alloc()) LNegI64(useInt64RegisterAtStart(input)),
-                        ins, 0);
-}
-
-void LIRGenerator::visitAbs(MAbs* ins) {
-  define(allocateAbs(ins, useRegisterAtStart(ins->input())), ins);
 }
 
 void LIRGeneratorARM::lowerMulI(MMul* mul, MDefinition* lhs, MDefinition* rhs) {
@@ -581,17 +568,6 @@ void LIRGeneratorARM::lowerBigIntPtrMod(MBigIntPtrMod* ins) {
   define(lir, ins);
   if (!ARMFlags::HasIDIV()) {
     assignSafepoint(lir, ins);
-  }
-}
-
-void LIRGenerator::visitWasmNeg(MWasmNeg* ins) {
-  if (ins->type() == MIRType::Int32) {
-    define(new (alloc()) LNegI(useRegisterAtStart(ins->input())), ins);
-  } else if (ins->type() == MIRType::Float32) {
-    define(new (alloc()) LNegF(useRegisterAtStart(ins->input())), ins);
-  } else {
-    MOZ_ASSERT(ins->type() == MIRType::Double);
-    define(new (alloc()) LNegD(useRegisterAtStart(ins->input())), ins);
   }
 }
 

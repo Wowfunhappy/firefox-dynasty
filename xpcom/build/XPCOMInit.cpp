@@ -12,7 +12,6 @@
 #include "mozilla/AbstractThread.h"
 #include "mozilla/AppShutdown.h"
 #include "mozilla/Assertions.h"
-#include "mozilla/Atomics.h"
 #include "mozilla/DebugOnly.h"
 #include "mozilla/Poison.h"
 #include "mozilla/SharedThreadPool.h"
@@ -94,7 +93,6 @@
 #ifdef MOZ_PHC
 #  include "mozilla/PHCManager.h"
 #endif
-#include "mozilla/UniquePtr.h"
 #include "mozilla/ServoStyleConsts.h"
 
 #include "mozilla/ipc/GeckoChildProcessHost.h"

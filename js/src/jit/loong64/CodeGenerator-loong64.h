@@ -32,12 +32,6 @@ class CodeGeneratorLOONG64 : public CodeGeneratorShared {
   Operand ToOperand(const LAllocation* a);
   Operand ToOperand(const LDefinition* def);
 
-#ifdef JS_PUNBOX64
-  Operand ToOperandOrRegister64(const LInt64Allocation& input);
-#else
-  Register64 ToOperandOrRegister64(const LInt64Allocation& input);
-#endif
-
   MoveOperand toMoveOperand(LAllocation a) const;
 
   template <typename T1, typename T2>
@@ -139,6 +133,8 @@ class CodeGeneratorLOONG64 : public CodeGeneratorShared {
                         Register output);
   void emitBigIntPtrMod(LBigIntPtrMod* ins, Register dividend, Register divisor,
                         Register output);
+
+  void emitMulI64(Register lhs, int64_t rhs, Register dest);
 
   template <typename T>
   void emitWasmLoadI64(T* ins);

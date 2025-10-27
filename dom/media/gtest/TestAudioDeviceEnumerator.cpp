@@ -10,8 +10,6 @@
 #include "gmock/gmock.h"
 #include "gtest/gtest-printers.h"
 #include "gtest/gtest.h"
-#include "mozilla/Attributes.h"
-#include "mozilla/UniquePtr.h"
 #include "mozilla/media/MediaUtils.h"
 #include "nsTArray.h"
 

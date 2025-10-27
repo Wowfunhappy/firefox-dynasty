@@ -151,6 +151,12 @@ void LIRGeneratorX86Shared::lowerForALU(LInstructionHelper<1, 2, 0>* ins,
   defineReuseInput(ins, mir, 0);
 }
 
+void LIRGeneratorX86Shared::lowerForFPU(LInstructionHelper<1, 1, 0>* ins,
+                                        MDefinition* mir, MDefinition* input) {
+  ins->setOperand(0, useRegisterAtStart(input));
+  defineReuseInput(ins, mir, 0);
+}
+
 void LIRGeneratorX86Shared::lowerForFPU(LInstructionHelper<1, 2, 0>* ins,
                                         MDefinition* mir, MDefinition* lhs,
                                         MDefinition* rhs) {
@@ -166,19 +172,6 @@ void LIRGeneratorX86Shared::lowerForFPU(LInstructionHelper<1, 2, 0>* ins,
     ins->setOperand(1, useAtStart(rhs));
     define(ins, mir);
   }
-}
-
-void LIRGeneratorX86Shared::lowerNegI(MInstruction* ins, MDefinition* input) {
-  defineReuseInput(new (alloc()) LNegI(useRegisterAtStart(input)), ins, 0);
-}
-
-void LIRGeneratorX86Shared::lowerNegI64(MInstruction* ins, MDefinition* input) {
-  defineInt64ReuseInput(new (alloc()) LNegI64(useInt64RegisterAtStart(input)),
-                        ins, 0);
-}
-
-void LIRGenerator::visitAbs(MAbs* ins) {
-  defineReuseInput(allocateAbs(ins, useRegisterAtStart(ins->input())), ins, 0);
 }
 
 void LIRGeneratorX86Shared::lowerMulI(MMul* mul, MDefinition* lhs,
@@ -288,25 +281,6 @@ void LIRGeneratorX86Shared::lowerModI(MMod* mod) {
     assignSnapshot(lir, mod->bailoutKind());
   }
   defineFixed(lir, mod, LAllocation(AnyRegister(edx)));
-}
-
-void LIRGenerator::visitWasmNeg(MWasmNeg* ins) {
-  switch (ins->type()) {
-    case MIRType::Int32:
-      defineReuseInput(new (alloc()) LNegI(useRegisterAtStart(ins->input())),
-                       ins, 0);
-      break;
-    case MIRType::Float32:
-      defineReuseInput(new (alloc()) LNegF(useRegisterAtStart(ins->input())),
-                       ins, 0);
-      break;
-    case MIRType::Double:
-      defineReuseInput(new (alloc()) LNegD(useRegisterAtStart(ins->input())),
-                       ins, 0);
-      break;
-    default:
-      MOZ_CRASH();
-  }
 }
 
 void LIRGeneratorX86Shared::lowerWasmSelectI(MWasmSelect* select) {

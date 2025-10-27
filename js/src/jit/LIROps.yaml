@@ -1112,30 +1112,35 @@
   result_type: WordSized
   operands:
     input: WordSized
+  defer_init: true
 
 # Negative of an int64
 - name: NegI64
   result_type: Int64
   operands:
     input: Int64
+  defer_init: true
 
 # Negative of double
 - name: NegD
   result_type: WordSized
   operands:
     input: WordSized
+  defer_init: true
 
 # Negative of float32
 - name: NegF
   result_type: WordSized
   operands:
     input: WordSized
+  defer_init: true
 
 # Absolute value of an integer.
 - name: AbsI
   result_type: WordSized
   operands:
     input: WordSized
+  defer_init: true
   mir_op: Abs
 
 # Absolute value of a double.
@@ -1143,12 +1148,14 @@
   result_type: WordSized
   operands:
     input: WordSized
+  defer_init: true
 
 # Absolute value of a float32.
 - name: AbsF
   result_type: WordSized
   operands:
     input: WordSized
+  defer_init: true
 
 # Copysign for doubles.
 - name: CopySignD
@@ -1344,7 +1351,9 @@
   operands:
     lhs: Int64
     rhs: Int64
+#if defined(JS_CODEGEN_X86) || defined(JS_CODEGEN_X64) || defined(JS_CODEGEN_ARM)
   num_temps: 1
+#endif
   defer_init: true
 
 - name: MulIntPtr
@@ -4081,7 +4090,7 @@
   operands:
     lhs: WordSized
     rhs: WordSized
-#if !defined(JS_CODEGEN_ARM) && !defined(JS_CODEGEN_ARM64)
+#if defined(JS_CODEGEN_X86) || defined(JS_CODEGEN_X64)
   num_temps: 1
 #endif
   mir_op: Mod

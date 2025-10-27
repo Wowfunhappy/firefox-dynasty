@@ -139,13 +139,6 @@ void LIRGeneratorARM64::lowerForALUInt64(
   defineInt64(ins, mir);
 }
 
-// These all currently have codegen that depends on reuse but only because the
-// masm API depends on that.  We need new three-address masm APIs, for both
-// constant and variable rhs.
-//
-// MAdd => LAddI64
-// MSub => LSubI64
-// MBitAnd, MBitOr, MBitXor => LBitOpI64
 void LIRGeneratorARM64::lowerForALUInt64(
     LInstructionHelper<INT64_PIECES, 2 * INT64_PIECES, 0>* ins,
     MDefinition* mir, MDefinition* lhs, MDefinition* rhs) {
@@ -156,9 +149,7 @@ void LIRGeneratorARM64::lowerForALUInt64(
 
 void LIRGeneratorARM64::lowerForMulInt64(LMulI64* ins, MMul* mir,
                                          MDefinition* lhs, MDefinition* rhs) {
-  ins->setLhs(useInt64RegisterAtStart(lhs));
-  ins->setRhs(useInt64RegisterOrConstantAtStart(rhs));
-  defineInt64(ins, mir);
+  lowerForALUInt64(ins, mir, lhs, rhs);
 }
 
 template <class LInstr>
@@ -247,14 +238,6 @@ void LIRGeneratorARM64::lowerDivI(MDiv* div) {
     assignSnapshot(lir, div->bailoutKind());
   }
   define(lir, div);
-}
-
-void LIRGeneratorARM64::lowerNegI(MInstruction* ins, MDefinition* input) {
-  define(new (alloc()) LNegI(useRegisterAtStart(input)), ins);
-}
-
-void LIRGeneratorARM64::lowerNegI64(MInstruction* ins, MDefinition* input) {
-  defineInt64(new (alloc()) LNegI64(useInt64RegisterAtStart(input)), ins);
 }
 
 void LIRGeneratorARM64::lowerMulI(MMul* mul, MDefinition* lhs,
@@ -414,10 +397,6 @@ void LIRGeneratorARM64::lowerWasmCompareAndSelect(MWasmSelect* ins,
   define(lir, ins);
 }
 
-void LIRGenerator::visitAbs(MAbs* ins) {
-  define(allocateAbs(ins, useRegisterAtStart(ins->input())), ins);
-}
-
 LTableSwitch* LIRGeneratorARM64::newLTableSwitch(const LAllocation& in,
                                                  const LDefinition& inputCopy) {
   return new (alloc()) LTableSwitch(in, inputCopy, temp());
@@ -523,22 +502,6 @@ bool LIRGeneratorARM64::canEmitWasmReduceSimd128AtUses(
 }
 
 #endif
-
-void LIRGenerator::visitWasmNeg(MWasmNeg* ins) {
-  switch (ins->type()) {
-    case MIRType::Int32:
-      define(new (alloc()) LNegI(useRegisterAtStart(ins->input())), ins);
-      break;
-    case MIRType::Float32:
-      define(new (alloc()) LNegF(useRegisterAtStart(ins->input())), ins);
-      break;
-    case MIRType::Double:
-      define(new (alloc()) LNegD(useRegisterAtStart(ins->input())), ins);
-      break;
-    default:
-      MOZ_CRASH("unexpected type");
-  }
-}
 
 void LIRGeneratorARM64::lowerUDiv(MDiv* div) {
   LAllocation lhs = useRegister(div->lhs());

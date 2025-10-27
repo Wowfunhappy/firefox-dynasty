@@ -37,7 +37,9 @@ LDefinition LIRGeneratorMIPSShared::tempByteOpRegister() { return temp(); }
 // x = !y
 void LIRGeneratorMIPSShared::lowerForALU(LInstructionHelper<1, 1, 0>* ins,
                                          MDefinition* mir, MDefinition* input) {
-  ins->setOperand(0, useRegister(input));
+  // Unary ALU operations don't read the input after writing to the output, even
+  // for fallible operations, so we can use at-start allocations.
+  ins->setOperand(0, useRegisterAtStart(input));
   define(ins, mir);
 }
 
@@ -45,8 +47,10 @@ void LIRGeneratorMIPSShared::lowerForALU(LInstructionHelper<1, 1, 0>* ins,
 void LIRGeneratorMIPSShared::lowerForALU(LInstructionHelper<1, 2, 0>* ins,
                                          MDefinition* mir, MDefinition* lhs,
                                          MDefinition* rhs) {
-  ins->setOperand(0, useRegister(lhs));
-  ins->setOperand(1, useRegisterOrConstant(rhs));
+  // Binary ALU operations don't read any input after writing to the output,
+  // even for fallible operations, so we can use at-start allocations.
+  ins->setOperand(0, useRegisterAtStart(lhs));
+  ins->setOperand(1, useRegisterOrConstantAtStart(rhs));
   define(ins, mir);
 }
 
@@ -54,39 +58,21 @@ void LIRGeneratorMIPSShared::lowerForALUInt64(
     LInstructionHelper<INT64_PIECES, INT64_PIECES, 0>* ins, MDefinition* mir,
     MDefinition* input) {
   ins->setInt64Operand(0, useInt64RegisterAtStart(input));
-  defineInt64ReuseInput(ins, mir, 0);
+  defineInt64(ins, mir);
 }
 
 void LIRGeneratorMIPSShared::lowerForALUInt64(
     LInstructionHelper<INT64_PIECES, 2 * INT64_PIECES, 0>* ins,
     MDefinition* mir, MDefinition* lhs, MDefinition* rhs) {
   ins->setInt64Operand(0, useInt64RegisterAtStart(lhs));
-  ins->setInt64Operand(INT64_PIECES, willHaveDifferentLIRNodes(lhs, rhs)
-                                         ? useInt64OrConstant(rhs)
-                                         : useInt64OrConstantAtStart(rhs));
-  defineInt64ReuseInput(ins, mir, 0);
+  ins->setInt64Operand(INT64_PIECES, useInt64RegisterOrConstantAtStart(rhs));
+  defineInt64(ins, mir);
 }
 
 void LIRGeneratorMIPSShared::lowerForMulInt64(LMulI64* ins, MMul* mir,
                                               MDefinition* lhs,
                                               MDefinition* rhs) {
-  bool needsTemp = false;
-  bool cannotAliasRhs = false;
-  bool reuseInput = true;
-
-  ins->setLhs(useInt64RegisterAtStart(lhs));
-  ins->setRhs((willHaveDifferentLIRNodes(lhs, rhs) || cannotAliasRhs)
-                  ? useInt64OrConstant(rhs)
-                  : useInt64OrConstantAtStart(rhs));
-
-  if (needsTemp) {
-    ins->setTemp0(temp());
-  }
-  if (reuseInput) {
-    defineInt64ReuseInput(ins, mir, 0);
-  } else {
-    defineInt64(ins, mir);
-  }
+  lowerForALUInt64(ins, mir, lhs, rhs);
 }
 
 template <class LInstr>
@@ -95,13 +81,12 @@ void LIRGeneratorMIPSShared::lowerForShiftInt64(LInstr* ins, MDefinition* mir,
                                                 MDefinition* rhs) {
   if constexpr (std::is_same_v<LInstr, LShiftI64>) {
     ins->setLhs(useInt64RegisterAtStart(lhs));
-    ins->setRhs(useRegisterOrConstant(rhs));
-    defineInt64ReuseInput(ins, mir, LShiftI64::LhsIndex);
+    ins->setRhs(useRegisterOrConstantAtStart(rhs));
   } else {
     ins->setInput(useInt64RegisterAtStart(lhs));
-    ins->setCount(useRegisterOrConstant(rhs));
-    defineInt64ReuseInput(ins, mir, LRotateI64::InputIndex);
+    ins->setCount(useRegisterOrConstantAtStart(rhs));
   }
+  defineInt64(ins, mir);
 }
 
 template void LIRGeneratorMIPSShared::lowerForShiftInt64(LShiftI64* ins,
@@ -149,9 +134,7 @@ void LIRGeneratorMIPSShared::lowerWasmBuiltinTruncateToInt32(
 void LIRGeneratorMIPSShared::lowerForShift(LInstructionHelper<1, 2, 0>* ins,
                                            MDefinition* mir, MDefinition* lhs,
                                            MDefinition* rhs) {
-  ins->setOperand(0, useRegister(lhs));
-  ins->setOperand(1, useRegisterOrConstant(rhs));
-  define(ins, mir);
+  lowerForALU(ins, mir, lhs, rhs);
 }
 
 void LIRGeneratorMIPSShared::lowerDivI(MDiv* div) {
@@ -189,25 +172,20 @@ void LIRGeneratorMIPSShared::lowerDivI(MDiv* div) {
   define(lir, div);
 }
 
-void LIRGeneratorMIPSShared::lowerNegI(MInstruction* ins, MDefinition* input) {
-  define(new (alloc()) LNegI(useRegisterAtStart(input)), ins);
-}
-
-void LIRGeneratorMIPSShared::lowerNegI64(MInstruction* ins,
-                                         MDefinition* input) {
-  defineInt64ReuseInput(new (alloc()) LNegI64(useInt64RegisterAtStart(input)),
-                        ins, 0);
-}
-
-void LIRGenerator::visitAbs(MAbs* ins) {
-  define(allocateAbs(ins, useRegisterAtStart(ins->input())), ins);
-}
-
 void LIRGeneratorMIPSShared::lowerMulI(MMul* mul, MDefinition* lhs,
                                        MDefinition* rhs) {
   LMulI* lir = new (alloc()) LMulI;
   if (mul->fallible()) {
     assignSnapshot(lir, mul->bailoutKind());
+  }
+
+  // Negative zero check reads |lhs| and |rhs| after writing to the output, so
+  // we can't use at-start allocations.
+  if (mul->canBeNegativeZero() && !rhs->isConstant()) {
+    lir->setOperand(0, useRegister(lhs));
+    lir->setOperand(1, useRegister(rhs));
+    define(lir, mul);
+    return;
   }
 
   lowerForALU(lir, mul, lhs, rhs);
@@ -240,8 +218,8 @@ void LIRGeneratorMIPSShared::lowerModI(MMod* mod) {
       return;
     }
   }
-  LModI* lir = new (alloc())
-      LModI(useRegister(mod->lhs()), useRegister(mod->rhs()), temp());
+  auto* lir =
+      new (alloc()) LModI(useRegister(mod->lhs()), useRegister(mod->rhs()));
 
   if (mod->fallible()) {
     assignSnapshot(lir, mod->bailoutKind());
@@ -280,8 +258,8 @@ void LIRGeneratorMIPSShared::lowerUrshD(MUrsh* mir) {
   MOZ_ASSERT(lhs->type() == MIRType::Int32);
   MOZ_ASSERT(rhs->type() == MIRType::Int32);
 
-  LUrshD* lir = new (alloc())
-      LUrshD(useRegister(lhs), useRegisterOrConstant(rhs), temp());
+  auto* lir = new (alloc()) LUrshD(useRegisterAtStart(lhs),
+                                   useRegisterOrConstantAtStart(rhs), temp());
   define(lir, mir);
 }
 
@@ -324,17 +302,6 @@ void LIRGeneratorMIPSShared::lowerBigIntPtrMod(MBigIntPtrMod* ins) {
     assignSnapshot(lir, ins->bailoutKind());
   }
   define(lir, ins);
-}
-
-void LIRGenerator::visitWasmNeg(MWasmNeg* ins) {
-  if (ins->type() == MIRType::Int32) {
-    define(new (alloc()) LNegI(useRegisterAtStart(ins->input())), ins);
-  } else if (ins->type() == MIRType::Float32) {
-    define(new (alloc()) LNegF(useRegisterAtStart(ins->input())), ins);
-  } else {
-    MOZ_ASSERT(ins->type() == MIRType::Double);
-    define(new (alloc()) LNegD(useRegisterAtStart(ins->input())), ins);
-  }
 }
 
 void LIRGenerator::visitWasmLoad(MWasmLoad* ins) {
@@ -811,9 +778,7 @@ void LIRGenerator::visitCopySign(MCopySign* ins) {
     lir = new (alloc()) LCopySignF();
   }
 
-  lir->setOperand(0, useRegisterAtStart(lhs));
-  lir->setOperand(1, useRegisterAtStart(rhs));
-  define(lir, ins);
+  lowerForFPU(lir, ins, lhs, rhs);
 }
 
 void LIRGenerator::visitExtendInt32ToInt64(MExtendInt32ToInt64* ins) {

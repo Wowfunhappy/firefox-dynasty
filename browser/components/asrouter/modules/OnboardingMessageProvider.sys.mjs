@@ -66,7 +66,7 @@ const BASE_MESSAGES = () => [
     groups: ["win10-eos-sync", "eco"],
     // TODO: The backup preferences in this expression should be updated once BackupService exposes getters; see Bug 1993272
     targeting:
-      "source == newtab && os.isWindows && os.windowsVersion == 10 && os.windowsBuildNumber <= 19045 && isFxAEnabled && !isFxASignedIn && !hasSelectableProfiles && !hasActiveEnterprisePolicies && backupArchiveEnabled && (!'browser.backup.scheduled.enabled' | preferenceValue) && (!'browser.backup.scheduled.user-disabled' | preferenceValue) && !isMajorUpgrade && !willShowDefaultPrompt && !activeNotifications && previousSessionEnd && 'browser.newtabpage.activity-stream.asrouter.userprefs.cfr.features' | preferenceValue != false",
+      "source == 'newtab' && os.isWindows && os.windowsVersion == 10 && os.windowsBuildNumber <= 19045 && isFxAEnabled && !isFxASignedIn && !hasSelectableProfiles && !hasActiveEnterprisePolicies && backupArchiveEnabled && (!'browser.backup.scheduled.enabled' | preferenceValue) && (!'browser.backup.scheduled.user-disabled' | preferenceValue) && !isMajorUpgrade && !willShowDefaultPrompt && !activeNotifications && previousSessionEnd && 'browser.newtabpage.activity-stream.asrouter.userprefs.cfr.features' | preferenceValue != false",
     trigger: {
       id: "defaultBrowserCheck",
     },
@@ -88,7 +88,7 @@ const BASE_MESSAGES = () => [
             position: "center",
             screen_style: {
               width: "650px",
-              minHeight: "485px",
+              height: "500px",
             },
             split_content_padding_block: "32px",
             title: {
@@ -136,7 +136,7 @@ const BASE_MESSAGES = () => [
                   type: "backup",
                   icon: {
                     background:
-                      "center / contain no-repeat url('chrome://browser/content/asrouter/assets/fox-with-box-on-cloud.svg')",
+                      "center / contain no-repeat url('https://firefox-settings-attachments.cdn.mozilla.net/main-workspace/ms-images/733144c8-a453-49eb-aff7-27a10786fbc1.svg')",
                     width: "133.9601px",
                     height: "90.1186px",
                     marginBlockStart: "8px",
@@ -201,7 +201,7 @@ const BASE_MESSAGES = () => [
                   type: "backup",
                   icon: {
                     background:
-                      "center / contain no-repeat url('chrome://browser/content/asrouter/assets/fox-with-locked-box.svg')",
+                      "center / contain no-repeat url('https://firefox-settings-attachments.cdn.mozilla.net/main-workspace/ms-images/112b3d3c-5f6b-42c1-b56b-c70b08a6e4ad.svg')",
                     width: "114.475px",
                     height: "90.1186px",
                     marginBlockStart: "8px",
@@ -310,7 +310,7 @@ const BASE_MESSAGES = () => [
             position: "center",
             screen_style: {
               width: "650px",
-              minHeight: "485px",
+              height: "560px",
             },
             split_content_padding_block: "32px",
             title: {
@@ -337,7 +337,7 @@ const BASE_MESSAGES = () => [
                   type: "backup",
                   icon: {
                     background:
-                      "center / contain no-repeat url('https://firefox-settings-attachments.cdn.mozilla.net/main-workspace/ms-images/a43cd9cc-e8b2-477c-92f2-345557370de1.svg')",
+                      "center / contain no-repeat url('https://firefox-settings-attachments.cdn.mozilla.net/main-workspace/ms-images/1741e2ae-2423-4b74-9f3b-b22dcd48d3b3.svg')",
                     width: "54px",
                     height: "54px",
                     marginBlockStart: "22px",
@@ -542,7 +542,7 @@ const BASE_MESSAGES = () => [
             isEncryptedBackup: false,
             screen_style: {
               width: "650px",
-              minHeight: "485px",
+              height: "560px",
             },
             tiles: {
               type: "fx_backup_file_path",
@@ -588,7 +588,7 @@ const BASE_MESSAGES = () => [
             },
             screen_style: {
               width: "650px",
-              minHeight: "485px",
+              height: "560px",
             },
             tiles: {
               type: "fx_backup_file_path",
@@ -634,8 +634,8 @@ const BASE_MESSAGES = () => [
               fontSize: "13px",
             },
             screen_style: {
-              width: "650px",
-              minHeight: "485px",
+              width: "664px",
+              height: "620px",
             },
             logo: {
               imageURL:
@@ -675,8 +675,8 @@ const BASE_MESSAGES = () => [
           targeting: "!isEncryptedBackup",
           content: {
             screen_style: {
-              width: "650px",
-              minHeight: "485px",
+              width: "664px",
+              height: "620px",
             },
             logo: {
               imageURL:
@@ -768,8 +768,8 @@ const BASE_MESSAGES = () => [
           content: {
             isEncryptedBackup: true,
             screen_style: {
-              width: "650px",
-              minHeight: "485px",
+              width: "664px",
+              height: "620px",
             },
             logo: {
               imageURL:

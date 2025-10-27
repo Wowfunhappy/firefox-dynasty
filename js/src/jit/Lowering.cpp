@@ -1985,30 +1985,29 @@ void LIRGenerator::visitMinMaxArray(MMinMaxArray* ins) {
   define(lir, ins);
 }
 
-LInstructionHelper<1, 1, 0>* LIRGenerator::allocateAbs(MAbs* ins,
-                                                       LAllocation input) {
+void LIRGenerator::visitAbs(MAbs* ins) {
   MDefinition* num = ins->input();
   MOZ_ASSERT(IsNumberType(num->type()));
 
-  LInstructionHelper<1, 1, 0>* lir;
   switch (num->type()) {
-    case MIRType::Int32:
-      lir = new (alloc()) LAbsI(input);
+    case MIRType::Int32: {
+      auto* lir = new (alloc()) LAbsI;
       // needed to handle abs(INT32_MIN)
       if (ins->fallible()) {
         assignSnapshot(lir, ins->bailoutKind());
       }
+      lowerForALU(lir, ins, num);
       break;
+    }
     case MIRType::Float32:
-      lir = new (alloc()) LAbsF(input);
+      lowerForFPU(new (alloc()) LAbsF, ins, num);
       break;
     case MIRType::Double:
-      lir = new (alloc()) LAbsD(input);
+      lowerForFPU(new (alloc()) LAbsD, ins, num);
       break;
     default:
       MOZ_CRASH();
   }
-  return lir;
 }
 
 void LIRGenerator::visitClz(MClz* ins) {
@@ -2297,17 +2296,17 @@ void LIRGenerator::visitSub(MSub* ins) {
   if (ins->type() == MIRType::Int32) {
     MOZ_ASSERT(lhs->type() == MIRType::Int32);
 
-    LSubI* lir = new (alloc()) LSubI;
-    if (ins->fallible()) {
-      assignSnapshot(lir, ins->bailoutKind());
-    }
-
     // If our LHS is a constant 0 and we don't have to worry about results that
     // can't be represented as an int32, we can optimize to an LNegI.
     if (!ins->fallible() && lhs->isConstant() &&
         lhs->toConstant()->toInt32() == 0) {
-      lowerNegI(ins, rhs);
+      lowerForALU(new (alloc()) LNegI, ins, rhs);
       return;
+    }
+
+    LSubI* lir = new (alloc()) LSubI;
+    if (ins->fallible()) {
+      assignSnapshot(lir, ins->bailoutKind());
     }
 
     lowerForALU(lir, ins, lhs, rhs);
@@ -2320,7 +2319,7 @@ void LIRGenerator::visitSub(MSub* ins) {
 
     // If our LHS is a constant 0, we can optimize to an LNegI64.
     if (lhs->isConstant() && lhs->toConstant()->toInt64() == 0) {
-      lowerNegI64(ins, rhs);
+      lowerForALUInt64(new (alloc()) LNegI64, ins, rhs);
       return;
     }
 
@@ -2366,7 +2365,7 @@ void LIRGenerator::visitMul(MMul* ins) {
     // can't be represented as an int32, we can optimize to an LNegI.
     if (!ins->fallible() && rhs->isConstant() &&
         rhs->toConstant()->toInt32() == -1) {
-      lowerNegI(ins, lhs);
+      lowerForALU(new (alloc()) LNegI, ins, lhs);
       return;
     }
 
@@ -2380,7 +2379,7 @@ void LIRGenerator::visitMul(MMul* ins) {
 
     // If our RHS is a constant -1, we can optimize to an LNegI64.
     if (rhs->isConstant() && rhs->toConstant()->toInt64() == -1) {
-      lowerNegI64(ins, lhs);
+      lowerForALUInt64(new (alloc()) LNegI64, ins, lhs);
       return;
     }
 
@@ -2405,7 +2404,7 @@ void LIRGenerator::visitMul(MMul* ins) {
     // If our RHS is a constant -1.0, we can optimize to an LNegD.
     if (!ins->mustPreserveNaN() && rhs->isConstant() &&
         rhs->toConstant()->toDouble() == -1.0) {
-      defineReuseInput(new (alloc()) LNegD(useRegisterAtStart(lhs)), ins, 0);
+      lowerForFPU(new (alloc()) LNegD, ins, lhs);
       return;
     }
 
@@ -2420,7 +2419,7 @@ void LIRGenerator::visitMul(MMul* ins) {
     // We apply the same optimizations as for doubles
     if (!ins->mustPreserveNaN() && rhs->isConstant() &&
         rhs->toConstant()->toFloat32() == -1.0f) {
-      defineReuseInput(new (alloc()) LNegF(useRegisterAtStart(lhs)), ins, 0);
+      lowerForFPU(new (alloc()) LNegF, ins, lhs);
       return;
     }
 
@@ -2429,6 +2428,22 @@ void LIRGenerator::visitMul(MMul* ins) {
   }
 
   MOZ_CRASH("Unhandled number specialization");
+}
+
+void LIRGenerator::visitWasmNeg(MWasmNeg* ins) {
+  switch (ins->type()) {
+    case MIRType::Int32:
+      lowerForALU(new (alloc()) LNegI, ins, ins->input());
+      break;
+    case MIRType::Float32:
+      lowerForFPU(new (alloc()) LNegF, ins, ins->input());
+      break;
+    case MIRType::Double:
+      lowerForFPU(new (alloc()) LNegD, ins, ins->input());
+      break;
+    default:
+      MOZ_CRASH();
+  }
 }
 
 void LIRGenerator::visitDiv(MDiv* ins) {

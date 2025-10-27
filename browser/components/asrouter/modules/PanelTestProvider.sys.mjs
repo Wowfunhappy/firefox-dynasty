@@ -44,7 +44,7 @@ const MESSAGES = () => [
             position: "center",
             screen_style: {
               width: "650px",
-              minHeight: "485px",
+              height: "500px",
             },
             split_content_padding_block: "32px",
             title: {
@@ -92,7 +92,7 @@ const MESSAGES = () => [
                   type: "backup",
                   icon: {
                     background:
-                      "center / contain no-repeat url('chrome://browser/content/asrouter/assets/fox-with-box-on-cloud.svg')",
+                      "center / contain no-repeat url('https://firefox-settings-attachments.cdn.mozilla.net/main-workspace/ms-images/733144c8-a453-49eb-aff7-27a10786fbc1.svg')",
                     width: "133.9601px",
                     height: "90.1186px",
                     marginBlockStart: "8px",
@@ -157,7 +157,7 @@ const MESSAGES = () => [
                   type: "backup",
                   icon: {
                     background:
-                      "center / contain no-repeat url('chrome://browser/content/asrouter/assets/fox-with-locked-box.svg')",
+                      "center / contain no-repeat url('https://firefox-settings-attachments.cdn.mozilla.net/main-workspace/ms-images/112b3d3c-5f6b-42c1-b56b-c70b08a6e4ad.svg')",
                     width: "114.475px",
                     height: "90.1186px",
                     marginBlockStart: "8px",
@@ -266,7 +266,7 @@ const MESSAGES = () => [
             position: "center",
             screen_style: {
               width: "650px",
-              minHeight: "485px",
+              height: "560px",
             },
             split_content_padding_block: "32px",
             title: {
@@ -293,7 +293,7 @@ const MESSAGES = () => [
                   type: "backup",
                   icon: {
                     background:
-                      "center / contain no-repeat url('https://firefox-settings-attachments.cdn.mozilla.net/main-workspace/ms-images/a43cd9cc-e8b2-477c-92f2-345557370de1.svg')",
+                      "center / contain no-repeat url('https://firefox-settings-attachments.cdn.mozilla.net/main-workspace/ms-images/1741e2ae-2423-4b74-9f3b-b22dcd48d3b3.svg')",
                     width: "54px",
                     height: "54px",
                     marginBlockStart: "22px",
@@ -498,7 +498,7 @@ const MESSAGES = () => [
             isEncryptedBackup: false,
             screen_style: {
               width: "650px",
-              minHeight: "485px",
+              height: "560px",
             },
             tiles: {
               type: "fx_backup_file_path",
@@ -544,7 +544,7 @@ const MESSAGES = () => [
             },
             screen_style: {
               width: "650px",
-              minHeight: "485px",
+              height: "560px",
             },
             tiles: {
               type: "fx_backup_file_path",
@@ -590,8 +590,8 @@ const MESSAGES = () => [
               fontSize: "13px",
             },
             screen_style: {
-              width: "650px",
-              minHeight: "485px",
+              width: "664px",
+              height: "620px",
             },
             logo: {
               imageURL:
@@ -631,8 +631,8 @@ const MESSAGES = () => [
           targeting: "!isEncryptedBackup",
           content: {
             screen_style: {
-              width: "650px",
-              minHeight: "485px",
+              width: "664px",
+              height: "620px",
             },
             logo: {
               imageURL:
@@ -724,8 +724,8 @@ const MESSAGES = () => [
           content: {
             isEncryptedBackup: true,
             screen_style: {
-              width: "650px",
-              minHeight: "485px",
+              width: "664px",
+              height: "620px",
             },
             logo: {
               imageURL:

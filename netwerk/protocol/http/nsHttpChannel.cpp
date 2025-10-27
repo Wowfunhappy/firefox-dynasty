@@ -2197,6 +2197,12 @@ nsresult nsHttpChannel::InitTransaction() {
     }
   }
 
+  // Grant LNA permissions for captive portal tabs to allow them to access
+  // local network resources without prompting the user
+  if (bc && bc->GetIsCaptivePortalTab()) {
+    mLNAPermission.mLocalNetworkPermission = LNAPermission::Granted;
+  }
+
   rv = mTransaction->Init(
       mCaps, mConnectionInfo, &mRequestHead, mUploadStream, mReqContentLength,
       LoadUploadStreamHasHeaders(), GetCurrentSerialEventTarget(), callbacks,
@@ -3324,7 +3330,7 @@ nsresult nsHttpChannel::ContinueProcessResponse3(nsresult rv) {
         LOG(
             ("Suspending the transaction, asynchronously prompting for "
              "credentials"));
-        mTransactionPump->Suspend();
+        Suspend();
 
 #ifdef DEBUG
         // This is for test purposes only. See bug 1683176 for details.
@@ -6733,7 +6739,7 @@ NS_IMETHODIMP nsHttpChannel::OnAuthAvailable() {
   StoreProxyAuthPending(false);
   LOG(("Resuming the transaction, we got credentials from user"));
   if (mTransactionPump) {
-    mTransactionPump->Resume();
+    Resume();
   }
 
   if (StaticPrefs::network_auth_use_redirect_for_retries()) {
@@ -6775,7 +6781,7 @@ NS_IMETHODIMP nsHttpChannel::OnAuthCancelled(bool userCancel) {
     // may have been canceled if we don't want to show it)
     mAuthRetryPending = false;
     LOG(("Resuming the transaction, user cancelled the auth dialog"));
-    mTransactionPump->Resume();
+    Resume();
 
     if (NS_FAILED(rv)) mTransactionPump->Cancel(rv);
   }
@@ -7187,8 +7193,9 @@ nsHttpChannel::Resume() {
     }
 
     // Reset bypass flag since the writer is resuming
-    if (mCacheEntry && (mWritingToCache || LoadCacheEntryIsWriteOnly())) {
+    if (mBypassCacheWriterSet && mCacheEntry) {
       mCacheEntry->SetBypassWriterLock(false);
+      mBypassCacheWriterSet = false;
       LOG(("  reset bypass writer lock flag"));
     }
 
@@ -11726,6 +11733,7 @@ nsresult nsHttpChannel::OnSuspendTimeout() {
   if (mSuspendCount > 0 && mCacheEntry) {
     LOG(("  suspend timeout: bypassing writer lock"));
     mCacheEntry->SetBypassWriterLock(true);
+    mBypassCacheWriterSet = true;
   }
 
   return NS_OK;
