@@ -24,7 +24,6 @@
 #include "mozilla/gfx/CanvasRenderThread.h"
 #include "mozilla/gfx/CanvasShutdownManager.h"
 #include "mozilla/ClearOnShutdown.h"
-#include "mozilla/DebugOnly.h"
 #include "mozilla/EnumTypeTraits.h"
 #include "mozilla/StaticPrefs_accessibility.h"
 #include "mozilla/StaticPrefs_apz.h"
@@ -1235,15 +1234,13 @@ bool gfxPlatform::IsHeadless() {
 
 /* static */
 bool gfxPlatform::UseRemoteCanvas() {
-  return XRE_IsContentProcess() && (gfx::gfxVars::RemoteCanvasEnabled() ||
-                                    gfx::gfxVars::UseAcceleratedCanvas2D());
+  return XRE_IsContentProcess() && gfx::gfxVars::UseAcceleratedCanvas2D();
 }
 
 /* static */
 bool gfxPlatform::IsBackendAccelerated(
     const mozilla::gfx::BackendType aBackendType) {
-  return aBackendType == BackendType::DIRECT2D ||
-         aBackendType == BackendType::DIRECT2D1_1;
+  return false;
 }
 
 /* static */
@@ -1775,7 +1772,7 @@ already_AddRefed<DrawTarget> gfxPlatform::CreateSimilarSoftwareDrawTarget(
 /* static */
 already_AddRefed<DrawTarget> gfxPlatform::CreateDrawTargetForData(
     unsigned char* aData, const IntSize& aSize, int32_t aStride,
-    SurfaceFormat aFormat, bool aUninitialized) {
+    SurfaceFormat aFormat, bool aUninitialized, bool aIsClear) {
   BackendType backendType = gfxVars::ContentBackend();
   NS_ASSERTION(backendType != BackendType::NONE, "No backend.");
 
@@ -1784,7 +1781,7 @@ already_AddRefed<DrawTarget> gfxPlatform::CreateDrawTargetForData(
   }
 
   RefPtr<DrawTarget> dt = Factory::CreateDrawTargetForData(
-      backendType, aData, aSize, aStride, aFormat, aUninitialized);
+      backendType, aData, aSize, aStride, aFormat, aUninitialized, aIsClear);
 
   return dt.forget();
 }
@@ -1956,17 +1953,8 @@ void gfxPlatform::InitBackendPrefs(BackendPrefsData&& aPrefsData) {
     mPreferredCanvasBackend = aPrefsData.mCanvasDefault;
   }
 
-  if (mPreferredCanvasBackend == BackendType::DIRECT2D1_1) {
-    // Falling back to D2D 1.0 won't help us here. When D2D 1.1 DT creation
-    // fails it means the surface was too big or there's something wrong with
-    // the device. D2D 1.0 will encounter a similar situation.
-    mFallbackCanvasBackend = GetCanvasBackendPref(
-        aPrefsData.mCanvasBitmask & ~(BackendTypeBit(mPreferredCanvasBackend) |
-                                      BackendTypeBit(BackendType::DIRECT2D)));
-  } else {
-    mFallbackCanvasBackend = GetCanvasBackendPref(
-        aPrefsData.mCanvasBitmask & ~BackendTypeBit(mPreferredCanvasBackend));
-  }
+  mFallbackCanvasBackend = GetCanvasBackendPref(
+      aPrefsData.mCanvasBitmask & ~BackendTypeBit(mPreferredCanvasBackend));
 
   mContentBackendBitmask = aPrefsData.mContentBitmask;
   mContentBackend = GetContentBackendPref(mContentBackendBitmask);
@@ -2477,23 +2465,6 @@ void gfxPlatform::InitAcceleration() {
 
   if (XRE_IsParentProcess()) {
     InitGPUProcessPrefs();
-
-    FeatureState& feature = gfxConfig::GetFeature(Feature::REMOTE_CANVAS);
-    feature.SetDefault(StaticPrefs::gfx_canvas_remote_AtStartup(),
-                       FeatureStatus::Disabled, "Disabled via pref");
-
-    if (!gfxConfig::IsEnabled(Feature::GPU_PROCESS) &&
-        !StaticPrefs::gfx_canvas_remote_allow_in_parent_AtStartup()) {
-      feature.Disable(FeatureStatus::UnavailableNoGpuProcess,
-                      "Disabled without GPU process",
-                      "FEATURE_REMOTE_CANVAS_NO_GPU_PROCESS"_ns);
-    }
-
-    gfxConfig::ForceDisable(Feature::REMOTE_CANVAS, FeatureStatus::Blocked,
-                            "Remote Canvas not supported",
-                            "FEATURE_REMOTE_CANVAS_NOT_SUPPORTED"_ns);
-
-    gfxVars::SetRemoteCanvasEnabled(feature.IsEnabled());
   }
 }
 
@@ -3433,11 +3404,6 @@ static void AcceleratedCanvas2DPrefChangeCallback(const char*, void*) {
     feature.Disable(FeatureStatus::Blocklisted, message.get(), failureId);
   }
 
-  if (gfxVars::RemoteCanvasEnabled()) {
-    feature.ForceDisable(FeatureStatus::Failed, "Disabled by Remote Canvas",
-                         "FEATURE_FAILURE_DISABLED_BY_REMOTE_CANVAS"_ns);
-  }
-
   gfxVars::SetUseAcceleratedCanvas2D(feature.IsEnabled());
 }
 
@@ -3951,8 +3917,7 @@ bool gfxPlatform::FallbackFromAcceleration(FeatureStatus aStatus,
     return true;
   }
 
-  // We aren't using Software WebRender + D3D11 compositing, so turn off the
-  // D3D11.
+  // We aren't using Software WebRender + D3D11 compositing, so turn off D3D11.
   if (gfxConfig::IsEnabled(Feature::D3D11_COMPOSITING)) {
     gfxConfig::GetFeature(Feature::D3D11_COMPOSITING)
         .ForceDisable(aStatus, aMessage, aFailureId);
@@ -4018,12 +3983,10 @@ bool gfxPlatform::FallbackFromAcceleration(FeatureStatus aStatus,
     return true;
   }
 
-  if ((gfxVars::RemoteCanvasEnabled() &&
-       !StaticPrefs::dom_webgpu_allow_in_parent_AtStartup()) ||
-      (gfxVars::UseAcceleratedCanvas2D() &&
+  if ((gfxVars::UseAcceleratedCanvas2D() &&
        !StaticPrefs::gfx_canvas_accelerated_allow_in_parent_AtStartup()) ||
       (gfxVars::AllowWebGPU() &&
-       !StaticPrefs::gfx_canvas_remote_allow_in_parent_AtStartup()) ||
+       !StaticPrefs::dom_webgpu_allow_in_parent_AtStartup()) ||
       (kIsAndroid && gfxVars::AllowWebglOop())) {
     // Because content has a lot of control over inputs to remote canvas, we
     // try to disable it as part of our final fallback step before disabling
@@ -4070,12 +4033,6 @@ void gfxPlatform::DisableAllCanvasForFallback(FeatureStatus aStatus,
     gfxVars::SetAllowWebGPU(false);
   }
 
-  if (gfxVars::RemoteCanvasEnabled() &&
-      !StaticPrefs::gfx_canvas_remote_allow_in_parent_AtStartup()) {
-    gfxConfig::Disable(Feature::REMOTE_CANVAS, aStatus, aMessage, aFailureId);
-    gfxVars::SetRemoteCanvasEnabled(false);
-  }
-
   if (kIsAndroid) {
     // On android, enable out-of-process WebGL only when GPU process exists.
     gfxVars::SetAllowWebglOop(false);
@@ -4101,12 +4058,6 @@ void gfxPlatform::DisableGPUProcess() {
 }
 
 /* static */ void gfxPlatform::DisableRemoteCanvas() {
-  if (gfxVars::RemoteCanvasEnabled()) {
-    gfxConfig::ForceDisable(Feature::REMOTE_CANVAS, FeatureStatus::Failed,
-                            "Disabled by runtime error",
-                            "FEATURE_REMOTE_CANVAS_RUNTIME_ERROR"_ns);
-    gfxVars::SetRemoteCanvasEnabled(false);
-  }
   if (gfxVars::UseAcceleratedCanvas2D()) {
     gfxConfig::ForceDisable(Feature::ACCELERATED_CANVAS2D,
                             FeatureStatus::Failed, "Disabled by runtime error",

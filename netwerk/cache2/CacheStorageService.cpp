@@ -744,10 +744,6 @@ static bool RemoveExactEntry(CacheEntryTable* aEntries, nsACString const& aKey,
     return false;  // Already replaced...
   }
 
-  // Remove from DictionaryCache immediately, to ensure the removal is
-  // synchronous
-  DictionaryCache::RemoveDictionaryFor(aEntry->GetURI());
-
   LOG(("RemoveExactEntry [entry=%p removed]", aEntry));
   aEntries->Remove(aKey);
   return true;
@@ -1510,8 +1506,8 @@ Result<size_t, nsresult> CacheStorageService::MemoryPool::PurgeByFrecency(
       } else {
         if (entry->GetEnhanceID().EqualsLiteral("dict:")) {
           LOG(
-              ("*** Entry is a dictionary origin, metadata size %d, referenced "
-               "%d, Frecency %f",
+              ("*** Ignored Entry is a dictionary origin, metadata size %d, "
+               "referenced %d, Frecency %f",
                entry->GetMetadataMemoryConsumption(), entry->IsReferenced(),
                entry->GetFrecency()));
         }
@@ -1530,7 +1526,9 @@ Result<size_t, nsresult> CacheStorageService::MemoryPool::PurgeByFrecency(
       break;
     }
 
-    RefPtr<CacheEntry> entry = checkPurge.mEntry;
+    // Ensure it's deleted immediately if purged so we can record the
+    // mMemorySize savings
+    RefPtr<CacheEntry> entry = std::move(checkPurge.mEntry);
 
     if (entry->Purge(CacheEntry::PURGE_WHOLE)) {
       numPurged++;
@@ -1544,7 +1542,10 @@ Result<size_t, nsresult> CacheStorageService::MemoryPool::PurgeByFrecency(
     }
   }
 
-  LOG(("MemoryPool::PurgeByFrecency done"));
+  LOG(
+      ("MemoryPool::PurgeByFrecency done, purged %zu - mMemorySize %u, "
+       "memoryLimit %u",
+       numPurged, (uint32_t)mMemorySize, memoryLimit));
 
   return numPurged;
 }

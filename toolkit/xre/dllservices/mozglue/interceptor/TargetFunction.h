@@ -11,6 +11,7 @@
 #include "mozilla/Attributes.h"
 #include "mozilla/BinarySearch.h"
 #include "mozilla/CheckedInt.h"
+#include "mozilla/DebugOnly.h"
 #include "mozilla/Maybe.h"
 
 #include "mozilla/Vector.h"
@@ -817,7 +818,7 @@ class MOZ_STACK_CLASS ReadOnlyTargetFunction final {
 
   uint32_t GetOffset() const { return mOffset; }
 
-  uintptr_t OffsetToAbsolute(const uint8_t aOffset) const {
+  uintptr_t OffsetToAbsolute(const int8_t aOffset) const {
     return mTargetBytes->GetBase() + mOffset + aOffset;
   }
 

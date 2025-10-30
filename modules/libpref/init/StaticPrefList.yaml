@@ -6788,38 +6788,11 @@
   value: 0x7fff
   mirror: always
 
-- name: gfx.canvas.remote
-  type: bool
-#if defined(XP_WIN)
-  value: true
-#else
-  value: false
-#endif
-  mirror: once
-
-- name: gfx.canvas.remote.allow-in-parent
-  type: bool
-  value: false
-  mirror: once
-
 # Whether OffscreenCanvas can use remote canvas
 - name: gfx.canvas.remote.allow-offscreen
   type: RelaxedAtomicBool
   value: true
   mirror: always
-
-# How many worker threads spawned for remote canvas
-#  -1 - Calculate based on processor cores
-#   0 - No worker threads spawned, will do work on CanvasRenderThread
-#  >0 - Create worker thread pool with given size
-- name: gfx.canvas.remote.worker-threads
-  type: int32_t
-#if defined(XP_WIN)
-  value: -1
-#else
-  value: 0
-#endif
-  mirror: once
 
 # Default size of the shmem buffers used for recording
 - name: gfx.canvas.remote.default-buffer-size
@@ -6864,7 +6837,7 @@
 
 - name: gfx.canvas.remote.use-draw-image-fast-path-d3d
   type: RelaxedAtomicBool
-  value: true
+  value: false
   mirror: always
 
 - name: gfx.canvas.remote.recycle-used-data-surface
@@ -9005,6 +8978,13 @@
     mirror: always
     set_spidermonkey_pref: startup
 
+  # Experimental support for import bytes in JavaScript.
+- name: javascript.options.experimental.import_bytes
+  type: bool
+  value: false
+  mirror: always
+  set_spidermonkey_pref: startup
+
 #endif  // NIGHTLY_BUILD
 
 # Whether to Baseline-compile self-hosted functions the first time they are
@@ -9993,6 +9973,13 @@
 - name: layout.css.basic-shape-shape.enabled
   type: RelaxedAtomicBool
   value: @IS_NIGHTLY_BUILD@
+  mirror: always
+  rust: true
+
+# Is support for the contrast-color() function enabled?
+- name: layout.css.contrast-color.enabled
+  type: RelaxedAtomicBool
+  value: true
   mirror: always
   rust: true
 
@@ -12148,7 +12135,7 @@
 # When modifying this pref, please update the test_peerConnection_glean.html tests as well.
 - name: media.webrtc.send_mlkem_keyshare
   type: RelaxedAtomicBool
-  value: @IS_EARLY_BETA_OR_EARLIER@
+  value: true
   mirror: always
 
 # This pref controls whether dispatch testing-only events.
@@ -17029,6 +17016,15 @@
 -   name: security.sandbox.windows.log.stackTraceDepth
     type: RelaxedAtomicUint32
     value: 0
+    mirror: always
+
+  # Whether \\??\\pipe\\chrome.* rule is added to the sandbox configurations.
+  # We are removing this using a pref because we know that in the past some
+  # injected DLLs have relied on this rule existing for their own pipes.
+  # This gives users a work-around if they have issues.
+-   name: security.sandbox.chrome-pipe-rule.enabled
+    type: RelaxedAtomicBool
+    value: false
     mirror: always
 #endif
 

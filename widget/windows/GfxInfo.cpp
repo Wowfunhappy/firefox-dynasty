@@ -18,6 +18,7 @@
 #include "xpcpublic.h"
 
 #include "mozilla/Components.h"
+#include "mozilla/PodOperations.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/gfx/DeviceManagerDx.h"
 #include "mozilla/gfx/Logging.h"
@@ -1973,13 +1974,6 @@ void GfxInfo::DescribeFeatures(JSContext* aCx, JS::Handle<JSObject*> aObj) {
 
     val = JS::BooleanValue(blocklisted);
     JS_SetProperty(aCx, obj, "blocklisted", val);
-  }
-
-  {
-    const char* version = "1.1";
-    JS::Rooted<JSString*> str(aCx, JS_NewStringCopyZ(aCx, version));
-    JS::Rooted<JS::Value> val(aCx, JS::StringValue(str));
-    JS_SetProperty(aCx, obj, "version", val);
   }
 }
 

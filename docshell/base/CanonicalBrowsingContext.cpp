@@ -487,8 +487,13 @@ void CanonicalBrowsingContext::SetActiveSessionHistoryEntryFromBFCache(
     SessionHistoryEntry* aEntry) {
   mActiveEntry = aEntry;
   if (Navigation::IsAPIEnabled()) {
-    MOZ_DIAGNOSTIC_ASSERT(!aEntry || mActiveEntryList.contains(aEntry));
-    MOZ_DIAGNOSTIC_ASSERT(aEntry || mActiveEntryList.isEmpty());
+    if (StaticPrefs::dom_navigation_api_strict_enabled()) {
+      MOZ_DIAGNOSTIC_ASSERT(!aEntry || mActiveEntryList.contains(aEntry));
+      MOZ_DIAGNOSTIC_ASSERT(aEntry || mActiveEntryList.isEmpty());
+    } else {
+      MOZ_ASSERT(!aEntry || mActiveEntryList.contains(aEntry));
+      MOZ_ASSERT(aEntry || mActiveEntryList.isEmpty());
+    }
   }
 }
 
@@ -1217,11 +1222,9 @@ void CanonicalBrowsingContext::SessionHistoryCommit(
           if (!addEntry) {
             shistory->ReplaceEntry(index, newActiveEntry);
             if (Navigation::IsAPIEnabled() && mActiveEntry &&
-                mActiveEntry->isInList()) {
-              RefPtr entry = mActiveEntry;
-              while (entry) {
-                entry = entry->removeAndGetNext();
-              }
+                mActiveEntry->isInList() && !newActiveEntry->isInList()) {
+              mActiveEntry->setNext(newActiveEntry);
+              mActiveEntry->remove();
             }
           }
           if (Navigation::IsAPIEnabled() && !newActiveEntry->isInList()) {

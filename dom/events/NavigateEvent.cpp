@@ -27,12 +27,11 @@ extern mozilla::LazyLogModule gNavigationAPILog;
 
 namespace mozilla::dom {
 
-NS_IMPL_CYCLE_COLLECTION_INHERITED_WITH_JS_MEMBERS(NavigateEvent, Event,
-                                                   (mDestination, mSignal,
-                                                    mFormData, mSourceElement,
-                                                    mNavigationHandlerList,
-                                                    mAbortController),
-                                                   (mInfo))
+NS_IMPL_CYCLE_COLLECTION_INHERITED_WITH_JS_MEMBERS(
+    NavigateEvent, Event,
+    (mDestination, mSignal, mFormData, mSourceElement, mNavigationHandlerList,
+     mAbortController, mNavigationPrecommitHandlerList),
+    (mInfo))
 
 NS_IMPL_ADDREF_INHERITED(NavigateEvent, Event)
 NS_IMPL_RELEASE_INHERITED(NavigateEvent, Event)
@@ -87,6 +86,10 @@ already_AddRefed<NavigateEvent> NavigateEvent::Constructor(
 }
 
 NavigationType NavigateEvent::NavigationType() const { return mNavigationType; }
+
+void NavigateEvent::SetNavigationType(enum NavigationType aNavigationType) {
+  mNavigationType = aNavigationType;
+}
 
 already_AddRefed<NavigationDestination> NavigateEvent::Destination() const {
   return do_AddRef(mDestination);
@@ -159,21 +162,34 @@ void NavigateEvent::Intercept(const NavigationInterceptOptions& aOptions,
   }
 
   // Step 4
+  if (aOptions.mPrecommitHandler.WasPassed()) {
+    // Step 4.1
+    if (!Cancelable()) {
+      aRv.ThrowInvalidStateError("Event is not cancelable");
+      return;
+    }
+
+    // Step 4.2
+    mNavigationPrecommitHandlerList.AppendElement(
+        aOptions.mPrecommitHandler.InternalValue().get());
+  }
+
+  // Step 5
   MOZ_DIAGNOSTIC_ASSERT(mInterceptionState == InterceptionState::None ||
                         mInterceptionState == InterceptionState::Intercepted);
 
-  // Step 5
+  // Step 6
   mInterceptionState = InterceptionState::Intercepted;
 
-  // Step 6
+  // Step 7
   if (aOptions.mHandler.WasPassed()) {
     mNavigationHandlerList.AppendElement(
         aOptions.mHandler.InternalValue().get());
   }
 
-  // Step 7
+  // Step 8
   if (aOptions.mFocusReset.WasPassed()) {
-    // Step 7.1
+    // Step 8.1
     if (mFocusResetBehavior &&
         *mFocusResetBehavior != aOptions.mFocusReset.Value()) {
       RefPtr<Document> document = GetDocument();
@@ -182,20 +198,20 @@ void NavigateEvent::Intercept(const NavigationInterceptOptions& aOptions,
                                   aOptions.mFocusReset.Value());
     }
 
-    // Step 7.2
+    // Step 8.2
     mFocusResetBehavior = Some(aOptions.mFocusReset.Value());
   }
 
-  // Step 8
+  // Step 9
   if (aOptions.mScroll.WasPassed()) {
-    // Step 8.1
+    // Step 9.1
     if (mScrollBehavior && *mScrollBehavior != aOptions.mScroll.Value()) {
       RefPtr<Document> document = GetDocument();
       MaybeReportWarningToConsole(document, u"scroll"_ns, *mScrollBehavior,
                                   aOptions.mScroll.Value());
     }
 
-    // Step 8.2
+    // Step 9.2
     mScrollBehavior.emplace(aOptions.mScroll.Value());
   }
 }
@@ -275,28 +291,38 @@ bool NavigateEvent::IsBeingDispatched() const {
 
 // https://html.spec.whatwg.org/#navigateevent-finish
 void NavigateEvent::Finish(bool aDidFulfill) {
-  switch (mInterceptionState) {
-    // Step 1
-    case InterceptionState::Intercepted:
-    case InterceptionState::Finished:
-      MOZ_DIAGNOSTIC_ASSERT(false);
-      break;
-      // Step 2
-    case InterceptionState::None:
-      return;
-    default:
-      break;
+  // Step 1
+  MOZ_DIAGNOSTIC_ASSERT(mInterceptionState != InterceptionState::Finished);
+
+  // Step 2
+  if (mInterceptionState == InterceptionState::Intercepted) {
+    // Step 2.1
+    MOZ_DIAGNOSTIC_ASSERT(!aDidFulfill);
+
+    // Step 2.2
+    MOZ_DIAGNOSTIC_ASSERT(!mNavigationPrecommitHandlerList.IsEmpty());
+
+    // Step 2.3
+    mInterceptionState = InterceptionState::Finished;
+
+    // Step 2.4
+    return;
   }
 
   // Step 3
-  PotentiallyResetFocus();
+  if (mInterceptionState == InterceptionState::None) {
+    return;
+  }
 
   // Step 4
+  PotentiallyResetFocus();
+
+  // Step 5
   if (aDidFulfill) {
     PotentiallyProcessScrollBehavior();
   }
 
-  // Step 5
+  // Step 6
   mInterceptionState = InterceptionState::Finished;
 }
 

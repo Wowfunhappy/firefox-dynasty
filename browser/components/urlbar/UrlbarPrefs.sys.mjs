@@ -320,21 +320,7 @@ const PREF_URLBAR_DEFAULTS = /** @type {PreferenceDefinition[]} */ ([
 
   // If the user has gone through a quick suggest prefs migration, then this
   // pref will have a user-branch value that records the latest prefs version.
-  // Version changelog:
-  //
-  // 0: (Unversioned) When `suggest.quicksuggest` is false, all quick suggest
-  //    results are disabled and `suggest.quicksuggest.sponsored` is ignored. To
-  //    show sponsored suggestions, both prefs must be true.
-  //
-  // 1: `suggest.quicksuggest` is removed, `suggest.quicksuggest.nonsponsored`
-  //    is introduced. `suggest.quicksuggest.nonsponsored` and
-  //    `suggest.quicksuggest.sponsored` are independent:
-  //    `suggest.quicksuggest.nonsponsored` controls non-sponsored results and
-  //    `suggest.quicksuggest.sponsored` controls sponsored results.
-  //    `quicksuggest.dataCollection.enabled` is introduced.
-  //
-  // 2: For online, the defaults for `suggest.quicksuggest.nonsponsored` and
-  //    `suggest.quicksuggest.sponsored` are true. Previously they were false.
+  // See `QuickSuggest` for details on each version.
   ["quicksuggest.migrationVersion", 0],
 
   // Whether Suggest will use the ML backend in addition to Rust.
@@ -510,10 +496,11 @@ const PREF_URLBAR_DEFAULTS = /** @type {PreferenceDefinition[]} */ ([
   // Whether results will include QuickActions in the default search mode.
   ["suggest.quickactions", false],
 
-  // Whether results will include non-sponsored quick suggest suggestions.
-  ["suggest.quicksuggest.nonsponsored", false],
+  // Whether results will include Suggest suggestions.
+  ["suggest.quicksuggest.all", false],
 
-  // Whether results will include sponsored quick suggest suggestions.
+  // Whether results will include sponsored Suggest suggestions. Only relevant
+  // if the `all` pref is true.
   ["suggest.quicksuggest.sponsored", false],
 
   // Whether results will include Realtime suggestion opt-in result.

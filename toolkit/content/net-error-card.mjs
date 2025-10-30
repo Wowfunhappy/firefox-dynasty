@@ -36,6 +36,14 @@ export class NetErrorCard extends MozLitElement {
     errorCode: "#errorCode",
     advancedContainer: ".advanced-container",
     advancedButton: "#advanced-button",
+    certErrorIntro: "#certErrorIntro",
+    certErrorDebugInfo: "#certificateErrorDebugInformation",
+    certErrorText: "#certificateErrorText",
+    viewCertificate: "#viewCertificate",
+    certErrorBodyTitle: "#certErrorBodyTitle",
+    returnButton: "#returnButton",
+    learnMoreLink: "#learnMoreLink",
+    whatCanYouDo: "#whatCanYouDo",
   };
 
   static ERROR_CODES = new Set([
@@ -80,7 +88,6 @@ export class NetErrorCard extends MozLitElement {
 
   connectedCallback() {
     super.connectedCallback();
-
     this.init();
   }
 
@@ -133,6 +140,7 @@ export class NetErrorCard extends MozLitElement {
       case "SEC_ERROR_EXPIRED_CERTIFICATE":
       case "MOZILLA_PKIX_ERROR_SELF_SIGNED_CERT":
         return html`<p
+          id="certErrorIntro"
           data-l10n-id="fp-certerror-intro"
           data-l10n-args='{"hostname": "${this.hostname}"}'
         ></p>`;
@@ -311,6 +319,7 @@ export class NetErrorCard extends MozLitElement {
         ? html`<p>
             <strong data-l10n-id="fp-certerror-what-can-you-do"></strong>
             <span
+              id="whatCanYouDo"
               data-l10n-id=${whatCanYouDoL10nId}
               data-l10n-args=${JSON.stringify(whatCanYouDoL10nArgs)}
             ></span>
@@ -325,6 +334,7 @@ export class NetErrorCard extends MozLitElement {
               data-l10n-id=${learnMoreL10nId}
               data-l10n-args=${JSON.stringify(learnMoreL10nArgs)}
               data-telemetry-id="learn_more_link"
+              id="learnMoreLink"
               @click=${this.handleTelemetryClick}
             ></a>
           </p>`
@@ -546,13 +556,17 @@ export class NetErrorCard extends MozLitElement {
           <img src="chrome://global/skin/illustrations/security-error.svg" />
         </div>
         <div class="container">
-          <h1 data-l10n-id="fp-certerror-body-title"></h1>
+          <h1
+            id="certErrorBodyTitle"
+            data-l10n-id="fp-certerror-body-title"
+          ></h1>
           ${this.introContentTemplate()}
           <moz-button-group
             ><moz-button
               type="primary"
               data-l10n-id="fp-certerror-return-to-previous-page-recommended-button"
               data-telemetry-id="return_button_adv"
+              id="returnButton"
               @click=${this.handleGoBackClick}
             ></moz-button
             ><moz-button

@@ -41,6 +41,11 @@ skip-if = [
 ]
 
 ["browser_empty_name_beforeunload_test.js"]
+skip-if = [
+  "os == 'linux' && os_version == '24.04' && processor == 'x86_64'", # Bug 1942939
+  "os == 'win' && os_version == '11.26100' && processor == 'x86_64' && debug", # Bug 1942939
+  "os == 'win' && os_version == '11.26100' && processor == 'x86' && debug", # Bug 1942939
+]
 
 ["browser_menubar_profiles.js"]
 head = "../unit/head.js head.js"
@@ -71,6 +76,7 @@ skip-if = [
   "os == 'mac' && os_version == '15.30' && arch == 'aarch64' && opt", # Bug 1948374
   "os == 'mac' && os_version == '10.15' && processor == 'x86_64' && opt", # Bug 1948374
   "os == 'linux' && os_version == '18.04' && processor == 'x86_64' && opt", # Bug 1948374
+  "os == 'linux' && os_version == '24.04' && processor == 'x86_64' && opt", # Bug 1948374
 ]
 
 ["browser_window_title_test.js"]

@@ -76,7 +76,6 @@
 #include "mozilla/Telemetry.h"
 #include "mozilla/TelemetryComms.h"
 #include "mozilla/TelemetryIPC.h"
-#include "mozilla/ThreadSafety.h"
 #include "mozilla/WebBrowserPersistDocumentParent.h"
 #include "mozilla/XREAppData.h"
 #include "mozilla/devtools/HeapSnapshotTempFileHelperParent.h"
@@ -2786,7 +2785,7 @@ bool ContentParent::InitInternal(ProcessPriority aInitialPriority) {
 
   // 1. Ensure the GPU process is ready, as we know we are not yet in shutdown.
   GPUProcessManager* gpm = GPUProcessManager::Get();
-  gpm->EnsureGPUReady();
+  nsresult gpuReadyRv = gpm->EnsureGPUReady();
   // 2. Build ContentDeviceData first, as it may affect some gfxVars.
   gfxPlatform::GetPlatform()->BuildContentDeviceData(
       &xpcomInit.contentDeviceData());
@@ -2912,7 +2911,8 @@ bool ContentParent::InitInternal(ProcessPriority aInitialPriority) {
   Endpoint<PRemoteMediaManagerChild> videoManager;
   AutoTArray<uint32_t, 3> namespaces;
 
-  if (!gpm->CreateContentBridges(OtherEndpointProcInfo(), &compositor,
+  if (NS_FAILED(gpuReadyRv) ||
+      !gpm->CreateContentBridges(OtherEndpointProcInfo(), &compositor,
                                  &imageBridge, &vrBridge, &videoManager,
                                  mChildID, &namespaces)) {
     // This can fail if we've already started shutting down the compositor

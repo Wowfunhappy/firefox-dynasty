@@ -31,7 +31,6 @@ Preferences.addAll([
   { id: "browser.urlbar.recentsearches.featureGate", type: "bool" },
   { id: "browser.urlbar.suggest.recentsearches", type: "bool" },
   { id: "browser.urlbar.scotchBonnet.enableOverride", type: "bool" },
-  { id: "browser.urlbar.update2.engineAliasRefresh", type: "bool" },
 
   // Suggest Section.
   { id: "browser.urlbar.suggest.bookmark", type: "bool" },
@@ -40,7 +39,7 @@ Preferences.addAll([
   { id: "browser.urlbar.suggest.openpage", type: "bool" },
   { id: "browser.urlbar.suggest.topsites", type: "bool" },
   { id: "browser.urlbar.suggest.engines", type: "bool" },
-  { id: "browser.urlbar.suggest.quicksuggest.nonsponsored", type: "bool" },
+  { id: "browser.urlbar.suggest.quicksuggest.all", type: "bool" },
   { id: "browser.urlbar.suggest.quicksuggest.sponsored", type: "bool" },
   { id: "browser.urlbar.quicksuggest.online.enabled", type: "bool" },
 ]);
@@ -98,11 +97,6 @@ var gSearchPane = {
       "browser.search.suggest.enabled.private"
     );
 
-    Preferences.get("browser.urlbar.update2.engineAliasRefresh").on(
-      "change",
-      () => gEngineView.updateUserEngineButtonVisibility()
-    );
-
     let updateSuggestionCheckboxes =
       this._updateSuggestionCheckboxes.bind(this);
     suggestsPref.on("change", updateSuggestionCheckboxes);
@@ -143,6 +137,11 @@ var gSearchPane = {
     privateWindowCheckbox.addEventListener("command", () => {
       privateSuggestsPref.value = privateWindowCheckbox.checked;
     });
+
+    Preferences.addSyncFromPrefListener(
+      document.getElementById("firefoxSuggestAll"),
+      this._onFirefoxSuggestAllChange.bind(this)
+    );
 
     setEventListener(
       "browserSeparateDefaultEngine",
@@ -220,6 +219,17 @@ var gSearchPane = {
 
     const vbox = document.getElementById("browserPrivateEngineSelection");
     vbox.hidden = !separateEnabled || !separateDefault;
+  },
+
+  _onFirefoxSuggestAllChange() {
+    var prefValue = Preferences.get(
+      "browser.urlbar.suggest.quicksuggest.all"
+    ).value;
+    document.getElementById("firefoxSuggestSponsored").disabled = !prefValue;
+    document.getElementById("firefoxSuggestOnlineEnabledToggle").disabled =
+      !prefValue;
+    // Don't override pref value in the UI.
+    return undefined;
   },
 
   _onBrowserSeparateDefaultEngineChange(event) {
@@ -830,7 +840,6 @@ class EngineView {
 
     this.loadL10nNames();
     this.#addListeners();
-    this.updateUserEngineButtonVisibility();
   }
 
   async loadL10nNames() {
@@ -882,18 +891,6 @@ class EngineView {
     this._engineList.addEventListener("keypress", this);
     this._engineList.addEventListener("select", this);
     this._engineList.addEventListener("dblclick", this);
-  }
-
-  /**
-   * Shows the Add and Edit Search Engines buttons if the pref is enabled.
-   */
-  updateUserEngineButtonVisibility() {
-    let aliasRefresh = Services.prefs.getBoolPref(
-      "browser.urlbar.update2.engineAliasRefresh",
-      false
-    );
-    document.getElementById("addEngineButton").hidden = !aliasRefresh;
-    document.getElementById("editEngineButton").hidden = !aliasRefresh;
   }
 
   get lastEngineIndex() {

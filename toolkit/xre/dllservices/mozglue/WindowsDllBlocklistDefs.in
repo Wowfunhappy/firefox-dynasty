@@ -261,6 +261,7 @@ ALL_PROCESSES += [
     DllBlocklistEntry("magicdsfilterQuest3.dll", ALL_VERSIONS),
     DllBlocklistEntry("magicdsfilterQuest3s.dll", ALL_VERSIONS),
     DllBlocklistEntry("magicdsfilterQuest2.dll", ALL_VERSIONS),
+    DllBlocklistEntry("magicdsfilterQuestPro.dll", ALL_VERSIONS),
 ]
 
 # Shell extensions that result in crashes when the file-dialog is opened. (These
@@ -362,6 +363,9 @@ BROWSER_PROCESS += [
 
     # old versions of KeyScrambler (bug 1994657)
     DllBlocklistEntry("KeyScramblerIE.dll", (3, 17, 0, 4)),
+
+    # 123SyncCloud/123CloudStorage shell extension (bug 1996038)
+    DllBlocklistEntry("MFCopyHook.dll", ALL_VERSIONS),
 ]
 
 CHILD_PROCESSES += [
@@ -460,4 +464,21 @@ GMPLUGIN_PROCESSES += [
 GMPLUGIN_PROCESSES_TESTS += [
     # DLLs used by TestDllBlocklist* gTests
     DllBlocklistEntry("testdllblocklist_gmpluginprocessonly.dll", ALL_VERSIONS),
+]
+
+RDD_PROCESSES += [
+    # McAfee/Musarubra DLLs, bug 1994743
+    DllBlocklistEntry("epclient64.dll", ALL_VERSIONS),
+    DllBlocklistEntry("EpMPApi.dll", ALL_VERSIONS),
+    DllBlocklistEntry("EpMPThe.dll", ALL_VERSIONS),
+    DllBlocklistEntry("fcagpph64.dll", ALL_VERSIONS),
+    DllBlocklistEntry("fcagff64.dll", ALL_VERSIONS),
+    DllBlocklistEntry("mfehcinj.dll", ALL_VERSIONS),
+    DllBlocklistEntry("mfehcthe.dll", ALL_VERSIONS),
+    DllBlocklistEntry("mvcairo_x64.dll", ALL_VERSIONS),
+]
+
+RDD_PROCESSES_TESTS += [
+    # DLLs used by TestDllBlocklist* gTests
+    DllBlocklistEntry("testdllblocklist_rddprocessonly.dll", ALL_VERSIONS),
 ]

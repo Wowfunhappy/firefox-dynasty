@@ -12,7 +12,7 @@
 #include <sys/types.h>
 
 #include "mozilla/Maybe.h"
-#include "mozilla/Result.h"
+#include "mozilla/MozPromise.h"
 #include "mozilla/UniquePtrExtensions.h"
 #include "mozilla/ipc/LaunchError.h"
 
