@@ -152,19 +152,21 @@ void DataChannelConnectionDcSctp::OnSctpPacketReceived(
   mDcSctp->ReceivePacket(data);
 }
 
-void DataChannelConnectionDcSctp::ResetStreams(nsTArray<uint16_t>& aStreams) {
+bool DataChannelConnectionDcSctp::ResetStreams(nsTArray<uint16_t>& aStreams) {
   MOZ_ASSERT(mSTS->IsOnCurrentThread());
   DC_DEBUG(("%s: %p", __func__, this));
   if (!mDcSctp) {
-    return;
+    return false;
   }
   std::vector<StreamID> converted;
   for (auto id : aStreams) {
     DC_DEBUG(("%s: %p Resetting %u", __func__, this, id));
     converted.push_back(StreamID(id));
   }
-  mDcSctp->ResetStreams(webrtc::ArrayView<const StreamID>(converted));
+  auto result =
+      mDcSctp->ResetStreams(webrtc::ArrayView<const StreamID>(converted));
   aStreams.Clear();
+  return result == ResetStreamsStatus::kPerformed;
 }
 
 void DataChannelConnectionDcSctp::OnStreamOpen(uint16_t aStream) {
@@ -341,15 +343,23 @@ void DataChannelConnectionDcSctp::OnStreamsResetFailed(
   DC_ERROR(("%s: %p", __func__, this));
   // It probably does not make much sense to retry this here. If dcsctp doesn't
   // want to retry, we probably don't either.
-  (void)aOutgoingStreams;
   (void)aReason;
+  std::vector<uint16_t> streamsReset;
+  for (auto id : aOutgoingStreams) {
+    streamsReset.push_back(id.value());
+  }
+  OnStreamsResetComplete(std::move(streamsReset));
 }
 
 void DataChannelConnectionDcSctp::OnStreamsResetPerformed(
     webrtc::ArrayView<const StreamID> aOutgoingStreams) {
   MOZ_ASSERT(mSTS->IsOnCurrentThread());
   DC_DEBUG(("%s: %p", __func__, this));
-  (void)aOutgoingStreams;
+  std::vector<uint16_t> streamsReset;
+  for (auto id : aOutgoingStreams) {
+    streamsReset.push_back(id.value());
+  }
+  OnStreamsResetComplete(std::move(streamsReset));
 }
 
 void DataChannelConnectionDcSctp::OnIncomingStreamsReset(

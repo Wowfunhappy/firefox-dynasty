@@ -303,7 +303,7 @@ export default [
       "uriloader/**",
       "widget/tests/window_composition_text_querycontent.xhtml",
     ],
-    ignores: ["devtools/startup/**"],
+    ignores: ["devtools/shared/css/parsing-utils.js", "devtools/startup/**"],
     rules: {
       "jsdoc/check-access": "off",
       "jsdoc/check-param-names": "off",
@@ -311,7 +311,6 @@ export default [
       "jsdoc/check-tag-names": "off",
       "jsdoc/check-types": "off",
       "jsdoc/empty-tags": "off",
-      "jsdoc/no-multi-asterisks": "off",
       "jsdoc/require-param-type": "off",
       "jsdoc/require-returns-type": "off",
       "jsdoc/tag-lines": ["off", "any", { startLines: 1 }],
@@ -480,7 +479,7 @@ export default [
       "widget/tests/file*.js",
       "widget/tests/window_composition_text_querycontent.xhtml",
     ],
-    ignores: ["devtools/startup/**"],
+    ignores: ["devtools/shared/css/parsing-utils.js", "devtools/startup/**"],
     rules: mozilla.turnOff(mozilla.configs["flat/require-jsdoc"].rules),
   },
   {

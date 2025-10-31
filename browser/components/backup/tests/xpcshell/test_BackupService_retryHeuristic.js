@@ -4,10 +4,8 @@ https://creativecommons.org/publicdomain/zero/1.0/ */
 "use strict";
 
 ChromeUtils.defineESModuleGetters(this, {
-  setTimeout: "resource://gre/modules/Timer.sys.mjs",
   BackupError: "resource:///modules/backup/BackupError.mjs",
   ERRORS: "chrome://browser/content/backup/backup-constants.mjs",
-  AppConstants: "resource://gre/modules/AppConstants.sys.mjs",
 });
 
 const BACKUP_RETRY_LIMIT_PREF_NAME = "browser.backup.backup-retry-limit";
@@ -63,6 +61,8 @@ add_setup(async () => {
 });
 
 add_task(async function test_retry_limit() {
+  Services.fog.testResetFOG();
+
   let bs = new BackupService();
   let sandbox = sinon.createSandbox();
   // Make createBackup fail intentionally
@@ -101,6 +101,22 @@ add_task(async function test_retry_limit() {
       ERRORS.UNKNOWN,
       "Error code has been set"
     );
+
+    if (i < n) {
+      Assert.equal(
+        Glean.browserBackup.backupThrottled.testGetValue(),
+        null,
+        "backupThrottled telemetry was not sent yet"
+      );
+    } else {
+      // On this call, createBackup _was_ called, but the next call will be
+      // ignored. However, the telemetry ping is sent now.
+      Assert.equal(
+        Glean.browserBackup.backupThrottled.testGetValue().length,
+        1,
+        "backupThrottled telemetry was sent"
+      );
+    }
   }
   // check if it switched to no longer creating backups on idle
   const previousCalls = bs.createBackup.callCount;
@@ -120,6 +136,7 @@ add_task(async function test_retry_limit() {
     "Disable on idle has been enabled"
   );
 
+  Services.fog.testResetFOG();
   Services.prefs.setIntPref(MINIMUM_TIME_BETWEEN_BACKUPS_SECONDS_PREF_NAME, 0);
   registerCleanupFunction(() => {
     Services.prefs.clearUserPref(
@@ -140,6 +157,12 @@ add_task(async function test_retry_limit() {
     bs.createBackup.callCount,
     previousCalls + 1,
     "createBackup was called again"
+  );
+
+  Assert.equal(
+    Glean.browserBackup.backupThrottled.testGetValue(),
+    null,
+    "backupThrottled telemetry was not sent after resuming backups"
   );
 
   // #backupInProgress is set to false

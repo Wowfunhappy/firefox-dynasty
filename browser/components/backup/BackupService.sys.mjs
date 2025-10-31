@@ -298,6 +298,14 @@ class BinaryReadableStream {
        *   The number of bytes available in the stream
        */
       onDataAvailable(request, stream, offset, count) {
+        if (this._done) {
+          // No need to load anything else - abort reading in more
+          // attachments.
+          throw Components.Exception(
+            "Got binary block - cancelling loading the multipart stream.",
+            Cr.NS_BINDING_ABORTED
+          );
+        }
         if (!this._enabled) {
           // We don't care about this data, just move on.
           return;
@@ -319,13 +327,6 @@ class BinaryReadableStream {
           this._done = true;
 
           controller.close();
-
-          // No need to load anything else - abort reading in more
-          // attachments.
-          throw Components.Exception(
-            "Got binary block - cancelling loading the multipart stream.",
-            Cr.NS_BINDING_ABORTED
-          );
         }
       },
 
@@ -619,6 +620,7 @@ export class BackupService extends EventTarget {
       return {
         enabled: false,
         reason: "Archiving a profile disabled remotely.",
+        internalReason: "nimbus",
       };
     }
 
@@ -633,6 +635,14 @@ export class BackupService extends EventTarget {
       return {
         enabled: false,
         reason: "Backup is disabled for users with sanitizeOnShutdown enabled.",
+      };
+    }
+
+    if (lazy.SelectableProfileService.hasCreatedSelectableProfiles()) {
+      return {
+        enabled: false,
+        reason:
+          "Archiving a profile is disabled because the user has created selectable profiles.",
       };
     }
 
@@ -666,6 +676,14 @@ export class BackupService extends EventTarget {
       return {
         enabled: false,
         reason: "Backup is disabled for users with sanitizeOnShutdown enabled.",
+      };
+    }
+
+    if (lazy.SelectableProfileService.hasCreatedSelectableProfiles()) {
+      return {
+        enabled: false,
+        reason:
+          "Restoring a profile is disabled because the user has created selectable profiles.",
       };
     }
 
@@ -806,6 +824,15 @@ export class BackupService extends EventTarget {
    * @type {boolean}
    */
   #takenMeasurements = false;
+
+  /**
+   * Stores whether backing up has been disabled at some point during this
+   * session. If it has been, the backupDisabledReason telemetry metric is set
+   * on each backup. (It cannot be unset due to Glean limitations.)
+   *
+   * @type {boolean}
+   */
+  #wasArchivePreviouslyDisabled = false;
 
   /**
    * The path of the default parent directory for saving backups.
@@ -1098,10 +1125,19 @@ export class BackupService extends EventTarget {
       if (!this.#backupWriteAbortController.signal.aborted) {
         await this.deleteLastBackup();
         if (lazy.scheduledBackupsPref) {
-          await this.createBackupOnIdleDispatch();
+          await this.createBackupOnIdleDispatch({
+            reason: "user deleted some data",
+          });
         }
       }
     }, BackupService.REGENERATION_DEBOUNCE_RATE_MS);
+
+    let backupStatus = this.archiveEnabledStatus;
+    if (!backupStatus.enabled) {
+      let internalReason = backupStatus.internalReason;
+      this.#wasArchivePreviouslyDisabled = true;
+      Glean.browserBackup.backupDisabledReason.set(internalReason);
+    }
   }
 
   /**
@@ -1469,15 +1505,25 @@ export class BackupService extends EventTarget {
    * @param {string} [options.profilePath=PathUtils.profileDir]
    *   The path to the profile to backup. By default, this is the current
    *   profile.
+   * @param {string} [options.reason=unknown]
+   *   The reason for starting the backup. This is sent along with the
+   *   backup.backup_start event.
    * @returns {Promise<CreateBackupResult|null>}
    *   A promise that resolves to information about the backup that was
    *   created, or null if the backup failed.
    */
-  async createBackup({ profilePath = PathUtils.profileDir } = {}) {
-    const status = this.archiveEnabledStatus;
+  async createBackup({
+    profilePath = PathUtils.profileDir,
+    reason = "unknown",
+  } = {}) {
+    let status = this.archiveEnabledStatus;
     if (!status.enabled) {
       lazy.logConsole.debug(status.reason);
+      this.#wasArchivePreviouslyDisabled = true;
+      Glean.browserBackup.backupDisabledReason.set(status.internalReason);
       return null;
+    } else if (this.#wasArchivePreviouslyDisabled) {
+      Glean.browserBackup.backupDisabledReason.set("reenabled");
     }
 
     // createBackup does not allow re-entry or concurrent backups.
@@ -1485,6 +1531,8 @@ export class BackupService extends EventTarget {
       lazy.logConsole.warn("Backup attempt already in progress");
       return null;
     }
+
+    Glean.browserBackup.backupStart.record({ reason });
 
     return locks.request(
       BackupService.WRITE_BACKUP_LOCK_NAME,
@@ -1497,6 +1545,8 @@ export class BackupService extends EventTarget {
         // reset the error state prefs
         Services.prefs.clearUserPref(BACKUP_DEBUG_INFO_PREF_NAME);
         Services.prefs.setIntPref(BACKUP_ERROR_CODE_PREF_NAME, ERRORS.NONE);
+        // reset profile copied pref so the backup welcome messaging will show
+        Services.prefs.clearUserPref("browser.profiles.profile-copied");
 
         try {
           lazy.logConsole.debug(
@@ -1585,7 +1635,11 @@ export class BackupService extends EventTarget {
           this.#_state.lastBackupDate = nowSeconds;
           Glean.browserBackup.totalBackupTime.stopAndAccumulate(backupTimer);
 
-          Glean.browserBackup.created.record();
+          Glean.browserBackup.created.record({
+            encrypted: this.#_state.encryptionEnabled,
+            location: this.classifyLocationForTelemetry(archiveDestFolderPath),
+            size: archiveSizeBytesNearestMebibyte,
+          });
 
           // we should reset any values that were set for retry error handling
           Services.prefs.clearUserPref(DISABLED_ON_IDLE_RETRY_PREF_NAME);
@@ -1620,6 +1674,51 @@ export class BackupService extends EventTarget {
         }
       }
     );
+  }
+
+  /**
+   * Creates a coarse name corresponding to the location where the backup will
+   * be stored. This is sent by telemetry, and aims to anonymize the data.
+   *
+   * Normally, the path should end in 'Restore Firefox'; if it doesn't, you
+   * might be passing the wrong path and will get the wrong result.
+   *
+   * This isn't private so it can be used by the tests; avoid relying on this
+   * code from elsewhere.
+   *
+   * @param {string} path The absolute path that contains the backup file.
+   * @returns {string} A coarse location to send with the telemetry.
+   */
+  classifyLocationForTelemetry(path) {
+    let knownLocations = {
+      onedrive: "OneDrPD",
+      documents: "Docs",
+    };
+
+    let location;
+    try {
+      // By default, the backup will go into a folder called 'Restore Firefox',
+      // so we actually want the parent directory.
+      location = lazy.nsLocalFile(path).parent;
+    } catch (e) {
+      // initWithPath (at least on Windows) is _really_ picky; e.g.
+      // "C:/Windows/system32" will fail. Bail out if something went wrong so
+      // this doesn't affect the backup.
+      return `Error: ${e.name ?? "Unknown error"}`;
+    }
+
+    for (let label of Object.keys(knownLocations)) {
+      try {
+        let candidate = Services.dirsvc.get(knownLocations[label], Ci.nsIFile);
+        if (candidate.equals(location)) {
+          return label;
+        }
+      } catch (e) {
+        // ignore (maybe it wasn't found?)
+      }
+    }
+
+    return "other";
   }
 
   /**
@@ -2301,6 +2400,14 @@ export class BackupService extends EventTarget {
          *   The number of bytes available in the stream
          */
         onDataAvailable(request, stream, offset, count) {
+          if (this._done) {
+            // No need to load anything else - abort reading in more
+            // attachments.
+            throw Components.Exception(
+              "Got JSON block. Aborting further reads.",
+              Cr.NS_BINDING_ABORTED
+            );
+          }
           if (!this._enabled) {
             // We don't care about this data, just move on.
             return;
@@ -2332,12 +2439,6 @@ export class BackupService extends EventTarget {
                 )
               );
             }
-            // No need to load anything else - abort reading in more
-            // attachments.
-            throw Components.Exception(
-              "Got JSON block. Aborting further reads.",
-              Cr.NS_BINDING_ABORTED
-            );
           }
         },
 
@@ -2446,7 +2547,7 @@ export class BackupService extends EventTarget {
           if (!(e instanceof BackupError)) {
             throw new BackupError(
               "Failed to parse archive header",
-              ERRORS.FILE_SYSTEM_ERROR
+              ERRORS.CORRUPTED_ARCHIVE
             );
           }
           throw e;
@@ -3427,7 +3528,10 @@ export class BackupService extends EventTarget {
   onUpdateScheduledBackups(isScheduledBackupsEnabled) {
     if (this.#_state.scheduledBackupsEnabled != isScheduledBackupsEnabled) {
       if (isScheduledBackupsEnabled) {
-        Glean.browserBackup.toggleOn.record();
+        Glean.browserBackup.toggleOn.record({
+          encrypted: this.#_state.encryptionEnabled,
+          location: this.classifyLocationForTelemetry(lazy.backupDirPref),
+        });
       } else {
         Glean.browserBackup.toggleOff.record();
       }
@@ -3698,10 +3802,8 @@ export class BackupService extends EventTarget {
    *
    * The scheduler will automatically uninitialize itself on the
    * quit-application-granted observer notification.
-   *
-   * @returns {Promise<undefined>}
    */
-  async initBackupScheduler() {
+  initBackupScheduler() {
     if (this.#backupSchedulerInitted) {
       lazy.logConsole.warn(
         "BackupService scheduler already initting or initted."
@@ -3773,10 +3875,8 @@ export class BackupService extends EventTarget {
 
   /**
    * Uninitializes the backup scheduling system.
-   *
-   * @returns {Promise<undefined>}
    */
-  async uninitBackupScheduler() {
+  uninitBackupScheduler() {
     if (!this.#backupSchedulerInitted) {
       lazy.logConsole.warn(
         "Tried to uninitBackupScheduler when it wasn't yet enabled."
@@ -3974,16 +4074,24 @@ export class BackupService extends EventTarget {
         now - lastBackupDate > lazy.minimumTimeBetweenBackupsSeconds
       ) {
         lazy.logConsole.debug(
-          "Last backup exceeded minimum time between backups. Queing a " +
+          "Last backup exceeded minimum time between backups. Queueing a " +
             "backup via idleDispatch."
         );
+
         // Just because the user hasn't sent us events in a while doesn't mean
         // that the browser itself isn't busy. It might be, for example, playing
         // video or doing a complex calculation that the user is actively
         // waiting to complete, and we don't want to draw resources from that.
         // Instead, we'll use ChromeUtils.idleDispatch to wait until the event
         // loop in the parent process isn't so busy with higher priority things.
-        this.createBackupOnIdleDispatch();
+        let expectedBackupTime =
+          lastBackupDate + lazy.minimumTimeBetweenBackupsSeconds;
+        this.createBackupOnIdleDispatch({
+          reason:
+            expectedBackupTime < this._startupTimeUnixSeconds
+              ? "missed"
+              : "idle",
+        });
       } else {
         lazy.logConsole.debug(
           "Last backup was too recent. Not creating one for now."
@@ -3993,11 +4101,24 @@ export class BackupService extends EventTarget {
   }
 
   /**
+   * Gets the time that Firefox started as milliseconds since the Unix epoch.
+   *
+   * This is in a getter to make it easier for tests to stub it out.
+   */
+  get _startupTimeUnixSeconds() {
+    let startupTimeMs = Services.startup.getStartupInfo().process.getTime();
+    return Math.floor(startupTimeMs / 1000);
+  }
+
+  /**
    * Calls BackupService.createBackup at the next moment when the event queue
    * is not busy with higher priority events. This is intentionally broken out
    * into its own method to make it easier to stub out in tests.
+   *
+   * @param {...*} args
+   *   Arguments to pass through to createBackup.
    */
-  createBackupOnIdleDispatch() {
+  createBackupOnIdleDispatch(...args) {
     let now = Math.floor(Date.now() / 1000);
     let errorStateDebugInfo = Services.prefs.getStringPref(
       BACKUP_DEBUG_INFO_PREF_NAME,
@@ -4024,15 +4145,16 @@ export class BackupService extends EventTarget {
         "idleDispatch fired. Attempting to create a backup."
       );
 
-      this.createBackup().catch(e => {
+      this.createBackup(...args).catch(e => {
         lazy.logConsole.debug(
           `There was an error creating backup on idle dispatch: ${e}`
         );
 
         BackupService.#errorRetries += 1;
         if (BackupService.#errorRetries > lazy.backupRetryLimit) {
-          // We've had too many error's with retries, let's only backup on next timestamp
+          // We've had too many errors with retries, let's only backup on next timestamp
           Services.prefs.setBoolPref(DISABLED_ON_IDLE_RETRY_PREF_NAME, true);
+          Glean.browserBackup.backupThrottled.record();
         }
       });
     });
@@ -4408,7 +4530,10 @@ export class BackupService extends EventTarget {
               "Attempting to delete last backup file at ",
               backupFilePath
             );
-            await IOUtils.remove(backupFilePath, { ignoreAbsent: true });
+            await IOUtils.remove(backupFilePath, {
+              ignoreAbsent: true,
+              retryReadonly: true,
+            });
           }
 
           this.#_state.lastBackupDate = null;

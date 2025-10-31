@@ -412,7 +412,7 @@ nsLocalFile::CreateAllAncestors(uint32_t aPermissions) {
       break;
     }
 
-    /* Temporarily NUL-terminate here */
+    /* Temporarily NULL-terminate here */
     *slashp = '\0';
 #ifdef DEBUG_NSIFILE
     fprintf(stderr, "nsIFile: mkdir(\"%s\")\n", buffer);
@@ -653,8 +653,6 @@ nsLocalFile::Normalize() {
 
 void nsLocalFile::LocateNativeLeafName(nsACString::const_iterator& aBegin,
                                        nsACString::const_iterator& aEnd) {
-  // XXX perhaps we should cache this??
-
   mPath.BeginReading(aBegin);
   mPath.EndReading(aEnd);
 
@@ -667,8 +665,8 @@ void nsLocalFile::LocateNativeLeafName(nsACString::const_iterator& aBegin,
       return;
     }
   }
-  // else, the entire path is the leaf name (which means this
-  // isn't an absolute path... unexpected??)
+
+  MOZ_ASSERT_UNREACHABLE("nsLocalFile path should be absolute but is not!");
 }
 
 NS_IMETHODIMP
@@ -865,7 +863,6 @@ nsresult nsLocalFile::GetNativeTargetPathName(nsIFile* aNewParent,
     }
 
     if (!targetExists) {
-      // XXX create the new directory with some permissions
       rv = aNewParent->Create(DIRECTORY_TYPE, 0755);
       if (NS_FAILED(rv)) {
         return rv;
@@ -901,11 +898,8 @@ nsresult nsLocalFile::GetNativeTargetPathName(nsIFile* aNewParent,
 
 nsresult nsLocalFile::CopyDirectoryTo(nsIFile* aNewParent) {
   nsresult rv;
-  /*
-   * dirCheck is used for various boolean test results such as from Equals,
-   * Exists, isDir, etc.
-   */
-  bool dirCheck, isSymlink;
+  bool dirCheck;  // Used for various tests like Equals, Exists, isDir, etc.
+  bool isSymlink;
   uint32_t oldPerms;
 
   if (NS_FAILED(rv = IsDirectory(&dirCheck))) {
@@ -1847,7 +1841,6 @@ nsLocalFile::GetParent(nsIFile** aParent) {
     return NS_OK;
   }
 
-  // <brendan, after jband> I promise to play nice
   char* buffer = mPath.BeginWriting();
   // find the last significant slash in buffer
   char* slashp = strrchr(buffer, '/');
@@ -1879,10 +1872,6 @@ nsLocalFile::GetParent(nsIFile** aParent) {
   localFile.forget(aParent);
   return NS_OK;
 }
-
-/*
- * The results of Exists, isWritable and isReadable are not cached.
- */
 
 NS_IMETHODIMP
 nsLocalFile::Exists(bool* aResult) {
@@ -2745,23 +2734,6 @@ nsLocalFile::GetFSRef(FSRef* aResult) {
 }
 
 NS_IMETHODIMP
-nsLocalFile::GetFSSpec(FSSpec* aResult) {
-  if (NS_WARN_IF(!aResult)) {
-    return NS_ERROR_INVALID_ARG;
-  }
-
-  FSRef fsRef;
-  nsresult rv = GetFSRef(&fsRef);
-  if (NS_SUCCEEDED(rv)) {
-    OSErr err = ::FSGetCatalogInfo(&fsRef, kFSCatInfoNone, nullptr, nullptr,
-                                   aResult, nullptr);
-    return MacErrorMapper(err);
-  }
-
-  return rv;
-}
-
-NS_IMETHODIMP
 nsLocalFile::GetFileType(OSType* aFileType) {
   CFURLRef url;
   if (NS_SUCCEEDED(GetCFURL(&url))) {
@@ -2904,20 +2876,6 @@ nsLocalFile::GetBundleDisplayName(nsAString& aOutBundleName) {
   }
 
   return NS_OK;
-}
-
-NS_IMETHODIMP nsLocalFile::InitWithFile(nsIFile* aFile) {
-  if (NS_WARN_IF(!aFile)) {
-    return NS_ERROR_INVALID_ARG;
-  }
-
-  nsAutoCString nativePath;
-  nsresult rv = aFile->GetNativePath(nativePath);
-  if (NS_FAILED(rv)) {
-    return rv;
-  }
-
-  return InitWithNativePath(nativePath);
 }
 
 nsresult NS_NewLocalFileWithFSRef(const FSRef* aFSRef,

@@ -2844,7 +2844,40 @@ nsresult Element::SetAttr(int32_t aNamespaceID, nsAtom* aName, nsAtom* aPrefix,
                           nsIPrincipal* aSubjectPrincipal, bool aNotify) {
   // Keep this in sync with SetParsedAttr below and SetSingleClassFromParser
   // above.
+  const nsAttrValueOrString valueForComparison(aValue);
+  return SetAttrInternal(aNamespaceID, aName, aPrefix, valueForComparison,
+                         aSubjectPrincipal, aNotify,
+                         [&](nsAttrValue& attrValue) {
+                           if (!ParseAttribute(aNamespaceID, aName, aValue,
+                                               aSubjectPrincipal, attrValue)) {
+                             attrValue.SetTo(aValue);
+                           }
+                         });
+}
 
+nsresult Element::SetAttr(int32_t aNamespaceID, nsAtom* aName, nsAtom* aPrefix,
+                          nsAtom* aValue, nsIPrincipal* aSubjectPrincipal,
+                          bool aNotify) {
+  // Keep this in sync with SetParsedAttr below and SetSingleClassFromParser
+  // above.
+  const nsDependentAtomString valueString(aValue);
+  const nsAttrValueOrString valueForComparison(valueString);
+  return SetAttrInternal(aNamespaceID, aName, aPrefix, valueForComparison,
+                         aSubjectPrincipal, aNotify,
+                         [&](nsAttrValue& attrValue) {
+                           if (!ParseAttribute(aNamespaceID, aName, valueString,
+                                               aSubjectPrincipal, attrValue)) {
+                             attrValue.SetTo(aValue);
+                           }
+                         });
+}
+
+template <typename ParseFunc>
+nsresult Element::SetAttrInternal(int32_t aNamespaceID, nsAtom* aName,
+                                  nsAtom* aPrefix,
+                                  const nsAttrValueOrString& aValue,
+                                  nsIPrincipal* aSubjectPrincipal, bool aNotify,
+                                  ParseFunc&& aParseFn) {
   NS_ENSURE_ARG_POINTER(aName);
   NS_ASSERTION(aNamespaceID != kNameSpaceID_Unknown,
                "Don't call SetAttr with unknown namespace");
@@ -2853,13 +2886,10 @@ nsresult Element::SetAttr(int32_t aNamespaceID, nsAtom* aName, nsAtom* aPrefix,
   nsAttrValue oldValue;
   bool oldValueSet;
 
-  {
-    const nsAttrValueOrString value(aValue);
-    if (OnlyNotifySameValueSet(aNamespaceID, aName, aPrefix, value, aNotify,
-                               oldValue, &modType, &oldValueSet)) {
-      OnAttrSetButNotChanged(aNamespaceID, aName, value, aNotify);
-      return NS_OK;
-    }
+  if (OnlyNotifySameValueSet(aNamespaceID, aName, aPrefix, aValue, aNotify,
+                             oldValue, &modType, &oldValueSet)) {
+    OnAttrSetButNotChanged(aNamespaceID, aName, aValue, aNotify);
+    return NS_OK;
   }
 
   // Hold a script blocker while calling ParseAttribute since that can call
@@ -2873,10 +2903,7 @@ nsresult Element::SetAttr(int32_t aNamespaceID, nsAtom* aName, nsAtom* aPrefix,
   }
 
   nsAttrValue attrValue;
-  if (!ParseAttribute(aNamespaceID, aName, aValue, aSubjectPrincipal,
-                      attrValue)) {
-    attrValue.SetTo(aValue);
-  }
+  aParseFn(attrValue);
 
   BeforeSetAttr(aNamespaceID, aName, &attrValue, aNotify);
 
@@ -4147,27 +4174,68 @@ static void GetAnimationsUnsorted(const Element* aElement,
   }
 }
 
-// This traverses all the view transition pseudo-elements and get all of the
-// animations on them.
-static void GetAnimationsOfViewTransitionTree(
-    const Element* aOriginatingElement,
-    nsTArray<RefPtr<Animation>>& aAnimations) {
-  if (!aOriginatingElement->IsRootElement()) {
+static inline bool IsSupportedForGetAnimationsSubtree(PseudoStyleType aType) {
+  return aType == PseudoStyleType::NotPseudo ||
+         aType == PseudoStyleType::mozSnapshotContainingBlock ||
+         PseudoStyle::IsViewTransitionPseudoElement(aType);
+}
+
+// This traverses the subtree from the root, |aRootElement|, to get the
+// animations.
+static void GetAnimationsUnsortedForSubtree(
+    const Element* aRootElement, nsTArray<RefPtr<Animation>>& aAnimations) {
+  const PseudoStyleType type = aRootElement->GetPseudoElementType();
+  // Only elements and view transition pseudo-elements get handled in this
+  // function.
+  if (MOZ_UNLIKELY(!IsSupportedForGetAnimationsSubtree(type))) {
     return;
   }
 
-  const Document* doc = aOriginatingElement->OwnerDoc();
-  const ViewTransition* vt = doc->GetActiveViewTransition();
-  if (!vt) {
+  // For non pseudo-elements, we have to get the animations on the element
+  // itself, ::before, ::after, and ::marker.
+  if (type == PseudoStyleType::NotPseudo) {
+    for (const nsIContent* node = aRootElement; node;
+         node = node->GetNextNode(aRootElement)) {
+      if (!node->IsElement()) {
+        continue;
+      }
+      const Element* element = node->AsElement();
+      GetAnimationsUnsorted(element, PseudoStyleRequest::NotPseudo(),
+                            aAnimations);
+      GetAnimationsUnsorted(element, PseudoStyleRequest::Before(), aAnimations);
+      GetAnimationsUnsorted(element, PseudoStyleRequest::After(), aAnimations);
+      GetAnimationsUnsorted(element, PseudoStyleRequest::Marker(), aAnimations);
+    }
+  }
+
+  // If |aRootElement| is the document element, or it is a view transition
+  // pseudo-element (including the snapshot containing block), we have to
+  // traverse the view transition subtree. Otherwise, we can skip the traversal.
+  if (!aRootElement->IsRootElement() && type == PseudoStyleType::NotPseudo) {
     return;
   }
 
-  Element* root = vt->GetViewTransitionTreeRoot();
-  if (!root) {
+  const Document* doc = aRootElement->OwnerDoc();
+  const Element* originatingElement = doc->GetRootElement();
+  if (!originatingElement) {
     return;
   }
 
-  for (const nsIContent* node = root; node; node = node->GetNextNode(root)) {
+  const Element* rootForTraversal = [&]() -> const Element* {
+    if (!aRootElement->IsRootElement()) {
+      // It is in the view transition pseudo-element tree already, so we use it
+      // directly.
+      return aRootElement;
+    }
+    // View transition pseudo-elements cannot be accessed directly from the
+    // document element, so we have to retrieve its tree root from the active
+    // view transition object.
+    const ViewTransition* vt = doc->GetActiveViewTransition();
+    return vt ? vt->GetViewTransitionTreeRoot() : nullptr;
+  }();
+
+  for (const nsIContent* node = rootForTraversal; node;
+       node = node->GetNextNode(rootForTraversal)) {
     if (!node->IsElement()) {
       continue;
     }
@@ -4177,7 +4245,7 @@ static void GetAnimationsOfViewTransitionTree(
         pseudo->HasName()
             ? pseudo->GetParsedAttr(nsGkAtoms::name)->GetAtomValue()
             : nullptr);
-    GetAnimationsUnsorted(aOriginatingElement, request, aAnimations);
+    GetAnimationsUnsorted(originatingElement, request, aAnimations);
   }
 }
 
@@ -4207,20 +4275,16 @@ void Element::GetAnimationsWithoutFlush(
   if (!aOptions.mSubtree || (pseudoRequest.mType == PseudoStyleType::before ||
                              pseudoRequest.mType == PseudoStyleType::after ||
                              pseudoRequest.mType == PseudoStyleType::marker)) {
+    // Case 1: Non-subtree, or |this| is ::before, ::after, or ::marker.
+    //
+    // ::before, ::after, and ::marker doesn't have subtree on themself, so we
+    // just simply get the animations of the element itself even if mSubtree is
+    // true.
     GetAnimationsUnsorted(elem, pseudoRequest, aAnimations);
   } else {
-    for (nsIContent* node = this; node; node = node->GetNextNode(this)) {
-      if (!node->IsElement()) {
-        continue;
-      }
-      Element* element = node->AsElement();
-      GetAnimationsUnsorted(element, PseudoStyleRequest::NotPseudo(),
-                            aAnimations);
-      GetAnimationsUnsorted(element, PseudoStyleRequest::Before(), aAnimations);
-      GetAnimationsUnsorted(element, PseudoStyleRequest::After(), aAnimations);
-      GetAnimationsUnsorted(element, PseudoStyleRequest::Marker(), aAnimations);
-    }
-    GetAnimationsOfViewTransitionTree(this, aAnimations);
+    // Case 2: Subtree. |this| is an element or a view transition
+    // pseudo-element.
+    GetAnimationsUnsortedForSubtree(elem, aAnimations);
   }
   aAnimations.Sort(AnimationPtrComparator<RefPtr<Animation>>());
 }

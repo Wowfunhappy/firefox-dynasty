@@ -167,11 +167,7 @@ function paramSubstitution(paramValue, searchTerms, queryCharset) {
 
     // Handle languages for URL results.
     if (name == PARAM_ACCEPT_LANGUAGES) {
-      let languages = Services.prefs
-        .getComplexValue("intl.accept_languages", Ci.nsIPrefLocalizedString)
-        .data.replace(/\s+/g, "");
-
-      return languages || "";
+      return Services.locale.acceptLanguages.replace(/\s+/g, "");
     }
 
     // Handle the less common OpenSearch parameters we're confident about.
@@ -567,10 +563,6 @@ export class SearchEngine {
   _name = null;
   // The name of the charset used to submit the search terms.
   _queryCharset = null;
-  // The order hint from the configuration (if any).
-  _orderHint = null;
-  // The telemetry id from the configuration (if any).
-  _telemetryId = null;
   // Set to true once the engine has been added to the store, and the initial
   // notification sent. This allows to skip sending notifications during
   // initialization.
@@ -1046,7 +1038,6 @@ export class SearchEngine {
       json.queryCharset || lazy.SearchUtils.DEFAULT_QUERY_CHARSET;
     this._iconMapObj = json._iconMapObj || null;
     this._metaData = json._metaData || {};
-    this._orderHint = json._orderHint || null;
     this._definedAliases = json._definedAliases || [];
     // These changed keys in Firefox 80, maintain the old keys
     // for backwards compatibility.
@@ -1080,8 +1071,6 @@ export class SearchEngine {
       "_iconMapObj",
       "_metaData",
       "_urls",
-      "_orderHint",
-      "_telemetryId",
       "_filePath",
       "_definedAliases",
     ];
@@ -1155,10 +1144,11 @@ export class SearchEngine {
    * Gets the order hint for this engine. This is determined from the search
    * configuration when the engine is initialized.
    *
-   * @type {number}
+   * @type {?number}
    */
   get orderHint() {
-    return this._orderHint;
+    // Overridden in derived classes.
+    return null;
   }
 
   /**
@@ -1202,11 +1192,7 @@ export class SearchEngine {
    * id/partner_code/other fields instead.
    */
   get telemetryId() {
-    let telemetryId = this._telemetryId || `other-${this.name}`;
-    if (this.getAttr("overriddenBy")) {
-      return telemetryId + "-addon";
-    }
-    return telemetryId;
+    return `other-${this.name}`;
   }
 
   get hidden() {

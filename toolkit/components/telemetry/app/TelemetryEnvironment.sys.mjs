@@ -467,10 +467,7 @@ function getIntlSettings() {
     appLocales: Services.locale.appLocalesAsBCP47,
     systemLocales: getSystemLocales(),
     regionalPrefsLocales: getRegionalPrefsLocales(),
-    acceptLanguages: Services.prefs
-      .getComplexValue("intl.accept_languages", Ci.nsIPrefLocalizedString)
-      .data.split(",")
-      .map(str => str.trim()),
+    acceptLanguages: Services.locale.acceptLanguages.split(/\s*,\s*/g),
   };
   Glean.intl.requestedLocales.set(intl.requestedLocales);
   Glean.intl.availableLocales.set(intl.availableLocales);
@@ -1152,6 +1149,9 @@ EnvironmentCache.prototype = {
     try {
       let gfxInfo = Cc["@mozilla.org/gfx/info;1"].getService(Ci.nsIGfxInfo);
       gfxData.features = gfxInfo.getFeatures();
+      for (const [name, value] of Object.entries(gfxData.features)) {
+        Glean.gfxFeatures[name].set(value);
+      }
     } catch (e) {
       this._log.error("nsIGfxInfo.getFeatures() caught error", e);
     }

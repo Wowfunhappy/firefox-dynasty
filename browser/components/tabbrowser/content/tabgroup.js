@@ -187,6 +187,7 @@
             });
             this.hasActiveTab = hasActiveTab;
             this.#updateOverflowLabel();
+            this.#updateLastTabOrSplitViewAttr();
           }
           for (const mutation of mutations) {
             for (const addedNode of mutation.addedNodes) {
@@ -430,6 +431,22 @@
         });
     }
 
+    #updateLastTabOrSplitViewAttr() {
+      const LAST_ITEM_ATTRIBUTE = "last-tab-or-split-view";
+      let lastTab = this.tabs[this.tabs.length - 1];
+      let currentLastTabOrSplitView = lastTab.splitview
+        ? lastTab.splitview
+        : lastTab;
+
+      let prevLastTabOrSplitView = this.querySelector(
+        `[${LAST_ITEM_ATTRIBUTE}]`
+      );
+      if (prevLastTabOrSplitView !== currentLastTabOrSplitView) {
+        prevLastTabOrSplitView?.toggleAttribute(LAST_ITEM_ATTRIBUTE);
+        currentLastTabOrSplitView.toggleAttribute(LAST_ITEM_ATTRIBUTE);
+      }
+    }
+
     /**
      * @returns {MozTabbrowserTab[]}
      */
@@ -451,7 +468,7 @@
       if (this.isBeingDragged) {
         return false;
       }
-      if (this.collapsed && !tab.selected) {
+      if (this.collapsed && !tab.selected && !tab.multiselected) {
         return false;
       }
       return true;

@@ -6837,7 +6837,7 @@
 
 - name: gfx.canvas.remote.use-draw-image-fast-path-d3d
   type: RelaxedAtomicBool
-  value: false
+  value: true
   mirror: always
 
 - name: gfx.canvas.remote.recycle-used-data-surface
@@ -7687,6 +7687,11 @@
 
 #ifdef XP_WIN
 - name: gfx.webrender.layer-compositor-force-composition-surface
+  type: bool
+  value: false
+  mirror: once
+
+- name: gfx.webrender.layer-compositor-use-dcomp-texture
   type: bool
   value: false
   mirror: once
@@ -10442,7 +10447,7 @@
   value: true
   mirror: always
 
-- name: layout.css.text-decoration-trim.enabled
+- name: layout.css.text-decoration-inset.enabled
   type: RelaxedAtomicBool
   value: false
   mirror: always
@@ -14429,6 +14434,8 @@
   mirror: always
 
 # This preference controls if we need to fail transactions for Local Network Access (LNA) failures.
+# Currently it is enabled only for nightly builds.
+# For beta and release users we will be enabling it only for ETP strict users using network.lna.etp.enabled
 - name: network.lna.blocking
   type: RelaxedAtomicBool
   value: @IS_NIGHTLY_BUILD@
@@ -15725,7 +15732,7 @@
 # Enable HTTP Compression Dictionary support
 - name: network.http.dictionaries.enable
   type: RelaxedAtomicBool
-  value: true
+  value: @IS_NIGHTLY_BUILD@
   mirror: always
 
 #---------------------------------------------------------------------------

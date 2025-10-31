@@ -21,7 +21,6 @@
 #include "mozilla/SharedSubResourceCache.h"  // mozilla::SubResourceNetworkMetadataHolder
 #include "mozilla/StaticPrefs_dom.h"
 #include "mozilla/Variant.h"
-#include "mozilla/Vector.h"
 #include "nsCycleCollectionParticipant.h"
 #include "nsIGlobalObject.h"
 #include "LoadedScript.h"
@@ -108,9 +107,14 @@ class ScriptLoadRequest : public nsISupports,
   ModuleLoadRequest* AsModuleRequest();
   const ModuleLoadRequest* AsModuleRequest() const;
 
-  bool IsCacheable() const;
-
-  CacheExpirationTime ExpirationTime() const { return mExpirationTime; }
+  CacheExpirationTime ExpirationTime() const {
+    // The request's expiration time is used only when it's received from
+    // necko.  For in-memory cached, case, the
+    // SharedSubResourceCache::CompleteSubResource::mExpirationTime field is
+    // used instead.
+    MOZ_ASSERT(!IsCachedStencil());
+    return mExpirationTime;
+  }
 
   void SetMinimumExpirationTime(const CacheExpirationTime& aExpirationTime) {
     mExpirationTime.SetMinimum(aExpirationTime);
@@ -182,6 +186,19 @@ class ScriptLoadRequest : public nsISupports,
 
   bool PassedConditionForEitherCache() const {
     return PassedConditionForDiskCache() || PassedConditionForMemoryCache();
+  }
+
+  void MarkNotCacheable() {
+    mDiskCachingPlan = CachingPlan::NotCacheable;
+    mMemoryCachingPlan = CachingPlan::NotCacheable;
+  }
+
+  bool IsMarkedNotCacheable() const {
+    MOZ_ASSERT_IF(mDiskCachingPlan == CachingPlan::NotCacheable,
+                  mMemoryCachingPlan == CachingPlan::NotCacheable);
+    MOZ_ASSERT_IF(mDiskCachingPlan != CachingPlan::NotCacheable,
+                  mMemoryCachingPlan != CachingPlan::NotCacheable);
+    return mDiskCachingPlan == CachingPlan::NotCacheable;
   }
 
   void MarkSkippedDiskCaching() {
@@ -262,7 +279,11 @@ class ScriptLoadRequest : public nsISupports,
     // This is not yet considered for caching.
     Uninitialized,
 
-    // This is marked for skipping the caching.
+    // This request is not cacheable (e.g. inline script, JSON module).
+    NotCacheable,
+
+    // This request is cacheable, but is marked for skipping due to
+    // not passing conditions.
     Skipped,
 
     // This fits the condition for the caching (e.g. file size, fetch count).

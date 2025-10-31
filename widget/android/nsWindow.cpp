@@ -71,7 +71,6 @@
 #include "mozilla/StaticPrefs_ui.h"
 #include "mozilla/StaticPrefs_widget.h"
 #include "mozilla/TouchEvents.h"
-#include "mozilla/WeakPtr.h"
 #include "mozilla/WheelHandlingHelper.h"  // for WheelDeltaAdjustmentStrategy
 #include "mozilla/a11y/SessionAccessibility.h"
 #include "mozilla/dom/BrowsingContext.h"
@@ -3519,10 +3518,6 @@ static int32_t GetCursorType(nsCursor aCursor) {
 }
 
 void nsWindow::SetCursor(const Cursor& aCursor) {
-  if (mozilla::jni::GetAPIVersion() < 24) {
-    return;
-  }
-
   // Only change cursor if it's actually been changed
   if (!mUpdateCursor && mCursor == aCursor) {
     return;

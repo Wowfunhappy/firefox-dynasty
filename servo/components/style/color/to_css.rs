@@ -135,7 +135,12 @@ impl ToCss for AbsoluteColor {
                     | ColorSpace::XyzD65 => {
                         // These color spaces are allowed.
                     },
-                    _ => {
+                    ColorSpace::Hsl
+                    | ColorSpace::Hwb
+                    | ColorSpace::Lab
+                    | ColorSpace::Oklab
+                    | ColorSpace::Lch
+                    | ColorSpace::Oklch => {
                         unreachable!("other color spaces do not support color() syntax")
                     },
                 };

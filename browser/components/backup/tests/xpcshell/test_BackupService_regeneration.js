@@ -3,9 +3,6 @@ https://creativecommons.org/publicdomain/zero/1.0/ */
 
 "use strict";
 
-const { setTimeout } = ChromeUtils.importESModule(
-  "resource://gre/modules/Timer.sys.mjs"
-);
 const { NetUtil } = ChromeUtils.importESModule(
   "resource://gre/modules/NetUtil.sys.mjs"
 );
@@ -143,8 +140,13 @@ async function expectRegeneration(taskFn, msg) {
   });
 
   let createBackupDeferred = Promise.withResolvers();
-  sandbox.stub(bs, "createBackupOnIdleDispatch").callsFake(() => {
+  sandbox.stub(bs, "createBackupOnIdleDispatch").callsFake(options => {
     Assert.ok(true, "Saw createBackupOnIdleDispatch call");
+    Assert.equal(
+      options.reason,
+      "user deleted some data",
+      "Backup was recorded as being caused by user data deletion"
+    );
     createBackupDeferred.resolve();
     return Promise.resolve();
   });

@@ -348,6 +348,25 @@ class RemoteVideoDecoder final : public RemoteDataDecoder {
     return ConversionRequired::kNeedAnnexB;
   }
 
+  Maybe<MediaDataDecoder::PropertyValue> GetDecodeProperty(
+      MediaDataDecoder::PropertyName aName) const override {
+    // Android has limited amount of output buffers. See Bug 794747.
+    static constexpr uint32_t kNumOutputBuffers = 3;
+    // SurfaceTexture can have only one current/renderable image at a time.
+    // See Bug 1299068
+    static constexpr uint32_t kNumCurrentImages = 1;
+    switch (aName) {
+      case PropertyName::MaxNumVideoBuffers:
+        [[fallthrough]];
+      case PropertyName::MinNumVideoBuffers:
+        return Some(PropertyValue(kNumOutputBuffers));
+      case PropertyName::MaxNumCurrentImages:
+        return Some(PropertyValue(kNumCurrentImages));
+      default:
+        return MediaDataDecoder::GetDecodeProperty(aName);
+    }
+  }
+
  private:
   // Param and LocalRef are only valid for the duration of a JNI method call.
   // Use GlobalRef as the parameter type to keep the Java object referenced
@@ -975,13 +994,6 @@ static CryptoInfoResult GetCryptoInfoFromSample(const MediaRawData* aSample) {
 
   if (!cryptoObj.IsEncrypted()) {
     return CryptoInfoResult(cryptoInfo);
-  }
-
-  static bool supportsCBCS = java::CodecProxy::SupportsCBCS();
-  if ((cryptoObj.mCryptoScheme == CryptoScheme::Cbcs ||
-       cryptoObj.mCryptoScheme == CryptoScheme::Cbcs_1_9) &&
-      !supportsCBCS) {
-    return CryptoInfoResult(NS_ERROR_DOM_MEDIA_NOT_SUPPORTED_ERR);
   }
 
   nsresult rv = java::sdk::MediaCodec::CryptoInfo::New(&cryptoInfo);

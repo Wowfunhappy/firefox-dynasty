@@ -34,7 +34,6 @@
 #include "mozilla/Likely.h"
 #include "mozilla/Logging.h"
 #include "mozilla/LookAndFeel.h"
-#include "mozilla/MacroForEach.h"
 #include "mozilla/OriginAttributes.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/ProfilerMarkers.h"
@@ -55,6 +54,7 @@
 #include "mozilla/dom/WindowGlobalParent.h"
 #include "mozilla/dom/MediaDeviceInfoBinding.h"
 #include "mozilla/dom/quota/QuotaManager.h"
+#include "mozilla/intl/LocaleService.h"
 #include "mozilla/XorShift128PlusRNG.h"
 #include "mozilla/dom/CanvasUtils.h"
 
@@ -2941,8 +2941,8 @@ void nsRFPService::CalculateFontLocaleAllowlist() {
     }
 
     nsAutoCString acceptLang;
-    nsresult rv = Preferences::GetLocalizedCString(INTL_ACCEPT_LANGUAGES_PREF,
-                                                   acceptLang);
+    nsresult rv =
+        intl::LocaleService::GetInstance()->GetAcceptLanguages(acceptLang);
     NS_ENSURE_SUCCESS_VOID(rv);
 
     ToLowerCase(acceptLang);
