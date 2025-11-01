@@ -2440,13 +2440,8 @@ SessionHistoryEntry* FindParent(Span<SessionHistoryEntry*> aAncestors,
   if (aAncestors.Length() == 1) {
     return aSubtreeRoot;
   }
-  for (int32_t i = 0, childCount = aSubtreeRoot->GetChildCount();
-       i < childCount; i++) {
-    nsCOMPtr<nsISHEntry> child;
-    aSubtreeRoot->GetChildAt(i, getter_AddRefs(child));
-    if (auto* foundParent =
-            FindParent(aAncestors.From(1),
-                       static_cast<SessionHistoryEntry*>(child.get()))) {
+  for (const auto& child : aSubtreeRoot->Children()) {
+    if (auto* foundParent = FindParent(aAncestors.From(1), child)) {
       return foundParent;
     }
   }
@@ -2457,7 +2452,7 @@ class SessionHistoryEntryIDComparator {
  public:
   static bool Equals(const RefPtr<SessionHistoryEntry>& aLhs,
                      const RefPtr<SessionHistoryEntry>& aRhs) {
-    return aLhs->GetID() == aRhs->GetID();
+    return aLhs && aRhs && aLhs->GetID() == aRhs->GetID();
   }
 };
 
@@ -2482,7 +2477,7 @@ mozilla::dom::SessionHistoryEntry* nsSHistory::FindAdjacentContiguousEntryFor(
   SessionHistoryEntry* foundParent = nullptr;
   for (int32_t i = GetIndexOfEntry(rootEntry) + aSearchDirection;
        i >= 0 && i < Length(); i += aSearchDirection) {
-    GetEntryAtIndex(i, getter_AddRefs(nextEntry));
+    nextEntry = mEntries[i];
     foundParent = FindParent(
         ancestors, static_cast<SessionHistoryEntry*>(nextEntry.get()));
     if ((!foundParent && nextEntry->GetID() != aEntry->GetID()) ||
@@ -2490,36 +2485,51 @@ mozilla::dom::SessionHistoryEntry* nsSHistory::FindAdjacentContiguousEntryFor(
                             aEntry, SessionHistoryEntryIDComparator()))) {
       break;
     }
-    rootEntry = nextEntry;
   }
 
-  if (!nextEntry || rootEntry == nextEntry ||
-      (nsCOMPtr(aEntry->GetParent()) && !foundParent)) {
-    // If we were unable to find a tree that doesn't contain aEntry, or if
-    // aEntry is for a subframe and we were unable to find it's parent
-    // within the previous tree, then aEntry must be the first or last entry
-    // within it's contiguous entry list.
-    return {};
+  if (foundParent) {
+    for (const auto& child : foundParent->Children()) {
+      if (child && child->DocshellID() == aEntry->DocshellID()) {
+        return child->GetID() != aEntry->GetID() ? child.get() : nullptr;
+      }
+    }
+  } else if (ancestors.IsEmpty() && nextEntry &&
+             nextEntry->GetID() != aEntry->GetID()) {
+    return static_cast<SessionHistoryEntry*>(nextEntry.get());
+  }
+  return nullptr;
+}
+
+LinkedList<SessionHistoryEntry> nsSHistory::ConstructContiguousEntryListFrom(
+    SessionHistoryEntry* aEntry) {
+  if (aEntry->isInList()) {
+    aEntry->remove();
   }
 
-  nsISHEntry* foundEntry = nullptr;
-
-  RefPtr bc = GetBrowsingContext();
-  bool differenceFound = ForEachDifferingEntry(
-      rootEntry, nextEntry, bc,
-      [&foundEntry](nsISHEntry* differingEntry,
-                    [[maybe_unused]] BrowsingContext* parent) {
-        // Only one differing entry should be found.
-        MOZ_ASSERT(!foundEntry);
-        foundEntry = differingEntry;
-      });
-  if (!differenceFound) {
-    return {};
+  LinkedList<SessionHistoryEntry> entryList;
+  entryList.insertBack(aEntry);
+  for (auto* entry = aEntry;
+       (entry = FindAdjacentContiguousEntryFor(entry, -1));) {
+    if (entry->isInList()) {
+      entry->remove();
+    }
+    entryList.insertFront(entry);
   }
+  for (auto* entry = aEntry;
+       (entry = FindAdjacentContiguousEntryFor(entry, 1));) {
+    if (entry->isInList()) {
+      entry->remove();
+    }
+    entryList.insertBack(entry);
+  }
+  return entryList;
+}
 
-  nsCOMPtr<SessionHistoryEntry> adjacentEntry = do_QueryInterface(foundEntry);
-  MOZ_ASSERT(adjacentEntry);
-  return adjacentEntry;
+LinkedList<SessionHistoryEntry> nsSHistory::ConstructContiguousEntryList() {
+  MOZ_ASSERT(mIndex >= 0 && mIndex < Length());
+  nsCOMPtr currentEntry = mEntries[mIndex];
+  return ConstructContiguousEntryListFrom(
+      static_cast<SessionHistoryEntry*>(currentEntry.get()));
 }
 
 bool nsSHistory::ForEachDifferingEntry(
@@ -2727,4 +2737,13 @@ void nsSHistory::UpdateEntryLength(nsISHEntry* aOldEntry, nsISHEntry* aNewEntry,
   CollectEntries(docshellIDToEntry, oldSHE);
 
   ::UpdateEntryLength(docshellIDToEntry, newSHE, aMove);
+}
+
+bool nsSHistory::ContainsEntry(nsISHEntry* aEntry) {
+  if (!aEntry) {
+    return false;
+  }
+
+  nsCOMPtr rootEntry = GetRootSHEntry(aEntry);
+  return GetIndexOfEntry(rootEntry) != -1;
 }

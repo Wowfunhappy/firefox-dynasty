@@ -1451,6 +1451,8 @@ class nsIFrame : public nsQueryFrame {
   NS_DECLARE_FRAME_PROPERTY_SMALL_VALUE(LastSuccessfulPositionFallback,
                                         uint32_t);
 
+  mozilla::PhysicalAxes GetAnchorPosCompensatingForScroll() const;
+
   // This tracks the start and end page value for a frame.
   //
   // https://www.w3.org/TR/css-page-3/#using-named-pages
@@ -5921,9 +5923,9 @@ inline nsIFrame* nsFrameList::BackwardFrameTraversal::Prev(nsIFrame* aFrame) {
 
 inline AnchorPosResolutionParams AnchorPosResolutionParams::From(
     const nsIFrame* aFrame,
-    mozilla::AnchorPosReferenceData* aAnchorPosReferenceData) {
+    mozilla::AnchorPosResolutionCache* aAnchorPosResolutionCache) {
   return {aFrame, aFrame->StyleDisplay()->mPosition,
-          aFrame->StylePosition()->mPositionArea, aAnchorPosReferenceData};
+          aFrame->StylePosition()->mPositionArea, aAnchorPosResolutionCache};
 }
 
 #endif /* nsIFrame_h___ */

@@ -219,6 +219,12 @@ class nsSHistory : public mozilla::LinkedListElement<nsSHistory>,
 
   mozilla::dom::SessionHistoryEntry* FindAdjacentContiguousEntryFor(
       mozilla::dom::SessionHistoryEntry* aEntry, int32_t aSearchDirection);
+  mozilla::LinkedList<mozilla::dom::SessionHistoryEntry>
+  ConstructContiguousEntryListFrom(mozilla::dom::SessionHistoryEntry* aEntry);
+  mozilla::LinkedList<mozilla::dom::SessionHistoryEntry>
+  ConstructContiguousEntryList();
+
+  bool ContainsEntry(nsISHEntry* aEntry);
 
  protected:
   virtual ~nsSHistory();

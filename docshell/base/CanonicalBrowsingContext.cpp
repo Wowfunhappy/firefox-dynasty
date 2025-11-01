@@ -646,6 +646,11 @@ CanonicalBrowsingContext::CreateLoadingSessionHistoryEntryForLoad(
     bool sessionHistoryLoad =
         existingLoadingInfo && existingLoadingInfo->mLoadIsFromSessionHistory;
 
+    if (sessionHistoryLoad && !mActiveEntry && mActiveEntryList.isEmpty()) {
+      nsSHistory* shistory = static_cast<nsSHistory*>(GetSessionHistory());
+      mActiveEntryList = shistory->ConstructContiguousEntryListFrom(entry);
+    }
+
     MOZ_LOG_FMT(gNavigationAPILog, LogLevel::Debug,
                 "Determining navigation type from loadType={}",
                 aLoadState->LoadType());
@@ -655,28 +660,6 @@ CanonicalBrowsingContext::CreateLoadingSessionHistoryEntryForLoad(
       MOZ_LOG_FMT(gNavigationAPILog, LogLevel::Debug,
                   "Failed to determine navigation type");
       return loadingInfo;
-    }
-
-    if (*navigationType == NavigationType::Traverse && !mActiveEntry) {
-      // We must have just been recreated from a session restore, so we need
-      // to reconstruct the list of contiguous entries.
-      auto* shistory = static_cast<nsSHistory*>(GetSessionHistory());
-      MOZ_ASSERT(mActiveEntryList.isEmpty());
-      mActiveEntryList.insertFront(entry);
-
-      SessionHistoryEntry* currEntry = entry;
-      while (auto* prevEntry =
-                 shistory->FindAdjacentContiguousEntryFor(currEntry, -1)) {
-        currEntry->setPrevious(prevEntry);
-        currEntry = prevEntry;
-      }
-
-      currEntry = entry;
-      while (auto* nextEntry =
-                 shistory->FindAdjacentContiguousEntryFor(currEntry, 1)) {
-        currEntry->setNext(nextEntry);
-        currEntry = nextEntry;
-      }
     }
 
     loadingInfo->mTriggeringEntry =
@@ -1296,7 +1279,9 @@ void CanonicalBrowsingContext::SessionHistoryCommit(
                       "NotTop: Loading from session history");
           mActiveEntry = newActiveEntry;
           if (Navigation::IsAPIEnabled() && !mActiveEntry->isInList()) {
-            mActiveEntryList.insertBack(mActiveEntry);
+            mActiveEntryList.clear();
+            mActiveEntryList =
+                shistory->ConstructContiguousEntryListFrom(mActiveEntry);
           }
 
           shistory->InternalSetRequestedIndex(indexOfHistoryLoad);
@@ -3719,6 +3704,19 @@ bool CanonicalBrowsingContext::ShouldEnforceParentalControls() {
     return enabled;
   }
   return false;
+}
+
+void CanonicalBrowsingContext::MaybeReconstructActiveEntryList() {
+  MOZ_ASSERT(IsTop());
+  if (!Navigation::IsAPIEnabled()) {
+    return;
+  }
+
+  auto* shistory = static_cast<nsSHistory*>(GetSessionHistory());
+  if (mActiveEntry && !shistory->ContainsEntry(mActiveEntry)) {
+    mActiveEntryList.clear();
+    mActiveEntryList = shistory->ConstructContiguousEntryList();
+  }
 }
 
 NS_IMPL_CYCLE_COLLECTION_CLASS(CanonicalBrowsingContext)

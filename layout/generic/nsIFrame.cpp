@@ -12,6 +12,7 @@
 
 #include <algorithm>
 
+#include "AnchorPositioningUtils.h"
 #include "LayoutLogging.h"
 #include "RubyUtils.h"
 #include "TextOverflow.h"
@@ -795,6 +796,7 @@ void nsIFrame::HandlePrimaryFrameStyleChange(ComputedStyle* aOldStyle) {
   const bool isReferringToAnchor = HasAnchorPosReference();
   if (wasReferringToAnchor && !isReferringToAnchor) {
     PresShell()->RemoveAnchorPosPositioned(this);
+    RemoveProperty(NormalPositionProperty());
   } else if (!wasReferringToAnchor && isReferringToAnchor) {
     PresShell()->AddAnchorPosPositioned(this);
   }
@@ -8403,8 +8405,6 @@ void nsIFrame::MovePositionBy(const nsPoint& aTranslation) {
 }
 
 nsRect nsIFrame::GetNormalRect() const {
-  // It might be faster to first check
-  // StyleDisplay()->IsRelativelyPositionedStyle().
   bool hasProperty;
   nsPoint normalPosition = GetProperty(NormalPositionProperty(), &hasProperty);
   if (hasProperty) {
@@ -8472,13 +8472,14 @@ OverflowAreas nsIFrame::GetOverflowAreasRelativeToParent() const {
 
 OverflowAreas nsIFrame::GetActualAndNormalOverflowAreasRelativeToParent()
     const {
-  if (MOZ_LIKELY(!IsRelativelyOrStickyPositioned())) {
+  const bool hasAnchorPosReference = HasAnchorPosReference();
+  if (MOZ_LIKELY(!IsRelativelyOrStickyPositioned() && !hasAnchorPosReference)) {
     return GetOverflowAreasRelativeToParent();
   }
 
   const OverflowAreas overflows = GetOverflowAreas();
   OverflowAreas actualAndNormalOverflows = overflows + GetNormalPosition();
-  if (IsRelativelyPositioned()) {
+  if (IsRelativelyPositioned() || hasAnchorPosReference) {
     actualAndNormalOverflows.UnionWith(overflows + GetPosition());
   } else {
     // For sticky positioned elements, we only use the normal position for the
@@ -12265,6 +12266,18 @@ bool nsIFrame::IsSuppressedScrollableBlockForPrint() const {
     return false;
   }
   return true;
+}
+
+PhysicalAxes nsIFrame::GetAnchorPosCompensatingForScroll() const {
+  if (!HasAnchorPosReference()) {
+    return {};
+  }
+  const auto* prop = GetProperty(AnchorPosReferences());
+  if (!prop) {
+    return {};
+  }
+
+  return prop->CompensatingForScrollAxes();
 }
 
 bool nsIFrame::HasUnreflowedContainerQueryAncestor() const {

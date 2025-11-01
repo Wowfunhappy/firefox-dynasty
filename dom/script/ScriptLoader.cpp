@@ -2685,6 +2685,48 @@ nsresult ScriptLoader::FillCompileOptionsForRequest(
   return NS_OK;
 }
 
+/* static */
+ScriptLoader::DiskCacheStrategy ScriptLoader::GetDiskCacheStrategy() {
+  int32_t strategyPref =
+      StaticPrefs::dom_script_loader_bytecode_cache_strategy();
+  LOG(("Bytecode-cache: disk cache strategy = %d.", strategyPref));
+
+  DiskCacheStrategy strategy;
+  switch (strategyPref) {
+    case -2: {
+      strategy.mIsDisabled = true;
+      break;
+    }
+    case -1: {
+      // Eager mode, skip heuristics!
+      strategy.mHasSourceLengthMin = false;
+      strategy.mHasFetchCountMin = false;
+      break;
+    }
+    case 1: {
+      strategy.mHasSourceLengthMin = true;
+      strategy.mHasFetchCountMin = true;
+      strategy.mSourceLengthMin = 1024;
+      // fetchCountMin is optimized for speed in exchange for additional
+      // memory and cache use.
+      strategy.mFetchCountMin = 2;
+      break;
+    }
+    default:
+    case 0: {
+      strategy.mHasSourceLengthMin = true;
+      strategy.mHasFetchCountMin = true;
+      strategy.mSourceLengthMin = 1024;
+      // If we were to optimize only for speed, without considering the impact
+      // on memory, we should set this threshold to 2. (Bug 900784 comment 120)
+      strategy.mFetchCountMin = 4;
+      break;
+    }
+  }
+
+  return strategy;
+}
+
 void ScriptLoader::CalculateCacheFlag(ScriptLoadRequest* aRequest) {
   using mozilla::TimeDuration;
   using mozilla::TimeStamp;
@@ -2736,9 +2778,12 @@ void ScriptLoader::CalculateCacheFlag(ScriptLoadRequest* aRequest) {
     LOG(("ScriptLoadRequest (%p): Bytecode-cache: Mark in-memory: Stencil",
          aRequest));
     aRequest->MarkPassedConditionForMemoryCache();
-  } else {
-    aRequest->MarkSkippedMemoryCaching();
+
+    // Disk cache is handled by SharedScriptCache.
+    return;
   }
+
+  aRequest->MarkSkippedMemoryCaching();
 
   // The following conditions apply only to the disk cache.
 
@@ -2762,71 +2807,32 @@ void ScriptLoader::CalculateCacheFlag(ScriptLoadRequest* aRequest) {
     return;
   }
 
-  // Look at the preference to know which strategy (parameters) should be used
-  // when the bytecode cache is enabled.
-  int32_t strategy = StaticPrefs::dom_script_loader_bytecode_cache_strategy();
+  auto strategy = GetDiskCacheStrategy();
 
-  // List of parameters used by the strategies.
-  bool hasSourceLengthMin = false;
-  bool hasFetchCountMin = false;
-  size_t sourceLengthMin = 100;
-  uint32_t fetchCountMin = 4;
+  if (strategy.mIsDisabled) {
+    // Reader mode, keep requesting alternate data but no longer save it.
+    LOG(
+        ("ScriptLoadRequest (%p): Bytecode-cache: Skip disk: Disabled by "
+         "pref.",
+         aRequest));
+    aRequest->MarkSkippedDiskCaching();
 
-  LOG(("ScriptLoadRequest (%p): Bytecode-cache: strategy = %d.", aRequest,
-       strategy));
-  switch (strategy) {
-    case -2: {
-      // Reader mode, keep requesting alternate data but no longer save it.
-      LOG(
-          ("ScriptLoadRequest (%p): Bytecode-cache: Skip disk: Disabled by "
-           "pref.",
-           aRequest));
-      aRequest->MarkSkippedDiskCaching();
-
-      aRequest->getLoadedScript()->DropDiskCacheReferenceAndSRI();
-      return;
-    }
-    case -1: {
-      // Eager mode, skip heuristics!
-      hasSourceLengthMin = false;
-      hasFetchCountMin = false;
-      break;
-    }
-    case 1: {
-      hasSourceLengthMin = true;
-      hasFetchCountMin = true;
-      sourceLengthMin = 1024;
-      // fetchCountMin is optimized for speed in exchange for additional
-      // memory and cache use.
-      fetchCountMin = 2;
-      break;
-    }
-    default:
-    case 0: {
-      hasSourceLengthMin = true;
-      hasFetchCountMin = true;
-      sourceLengthMin = 1024;
-      // If we were to optimize only for speed, without considering the impact
-      // on memory, we should set this threshold to 2. (Bug 900784 comment 120)
-      fetchCountMin = 4;
-      break;
-    }
+    aRequest->getLoadedScript()->DropDiskCacheReferenceAndSRI();
+    return;
   }
 
   // If the script is too small/large, do not attempt at creating a bytecode
   // cache for this script, as the overhead of parsing it might not be worth the
   // effort.
-  if (hasSourceLengthMin) {
+  if (strategy.mHasSourceLengthMin) {
     size_t sourceLength;
-    size_t minLength;
     if (aRequest->IsCachedStencil()) {
       sourceLength = JS::GetScriptSourceLength(aRequest->GetStencil());
     } else {
       MOZ_ASSERT(aRequest->IsTextSource());
       sourceLength = aRequest->ReceivedScriptTextLength();
     }
-    minLength = sourceLengthMin;
-    if (sourceLength < minLength) {
+    if (sourceLength < strategy.mSourceLengthMin) {
       LOG(
           ("ScriptLoadRequest (%p): Bytecode-cache: Skip disk: Script is too "
            "small.",
@@ -2840,7 +2846,7 @@ void ScriptLoader::CalculateCacheFlag(ScriptLoadRequest* aRequest) {
   // Check that we loaded the cache entry a few times before attempting any
   // bytecode-cache optimization, such that we do not waste time on entry which
   // are going to be dropped soon.
-  if (hasFetchCountMin) {
+  if (strategy.mHasFetchCountMin) {
     uint32_t fetchCount = 0;
     if (aRequest->IsCachedStencil()) {
       fetchCount = aRequest->mLoadedScript->mFetchCount;
@@ -2864,7 +2870,7 @@ void ScriptLoader::CalculateCacheFlag(ScriptLoadRequest* aRequest) {
     }
     LOG(("ScriptLoadRequest (%p): Bytecode-cache: fetchCount = %d.", aRequest,
          fetchCount));
-    if (fetchCount < fetchCountMin) {
+    if (fetchCount < strategy.mFetchCountMin) {
       LOG(("ScriptLoadRequest (%p): Bytecode-cache: Skip disk: fetchCount",
            aRequest));
       aRequest->MarkSkippedDiskCaching();
@@ -3357,6 +3363,11 @@ nsCString& ScriptLoader::BytecodeMimeTypeFor(
 
 nsresult ScriptLoader::MaybePrepareForDiskCacheAfterExecute(
     ScriptLoadRequest* aRequest, nsresult aRv) {
+  if (mCache) {
+    // Disk cache is handled by SharedScriptCache.
+    return NS_OK;
+  }
+
   if (!aRequest->PassedConditionForDiskCache() || !aRequest->HasStencil()) {
     LOG(("ScriptLoadRequest (%p): Bytecode-cache: disabled (rv = %X)", aRequest,
          unsigned(aRv)));
@@ -3396,6 +3407,11 @@ nsresult ScriptLoader::MaybePrepareForDiskCacheAfterExecute(
 nsresult ScriptLoader::MaybePrepareModuleForDiskCacheAfterExecute(
     ModuleLoadRequest* aRequest, nsresult aRv) {
   MOZ_ASSERT(aRequest->IsTopLevel());
+
+  if (mCache) {
+    // Disk cache is handled by SharedScriptCache.
+    return NS_OK;
+  }
 
   // NOTE: If a module is passed to this multiple times, it can be
   //       enqueued multiple times.
@@ -3517,6 +3533,7 @@ LoadedScript* ScriptLoader::GetActiveScript(JSContext* aCx) {
 }
 
 void ScriptLoader::RegisterForDiskCache(ScriptLoadRequest* aRequest) {
+  MOZ_ASSERT(!mCache);
   MOZ_ASSERT(aRequest->PassedConditionForDiskCache());
   MOZ_ASSERT(aRequest->HasStencil());
   MOZ_ASSERT(aRequest->getLoadedScript()->HasDiskCacheReference());
@@ -3542,14 +3559,6 @@ void ScriptLoader::Destroy() {
 }
 
 void ScriptLoader::MaybeUpdateDiskCache() {
-  // If we already gave up, ensure that we are not going to enqueue any script,
-  // and that we finalize them properly.
-  if (mGiveUpDiskCaching) {
-    LOG(("ScriptLoader (%p): Keep giving-up bytecode encoding.", this));
-    GiveUpDiskCaching();
-    return;
-  }
-
   // We wait for the load event to be fired before saving the bytecode of
   // any script to the cache. It is quite common to have load event
   // listeners trigger more JavaScript execution, that we want to save as
@@ -3559,17 +3568,32 @@ void ScriptLoader::MaybeUpdateDiskCache() {
     return;
   }
 
-  // No need to fire any event if there is no bytecode to be saved.
-  if (mDiskCacheQueue.IsEmpty()) {
-    LOG(("ScriptLoader (%p): No script in queue to be saved to the disk.",
-         this));
-    return;
-  }
-
   // Wait until all scripts are loaded before saving the bytecode, such that
   // we capture most of the intialization of the page.
   if (HasPendingRequests()) {
     LOG(("ScriptLoader (%p): Wait for other pending request to finish.", this));
+    return;
+  }
+
+  if (mCache) {
+    if (!mCache->MaybeScheduleUpdateDiskCache()) {
+      TRACE_FOR_TEST_0("diskcache:noschedule");
+    }
+    return;
+  }
+
+  // If we already gave up, ensure that we are not going to enqueue any script,
+  // and that we finalize them properly.
+  if (mGiveUpDiskCaching) {
+    LOG(("ScriptLoader (%p): Keep giving-up bytecode encoding.", this));
+    GiveUpDiskCaching();
+    return;
+  }
+
+  // No need to fire any event if there is no bytecode to be saved.
+  if (mDiskCacheQueue.IsEmpty()) {
+    LOG(("ScriptLoader (%p): No script in queue to be saved to the disk.",
+         this));
     return;
   }
 
@@ -3629,6 +3653,7 @@ void ScriptLoader::UpdateDiskCache() {
   JS::DestroyFrontendContext(fc);
 }
 
+/* static */
 void ScriptLoader::EncodeBytecodeAndSave(
     JS::FrontendContext* aFc, JS::loader::LoadedScript* aLoadedScript) {
   MOZ_ASSERT(aLoadedScript->HasDiskCacheReference());
@@ -3713,6 +3738,13 @@ void ScriptLoader::EncodeBytecodeAndSave(
 }
 
 void ScriptLoader::GiveUpDiskCaching() {
+  if (mCache) {
+    // Disk cache is handled by SharedScriptCache.
+    MOZ_ASSERT(mDiskCacheQueue.IsEmpty());
+    MOZ_ASSERT(mDiskCacheableDependencyModules.isEmpty());
+    return;
+  }
+
   // If the document went away prematurely, we still want to set this, in order
   // to avoid queuing more scripts.
   mGiveUpDiskCaching = true;

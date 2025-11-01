@@ -389,25 +389,47 @@ class MOZ_STACK_CLASS WSRunScanner final {
 
   enum class IgnoreNonEditableNodes : bool { No, Yes };
   enum class StopAtNonEditableNode : bool { No, Yes };
-  enum class Scan : bool { All, EditableNodes };
+  enum class ReferHTMLDefaultStyle : bool { No, Yes };
+  enum class Option {
+    // If set, return only editable content or return non-editable content as a
+    // special content in the closest editing host if the scan start point is
+    // editable.
+    OnlyEditableNodes,
+    // If set, use the HTML default style to consider whether the found one is a
+    // block or an inline.
+    ReferHTMLDefaultStyle,
+  };
+  using Options = EnumSet<Option>;
 
   [[nodiscard]] constexpr static IgnoreNonEditableNodes
-  ShouldIgnoreNonEditableSiblingsOrDescendants(Scan aScan) {
-    return static_cast<IgnoreNonEditableNodes>(static_cast<bool>(aScan));
+  ShouldIgnoreNonEditableSiblingsOrDescendants(
+      Options aOptions  // NOLINT(performance-unnecessary-value-param)
+  ) {
+    return static_cast<IgnoreNonEditableNodes>(
+        aOptions.contains(Option::OnlyEditableNodes));
   }
   [[nodiscard]] constexpr static StopAtNonEditableNode
-  ShouldStopAtNonEditableNode(Scan aScan) {
-    return static_cast<StopAtNonEditableNode>(static_cast<bool>(aScan));
+  ShouldStopAtNonEditableNode(
+      Options aOptions  // NOLINT(performance-unnecessary-value-param)
+  ) {
+    return static_cast<StopAtNonEditableNode>(
+        aOptions.contains(Option::OnlyEditableNodes));
+  }
+
+  [[nodiscard]] constexpr static ReferHTMLDefaultStyle
+  ShouldReferHTMLDefaultStyle(
+      Options aOptions  // NOLINT(performance-unnecessary-value-param)
+  ) {
+    return static_cast<ReferHTMLDefaultStyle>(
+        aOptions.contains(Option::ReferHTMLDefaultStyle));
   }
 
   template <typename EditorDOMPointType>
-  WSRunScanner(Scan aScanMode, const EditorDOMPointType& aScanStartPoint,
-               BlockInlineCheck aBlockInlineCheck,
+  WSRunScanner(Options aOptions,  // NOLINT(performance-unnecessary-value-param)
+               const EditorDOMPointType& aScanStartPoint,
                const Element* aAncestorLimiter = nullptr)
       : mScanStartPoint(aScanStartPoint.template To<EditorDOMPoint>()),
-        mTextFragmentDataAtStart(aScanMode, mScanStartPoint, aBlockInlineCheck,
-                                 aAncestorLimiter),
-        mScanMode(aScanMode) {}
+        mTextFragmentDataAtStart(aOptions, mScanStartPoint, aAncestorLimiter) {}
 
   // ScanInclusiveNextVisibleNodeOrBlockBoundaryFrom() returns the first visible
   // node at or after aPoint.  If there is no visible nodes after aPoint,
@@ -420,10 +442,10 @@ class MOZ_STACK_CLASS WSRunScanner final {
       const EditorDOMPointBase<PT, CT>& aPoint) const;
   template <typename PT, typename CT>
   static WSScanResult ScanInclusiveNextVisibleNodeOrBlockBoundary(
-      Scan aScanMode, const EditorDOMPointBase<PT, CT>& aPoint,
-      BlockInlineCheck aBlockInlineCheck,
+      Options aOptions,  // NOLINT(performance-unnecessary-value-param)
+      const EditorDOMPointBase<PT, CT>& aPoint,
       const Element* aAncestorLimiter = nullptr) {
-    return WSRunScanner(aScanMode, aPoint, aBlockInlineCheck, aAncestorLimiter)
+    return WSRunScanner(aOptions, aPoint, aAncestorLimiter)
         .ScanInclusiveNextVisibleNodeOrBlockBoundaryFrom(aPoint);
   }
 
@@ -438,10 +460,10 @@ class MOZ_STACK_CLASS WSRunScanner final {
       const EditorDOMPointBase<PT, CT>& aPoint) const;
   template <typename PT, typename CT>
   static WSScanResult ScanPreviousVisibleNodeOrBlockBoundary(
-      Scan aScanMode, const EditorDOMPointBase<PT, CT>& aPoint,
-      BlockInlineCheck aBlockInlineCheck,
+      Options aOptions,  // NOLINT(performance-unnecessary-value-param)
+      const EditorDOMPointBase<PT, CT>& aPoint,
       const Element* aAncestorLimiter = nullptr) {
-    return WSRunScanner(aScanMode, aPoint, aBlockInlineCheck, aAncestorLimiter)
+    return WSRunScanner(aOptions, aPoint, aAncestorLimiter)
         .ScanPreviousVisibleNodeOrBlockBoundaryFrom(aPoint);
   }
 
@@ -451,17 +473,17 @@ class MOZ_STACK_CLASS WSRunScanner final {
    */
   template <typename EditorDOMPointType, typename PT, typename CT>
   static EditorDOMPointType GetInclusiveNextCharPoint(
-      Scan aScanMode, const EditorDOMPointBase<PT, CT>& aPoint,
-      BlockInlineCheck aBlockInlineCheck,
+      Options aOptions,  // NOLINT(performance-unnecessary-value-param)
+      const EditorDOMPointBase<PT, CT>& aPoint,
       const Element* aAncestorLimiter = nullptr) {
     if (aPoint.IsInTextNode() && !aPoint.IsEndOfContainer() &&
-        (aScanMode != Scan::EditableNodes ||
+        (!aOptions.contains(Option::OnlyEditableNodes) ||
          HTMLEditUtils::IsSimplyEditableNode(
              *aPoint.template ContainerAs<Text>()))) {
       return EditorDOMPointType(aPoint.template ContainerAs<Text>(),
                                 aPoint.Offset());
     }
-    return WSRunScanner(aScanMode, aPoint, aBlockInlineCheck, aAncestorLimiter)
+    return WSRunScanner(aOptions, aPoint, aAncestorLimiter)
         .GetInclusiveNextCharPoint<EditorDOMPointType>(aPoint);
   }
 
@@ -470,17 +492,17 @@ class MOZ_STACK_CLASS WSRunScanner final {
    */
   template <typename EditorDOMPointType, typename PT, typename CT>
   static EditorDOMPointType GetPreviousCharPoint(
-      Scan aScanMode, const EditorDOMPointBase<PT, CT>& aPoint,
-      BlockInlineCheck aBlockInlineCheck,
+      Options aOptions,  // NOLINT(performance-unnecessary-value-param)
+      const EditorDOMPointBase<PT, CT>& aPoint,
       const Element* aAncestorLimiter = nullptr) {
     if (aPoint.IsInTextNode() && !aPoint.IsStartOfContainer() &&
-        (aScanMode != Scan::EditableNodes ||
+        (!aOptions.contains(Option::OnlyEditableNodes) ||
          HTMLEditUtils::IsSimplyEditableNode(
              *aPoint.template ContainerAs<Text>()))) {
       return EditorDOMPointType(aPoint.template ContainerAs<Text>(),
                                 aPoint.Offset() - 1);
     }
-    return WSRunScanner(aScanMode, aPoint, aBlockInlineCheck, aAncestorLimiter)
+    return WSRunScanner(aOptions, aPoint, aAncestorLimiter)
         .GetPreviousCharPoint<EditorDOMPointType>(aPoint);
   }
 
@@ -494,12 +516,12 @@ class MOZ_STACK_CLASS WSRunScanner final {
    */
   template <typename EditorDOMPointType>
   static EditorDOMPointType GetAfterLastVisiblePoint(
-      Scan aScanMode, Text& aTextNode,
-      const Element* aAncestorLimiter = nullptr);
+      Options aOptions,  // NOLINT(performance-unnecessary-value-param)
+      Text& aTextNode, const Element* aAncestorLimiter = nullptr);
   template <typename EditorDOMPointType>
   static EditorDOMPointType GetFirstVisiblePoint(
-      Scan aScanMode, Text& aTextNode,
-      const Element* aAncestorLimiter = nullptr);
+      Options aOptions,  // NOLINT(performance-unnecessary-value-param)
+      Text& aTextNode, const Element* aAncestorLimiter = nullptr);
 
   /**
    * GetRangeInTextNodesToForwardDeleteFrom() returns the range to remove
@@ -507,17 +529,17 @@ class MOZ_STACK_CLASS WSRunScanner final {
    */
   static Result<EditorDOMRangeInTexts, nsresult>
   GetRangeInTextNodesToForwardDeleteFrom(
-      Scan aScanMode, const EditorDOMPoint& aPoint,
-      const Element* aAncestorLimiter = nullptr);
+      Options aOptions,  // NOLINT(performance-unnecessary-value-param)
+      const EditorDOMPoint& aPoint, const Element* aAncestorLimiter = nullptr);
 
   /**
    * GetRangeInTextNodesToBackspaceFrom() returns the range to remove text
    * when caret is at aPoint.
    */
   static Result<EditorDOMRangeInTexts, nsresult>
-  GetRangeInTextNodesToBackspaceFrom(Scan aScanMode,
-                                     const EditorDOMPoint& aPoint,
-                                     const Element* aAncestorLimiter = nullptr);
+  GetRangeInTextNodesToBackspaceFrom(
+      Options aOptions,  // NOLINT(performance-unnecessary-value-param)
+      const EditorDOMPoint& aPoint, const Element* aAncestorLimiter = nullptr);
 
   /**
    * GetRangesForDeletingAtomicContent() returns the range to delete
@@ -525,7 +547,8 @@ class MOZ_STACK_CLASS WSRunScanner final {
    * be included into the range.
    */
   static EditorDOMRange GetRangesForDeletingAtomicContent(
-      Scan aScanMode, const nsIContent& aAtomicContent,
+      Options aOptions,  // NOLINT(performance-unnecessary-value-param)
+      const nsIContent& aAtomicContent,
       const Element* aAncestorLimiter = nullptr);
 
   /**
@@ -548,8 +571,8 @@ class MOZ_STACK_CLASS WSRunScanner final {
    *                            Otherwise, must not be set.
    */
   static EditorDOMRange GetRangeForDeletingBlockElementBoundaries(
-      Scan aScanMode, const Element& aLeftBlockElement,
-      const Element& aRightBlockElement,
+      Options aOptions,  // NOLINT(performance-unnecessary-value-param)
+      const Element& aLeftBlockElement, const Element& aRightBlockElement,
       const EditorDOMPoint& aPointContainingTheOtherBlock,
       const Element* aAncestorLimiter = nullptr);
 
@@ -559,16 +582,16 @@ class MOZ_STACK_CLASS WSRunScanner final {
    * is in adjacent text nodes.  Returns true if this modifies the range.
    */
   static Result<bool, nsresult> ShrinkRangeIfStartsFromOrEndsAfterAtomicContent(
-      Scan aScanMode, nsRange& aRange,
-      const Element* aAncestorLimiter = nullptr);
+      Options aOptions,  // NOLINT(performance-unnecessary-value-param)
+      nsRange& aRange, const Element* aAncestorLimiter = nullptr);
 
   /**
    * GetRangeContainingInvisibleWhiteSpacesAtRangeBoundaries() returns
    * extended range if range boundaries of aRange are in invisible white-spaces.
    */
   static EditorDOMRange GetRangeContainingInvisibleWhiteSpacesAtRangeBoundaries(
-      Scan aScanMode, const EditorDOMRange& aRange,
-      const Element* aAncestorLimiter = nullptr);
+      Options aOptions,  // NOLINT(performance-unnecessary-value-param)
+      const EditorDOMRange& aRange, const Element* aAncestorLimiter = nullptr);
 
   /**
    * GetPrecedingBRElementUnlessVisibleContentFound() scans a `<br>` element
@@ -579,8 +602,8 @@ class MOZ_STACK_CLASS WSRunScanner final {
   template <typename EditorDOMPointType>
   MOZ_NEVER_INLINE_DEBUG static HTMLBRElement*
   GetPrecedingBRElementUnlessVisibleContentFound(
-      Scan aScanMode, const EditorDOMPointType& aPoint,
-      BlockInlineCheck aBlockInlineCheck,
+      Options aOptions,  // NOLINT(performance-unnecessary-value-param)
+      const EditorDOMPointType& aPoint,
       const Element* aAncestorLimiter = nullptr) {
     MOZ_ASSERT(aPoint.IsSetAndValid());
     // XXX This method behaves differently even in similar point.
@@ -595,15 +618,17 @@ class MOZ_STACK_CLASS WSRunScanner final {
     }
     // TODO: Scan for end boundary is redundant in this case, we should optimize
     //       it.
-    TextFragmentData textFragmentData(aScanMode, aPoint, aBlockInlineCheck,
-                                      aAncestorLimiter);
+    TextFragmentData textFragmentData(aOptions, aPoint, aAncestorLimiter);
     return textFragmentData.StartsFromBRElement()
                ? textFragmentData.StartReasonBRElementPtr()
                : nullptr;
   }
 
-  constexpr BlockInlineCheck BlockInlineCheckMode() const {
-    return mTextFragmentDataAtStart.BlockInlineCheckMode();
+  [[nodiscard]] constexpr Options ScanOptions() const {
+    return mTextFragmentDataAtStart.ScanOptions();
+  }
+  [[nodiscard]] bool ReferredHTMLDefaultStyle() const {
+    return mTextFragmentDataAtStart.ReferredHTMLDefaultStyle();
   }
 
   const EditorDOMPoint& ScanStartRef() const { return mScanStartPoint; }
@@ -739,7 +764,8 @@ class MOZ_STACK_CLASS WSRunScanner final {
       const EditorDOMPointBase<PT, CT>& aPoint) const {
     return TextFragmentDataAtStartRef()
         .GetInclusiveNextCharPoint<EditorDOMPointType>(
-            aPoint, ShouldIgnoreNonEditableSiblingsOrDescendants(mScanMode));
+            aPoint, ShouldIgnoreNonEditableSiblingsOrDescendants(
+                        mTextFragmentDataAtStart.ScanOptions()));
   }
 
   /**
@@ -754,7 +780,8 @@ class MOZ_STACK_CLASS WSRunScanner final {
       const EditorDOMPointBase<PT, CT>& aPoint) const {
     return TextFragmentDataAtStartRef()
         .GetPreviousCharPoint<EditorDOMPointType>(
-            aPoint, ShouldIgnoreNonEditableSiblingsOrDescendants(mScanMode));
+            aPoint, ShouldIgnoreNonEditableSiblingsOrDescendants(
+                        mTextFragmentDataAtStart.ScanOptions()));
   }
 
   /**
@@ -820,9 +847,8 @@ class MOZ_STACK_CLASS WSRunScanner final {
        */
       template <typename EditorDOMPointType>
       static BoundaryData ScanCollapsibleWhiteSpaceStartFrom(
-          Scan aScanMode, const EditorDOMPointType& aPoint,
-          NoBreakingSpaceData* aNBSPData, BlockInlineCheck aBlockInlineCheck,
-          StopAtNonEditableNode aStopAtNonEditableNode,
+          Options aOptions,  // NOLINT(performance-unnecessary-value-param)
+          const EditorDOMPointType& aPoint, NoBreakingSpaceData* aNBSPData,
           const Element& aAncestorLimiter);
 
       /**
@@ -837,9 +863,8 @@ class MOZ_STACK_CLASS WSRunScanner final {
        */
       template <typename EditorDOMPointType>
       static BoundaryData ScanCollapsibleWhiteSpaceEndFrom(
-          Scan aScanMode, const EditorDOMPointType& aPoint,
-          NoBreakingSpaceData* aNBSPData, BlockInlineCheck aBlockInlineCheck,
-          StopAtNonEditableNode aStopAtNonEditableNode,
+          Options aOptions,  // NOLINT(performance-unnecessary-value-param)
+          const EditorDOMPointType& aPoint, NoBreakingSpaceData* aNBSPData,
           const Element& aAncestorLimiter);
 
       BoundaryData() = default;
@@ -901,12 +926,10 @@ class MOZ_STACK_CLASS WSRunScanner final {
        */
       template <typename EditorDOMPointType>
       static Maybe<BoundaryData> ScanCollapsibleWhiteSpaceStartInTextNode(
-          const EditorDOMPointType& aPoint, NoBreakingSpaceData* aNBSPData,
-          BlockInlineCheck aBlockInlineCheck);
+          const EditorDOMPointType& aPoint, NoBreakingSpaceData* aNBSPData);
       template <typename EditorDOMPointType>
       static Maybe<BoundaryData> ScanCollapsibleWhiteSpaceEndInTextNode(
-          const EditorDOMPointType& aPoint, NoBreakingSpaceData* aNBSPData,
-          BlockInlineCheck aBlockInlineCheck);
+          const EditorDOMPointType& aPoint, NoBreakingSpaceData* aNBSPData);
 
       nsCOMPtr<nsIContent> mReasonContent;
       EditorDOMPoint mPoint;
@@ -954,18 +977,18 @@ class MOZ_STACK_CLASS WSRunScanner final {
      * aAncestorLimiter is specified to the editing host.
      */
     template <typename EditorDOMPointType>
-    TextFragmentData(Scan aScanMode, const EditorDOMPointType& aPoint,
-                     BlockInlineCheck aBlockInlineCheck,
-                     const Element* aAncestorLimiter = nullptr);
+    TextFragmentData(
+        Options aOptions,  // NOLINT(performance-unnecessary-value-param)
+        const EditorDOMPointType& aPoint,
+        const Element* aAncestorLimiter = nullptr);
 
     bool IsInitialized() const {
       return mStart.Initialized() && mEnd.Initialized();
     }
 
-    constexpr Scan ScanMode() const { return mScanMode; }
-
-    constexpr BlockInlineCheck BlockInlineCheckMode() const {
-      return mBlockInlineCheck;
+    [[nodiscard]] constexpr Options ScanOptions() const { return mOptions; }
+    [[nodiscard]] bool ReferredHTMLDefaultStyle() const {
+      return mOptions.contains(Option::ReferHTMLDefaultStyle);
     }
 
     const Element* GetAncestorLimiter() const { return mAncestorLimiter; }
@@ -1067,7 +1090,7 @@ class MOZ_STACK_CLASS WSRunScanner final {
     template <typename EditorDOMPointType, typename PT, typename CT>
     [[nodiscard]] static EditorDOMPointType GetInclusiveNextCharPoint(
         const EditorDOMPointBase<PT, CT>& aPoint,
-        BlockInlineCheck aBlockInlineCheck,
+        ReferHTMLDefaultStyle aReferHTMLDefaultStyle,
         IgnoreNonEditableNodes aIgnoreNonEditableNodes,
         const nsIContent* aFollowingLimiterContent = nullptr);
 
@@ -1076,8 +1099,8 @@ class MOZ_STACK_CLASS WSRunScanner final {
         const EditorDOMPointBase<PT, CT>& aPoint,
         IgnoreNonEditableNodes aIgnoreNonEditableNodes) const {
       return GetInclusiveNextCharPoint<EditorDOMPointType>(
-          aPoint, mBlockInlineCheck, aIgnoreNonEditableNodes,
-          GetEndReasonContent());
+          aPoint, ShouldReferHTMLDefaultStyle(mOptions),
+          aIgnoreNonEditableNodes, GetEndReasonContent());
     }
 
     /**
@@ -1087,7 +1110,7 @@ class MOZ_STACK_CLASS WSRunScanner final {
     template <typename EditorDOMPointType, typename PT, typename CT>
     [[nodiscard]] static EditorDOMPointType GetPreviousCharPoint(
         const EditorDOMPointBase<PT, CT>& aPoint,
-        BlockInlineCheck aBlockInlineCheck,
+        ReferHTMLDefaultStyle aReferHTMLDefaultStyle,
         IgnoreNonEditableNodes aIgnoreNonEditableNodes,
         const nsIContent* aPrecedingLimiterContent = nullptr);
 
@@ -1095,9 +1118,9 @@ class MOZ_STACK_CLASS WSRunScanner final {
     [[nodiscard]] EditorDOMPointType GetPreviousCharPoint(
         const EditorDOMPointBase<PT, CT>& aPoint,
         IgnoreNonEditableNodes aIgnoreNonEditableNodes) const {
-      return GetPreviousCharPoint<EditorDOMPointType>(aPoint, mBlockInlineCheck,
-                                                      aIgnoreNonEditableNodes,
-                                                      GetStartReasonContent());
+      return GetPreviousCharPoint<EditorDOMPointType>(
+          aPoint, ShouldReferHTMLDefaultStyle(mOptions),
+          aIgnoreNonEditableNodes, GetStartReasonContent());
     }
 
     /**
@@ -1111,7 +1134,7 @@ class MOZ_STACK_CLASS WSRunScanner final {
     [[nodiscard]] static EditorDOMPointType GetEndOfCollapsibleASCIIWhiteSpaces(
         const EditorDOMPointInText& aPointAtASCIIWhiteSpace,
         nsIEditor::EDirection aDirectionToDelete,
-        BlockInlineCheck aBlockInlineCheck,
+        ReferHTMLDefaultStyle aReferHTMLDefaultStyle,
         IgnoreNonEditableNodes aIgnoreNonEditableNodes,
         const nsIContent* aFollowingLimiterContent = nullptr);
 
@@ -1121,8 +1144,9 @@ class MOZ_STACK_CLASS WSRunScanner final {
         nsIEditor::EDirection aDirectionToDelete,
         IgnoreNonEditableNodes aIgnoreNonEditableNodes) const {
       return GetEndOfCollapsibleASCIIWhiteSpaces<EditorDOMPointType>(
-          aPointAtASCIIWhiteSpace, aDirectionToDelete, mBlockInlineCheck,
-          aIgnoreNonEditableNodes, GetEndReasonContent());
+          aPointAtASCIIWhiteSpace, aDirectionToDelete,
+          ShouldReferHTMLDefaultStyle(mOptions), aIgnoreNonEditableNodes,
+          GetEndReasonContent());
     }
 
     /**
@@ -1137,7 +1161,7 @@ class MOZ_STACK_CLASS WSRunScanner final {
     GetFirstASCIIWhiteSpacePointCollapsedTo(
         const EditorDOMPointInText& aPointAtASCIIWhiteSpace,
         nsIEditor::EDirection aDirectionToDelete,
-        BlockInlineCheck aBlockInlineCheck,
+        ReferHTMLDefaultStyle aReferHTMLDefaultStyle,
         IgnoreNonEditableNodes aIgnoreNonEditableNodes,
         const nsIContent* aPrecedingLimiterContent = nullptr);
 
@@ -1147,8 +1171,9 @@ class MOZ_STACK_CLASS WSRunScanner final {
         nsIEditor::EDirection aDirectionToDelete,
         IgnoreNonEditableNodes aIgnoreNonEditableNodes) const {
       return GetFirstASCIIWhiteSpacePointCollapsedTo<EditorDOMPointType>(
-          aPointAtASCIIWhiteSpace, aDirectionToDelete, mBlockInlineCheck,
-          aIgnoreNonEditableNodes, GetStartReasonContent());
+          aPointAtASCIIWhiteSpace, aDirectionToDelete,
+          ShouldReferHTMLDefaultStyle(mOptions), aIgnoreNonEditableNodes,
+          GetStartReasonContent());
     }
 
     /**
@@ -1397,8 +1422,7 @@ class MOZ_STACK_CLASS WSRunScanner final {
     mutable Maybe<EditorDOMRange> mLeadingWhiteSpaceRange;
     mutable Maybe<EditorDOMRange> mTrailingWhiteSpaceRange;
     mutable Maybe<VisibleWhiteSpacesData> mVisibleWhiteSpacesData;
-    BlockInlineCheck mBlockInlineCheck;
-    Scan mScanMode;
+    const Options mOptions;
   };
 
   const TextFragmentData& TextFragmentDataAtStartRef() const {
@@ -1426,8 +1450,6 @@ class MOZ_STACK_CLASS WSRunScanner final {
       const TextFragmentData& aStart, const TextFragmentData& aEnd);
 
   TextFragmentData mTextFragmentDataAtStart;
-
-  const Scan mScanMode;
 
   friend class WhiteSpaceVisibilityKeeper;
   friend class WSScanResult;

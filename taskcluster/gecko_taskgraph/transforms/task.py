@@ -316,6 +316,13 @@ def verify_index(config, index):
         raise Exception(UNSUPPORTED_INDEX_PRODUCT_ERROR.format(product=product))
 
 
+RUN_TASK_RE = re.compile(r"run-task(-(git|hg))?$")
+
+
+def is_run_task(cmd: str) -> bool:
+    return bool(re.search(RUN_TASK_RE, cmd))
+
+
 @payload_builder(
     "docker-worker",
     schema={
@@ -503,7 +510,7 @@ def build_docker_worker_payload(config, task, task_def):
     if "max-run-time" in worker:
         payload["maxRunTime"] = worker["max-run-time"]
 
-    run_task = payload.get("command", [""])[0].endswith("run-task")
+    run_task = is_run_task(payload.get("command", [""])[0])
 
     # run-task exits EXIT_PURGE_CACHES if there is a problem with caches.
     # Automatically retry the tasks and purge caches if we see this exit
@@ -2550,7 +2557,9 @@ def check_run_task_caches(config, tasks):
         re.VERBOSE,
     )
 
+    re_checkout_cache = re.compile("^checkouts")
     re_sparse_checkout_cache = re.compile("^checkouts-sparse")
+    re_shallow_checkout_cache = re.compile("^checkouts-git-shallow")
 
     cache_prefix = "{trust_domain}-level-{level}-".format(
         trust_domain=config.graph_config["trust-domain"],
@@ -2564,10 +2573,13 @@ def check_run_task_caches(config, tasks):
         command = payload.get("command") or [""]
 
         main_command = command[0] if isinstance(command[0], str) else ""
-        run_task = main_command.endswith("run-task")
+        run_task = is_run_task(main_command)
 
         require_sparse_cache = False
+        require_shallow_cache = False
+        have_checkout_cache = False
         have_sparse_cache = False
+        have_shallow_cache = False
 
         if run_task:
             for arg in command[1:]:
@@ -2594,6 +2606,10 @@ def check_run_task_caches(config, tasks):
                     require_sparse_cache = True
                     break
 
+                if arg == "--gecko-shallow-clone":
+                    require_shallow_cache = True
+                    break
+
         for cache in payload.get("cache", {}):
             if not cache.startswith(cache_prefix):
                 raise Exception(
@@ -2605,8 +2621,14 @@ def check_run_task_caches(config, tasks):
 
             cache = cache[len(cache_prefix) :]
 
+            if re_checkout_cache.match(cache):
+                have_checkout_cache = True
+
             if re_sparse_checkout_cache.match(cache):
                 have_sparse_cache = True
+
+            if re_shallow_checkout_cache.match(cache):
+                have_shallow_cache = True
 
             if not re_reserved_caches.match(cache):
                 continue
@@ -2626,11 +2648,18 @@ def check_run_task_caches(config, tasks):
                     "naming requirements" % (task["label"], cache)
                 )
 
-        if require_sparse_cache and not have_sparse_cache:
+        if have_checkout_cache and require_sparse_cache and not have_sparse_cache:
             raise Exception(
                 "%s is using a sparse checkout but not using "
                 "a sparse checkout cache; change the checkout "
                 "cache name so it is sparse aware" % task["label"]
+            )
+
+        if have_checkout_cache and require_shallow_cache and not have_shallow_cache:
+            raise Exception(
+                "%s is using a shallow clone but not using "
+                "a shallow checkout cache; change the checkout "
+                "cache name so it is shallow aware" % task["label"]
             )
 
         yield task
