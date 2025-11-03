@@ -82,10 +82,6 @@
         "issue": "broken-interactive-elements",
         "matches": ["*://bathpublishing.com/*"]
       },
-      "1944022": {
-        "issue": "broken-interactive-elements",
-        "matches": ["*://drafthouse.com/*"]
-      },
       "1944024": {
         "issue": "broken-interactive-elements",
         "matches": ["*://dylantalkstone.com/*"]
@@ -524,7 +520,7 @@
     },
     "interventions": [
       {
-        "platforms": ["all"],
+        "platforms": ["desktop"],
         "content_scripts": {
           "css": ["1729435_milkbarstore.com-fix-cart-quantity-counts.css"]
         }
@@ -2727,21 +2723,6 @@
       }
     ]
   },
-  "1899948": {
-    "label": "tv.partner.co.il",
-    "bugs": {
-      "1899948": {
-        "issue": "firefox-blocked-completely",
-        "matches": ["*://tv.partner.co.il/*"]
-      }
-    },
-    "interventions": [
-      {
-        "platforms": ["desktop"],
-        "ua_string": ["add_Chrome"]
-      }
-    ]
-  },
   "1901000": {
     "label": "eyebuydirect.ca",
     "bugs": {
@@ -4089,6 +4070,21 @@
       }
     ]
   },
+  "1933811": {
+    "label": "indices.circana.com",
+    "bugs": {
+      "1898959": {
+        "issue": "firefox-blocked-completely",
+        "matches": ["*://indices.circana.com/*"]
+      }
+    },
+    "interventions": [
+      {
+        "platforms": ["all"],
+        "ua_string": ["add_Chrome"]
+      }
+    ]
+  },
   "1933910": {
     "label": "www.tiktok.com/tiktokstudio",
     "bugs": {
@@ -4119,9 +4115,7 @@
           {
             "find": "Date\\.parse\\(e\\.newsInfoDetail\\.date\\)",
             "replace": "Date.parse(s.newsInfoDetail.date)",
-            "urls": [
-              "https://www.toei-anim.co.jp/_next/static/chunks/585-f8188c5d925661df.js"
-            ]
+            "urls": ["https://www.toei-anim.co.jp/_next/static/chunks/585-*.js"]
           }
         ]
       }
@@ -4847,23 +4841,6 @@
       }
     ]
   },
-  "1959132": {
-    "label": "www.samsung.com (columns fix)",
-    "bugs": {
-      "1959132": {
-        "issue": "broken-layout",
-        "matches": ["*://www.samsung.com/*"]
-      }
-    },
-    "interventions": [
-      {
-        "platforms": ["android"],
-        "content_scripts": {
-          "css": ["bug1959132-www.samsung.com-column-size-fix.css"]
-        }
-      }
-    ]
-  },
   "1959444": {
     "label": "m.modanisa.com",
     "bugs": {
@@ -5058,25 +5035,6 @@
       }
     ]
   },
-  "1967510": {
-    "label": "gemini.google.com",
-    "bugs": {
-      "1967510": {
-        "issue": "broken-editor",
-        "matches": ["*://gemini.google.com/*"]
-      }
-    },
-    "interventions": [
-      {
-        "platforms": ["desktop"],
-        "content_scripts": {
-          "js": [
-            "bug1967510-gemini.google.com-fix-copy-pasting-between-inputs.js"
-          ]
-        }
-      }
-    ]
-  },
   "1967694": {
     "label": "onlyfaucet.com",
     "bugs": {
@@ -5245,23 +5203,6 @@
       }
     ]
   },
-  "1975951": {
-    "label": "www.dell.com",
-    "bugs": {
-      "1975951": {
-        "issue": "broken-images",
-        "matches": ["*://www.dell.com/*"]
-      }
-    },
-    "interventions": [
-      {
-        "not_platforms": ["mac"],
-        "content_scripts": {
-          "css": ["bug1975951-www.dell.com-reveal-product-images.css"]
-        }
-      }
-    ]
-  },
   "1975953": {
     "label": "envios.mercadolibre.com.ar",
     "bugs": {
@@ -5328,6 +5269,122 @@
             "lib/ua_helpers.js",
             "bug1934908-www.cbsnews.com-ua-override.js"
           ]
+        }
+      }
+    ]
+  },
+  "1913599": {
+    "label": "createEncodedStreams shim test-page",
+    "bugs": {
+      "1913599": {
+        "issue": "broken-meetings",
+        "matches": ["https://jan-ivar.github.io/*"]
+      }
+    },
+    "interventions": [
+      {
+        "platforms": ["all"],
+        "only_channels": ["nightly"],
+        "content_scripts": {
+          "all_frames": true,
+          "js": ["bug1913599-shim-createencodedstreams.js"]
+        }
+      }
+    ]
+  },
+  "1896361": {
+    "label": "Meta Messenger",
+    "bugs": {
+      "1896361": {
+        "issue": "broken-meetings",
+        "matches": ["https://www.facebook.com/*", "https://www.messenger.com/*"]
+      }
+    },
+    "interventions": [
+      {
+        "platforms": ["all"],
+        "only_channels": ["nightly"],
+        "content_scripts": {
+          "all_frames": true,
+          "js": ["bug1913599-shim-createencodedstreams.js"]
+        }
+      }
+    ]
+  },
+  "1896424": {
+    "label": "meet.google.com legacy group calls (exploratory)",
+    "bugs": {
+      "1896424": {
+        "issue": "broken-meetings",
+        "matches": ["https://meet.google.com/calling/*"]
+      }
+    },
+    "interventions": [
+      {
+        "platforms": [],
+        "only_channels": ["nightly"],
+        "not_platforms": ["android"],
+        "ua_string": ["Chrome_with_FxQuantum"],
+        "content_scripts": {
+          "all_frames": true,
+          "js": ["bug1913599-shim-createencodedstreams.js"]
+        }
+      }
+    ]
+  },
+  "1902507": {
+    "label": "riverside.fm",
+    "bugs": {
+      "1902507": {
+        "issue": "broken-meetings",
+        "matches": ["https://riverside.fm/*"]
+      }
+    },
+    "interventions": [
+      {
+        "platforms": ["all"],
+        "only_channels": ["nightly"],
+        "content_scripts": {
+          "all_frames": true,
+          "js": ["bug1913599-shim-createencodedstreams.js"]
+        }
+      }
+    ]
+  },
+  "1902508": {
+    "label": "goto.com",
+    "bugs": {
+      "1902508": {
+        "issue": "broken-meetings",
+        "matches": ["https://*.goto.com/*"]
+      }
+    },
+    "interventions": [
+      {
+        "platforms": ["all"],
+        "only_channels": ["nightly"],
+        "content_scripts": {
+          "all_frames": true,
+          "js": ["bug1913599-shim-createencodedstreams.js"]
+        }
+      }
+    ]
+  },
+  "1904141": {
+    "label": "mega.nz",
+    "bugs": {
+      "1904141": {
+        "issue": "broken-meetings",
+        "matches": ["https://mega.nz/*"]
+      }
+    },
+    "interventions": [
+      {
+        "platforms": ["all"],
+        "only_channels": ["nightly"],
+        "content_scripts": {
+          "all_frames": true,
+          "js": ["bug1913599-shim-createencodedstreams.js"]
         }
       }
     ]
@@ -5441,7 +5498,7 @@
     },
     "interventions": [
       {
-        "platforms": ["all"],
+        "platforms": ["desktop"],
         "content_scripts": {
           "css": ["1981995_www.mygeha.com-fix-location-layout.css"]
         }
@@ -5733,23 +5790,6 @@
         "platforms": ["all"],
         "content_scripts": {
           "css": ["1994062-managetrips.jetblue.com-fix-print-layout.css"]
-        }
-      }
-    ]
-  },
-  "1994142": {
-    "label": "virtual-cards.exnode.ru",
-    "bugs": {
-      "1994142": {
-        "issue": "broken-layout",
-        "matches": ["*://virtual-cards.exnode.ru/*"]
-      }
-    },
-    "interventions": [
-      {
-        "platforms": ["desktop"],
-        "content_scripts": {
-          "css": ["1994142-virtual-cards.exnode.ru-fix-table-layout.css"]
         }
       }
     ]

@@ -2180,7 +2180,7 @@
   # Whether to put a file promise onto the clipboard when copying images on Windows
 -   name: clipboard.imageAsFile.enabled
     type: bool
-    value: @IS_NOT_EARLY_BETA_OR_EARLIER@
+    value: false
     mirror: always
 
   # On Windows, whether to add PNG before BMP (CF_DIB) in the list of supported
@@ -3687,7 +3687,7 @@
 # Whether the navigation API will be exposed.
 - name: dom.navigation.webidl.enabled
   type: RelaxedAtomicBool
-  value: false
+  value: @IS_NIGHTLY_BUILD@
   mirror: always
   do_not_use_directly: true
 

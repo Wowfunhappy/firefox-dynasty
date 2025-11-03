@@ -234,7 +234,7 @@ using namespace mozilla::layout;
 using PaintFrameFlags = nsLayoutUtils::PaintFrameFlags;
 typedef ScrollableLayerGuid::ViewID ViewID;
 
-MOZ_RUNINIT PresShell::CapturingContentInfo PresShell::sCapturingContentInfo;
+MOZ_CONSTINIT PresShell::CapturingContentInfo PresShell::sCapturingContentInfo;
 
 // RangePaintInfo is used to paint ranges to offscreen buffers
 struct RangePaintInfo {
@@ -4713,7 +4713,7 @@ MOZ_CAN_RUN_SCRIPT_BOUNDARY void PresShell::ContentWillBeRemoved(
   }
 
   mFrameConstructor->ContentWillBeRemoved(
-      aChild, nsCSSFrameConstructor::REMOVE_CONTENT);
+      aChild, nsCSSFrameConstructor::RemovalKind::Dom);
 
   // NOTE(emilio): It's important that this goes after the frame constructor
   // stuff, otherwise the frame constructor can't see elements which are
@@ -6099,9 +6099,8 @@ void PresShell::ProcessSynthMouseOrPointerMoveEvent(
     // input block. Same for the APZ response field.
     InputAPZContext apzContext(aPointerInfo.mLastTargetGuid, 0,
                                nsEventStatus_eIgnore);
-    AUTO_PROFILER_TRACING_MARKER_DOCSHELL(
-        "Paint", "DispatchSynthMouseOrPointerMove", GRAPHICS,
-        pointShell->GetPresContext()->GetDocShell());
+    AUTO_PROFILER_MARKER_DOCSHELL("DispatchSynthMouseOrPointerMove", GRAPHICS,
+                                  pointShell->GetPresContext()->GetDocShell());
     nsEventStatus status = nsEventStatus_eIgnore;
     if (popupFrame) {
       pointShell->HandleEvent(popupFrame, &event, false, &status);
@@ -10657,7 +10656,7 @@ bool PresShell::DoReflow(nsIFrame* target, bool aInterruptible,
     innerWindowID = Some(window->WindowID());
   }
   AutoProfilerTracing tracingLayoutFlush(
-      "Paint", aInterruptible ? "Reflow (interruptible)" : "Reflow (sync)",
+      aInterruptible ? "Reflow (interruptible)" : "Reflow (sync)",
       geckoprofiler::category::LAYOUT, std::move(mReflowCause), innerWindowID);
   mReflowCause = nullptr;
 
@@ -12130,11 +12129,9 @@ Maybe<MobileViewportManager::ManagerType> UseMobileViewportManager(
     PresShell* aPresShell, Document* aDocument) {
   // If we're not using APZ, we won't be able to zoom, so there is no
   // point in having an MVM.
-  if (nsPresContext* presContext = aPresShell->GetPresContext()) {
-    if (nsIWidget* widget = presContext->GetNearestWidget()) {
-      if (!widget->AsyncPanZoomEnabled()) {
-        return Nothing();
-      }
+  if (nsIWidget* widget = aPresShell->GetNearestWidget()) {
+    if (!widget->AsyncPanZoomEnabled()) {
+      return Nothing();
     }
   }
   if (nsLayoutUtils::ShouldHandleMetaViewport(aDocument)) {

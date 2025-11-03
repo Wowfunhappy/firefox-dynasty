@@ -5785,10 +5785,12 @@ static gfxFloat ComputeDecorationLineOffset(
 
 // Helper to determine decoration inset.
 // Returns false if the inset would cut off the decoration entirely.
+// If aOnlyExtend is true, this will only consider cases with negative inset
+// (i.e. the line will actually be extended beyond the normal length).
 static bool ComputeDecorationInset(
     nsTextFrame* aFrame, const nsPresContext* aPresCtx,
     const nsIFrame* aDecFrame, const gfxFont::Metrics& aMetrics,
-    nsCSSRendering::DecorationRectParams& aParams) {
+    nsCSSRendering::DecorationRectParams& aParams, bool aOnlyExtend = false) {
   const WritingMode wm = aDecFrame->GetWritingMode();
   bool verticalDec = wm.IsVertical();
 
@@ -5823,23 +5825,32 @@ static bool ComputeDecorationInset(
     insetRight = length.end.ToAppUnits();
   }
 
+  // If we only care about extended lines (for UnionAdditionalOverflow),
+  // we can bail out if neither inset value is negative.
+  if (aOnlyExtend && insetLeft >= 0 && insetRight >= 0) {
+    return true;
+  }
+
   if (wm.IsInlineReversed()) {
     std::swap(insetLeft, insetRight);
   }
 
-  // These rects must be based on the same origin.
-  // If the decorating frame is an inline frame, then these rects are relative
-  // to the decorating frame.
-  // Otherwise, these rects are relative to the line container.
-  nsRect inlineRect, frameRect;
+  // The rect of the decorating box (if an inline) or of the current line (if
+  // the decoration is propagated from a block ancestor). We will need to
+  // compare this with the rect of the current frame, which may be only a
+  // sub-range of the entire decorated range.
+  nsRect decRect;
+
+  // The container of the decoration, or the fragment of it on this line.
+  const nsIFrame* decContainer;
 
   // If the decorating frame is an inline frame, we can use it as the
   // reference frame for measurements.
   // If the decorating frame is not inline, then we will need to consider
   // text indentation and calculate geometry using line boxes.
   if (aDecFrame->IsInlineFrame()) {
-    frameRect = nsRect{aFrame->GetOffsetTo(aDecFrame), aFrame->GetSize()};
-    inlineRect = nsRect{nsPoint(0, 0), aDecFrame->GetSize()};
+    decRect = aDecFrame->GetContentRectRelativeToSelf();
+    decContainer = aDecFrame;
   } else {
     nsIFrame* const lineContainer = FindLineContainer(aFrame);
     nsILineIterator* const iter = lineContainer->GetLineIterator();
@@ -5854,8 +5865,8 @@ static bool ComputeDecorationInset(
     const nsILineIterator::LineInfo lineInfo = iter->GetLine(lineNum).unwrap();
 
     // Create the rects, relative to the line container.
-    frameRect = nsRect{aFrame->GetOffsetTo(lineContainer), aFrame->GetSize()};
-    inlineRect = lineInfo.mLineBounds;
+    decRect = lineInfo.mLineBounds;
+    decContainer = lineContainer;
 
     // Account for text-indent, which will push text frames into the line box.
     const StyleTextIndent& textIndent = aFrame->StyleText()->mTextIndent;
@@ -5879,14 +5890,28 @@ static bool ComputeDecorationInset(
         const nscoord basis = lineContainer->GetLogicalSize(wm).ISize(wm);
         nsMargin indentMargin;
         indentMargin.Side(side) = textIndent.length.Resolve(basis);
-        inlineRect.Deflate(indentMargin);
+        decRect.Deflate(indentMargin);
       }
     }
   }
 
+  // The rect of the current frame, mapped to the same coordinate space as
+  // decRect so that we can compare their edges.
+  const nsRect frameRect =
+      aFrame->GetRectRelativeToSelf() + aFrame->GetOffsetTo(decContainer);
+
+  // The nominal size of the decoration (prior to insets being applied) is
+  // reduced by any margin, border, and padding present on frames intervening
+  // between aFrame and decContainer.
+  for (const nsIFrame* parent = aFrame->GetParent(); parent != decContainer;
+       parent = parent->GetParent()) {
+    decRect.Deflate(parent->GetUsedMargin());
+    decRect.Deflate(parent->GetUsedBorderAndPadding());
+  }
+
   // Find the margin of the of this frame inside its container.
   nscoord marginLeft, marginRight, frameSize;
-  const nsMargin difference = inlineRect - frameRect;
+  const nsMargin difference = decRect - frameRect;
   if (verticalDec) {
     marginLeft = difference.top;
     marginRight = difference.bottom;
@@ -6085,7 +6110,7 @@ void nsTextFrame::UnionAdditionalOverflow(nsPresContext* aPresContext,
                 swapUnderline);
 
             if (!ComputeDecorationInset(this, aPresContext, dec.mFrame, metrics,
-                                        params)) {
+                                        params, /* aOnlyExtend = */ true)) {
               return;
             }
 
