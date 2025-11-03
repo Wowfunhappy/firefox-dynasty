@@ -199,7 +199,9 @@ class CrashStatsLogForwarder : public mozilla::gfx::LogForwarder {
 
  private:
   // Helper for the Log()
-  void UpdateCrashReport();
+  void UpdateCrashReport(const MutexAutoLock& aProofOfLock);
+  bool UpdateStringsVectorInternal(const std::string& aString,
+                                   const MutexAutoLock& aProofOfLock);
 
  private:
   LoggingRecord mBuffer;
@@ -228,6 +230,12 @@ LoggingRecord CrashStatsLogForwarder::LoggingRecordCopy() {
 }
 
 bool CrashStatsLogForwarder::UpdateStringsVector(const std::string& aString) {
+  MutexAutoLock lock(mMutex);
+  return UpdateStringsVectorInternal(aString, lock);
+}
+
+bool CrashStatsLogForwarder::UpdateStringsVectorInternal(
+    const std::string& aString, const MutexAutoLock& aProofOfLock) {
   // We want at least the first one and the last one.  Otherwise, no point.
   if (mMaxCapacity < 2) {
     return false;
@@ -255,7 +263,8 @@ bool CrashStatsLogForwarder::UpdateStringsVector(const std::string& aString) {
   return true;
 }
 
-void CrashStatsLogForwarder::UpdateCrashReport() {
+void CrashStatsLogForwarder::UpdateCrashReport(
+    const MutexAutoLock& aProofOfLock) {
   std::stringstream message;
   std::string logAnnotation;
 
@@ -322,8 +331,8 @@ void CrashStatsLogForwarder::Log(const std::string& aString) {
   PROFILER_MARKER_TEXT("gfx::CriticalError", GRAPHICS, {},
                        nsDependentCString(aString.c_str()));
 
-  if (UpdateStringsVector(aString)) {
-    UpdateCrashReport();
+  if (UpdateStringsVectorInternal(aString, lock)) {
+    UpdateCrashReport(lock);
   }
 
   // Add it to the parent strings
@@ -1272,7 +1281,7 @@ void gfxPlatform::Shutdown() {
   // started up. That's OK, they can handle it.
   gfxFontCache::Shutdown();
   gfxGradientCache::Shutdown();
-  gfxAlphaBoxBlur::ShutdownBlurCache();
+  gfxGaussianBlur::ShutdownBlurCache();
   gfxGraphiteShaper::Shutdown();
   gfxPlatformFontList::Shutdown();
   gfxFontMissingGlyphs::Shutdown();
@@ -4158,7 +4167,7 @@ void gfxPlatform::BuildContentDeviceData(
 
   // Make sure our settings are synchronized from the GPU process.
   DebugOnly<nsresult> rv = GPUProcessManager::Get()->EnsureGPUReady();
-  MOZ_ASSERT(rv != NS_ERROR_ILLEGAL_DURING_SHUTDOWN);
+  MOZ_ASSERT(NS_SUCCEEDED(rv));
 
   aOut->prefs().hwCompositing() = gfxConfig::GetValue(Feature::HW_COMPOSITING);
   aOut->prefs().oglCompositing() =

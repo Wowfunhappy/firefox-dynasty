@@ -21,18 +21,6 @@ namespace base {
 
 namespace {
 
-// Prior to macOS 10.12, a kqueue could not watch individual Mach ports, only
-// port sets. MessagePumpKqueue will directly use Mach ports in the kqueue if
-// it is possible.
-bool KqueueNeedsPortSet() {
-#ifdef XP_DARWIN 
-  static const bool kqueue_needs_port_set = !nsCocoaFeatures::OnSierraOrLater();
-  return kqueue_needs_port_set;
-#else
-  return false;
-#endif
-}
-
 // Prior to macOS 10.14, kqueue timers may spuriously wake up, because earlier
 // wake ups race with timer resets in the kernel. As of macOS 10.14, updating a
 // timer from the thread that reads the kqueue does not cause spurious wakeups.
@@ -141,7 +129,7 @@ MessagePumpKqueue::MessagePumpKqueue() : kqueue_(kqueue()) {
   // Specify the wakeup port event to directly receive the Mach message as part
   // of the kevent64() syscall.
   kevent64_s event{};
-  if (KqueueNeedsPortSet()) {
+  if (KqueueTimersSpuriouslyWakeUp()) {
     mach_port_t compat_port;
     kr = mach_port_allocate(mach_task_self(), MACH_PORT_RIGHT_PORT_SET,
                             &compat_port);
@@ -242,7 +230,7 @@ bool MessagePumpKqueue::WatchMachReceivePort(
     return false;
   }
 
-  if (KqueueNeedsPortSet()) {
+  if (KqueueTimersSpuriouslyWakeUp()) {
     kern_return_t kr =
         mach_port_insert_member(mach_task_self(), port, port_set_.get());
     if (kr != KERN_SUCCESS) {
@@ -322,7 +310,7 @@ bool MessagePumpKqueue::StopWatchingMachPort(
   mach_port_t port = controller->port();
   controller->Reset();
   port_controllers_.Remove(port);
-  if (KqueueNeedsPortSet()) {
+  if (KqueueTimersSpuriouslyWakeUp()) {
     kern_return_t kr =
         mach_port_extract_member(mach_task_self(), port, port_set_.get());
     if (kr != KERN_SUCCESS) {
@@ -436,12 +424,12 @@ bool MessagePumpKqueue::ProcessEvents(Delegate* delegate, int count) {
         }
       }
     } else if (event->filter == EVFILT_MACHPORT) {
-      mach_port_t port = KqueueNeedsPortSet() ? event->data : event->ident;
+      mach_port_t port = KqueueTimersSpuriouslyWakeUp() ? event->data : event->ident;
 
       if (port == wakeup_.get()) {
         // The wakeup event has been received, do not treat this as "doing
         // work", this just wakes up the pump.
-        if (KqueueNeedsPortSet()) {
+        if (KqueueTimersSpuriouslyWakeUp()) {
           // When using the kqueue directly, the message can be received
           // straight into a buffer that was created when adding the event.
           // But when using a port set, the message must be drained manually.
