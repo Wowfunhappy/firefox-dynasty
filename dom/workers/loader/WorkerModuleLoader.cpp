@@ -128,6 +128,11 @@ bool WorkerModuleLoader::IsDynamicImportSupported() {
   return !workerPrivate->IsServiceWorker();
 }
 
+bool WorkerModuleLoader::IsForServiceWorker() const {
+  WorkerPrivate* workerPrivate = GetCurrentThreadWorkerPrivate();
+  return workerPrivate && workerPrivate->IsServiceWorker();
+}
+
 bool WorkerModuleLoader::CanStartLoad(ModuleLoadRequest* aRequest,
                                       nsresult* aRvOut) {
   return true;
@@ -145,6 +150,7 @@ nsresult WorkerModuleLoader::CompileFetchedModule(
     ModuleLoadRequest* aRequest, JS::MutableHandle<JSObject*> aModuleScript) {
   switch (aRequest->mModuleType) {
     case JS::ModuleType::Unknown:
+    case JS::ModuleType::Bytes:
       MOZ_CRASH("Unexpected module type");
     case JS::ModuleType::JavaScript:
       return CompileJavaScriptModule(aCx, aOptions, aRequest, aModuleScript);

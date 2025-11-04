@@ -5273,6 +5273,64 @@
       }
     ]
   },
+  "1994562": {
+    "label": "MSTP+MSTG on window shim test-page",
+    "bugs": {
+      "1994562": {
+        "issue": "broken-meetings",
+        "matches": ["https://jan-ivar.github.io/*"]
+      }
+    },
+    "interventions": [
+      {
+        "platforms": ["all"],
+        "only_channels": ["nightly"],
+        "content_scripts": {
+          "all_frames": true,
+          "js": ["bug1994562-shim-mstp-mstg-on-window.js"]
+        }
+      }
+    ]
+  },
+  "1899831": {
+    "label": "zencastr.com",
+    "bugs": {
+      "1899831": {
+        "issue": "broken-meetings",
+        "matches": ["https://*.zencastr.com/*"]
+      }
+    },
+    "interventions": [
+      {
+        "platforms": ["all"],
+        "only_channels": ["nightly"],
+        "ua_string": ["Chrome_with_FxQuantum"],
+        "content_scripts": {
+          "all_frames": true,
+          "js": ["bug1994562-shim-mstp-mstg-on-window.js"]
+        }
+      }
+    ]
+  },
+  "1943289": {
+    "label": "livestorm.co",
+    "bugs": {
+      "1943289": {
+        "issue": "broken-meetings",
+        "matches": ["https://*.livestorm.co/*"]
+      }
+    },
+    "interventions": [
+      {
+        "platforms": ["all"],
+        "only_channels": ["nightly"],
+        "content_scripts": {
+          "all_frames": true,
+          "js": ["bug1994562-shim-mstp-mstg-on-window.js"]
+        }
+      }
+    ]
+  },
   "1913599": {
     "label": "createEncodedStreams shim test-page",
     "bugs": {
@@ -5344,6 +5402,16 @@
       {
         "platforms": ["all"],
         "only_channels": ["nightly"],
+        "ua_string": ["Chrome_with_FxQuantum"],
+        "content_scripts": {
+          "all_frames": true,
+          "js": ["bug1994562-shim-mstp-mstg-on-window.js"]
+        }
+      },
+      {
+        "platforms": ["all"],
+        "only_channels": ["nightly"],
+        "ua_string": ["Chrome_with_FxQuantum"],
         "content_scripts": {
           "all_frames": true,
           "js": ["bug1913599-shim-createencodedstreams.js"]
@@ -5842,6 +5910,75 @@
         "platforms": ["desktop"],
         "content_scripts": {
           "css": ["1995452-polymarket.com-hide-scrollbars.css"]
+        }
+      }
+    ]
+  },
+  "1996823": {
+    "label": "rogers.com",
+    "bugs": {
+      "1996823": {
+        "issue": "page-fails-to-load",
+        "matches": ["*://www.rogers.com/bbapp/bbapi.js*"]
+      }
+    },
+    "interventions": [
+      {
+        "platforms": ["all"],
+        "replace_string_in_request": [
+          {
+            "find": "window\\.location\\.href = link;",
+            "replace": "let url = new URL(window.location.href); url.hash = link; window.location.href = url.href;",
+            "urls": ["*://www.rogers.com/bbapp/bbapi.js*"]
+          }
+        ]
+      }
+    ]
+  },
+  "1996137": {
+    "label": "trip.com",
+    "bugs": {
+      "1996137": {
+        "issue": "firefox-blocked-completely",
+        "matches": ["*://*.trip.com/webapp/*"]
+      }
+    },
+    "interventions": [
+      {
+        "platforms": ["android"],
+        "ua_string": ["Chrome_with_FxQuantum"]
+      }
+    ]
+  },
+  "1997883": {
+    "label": "pwa.samsungglobalgoals.com",
+    "bugs": {
+      "1997883": {
+        "issue": "firefox-blocked-completely",
+        "matches": ["*://pwa.samsungglobalgoals.com/*"]
+      }
+    },
+    "interventions": [
+      {
+        "platforms": ["all"],
+        "ua_string": ["add_Chrome"]
+      }
+    ]
+  },
+  "1997687": {
+    "label": "sakti.kemenkeu.go.id",
+    "bugs": {
+      "1997687": {
+        "issue": "page-fails-to-load",
+        "matches": ["*://sakti.kemenkeu.go.id/*"]
+      }
+    },
+    "interventions": [
+      {
+        "platforms": ["all"],
+        "content_scripts": {
+          "all_frames": true,
+          "js": ["bug1997687-sakti.kemenkeu.go.id-ZoneAwarePromise-fix.js"]
         }
       }
     ]

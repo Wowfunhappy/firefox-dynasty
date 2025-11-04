@@ -1446,6 +1446,14 @@ nsEventStatus AsyncPanZoomController::OnTouchMove(
     const MultiTouchInput& aEvent) {
   APZC_LOG_DETAIL("got a touch-move in state %s\n", this,
                   ToString(mState).c_str());
+
+  if (InScrollAnimationTriggeredByScript()) {
+    // Cancel smooth animation triggered by script.
+    CancelAnimation();
+    // Restart the touch event series.
+    return OnTouchStart(aEvent);
+  }
+
   switch (mState) {
     case FLING:
     case SMOOTH_SCROLL:
@@ -5765,6 +5773,21 @@ void AsyncPanZoomController::NotifyLayersUpdated(
           aLayerMetrics.GetCompositionSizeWithoutDynamicToolbar());
       needToReclampScroll = true;
     }
+    if (Metrics().IsRootContent()) {
+      // If the composition size changed, the compositor's layout viewport
+      // offset may have changed (to keep the layout viewport enclosing the
+      // visual viewport) in a way the main thread doesn't know about until it
+      // gets a repaint request. An example scenario where this can occur is if
+      // the software keyboard is hidden. In such cases we need to trigger a
+      // content repaint request with `eVisualUpdate` otherwise any visual
+      // scroll offset changes triggered on the main-thread will never reflect
+      // to APZ.
+      if (Metrics().GetBoundingCompositionSize() !=
+          aLayerMetrics.GetBoundingCompositionSize()) {
+        needContentRepaint = true;
+        contentRepaintType = RepaintUpdateType::eVisualUpdate;
+      }
+    }
     Metrics().SetBoundingCompositionSize(
         aLayerMetrics.GetBoundingCompositionSize());
     Metrics().SetPresShellResolution(aLayerMetrics.GetPresShellResolution());
@@ -6709,6 +6732,16 @@ bool AsyncPanZoomController::InScrollAnimation(
   RefPtr<SmoothScrollAnimation> smoothScroll =
       mAnimation->AsSmoothScrollAnimation();
   return smoothScroll && smoothScroll->Kind() == aKind;
+}
+
+bool AsyncPanZoomController::InScrollAnimationTriggeredByScript() const {
+  RecursiveMutexAutoLock lock(mRecursiveMutex);
+  if (!mAnimation) {
+    return false;
+  }
+  RefPtr<SmoothScrollAnimation> smoothScroll =
+      mAnimation->AsSmoothScrollAnimation();
+  return smoothScroll && smoothScroll->WasTriggeredByScript();
 }
 
 void AsyncPanZoomController::UpdateZoomConstraints(

@@ -38,6 +38,7 @@ const DISABLED_ON_IDLE_RETRY_PREF_NAME =
 const BACKUP_DEBUG_INFO_PREF_NAME = "browser.backup.backup-debug-info";
 const MAXIMUM_NUMBER_OF_UNREMOVABLE_STAGING_ITEMS_PREF_NAME =
   "browser.backup.max-num-unremovable-staging-items";
+const CREATED_MANAGED_PROFILES_PREF_NAME = "browser.profiles.created";
 
 const SCHEMAS = Object.freeze({
   BACKUP_MANIFEST: 1,
@@ -625,9 +626,19 @@ export class BackupService extends EventTarget {
     }
 
     if (!Services.prefs.getBoolPref(BACKUP_ARCHIVE_ENABLED_PREF_NAME)) {
+      if (Services.prefs.prefIsLocked(BACKUP_ARCHIVE_ENABLED_PREF_NAME)) {
+        // If it's locked, assume it was set by an enterprise policy.
+        return {
+          enabled: false,
+          reason: "Archiving a profile disabled by policy.",
+          internalReason: "policy",
+        };
+      }
+
       return {
         enabled: false,
         reason: "Archiving a profile disabled by user pref.",
+        internalReason: "pref",
       };
     }
 
@@ -635,6 +646,7 @@ export class BackupService extends EventTarget {
       return {
         enabled: false,
         reason: "Backup is disabled for users with sanitizeOnShutdown enabled.",
+        internalReason: "sanitizeOnShutdown",
       };
     }
 
@@ -643,6 +655,7 @@ export class BackupService extends EventTarget {
         enabled: false,
         reason:
           "Archiving a profile is disabled because the user has created selectable profiles.",
+        internalReason: "selectable profiles",
       };
     }
 
@@ -662,13 +675,24 @@ export class BackupService extends EventTarget {
       return {
         enabled: false,
         reason: "Restore from backup disabled remotely.",
+        internalReason: "nimbus",
       };
     }
 
     if (!Services.prefs.getBoolPref(BACKUP_RESTORE_ENABLED_PREF_NAME)) {
+      if (Services.prefs.prefIsLocked(BACKUP_RESTORE_ENABLED_PREF_NAME)) {
+        // If it's locked, assume it was set by an enterprise policy.
+        return {
+          enabled: false,
+          reason: "Restoring a profile disabled by policy.",
+          internalReason: "policy",
+        };
+      }
+
       return {
         enabled: false,
         reason: "Restoring a profile disabled by user pref.",
+        internalReason: "pref",
       };
     }
 
@@ -676,6 +700,7 @@ export class BackupService extends EventTarget {
       return {
         enabled: false,
         reason: "Backup is disabled for users with sanitizeOnShutdown enabled.",
+        internalReason: "sanitizeOnShutdown",
       };
     }
 
@@ -684,6 +709,7 @@ export class BackupService extends EventTarget {
         enabled: false,
         reason:
           "Restoring a profile is disabled because the user has created selectable profiles.",
+        internalReason: "selectable profiles",
       };
     }
 
@@ -827,12 +853,27 @@ export class BackupService extends EventTarget {
 
   /**
    * Stores whether backing up has been disabled at some point during this
-   * session. If it has been, the backupDisabledReason telemetry metric is set
+   * session. If it has been, the archiveDisabledReason telemetry metric is set
    * on each backup. (It cannot be unset due to Glean limitations.)
    *
    * @type {boolean}
    */
   #wasArchivePreviouslyDisabled = false;
+
+  /**
+   * Stores whether restoring up has been disabled at some point during this
+   * session. If it has been, the restoreDisabledReason telemetry metric is set
+   * on each backup. (It cannot be unset due to Glean limitations.)
+   *
+   * @type {boolean}
+   */
+  #wasRestorePreviouslyDisabled = false;
+
+  /**
+   * Monitors prefs that are relevant to the status of the backup service.
+   * Unlike #observer, this does not wait for an idle tick.
+   */
+  #statusPrefObserver = null;
 
   /**
    * The path of the default parent directory for saving backups.
@@ -841,10 +882,20 @@ export class BackupService extends EventTarget {
    * @returns {string} The path of the default parent directory
    */
   static get DEFAULT_PARENT_DIR_PATH() {
-    return (
-      BackupService.oneDriveFolderPath?.path ||
-      Services.dirsvc.get("Docs", Ci.nsIFile).path
-    );
+    let path = "";
+    try {
+      path =
+        BackupService.oneDriveFolderPath?.path ||
+        Services.dirsvc.get("Docs", Ci.nsIFile).path;
+    } catch (e) {
+      // If this errors, we can safely return an empty string
+      lazy.logConsole.error(
+        "There was an error when getting the Default Parent Directory: ",
+        e
+      );
+    }
+
+    return path;
   }
 
   /**
@@ -971,6 +1022,20 @@ export class BackupService extends EventTarget {
   }
 
   /**
+   * Prefs that should be monitored. When one of these prefs changes, the
+   * 'backup-service-status-changed' observers are notified and telemetry
+   * updates.
+   */
+  static get #STATUS_OBSERVER_PREFS() {
+    return [
+      BACKUP_ARCHIVE_ENABLED_PREF_NAME,
+      BACKUP_RESTORE_ENABLED_PREF_NAME,
+      "privacy.sanitize.sanitizeOnShutdown",
+      CREATED_MANAGED_PROFILES_PREF_NAME,
+    ];
+  }
+
+  /**
    * Returns the schema for the schemaType for a given version.
    *
    * @param {number} schemaType
@@ -1081,6 +1146,7 @@ export class BackupService extends EventTarget {
 
     this.#instance.checkForPostRecovery();
     this.#instance.initBackupScheduler();
+    this.#instance.initStatusObservers();
     return this.#instance;
   }
 
@@ -1110,7 +1176,6 @@ export class BackupService extends EventTarget {
   constructor(backupResources = DefaultBackupResources) {
     super();
     lazy.logConsole.debug("Instantiated");
-    this.#registerStatusObservers();
 
     for (const resourceName in backupResources) {
       let resource = backupResources[resourceName];
@@ -1131,13 +1196,6 @@ export class BackupService extends EventTarget {
         }
       }
     }, BackupService.REGENERATION_DEBOUNCE_RATE_MS);
-
-    let backupStatus = this.archiveEnabledStatus;
-    if (!backupStatus.enabled) {
-      let internalReason = backupStatus.internalReason;
-      this.#wasArchivePreviouslyDisabled = true;
-      Glean.browserBackup.backupDisabledReason.set(internalReason);
-    }
   }
 
   /**
@@ -1162,11 +1220,13 @@ export class BackupService extends EventTarget {
   get state() {
     if (!Object.keys(this.#_state.defaultParent).length) {
       let defaultPath = BackupService.DEFAULT_PARENT_DIR_PATH;
-      this.#_state.defaultParent = {
-        path: defaultPath,
-        fileName: PathUtils.filename(defaultPath),
-        iconURL: this.getIconFromFilePath(defaultPath),
-      };
+      if (defaultPath) {
+        this.#_state.defaultParent = {
+          path: defaultPath,
+          fileName: PathUtils.filename(defaultPath),
+          iconURL: this.getIconFromFilePath(defaultPath),
+        };
+      }
     }
 
     return Object.freeze(structuredClone(this.#_state));
@@ -1427,11 +1487,7 @@ export class BackupService extends EventTarget {
     let status = this.archiveEnabledStatus;
     if (!status.enabled) {
       lazy.logConsole.debug(status.reason);
-      this.#wasArchivePreviouslyDisabled = true;
-      Glean.browserBackup.backupDisabledReason.set(status.internalReason);
       return null;
-    } else if (this.#wasArchivePreviouslyDisabled) {
-      Glean.browserBackup.backupDisabledReason.set("reenabled");
     }
 
     // createBackup does not allow re-entry or concurrent backups.
@@ -3223,8 +3279,10 @@ export class BackupService extends EventTarget {
           profile,
           // Using URL Search Params on this about: page didn't work because
           // the RPM communication so we use the hash and parse that instead.
-          "about:editprofile" +
-            (copiedProfile ? `#copiedProfileName=${copiedProfile.name}` : "")
+          [
+            "about:editprofile" +
+              (copiedProfile ? `#copiedProfileName=${copiedProfile.name}` : ""),
+          ]
         );
       }
 
@@ -3799,7 +3857,7 @@ export class BackupService extends EventTarget {
       }
       case "quit-application-granted": {
         this.uninitBackupScheduler();
-        this.#unregisterStatusObservers();
+        this.uninitStatusObservers();
         break;
       }
       case "passwordmgr-storage-changed": {
@@ -3850,45 +3908,62 @@ export class BackupService extends EventTarget {
     }
   }
 
-  #registerStatusObservers() {
+  initStatusObservers() {
+    if (this.#statusPrefObserver != null) {
+      return;
+    }
+
     // We don't use this.#observer since any changes to the prefs or nimbus should
-    // immediately reflect across any observers, instead of waiting on idle
-    Services.prefs.addObserver(
-      BACKUP_ARCHIVE_ENABLED_PREF_NAME,
-      this.#notifyStatusObservers
-    );
-    Services.prefs.addObserver(
-      BACKUP_RESTORE_ENABLED_PREF_NAME,
-      this.#notifyStatusObservers
-    );
-    Services.prefs.addObserver(
-      "privacy.sanitize.sanitizeOnShutdown",
-      this.#notifyStatusObservers
-    );
-    lazy.NimbusFeatures.backupService.onUpdate(this.#notifyStatusObservers);
+    // immediately reflect across any observers, instead of waiting on idle.
+    this.#statusPrefObserver = () => {
+      // Wrap in an arrow function so 'this' is preserved.
+      this.#notifyStatusObservers();
+    };
+
+    for (let pref of BackupService.#STATUS_OBSERVER_PREFS) {
+      Services.prefs.addObserver(pref, this.#statusPrefObserver);
+    }
+    lazy.NimbusFeatures.backupService.onUpdate(this.#statusPrefObserver);
+    this.#notifyStatusObservers();
   }
 
-  #unregisterStatusObservers() {
-    Services.prefs.removeObserver(
-      BACKUP_ARCHIVE_ENABLED_PREF_NAME,
-      this.#notifyStatusObservers
-    );
-    Services.prefs.removeObserver(
-      BACKUP_RESTORE_ENABLED_PREF_NAME,
-      this.#notifyStatusObservers
-    );
-    Services.prefs.removeObserver(
-      "privacy.sanitize.sanitizeOnShutdown",
-      this.#notifyStatusObservers
-    );
+  uninitStatusObservers() {
+    if (this.#statusPrefObserver == null) {
+      return;
+    }
+
+    for (let pref of BackupService.#STATUS_OBSERVER_PREFS) {
+      Services.prefs.removeObserver(pref, this.#statusPrefObserver);
+    }
+    lazy.NimbusFeatures.backupService.offUpdate(this.#statusPrefObserver);
+    this.#statusPrefObserver = null;
   }
 
   /**
-   * Notify any listeners about the availability of the backup service.
+   * Notify any listeners about the availability of the backup service, then
+   * update relevant telemetry metrics.
    */
-  #notifyStatusObservers = () => {
+  #notifyStatusObservers() {
     Services.obs.notifyObservers(null, "backup-service-status-updated");
-  };
+
+    let status = this.archiveEnabledStatus;
+    Glean.browserBackup.archiveEnabled.set(status.enabled);
+    if (!status.enabled) {
+      this.#wasArchivePreviouslyDisabled = true;
+      Glean.browserBackup.archiveDisabledReason.set(status.internalReason);
+    } else if (this.#wasArchivePreviouslyDisabled) {
+      Glean.browserBackup.archiveDisabledReason.set("reenabled");
+    }
+
+    status = this.restoreEnabledStatus;
+    Glean.browserBackup.restoreEnabled.set(status.enabled);
+    if (!status.enabled) {
+      this.#wasRestorePreviouslyDisabled = true;
+      Glean.browserBackup.restoreDisabledReason.set(status.internalReason);
+    } else if (this.#wasRestorePreviouslyDisabled) {
+      Glean.browserBackup.restoreDisabledReason.set("reenabled");
+    }
+  }
 
   /**
    * Called when the last known backup should be deleted and a new one
@@ -4115,6 +4190,14 @@ export class BackupService extends EventTarget {
     this.#_state.backupFileToRestore = null;
     this.#_state.lastBackupFileName = "";
     this.#_state.lastBackupDate = null;
+    this.stateUpdate();
+  }
+
+  /**
+   * TEST ONLY: reset's the defaultParent state for testing purposes
+   */
+  resetDefaultParentInternalState() {
+    this.#_state.defaultParent = {};
     this.stateUpdate();
   }
 

@@ -7,7 +7,7 @@
 use base64::prelude::*;
 use neqo_bin::server::{HttpServer, Runner};
 use neqo_common::Bytes;
-use neqo_common::{event::Provider, qdebug, qinfo, qtrace, Datagram, Header};
+use neqo_common::{event::Provider, qdebug, qinfo, qtrace, qerror, Datagram, Header};
 use neqo_crypto::{generate_ech_keys, init_db, AllowZeroRtt, AntiReplay};
 use neqo_http3::{
     ConnectUdpRequest, ConnectUdpServerEvent, Error, Http3OrWebTransportStream, Http3Parameters,
@@ -1270,6 +1270,14 @@ impl HttpServer for Http3ConnectProxyServer {
                     // TODO: effectively breaks backpressure.
                     udp_socket.send_buffer.push_back(datagram);
                 }
+                Http3ServerEvent::ConnectUdp(ConnectUdpServerEvent::SessionClosed {
+                    session,
+                    reason,
+                    headers: _,
+                }) => {
+                    qdebug!("ConnectUdp session closed: {:?} reason: {:?}", session, reason);
+                    self.udp_sockets.remove(&session.stream_id());
+                }
                 Http3ServerEvent::StateChange { .. } | Http3ServerEvent::PriorityUpdate { .. } => {}
                 Http3ServerEvent::StreamReset { stream, error } => {
                     qtrace!("Http3ServerEvent::StreamReset {:?} {:?}", stream, error);
@@ -1282,7 +1290,6 @@ impl HttpServer for Http3ConnectProxyServer {
                     );
                 }
                 Http3ServerEvent::WebTransport(_) => {}
-                Http3ServerEvent::ConnectUdp(_) => {}
             }
         }
     }
@@ -1293,6 +1300,7 @@ impl HttpServer for Http3ConnectProxyServer {
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<()> {
         let mut progressed = false;
+        let mut failed_udp_sockets: Vec<StreamId> = Vec::new();
 
         for (_sessionid, stream) in &mut self.tcp_streams {
             if let Poll::Ready(Ok(())) = stream.stream.poll_read_ready(cx) {
@@ -1310,13 +1318,16 @@ impl HttpServer for Http3ConnectProxyServer {
                             // TODO: extend() effectively breaks backpressure.
                             stream.recv_buffer.extend(&buf[0..n]);
                             while !stream.recv_buffer.is_empty() {
-                                let sent = stream
-                                    .session
-                                    .send_data(
-                                        &stream.recv_buffer.make_contiguous(),
-                                        Instant::now(),
-                                    )
-                                    .unwrap();
+                                let sent = match stream.session.send_data(
+                                    &stream.recv_buffer.make_contiguous(),
+                                    Instant::now(),
+                                ) {
+                                    Ok(n) => n,
+                                    Err(e) => {
+                                        qdebug!("TCP: send_data failed: {}", e);
+                                        break;
+                                    }
+                                };
                                 qdebug!("TCP: stream send to client sent={}", sent);
                                 if sent == 0 {
                                     break;
@@ -1361,7 +1372,7 @@ impl HttpServer for Http3ConnectProxyServer {
             }
         }
 
-        for (_, socket) in &mut self.udp_sockets {
+        for (stream_id, socket) in &mut self.udp_sockets {
             loop {
                 let mut buf = vec![0u8; u16::MAX as usize];
                 let mut read_buf = ReadBuf::new(buf.as_mut());
@@ -1376,7 +1387,9 @@ impl HttpServer for Http3ConnectProxyServer {
                         progressed = true;
                     }
                     Poll::Ready(Err(e)) => {
-                        panic!("Error receiving UDP datagram: {}", e);
+                        qerror!("Error receiving UDP datagram: {}, closing socket", e);
+                        failed_udp_sockets.push(*stream_id);
+                        break;
                     }
                     Poll::Pending => break,
                 }
@@ -1394,9 +1407,20 @@ impl HttpServer for Http3ConnectProxyServer {
                         progressed = true;
                     }
                     Poll::Ready(Err(e)) => {
-                        panic!("Error sending UDP datagram: {} {:?}", e, socket.socket);
+                        qerror!("Error sending UDP datagram: {} {:?}, closing socket", e, socket.socket);
+                        failed_udp_sockets.push(*stream_id);
+                        break;
                     }
                 }
+            }
+        }
+
+        // Remove failed UDP sockets from the list
+        for stream_id in failed_udp_sockets {
+            if let Some(socket) = self.udp_sockets.remove(&stream_id) {
+                qdebug!("Removed failed UDP socket for stream {}", stream_id);
+                // Close the session with an error code
+                let _ = socket.session.close_session(0x0100, "UDP socket error", Instant::now());
             }
         }
 

@@ -4,7 +4,14 @@
 
 package org.mozilla.fenix.ui
 
+import android.app.Instrumentation
+import android.content.Intent
 import androidx.compose.ui.test.junit4.AndroidComposeTestRule
+import androidx.test.espresso.intent.Intents.intended
+import androidx.test.espresso.intent.Intents.intending
+import androidx.test.espresso.intent.matcher.IntentMatchers.hasAction
+import androidx.test.espresso.intent.matcher.IntentMatchers.hasDataString
+import org.hamcrest.Matchers.equalTo
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -15,6 +22,7 @@ import org.mozilla.fenix.helpers.MatcherHelper.itemContainingText
 import org.mozilla.fenix.helpers.MatcherHelper.itemWithResIdAndText
 import org.mozilla.fenix.helpers.OpenLinksInApp
 import org.mozilla.fenix.helpers.TestAssetHelper
+import org.mozilla.fenix.helpers.TestAssetHelper.appLinksRedirectAsset
 import org.mozilla.fenix.helpers.TestHelper.mDevice
 import org.mozilla.fenix.helpers.TestSetup
 import org.mozilla.fenix.helpers.perf.DetectMemoryLeaksRule
@@ -27,6 +35,7 @@ class AppLinksTest : TestSetup() {
     private val intentSchemaUrlLink = itemContainingText("Intent schema link")
     private val phoneUrlLink = itemContainingText("Telephone link")
     private val formRedirectLink = itemContainingText("Telephone post navigation link")
+    private val intentSchemeWithExampleAppLink = itemContainingText("Example app link")
 
     private val phoneSchemaLink = "tel://1234567890"
 
@@ -44,7 +53,7 @@ class AppLinksTest : TestSetup() {
     @Before
     override fun setUp() {
         super.setUp()
-        externalLinksPage = TestAssetHelper.getAppLinksRedirectAsset(mockWebServer)
+        externalLinksPage = mockWebServer.appLinksRedirectAsset
     }
 
     @Test
@@ -234,6 +243,22 @@ class AppLinksTest : TestSetup() {
         }.enterURLAndEnterToBrowser(externalLinksPage.url) {
             clickPageObject(formRedirectLink)
             verifyOpenLinkInAnotherAppPrompt(appName = "Phone")
+        }
+    }
+
+    @Test
+    fun marketingIntentWhenOpeningLinkWithoutApp() {
+        // Use ACTION_DIAL as a non-ACTION_VIEW intent to verify that the marketing flow always
+        // launches with ACTION_VIEW instead of reusing the original intent action.
+        intending(hasAction(Intent.ACTION_DIAL)).respondWith(Instrumentation.ActivityResult(0, null))
+
+        navigationToolbar {
+        }.enterURLAndEnterToBrowser(externalLinksPage.url) {
+            clickPageObject(intentSchemeWithExampleAppLink)
+            clickPageObject(itemWithResIdAndText("android:id/button1", "Open"))
+            mDevice.waitForIdle()
+            intended(hasAction(Intent.ACTION_VIEW))
+            intended(hasDataString(equalTo("market://details?id=com.example.app")))
         }
     }
 }

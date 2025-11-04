@@ -1213,13 +1213,6 @@ void PresShell::Destroy() {
   mPendingScrollAnchorAdjustment.Clear();
   mPendingScrollResnap.Clear();
 
-  if (mViewManager) {
-    // Clear the view manager's weak pointer back to |this| in case it
-    // was leaked.
-    mViewManager->SetPresShell(nullptr);
-    mViewManager = nullptr;
-  }
-
   // This shell must be removed from the document before the frame
   // hierarchy is torn down to avoid finding deleted frames through
   // this presshell while the frames are being torn down
@@ -1259,6 +1252,13 @@ void PresShell::Destroy() {
   if (mAccessibleCaretEventHub) {
     mAccessibleCaretEventHub->Terminate();
     mAccessibleCaretEventHub = nullptr;
+  }
+
+  if (mViewManager) {
+    // Clear the view manager's weak pointer back to |this| in case it
+    // was leaked.
+    mViewManager->SetPresShell(nullptr);
+    mViewManager = nullptr;
   }
 
   if (mPresContext) {
@@ -1973,7 +1973,6 @@ bool PresShell::ResizeReflowIgnoreOverride(nscoord aWidth, nscoord aHeight,
 
     // Kick off a top-down reflow
     AUTO_LAYOUT_PHASE_ENTRY_POINT(GetPresContext(), Reflow);
-    nsViewManager::AutoDisableRefresh refreshBlocker(mViewManager);
 
     mDirtyRoots.Remove(rootFrame);
     DoReflow(rootFrame, true, nullptr);
@@ -5646,10 +5645,8 @@ nsIWidget* PresShell::GetNearestWidget() const {
       }
     }
   }
-  if (auto* el = mDocument->GetEmbedderElement()) {
-    if (auto* f = el->GetPrimaryFrame()) {
-      return f->GetNearestWidget();
-    }
+  if (auto* embedder = GetInProcessEmbedderFrame()) {
+    return embedder->GetNearestWidget();
   }
   return GetRootWidget();
 }
@@ -10356,35 +10353,31 @@ void PresShell::DidPaintWindow() {
   }
 }
 
-bool PresShell::IsVisible() const {
-  if (!mIsActive || !mViewManager) {
-    return false;
+nsSubDocumentFrame* PresShell::GetInProcessEmbedderFrame() const {
+  if (!mViewManager) {
+    return nullptr;
   }
-
+  // We may not have a root frame yet, so use views.
   nsView* view = mViewManager->GetRootView();
   if (!view) {
-    return true;
+    return nullptr;
   }
-
-  // inner view of subdoc frame
-  view = view->GetParent();
+  view = view->GetParent();  // anonymous inner view
   if (!view) {
-    return true;
+    return nullptr;
   }
-
-  // subdoc view
-  view = view->GetParent();
+  view = view->GetParent();  // subdocumentframe's view
   if (!view) {
-    return true;
+    return nullptr;
   }
 
-  nsIFrame* frame = view->GetFrame();
-  if (!frame) {
-    return true;
-  }
+  nsIFrame* f = view->GetFrame();
+  MOZ_ASSERT_IF(f, f->IsSubDocumentFrame());
+  return do_QueryFrame(f);
+}
 
-  return frame->IsVisibleConsideringAncestors(
-      nsIFrame::VISIBILITY_CROSS_CHROME_CONTENT_BOUNDARY);
+bool PresShell::IsVisible() const {
+  return mIsActive && !IsUnderHiddenEmbedderElement();
 }
 
 void PresShell::SuppressDisplayport(bool aEnabled) {
@@ -10858,7 +10851,6 @@ bool PresShell::ProcessReflowCommands(bool aInterruptible) {
     nsAutoScriptBlocker scriptBlocker;
     WillDoReflow();
     AUTO_LAYOUT_PHASE_ENTRY_POINT(GetPresContext(), Reflow);
-    nsViewManager::AutoDisableRefresh refreshBlocker(mViewManager);
 
     OverflowChangedTracker overflowTracker;
 
@@ -11967,6 +11959,11 @@ void PresShell::UpdateAnchorPosForScroll(
       positioned->GetParent()->UpdateOverflow();
       referenceData.mDefaultScrollShift = offset;
       if (CheckOverflow(positioned, offset, referenceData)) {
+#ifdef ACCESSIBILITY
+        if (nsAccessibilityService* accService = GetAccService()) {
+          accService->NotifyAnchorPositionedScrollUpdate(this, positioned);
+        }
+#endif
         FrameNeedsReflow(positioned, IntrinsicDirty::None,
                          NS_FRAME_HAS_DIRTY_CHILDREN);
       }

@@ -3687,7 +3687,11 @@
 # Whether the navigation API will be exposed.
 - name: dom.navigation.webidl.enabled
   type: RelaxedAtomicBool
+#ifdef ANDROID
   value: @IS_NIGHTLY_BUILD@
+#else
+  value: @IS_EARLY_BETA_OR_EARLIER@
+#endif
   mirror: always
   do_not_use_directly: true
 
@@ -8990,6 +8994,13 @@
   mirror: always
   set_spidermonkey_pref: startup
 
+ # Experimental support for Iterator Chunking in JavaScript.
+- name: javascript.options.experimental.iterator_chunking
+  type: bool
+  value: false
+  mirror: always
+  set_spidermonkey_pref: startup
+
 #endif  // NIGHTLY_BUILD
 
 # Whether to Baseline-compile self-hosted functions the first time they are
@@ -10215,7 +10226,7 @@
 # Whether @scope rule is enabled
 - name: layout.css.at-scope.enabled
   type: RelaxedAtomicBool
-  value: @IS_NIGHTLY_BUILD@
+  value: true
   mirror: always
   rust: true
 
@@ -10458,7 +10469,7 @@
 
 - name: layout.css.text-decoration-inset.enabled
   type: RelaxedAtomicBool
-  value: false
+  value: true
   mirror: always
   rust: true
 
@@ -12523,7 +12534,7 @@
 # calls only for certain domains (ignored if above pref is true).
 - name: media.devices.enumerate.legacy.allowlist
   type: String
-  value: "slack.com,*.slack.com"
+  value: "slack.com,*.slack.com,riverside.fm,*.riverside.fm"
   mirror: never
 
 # WebRTC prefs follow
@@ -15540,6 +15551,12 @@
 
 - name: network.cache.persist_permanent_redirects_http
   type: bool
+  value: false
+  mirror: always
+
+# Disable cache purging temporarily to support cache tests
+- name: network.cache.purge_disable
+  type: RelaxedAtomicBool
   value: false
   mirror: always
 
@@ -19029,7 +19046,7 @@
 #ifdef MOZ_WAYLAND
 - name: widget.wayland.fractional-scale.enabled
   type: bool
-  value: @IS_EARLY_BETA_OR_EARLIER@
+  value: true
   mirror: always
 
 # Use opaque region for MozContainer wl_surface

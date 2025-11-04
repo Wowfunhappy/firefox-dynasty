@@ -804,6 +804,11 @@ void NativeLayerRootSnapshotterCA::UpdateSnapshot(const IntSize& aSize) {
 bool NativeLayerRootSnapshotterCA::ReadbackPixels(
     const IntSize& aReadbackSize, SurfaceFormat aReadbackFormat,
     const Range<uint8_t>& aReadbackBuffer) {
+  if (mDelegate->DoCustomReadbackForReftestsIfDesired(
+          aReadbackSize, aReadbackFormat, aReadbackBuffer)) {
+    return true;
+  }
+
   if (aReadbackFormat != SurfaceFormat::B8G8R8A8) {
     return false;
   }
@@ -1428,7 +1433,8 @@ void NativeLayerCA::SetSurfaceToPresent(CFTypeRefPtr<IOSurfaceRef> aSurfaceRef,
 }
 
 NativeLayerCARepresentation::NativeLayerCARepresentation()
-    : mMutatedPosition(true),
+    : mWrappingCALayerHasExtent(false),
+      mMutatedPosition(true),
       mMutatedTransform(true),
       mMutatedDisplayRect(true),
       mMutatedClipRect(true),
@@ -1438,7 +1444,7 @@ NativeLayerCARepresentation::NativeLayerCARepresentation()
       mMutatedSurfaceIsFlipped(true),
       mMutatedFrontSurface(true),
       mMutatedSamplingFilter(true),
-      mMutatedSpecializeVideo(true), 
+      mMutatedSpecializeVideo(true),
       mMutatedIsDRM(true) {}
 
 
@@ -1500,7 +1506,7 @@ void NativeLayerCA::DiscardBackbuffers() {
   mSurfaceHandler->DiscardBackbuffers();
 }
 
-NativeLayerCA::Representation& NativeLayerCA::GetRepresentation(
+NativeLayerCARepresentation& NativeLayerCA::GetRepresentation(
     WhichRepresentation aRepresentation) {
   switch (aRepresentation) {
     case WhichRepresentation::ONSCREEN:
@@ -1632,7 +1638,7 @@ static NSString* NSStringForOSType(OSType type) {
   }
 }
 
-bool NativeLayerCA::Representation::EnqueueSurface(IOSurfaceRef aSurfaceRef) {
+bool NativeLayerCARepresentation::EnqueueSurface(IOSurfaceRef aSurfaceRef) {
   MOZ_ASSERT(
       [mContentCALayer isKindOfClass:[AVSampleBufferDisplayLayer class]]);
   AVSampleBufferDisplayLayer* videoLayer =
@@ -1987,6 +1993,8 @@ bool NativeLayerCARepresentation::ApplyChanges(
     mWrappingCALayer.bounds =
         CGRectMake(0, 0, useClipRect.size.width, useClipRect.size.height);
     mWrappingCALayer.masksToBounds = scaledClipRect.isSome();
+    mWrappingCALayerHasExtent =
+        scaledClipRect.isNothing() || !CGRectIsEmpty(useClipRect);
 
     // Default the clip rect for the rounded rect clip layer to be the
     // same as the wrapping layer clip. This ensures that if it's not used,
@@ -2158,7 +2166,7 @@ bool NativeLayerCARepresentation::ApplyChanges(
   return true;
 }
 
-NativeLayerCA::UpdateType NativeLayerCA::Representation::HasUpdate(
+NativeLayerCA::UpdateType NativeLayerCARepresentation::HasUpdate(
     bool aIsVideo) {
   if (!mWrappingCALayer) {
     return UpdateType::All;

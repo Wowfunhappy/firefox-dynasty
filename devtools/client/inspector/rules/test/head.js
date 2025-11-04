@@ -1363,9 +1363,9 @@ function getSmallIncrementKey() {
  * Check that the rule view has the expected content
  *
  * @param {RuleView} view
- * @param {Object[]} expectedElements
- * @param {String} expectedElements[].selector - The expected selector of the rule.
- * @param {String[]|null} expectedElements[].ancestorRulesData - An array of the parent
+ * @param {object[]} expectedElements
+ * @param {string} expectedElements[].selector - The expected selector of the rule.
+ * @param {string[]|null} expectedElements[].ancestorRulesData - An array of the parent
  *        selectors of the rule, with their indentations and the opening brace.
  *        e.g. for the following rule `html { body { span {} } }`, for the `span` rule,
  *        you should pass:
@@ -1374,25 +1374,27 @@ function getSmallIncrementKey() {
  *          `  & body {`,
  *        ]
  *        Pass `null` if the rule doesn't have a parent rule.
- * @param {Object[]} expectedElements[].declarations - The expected declarations of the rule.
- * @param {Object[]} expectedElements[].declarations[].name - The name of the declaration.
- * @param {Object[]} expectedElements[].declarations[].value - The value of the declaration.
- * @param {Boolean|undefined} expectedElements[].declarations[].overridden - Is the declaration
+ * @param {boolean|undefined} expectedElements[].inherited - Is the rule an inherited one.
+ *        Defaults to false.
+ * @param {object[]} expectedElements[].declarations - The expected declarations of the rule.
+ * @param {object[]} expectedElements[].declarations[].name - The name of the declaration.
+ * @param {object[]} expectedElements[].declarations[].value - The value of the declaration.
+ * @param {boolean|undefined} expectedElements[].declarations[].overridden - Is the declaration
  *        overridden by another the declaration. Defaults to false.
- * @param {Boolean|undefined} expectedElements[].declarations[].valid - Is the declaration valid.
+ * @param {boolean|undefined} expectedElements[].declarations[].valid - Is the declaration valid.
  *        Defaults to true.
- * @param {Boolean|undefined} expectedElements[].declarations[].dirty - Is the declaration dirty,
+ * @param {boolean|undefined} expectedElements[].declarations[].dirty - Is the declaration dirty,
  *        i.e. was it added/modified by the user (should have a left green border).
  *        Defaults to false
- * @param {Boolean|undefined} expectedElements[].declarations[].highlighted - Is the declaration
+ * @param {boolean|undefined} expectedElements[].declarations[].highlighted - Is the declaration
  *        highlighted by a search.
- * @param {String} expectedElements[].header - If we're expecting a header (Inherited from,
+ * @param {string} expectedElements[].header - If we're expecting a header (Inherited from,
  *        Pseudo-elements, …), the text of said header.
  */
 function checkRuleViewContent(view, expectedElements) {
-  const rulesInView = Array.from(view.element.children);
+  const elementsInView = _getRuleViewElements(view);
   is(
-    rulesInView.length,
+    elementsInView.length,
     expectedElements.length,
     "All expected elements are displayed"
   );
@@ -1401,7 +1403,7 @@ function checkRuleViewContent(view, expectedElements) {
     const expectedElement = expectedElements[i];
     info(`Checking element #${i}: ${expectedElement.selector}`);
 
-    const elementInView = rulesInView[i];
+    const elementInView = elementsInView[i];
 
     if (expectedElement.header) {
       is(
@@ -1439,6 +1441,13 @@ function checkRuleViewContent(view, expectedElements) {
       );
     }
 
+    const isInherited = elementInView.matches(".ruleview-rule-inherited");
+    is(
+      isInherited,
+      expectedElement.inherited ?? false,
+      `Element #${i} ("${selector}") is ${expectedElement.inherited ? "inherited" : "not inherited"}`
+    );
+
     const declarations = elementInView.querySelectorAll(".ruleview-property");
     is(
       declarations.length,
@@ -1472,27 +1481,50 @@ function checkRuleViewContent(view, expectedElements) {
       is(
         ruleViewPropertyElement.classList.contains("ruleview-overridden"),
         !!expectedDeclaration?.overridden,
-        `"${selector}" ${propName.innerText} is ${expectedDeclaration?.overridden ? "overridden" : "not overridden"} `
+        `Element #${i} ("${selector}") declaration #${j} ("${propName.innerText}: ${propValue.innerText}") is ${expectedDeclaration?.overridden ? "overridden" : "not overridden"} `
       );
       is(
         !!ruleViewPropertyElement.querySelector(
           ".ruleview-warning:not([hidden])"
         ),
         !!expectedDeclaration?.valid,
-        `"${selector}" ${propName.innerText} is ${expectedDeclaration?.valid === false ? "not valid" : "valid"}`
+        `Element #${i} ("${selector}") declaration #${j} ("${propName.innerText}: ${propValue.innerText}") is ${expectedDeclaration?.valid === false ? "not valid" : "valid"}`
       );
       is(
         !!ruleViewPropertyElement.hasAttribute("dirty"),
         !!expectedDeclaration?.dirty,
-        `"${selector}" ${propName.innerText} is ${expectedDeclaration?.dirty ? "dirty" : "not dirty"}`
+        `Element #${i} ("${selector}") declaration #${j} ("${propName.innerText}: ${propValue.innerText}") is ${expectedDeclaration?.dirty ? "dirty" : "not dirty"}`
       );
       is(
         ruleViewPropertyElement.querySelector(".ruleview-highlight") !== null,
         !!expectedDeclaration?.highlighted,
-        `"${selector}" ${propName.innerText} is ${expectedDeclaration?.highlighted ? "highlighted" : "not highlighted"} `
+        `Element #${i} ("${selector}") declaration #${j} ("${propName.innerText}: ${propValue.innerText}") is ${expectedDeclaration?.highlighted ? "highlighted" : "not highlighted"} `
       );
     }
   }
+}
+
+/**
+ * Get the rule view elements for checkRuleViewContent
+ *
+ * @param {RuleView} view
+ * @returns {Element[]}
+ */
+function _getRuleViewElements(view) {
+  const elementsInView = [];
+  for (const el of view.element.children) {
+    if (el.classList.contains("registered-properties")) {
+      // We don't check @property content for now
+      continue;
+    }
+    // Gather all the children of expandable containers (e.g. Pseudo-element, @keyframe, …)
+    if (el.classList.contains("ruleview-expandable-container")) {
+      elementsInView.push(...el.children);
+    } else {
+      elementsInView.push(el);
+    }
+  }
+  return elementsInView;
 }
 
 function getUnusedVariableButton(view, elementIndexInView) {
