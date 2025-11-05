@@ -793,7 +793,13 @@ class nsWindow final : public nsIWidget {
    * is hidden. Save the position requests at mPopupPosition and apply
    * when the widget is shown.
    */
-  bool mHiddenPopupPositioned : 1;
+  bool mX11HiddenPopupPositioned : 1;
+
+  /* If popup is not positioned explicitly before show on Wayland,
+   * apply usual popup measurement on Show() to make sure
+   * it's placed correctly according to initial position set by Create().
+   */
+  bool mWaylandApplyPopupPositionBeforeShow : 1;
 
   // True when we're on compositing window manager and this
   // window is using visual with alpha channel.
