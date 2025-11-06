@@ -21,13 +21,15 @@ namespace base {
 
 namespace {
 
-// Prior to macOS 10.12, a kqueue could not watch individual Mach ports, only
-// port sets. MessagePumpKqueue will directly use Mach ports in the kqueue if
-// it is possible.
-bool KqueueNeedsPortSet() {
-#ifdef XP_DARWIN
-  static const bool kqueue_needs_port_set = !nsCocoaFeatures::OnSierraOrLater();
-  return kqueue_needs_port_set;
+// Prior to macOS 10.14, kqueue timers may spuriously wake up, because earlier
+// wake ups race with timer resets in the kernel. As of macOS 10.14, updating a
+// timer from the thread that reads the kqueue does not cause spurious wakeups.
+// Note that updating a kqueue timer from one thread while another thread is
+// waiting in a kevent64 invocation is still (inherently) racy.
+bool KqueueTimersSpuriouslyWakeUp() {
+#ifdef XP_DARWIN 
+  static const bool kqueue_timers_spuriously_wakeup = !nsCocoaFeatures::OnMojaveOrLater();
+  return kqueue_timers_spuriously_wakeup;
 #else
   // This still happens on iOS15.
   return true;
@@ -122,17 +124,17 @@ MessagePumpKqueue::MessagePumpKqueue() : kqueue_(kqueue()) {
       mach_port_allocate(mach_task_self(), MACH_PORT_RIGHT_RECEIVE, &wakeup);
   wakeup_.reset(wakeup);
   CHECK(kr == KERN_SUCCESS)
-  << "mach_port_allocate"
-  << mach_error_string(kr);
+  << "mach_port_allocate: " << mach_error_string(kr);
+
   // Specify the wakeup port event to directly receive the Mach message as part
   // of the kevent64() syscall.
   kevent64_s event{};
-  if (KqueueNeedsPortSet()) {
-    mach_port_t port_set;
+  if (KqueueTimersSpuriouslyWakeUp()) {
+    mach_port_t compat_port;
     kr = mach_port_allocate(mach_task_self(), MACH_PORT_RIGHT_PORT_SET,
-                            &port_set);
-    port_set_.reset(port_set);
+                            &compat_port);
     CHECK(kr == KERN_SUCCESS) << "mach_port_allocate PORT_SET";
+    port_set_.reset(compat_port);
     kr = mach_port_insert_member(mach_task_self(), wakeup_.get(),
                                  port_set_.get());
     CHECK(kr == KERN_SUCCESS) << "mach_port_insert_member";
@@ -228,11 +230,11 @@ bool MessagePumpKqueue::WatchMachReceivePort(
     return false;
   }
 
-  if (KqueueNeedsPortSet()) {
+  if (KqueueTimersSpuriouslyWakeUp()) {
     kern_return_t kr =
         mach_port_insert_member(mach_task_self(), port, port_set_.get());
     if (kr != KERN_SUCCESS) {
-      CHROMIUM_LOG(ERROR) << "mach_port_insert_member";
+      DLOG(ERROR) << "mach_port_insert_member" << mach_error_string(kr);
       return false;
     }
   } else {
@@ -269,7 +271,7 @@ bool MessagePumpKqueue::WatchFileDescriptor(int fd, bool persistent, int mode,
   }
   StopWatchingFileDescriptor(controller);
 
-  std::vector<kevent64_s> events;
+  AutoTArray<kevent64_s, 2> events;
 
   kevent64_s base_event{};
   base_event.ident = static_cast<uint64_t>(fd);
@@ -280,24 +282,24 @@ bool MessagePumpKqueue::WatchFileDescriptor(int fd, bool persistent, int mode,
     CHECK(next_fd_controller_id_ < std::numeric_limits<uint64_t>::max());
     base_event.udata = next_fd_controller_id_++;
     fd_controllers_.InsertOrUpdate(base_event.udata, controller);
-    events.push_back(base_event);
+    events.AppendElement(base_event);
   }
   if (mode & Mode::WATCH_WRITE) {
     base_event.filter = EVFILT_WRITE;
     CHECK(next_fd_controller_id_ < std::numeric_limits<uint64_t>::max());
     base_event.udata = next_fd_controller_id_++;
     fd_controllers_.InsertOrUpdate(base_event.udata, controller);
-    events.push_back(base_event);
+    events.AppendElement(base_event);
   }
 
-  int rv = HANDLE_EINTR(platform_kevent64(kqueue_.get(), events.data(),
-                                          events.size(), nullptr, 0, 0));
+  int rv = HANDLE_EINTR(platform_kevent64(kqueue_.get(), events.Elements(),
+                                          events.Length(), nullptr, 0, 0));
   if (rv < 0) {
     DLOG(ERROR) << "WatchFileDescriptor kevent64";
     return false;
   }
 
-  event_count_ += events.size();
+  event_count_ += events.Length();
   controller->Init(this, fd, mode, delegate);
 
   return true;
@@ -308,11 +310,11 @@ bool MessagePumpKqueue::StopWatchingMachPort(
   mach_port_t port = controller->port();
   controller->Reset();
   port_controllers_.Remove(port);
-  if (KqueueNeedsPortSet()) {
+  if (KqueueTimersSpuriouslyWakeUp()) {
     kern_return_t kr =
         mach_port_extract_member(mach_task_self(), port, port_set_.get());
     if (kr != KERN_SUCCESS) {
-      CHROMIUM_LOG(ERROR) << "mach_port_extract_member";
+      DLOG(ERROR) << "mach_port_extract_member" << mach_error_string(kr);
       return false;
     }
   } else {
@@ -338,34 +340,30 @@ bool MessagePumpKqueue::StopWatchingFileDescriptor(
 
   if (fd < 0) return true;
 
-  std::vector<kevent64_s> events;
+  AutoTArray<kevent64_s, 2> events;
 
   kevent64_s base_event{};
-  base_event.ident = fd;
+  base_event.ident = static_cast<uint64_t>(fd);
   base_event.flags = EV_DELETE;
 
   if (mode & Mode::WATCH_READ) {
     base_event.filter = EVFILT_READ;
-    events.push_back(base_event);
+    events.AppendElement(base_event);
   }
   if (mode & Mode::WATCH_WRITE) {
     base_event.filter = EVFILT_WRITE;
-    events.push_back(base_event);
+    events.AppendElement(base_event);
   }
 
-  int rv = HANDLE_EINTR(platform_kevent64(kqueue_.get(), events.data(),
-                                          events.size(), nullptr, 0, 0));
+  int rv = HANDLE_EINTR(platform_kevent64(kqueue_.get(), events.Elements(),
+                                          events.Length(), nullptr, 0, 0));
   if (rv < 0) DLOG(ERROR) << "StopWatchingFileDescriptor kevent64";
 
   // The keys for the IDMap aren't recorded anywhere (they're attached to the
   // kevent object in the kernel), so locate the entries by controller pointer.
-  for (auto it = fd_controllers_.Iter(); !it.Done(); it.Next()) {
-    if (it.Data() == controller) {
-      it.Remove();
-    }
-  }
+  fd_controllers_.RemoveIf([&](auto& it) { return it.Data() == controller; });
 
-  event_count_ -= events.size();
+  event_count_ -= events.Length();
 
   return rv >= 0;
 }
@@ -426,19 +424,20 @@ bool MessagePumpKqueue::ProcessEvents(Delegate* delegate, int count) {
         }
       }
     } else if (event->filter == EVFILT_MACHPORT) {
-      mach_port_t port = KqueueNeedsPortSet() ? event->data : event->ident;
+      mach_port_t port = KqueueTimersSpuriouslyWakeUp() ? event->data : event->ident;
 
       if (port == wakeup_.get()) {
         // The wakeup event has been received, do not treat this as "doing
         // work", this just wakes up the pump.
-        if (KqueueNeedsPortSet()) {
+        if (KqueueTimersSpuriouslyWakeUp()) {
           // When using the kqueue directly, the message can be received
           // straight into a buffer that was created when adding the event.
           // But when using a port set, the message must be drained manually.
           wakeup_buffer_.header.msgh_local_port = port;
           wakeup_buffer_.header.msgh_size = sizeof(wakeup_buffer_);
           kern_return_t kr = mach_msg_receive(&wakeup_buffer_.header);
-          LOG_IF(ERROR, kr != KERN_SUCCESS) << "mach_msg_receive wakeup";
+          DLOG_IF(ERROR, kr != KERN_SUCCESS)
+              << "mach_msg_receive wakeup" << mach_error_string(kr);
         }
         continue;
       }

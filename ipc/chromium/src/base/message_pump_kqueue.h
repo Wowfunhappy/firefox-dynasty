@@ -150,7 +150,7 @@ class MessagePumpKqueue : public MessagePump {
   // in response to ScheduleWork().
   mozilla::UniqueMachReceiveRight wakeup_;
   // Scratch buffer that is used to receive the message sent to |wakeup_|.
-  mach_msg_empty_rcv_t wakeup_buffer_;
+  mach_msg_empty_rcv_t wakeup_buffer_{};
 
   // A Mach port set used to watch ports from WatchMachReceivePort(). This is
   // only used on macOS <10.12, where kqueues cannot watch ports directly.
@@ -162,7 +162,7 @@ class MessagePumpKqueue : public MessagePump {
   uint64_t next_fd_controller_id_ = 0;
 
   // Watch controllers for Mach ports. IDs are the port being watched.
-  nsTHashMap<uint64_t, MachPortWatchController*> port_controllers_;
+  nsTHashMap<mach_port_name_t, MachPortWatchController*> port_controllers_;
 
   // The kqueue that drives the pump.
   mozilla::UniqueFileHandle kqueue_;
