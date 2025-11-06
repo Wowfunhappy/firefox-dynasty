@@ -386,11 +386,6 @@ class nsDocumentViewer final : public nsIDocumentViewer,
 
   void InvalidatePotentialSubDocDisplayItem();
 
-  // Whether we should attach to the top level widget. This is true if we
-  // are sharing/recycling a single base widget and not creating multiple
-  // child widgets.
-  bool ShouldAttachToTopLevel();
-
   std::tuple<const nsIFrame*, int32_t> GetCurrentSheetFrameAndNumber() const;
 
  protected:
@@ -796,6 +791,7 @@ nsresult nsDocumentViewer::InitInternal(
   nsAutoScriptBlocker blockScripts;
 
   mParentWidget = aParentWidget;  // not ref counted
+
   mBounds = aBounds;
 
   nsresult rv = NS_OK;
@@ -850,8 +846,8 @@ nsresult nsDocumentViewer::InitInternal(
       // FlushPendingNotifications() calls down the road...
 
       MakeWindow(nsSize(mPresContext->DevPixelsToAppUnits(aBounds.width),
-                             mPresContext->DevPixelsToAppUnits(aBounds.height)),
-                      containerView);
+                        mPresContext->DevPixelsToAppUnits(aBounds.height)),
+                 containerView);
       Hide();
 
 #ifdef NS_PRINT_PREVIEW
@@ -1465,8 +1461,7 @@ nsDocumentViewer::Open(nsISupports* aState, nsISHEntry* aSHEntry) {
   // page B, we detach. So page A's view has no widget. If we then go
   // back to it, and it is in the bfcache, we will use that view, which
   // doesn't have a widget. The attach call here will properly attach us.
-  if (nsIWidget::UsePuppetWidgets() && mPresContext &&
-      ShouldAttachToTopLevel()) {
+  if (mParentWidget && mPresContext) {
     // If the old view is already attached to our parent, detach
     DetachFromTopLevelWidget();
 
@@ -1939,7 +1934,7 @@ nsDocumentViewer::SetBoundsWithFlags(const LayoutDeviceIntRect& aBounds,
   if (mWindow && !mAttachedToParent) {
     // Resize the widget, but don't trigger repaint. Layout will generate
     // repaint requests during reflow.
-    mWindow->Resize(aBounds / mWindow->GetDesktopToDeviceScale(), false); 
+    mWindow->Resize(aBounds / mWindow->GetDesktopToDeviceScale(), false);
   } else if (mPresContext && mViewManager) {
     // Ensure presContext's deviceContext is up to date, as we sometimes get
     // here before a resolution-change notification has been fully handled
@@ -2007,7 +2002,7 @@ nsDocumentViewer::Move(int32_t aX, int32_t aY) {
   NS_ENSURE_TRUE(mDocument, NS_ERROR_NOT_AVAILABLE);
   mBounds.MoveTo(aX, aY);
   if (mWindow) {
-    mWindow->Move(mBounds.TopLeft() / mWindow->GetDesktopToDeviceScale()); 
+    mWindow->Move(mBounds.TopLeft() / mWindow->GetDesktopToDeviceScale());
   }
   return NS_OK;
 }
@@ -2097,8 +2092,8 @@ nsDocumentViewer::Show() {
     }
 
     MakeWindow(nsSize(mPresContext->DevPixelsToAppUnits(mBounds.width),
-                           mPresContext->DevPixelsToAppUnits(mBounds.height)),
-                    containerView);
+                      mPresContext->DevPixelsToAppUnits(mBounds.height)),
+               containerView);
 
     if (mPresContext) {
       Hide();
@@ -2213,10 +2208,9 @@ nsDocumentViewer::ClearHistoryEntry() {
 
 //-------------------------------------------------------
 
-void nsDocumentViewer::MakeWindow(const nsSize& aSize,
-                                      nsView* aContainerView) {
+void nsDocumentViewer::MakeWindow(const nsSize& aSize, nsView* aContainerView) {
   if (GetIsPrintPreview()) {
-    return; 
+    return;
   }
 
   mViewManager = new nsViewManager(mPresContext->DeviceContext());
@@ -2225,7 +2219,6 @@ void nsDocumentViewer::MakeWindow(const nsSize& aSize,
   nsRect tbounds(nsPoint(), aSize);
   // Create a view
   nsView* view = mViewManager->CreateView(tbounds, aContainerView);
-
   MOZ_ASSERT(view);
 
   // Create a widget if we were given a parent widget or don't have a
@@ -3208,25 +3201,6 @@ nsDocumentViewer::GetPrintPreviewNumPages(int32_t* aPrintPreviewNumPages) {
 // happening
 #endif  // NS_PRINTING
 
-bool nsDocumentViewer::ShouldAttachToTopLevel() {
-  if (!mParentWidget) {
-    return false;
-  }
-
-  // We always attach when using puppet widgets
-  if (nsIWidget::UsePuppetWidgets() || mParentWidget->IsPuppetWidget()) {
-    return true;
-  }
-
-  // TODO(emilio, bug 1919165): Unify this between macOS and other platforms?
-#ifdef DEBUG
-  nsIWidgetListener* parentListener = mParentWidget->GetWidgetListener();
-  MOZ_ASSERT(!parentListener || !parentListener->GetView(),
-             "Expect a top level widget");
-#endif
-  return true;
-}
-
 //------------------------------------------------------------
 // XXX this always returns false for subdocuments
 bool nsDocumentViewer::GetIsPrinting() const {
@@ -3377,8 +3351,8 @@ NS_IMETHODIMP nsDocumentViewer::SetPrintSettingsForSubdocument(
     NS_ENSURE_SUCCESS(rv, rv);
 
     MakeWindow(nsSize(mPresContext->DevPixelsToAppUnits(mBounds.width),
-                           mPresContext->DevPixelsToAppUnits(mBounds.height)),
-                    FindContainerView());
+                      mPresContext->DevPixelsToAppUnits(mBounds.height)),
+               FindContainerView());
 
     MOZ_TRY(InitPresentationStuff(true));
   }
@@ -3510,7 +3484,7 @@ void nsDocumentViewer::SetPrintPreviewPresentation(nsViewManager* aViewManager,
   mPresContext = aPresContext;
   mPresShell = aPresShell;
 
-  if (ShouldAttachToTopLevel()) {
+  if (mParentWidget) {
     DetachFromTopLevelWidget();
     nsView* rootView = mViewManager->GetRootView();
     rootView->AttachToTopLevelWidget(mParentWidget);

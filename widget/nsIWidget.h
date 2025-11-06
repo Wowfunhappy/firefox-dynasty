@@ -913,6 +913,9 @@ class nsIWidget : public nsSupportsWeakReference {
    * Similar to GetScreenBounds except that this function will always
    * get the size when the widget is in the nsSizeMode_Normal size mode
    * even if the current size mode is not nsSizeMode_Normal.
+   *
+   * If PersistClientBounds() is true, then the returned size are client sizes.
+   *
    * This method will fail if the size mode is not nsSizeMode_Normal and
    * the platform doesn't have the ability.
    * This method will always succeed if the current size mode is
@@ -922,6 +925,13 @@ class nsIWidget : public nsSupportsWeakReference {
    *                this widget.
    */
   [[nodiscard]] virtual nsresult GetRestoredBounds(LayoutDeviceIntRect& aRect);
+
+  /**
+   * On some platforms (namely, GTK), we can't know the bounds of the client
+   * decorations before actually showing the window. For that reason, we instead
+   * persist client (inner) sizes.
+   */
+  virtual bool PersistClientBounds() const { return false; }
 
   /**
    * Get this widget's client area bounds, if the window has a 3D border
@@ -1432,7 +1442,7 @@ class nsIWidget : public nsSupportsWeakReference {
   virtual void SetIcon(const nsAString& aIconSpec) {}
 
   /**
-   * Return this widget's origin in screen coordinates.
+   * Return this widget's client origin in screen coordinates.
    *
    * @return screen coordinates stored in the x,y members
    */
@@ -1476,9 +1486,8 @@ class nsIWidget : public nsSupportsWeakReference {
   }
 
   /**
-   * Given the specified client size, return the corresponding window size,
-   * which includes the area for the borders and titlebar. This method
-   * should work even when the window is not yet visible.
+   * Returns the size difference from client area to window area of a
+   * normal-sizemode window.
    */
   LayoutDeviceIntSize NormalSizeModeClientToWindowSizeDifference();
 
@@ -2385,7 +2394,7 @@ class nsIWidget : public nsSupportsWeakReference {
   nsIWidget* MOZ_NON_OWNING_REF mParent = nullptr;
   // When Destroy() is called, the sub class should set this true.
   bool mOnDestroyCalled = false;
-  WindowType mWindowType = WindowType::TopLevel; 
+  WindowType mWindowType = WindowType::TopLevel;
   WidgetType mWidgetType = WidgetType::Native;
 
   nsIWidgetListener* mWidgetListener = nullptr;

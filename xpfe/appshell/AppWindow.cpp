@@ -397,17 +397,25 @@ static CSSIntSize GetOuterToInnerSizeDifferenceInCSSPixels(
 
 NS_IMETHODIMP
 AppWindow::GetOuterToInnerHeightDifferenceInCSSPixels(uint32_t* aResult) {
-  *aResult = GetOuterToInnerSizeDifferenceInCSSPixels(
-                 mWindow, UnscaledDevicePixelsPerCSSPixel())
-                 .height;
+  if (mWindow && mWindow->PersistClientBounds()) {
+    *aResult = 0;
+  } else {
+    *aResult = GetOuterToInnerSizeDifferenceInCSSPixels(
+                   mWindow, UnscaledDevicePixelsPerCSSPixel())
+                   .height;
+  }
   return NS_OK;
 }
 
 NS_IMETHODIMP
 AppWindow::GetOuterToInnerWidthDifferenceInCSSPixels(uint32_t* aResult) {
-  *aResult = GetOuterToInnerSizeDifferenceInCSSPixels(
-                 mWindow, UnscaledDevicePixelsPerCSSPixel())
-                 .width;
+  if (mWindow && mWindow->PersistClientBounds()) {
+    *aResult = 0;
+  } else {
+    *aResult = GetOuterToInnerSizeDifferenceInCSSPixels(
+                   mWindow, UnscaledDevicePixelsPerCSSPixel())
+                   .width;
+  }
   return NS_OK;
 }
 
@@ -1922,6 +1930,8 @@ void AppWindow::MaybeSavePersistentPositionAndSize(
     return;
   }
 
+  const bool isClient = mWindow->PersistClientBounds();
+
   // we use CSS pixels for size, but desktop pixels for position
   CSSToLayoutDeviceScale sizeScale = UnscaledDevicePixelsPerCSSPixel();
   DesktopToLayoutDeviceScale posScale = DevicePixelsPerDesktopPixel();
@@ -1957,8 +1967,8 @@ void AppWindow::MaybeSavePersistentPositionAndSize(
   }
 
   if (aAttributes.contains(PersistentAttribute::Size)) {
-    LayoutDeviceIntRect innerRect =
-        rect - GetOuterToInnerSizeDifference(mWindow);
+    const LayoutDeviceIntRect innerRect =
+        isClient ? rect : rect - GetOuterToInnerSizeDifference(mWindow);
     if (aPersistString.Find(u"width") >= 0) {
       sizeString.Truncate();
       sizeString.AppendInt(NSToIntRound(innerRect.Width() / sizeScale.scale));
@@ -2539,7 +2549,7 @@ void AppWindow::SizeShell() {
 
   if (mChromeLoaded && mCenterAfterLoad && !positionSet &&
       mWindow->SizeMode() == nsSizeMode_Normal) {
-    Center(parentWindow, parentWindow ? false : true, false);
+    Center(parentWindow, !parentWindow, false);
   }
 }
 

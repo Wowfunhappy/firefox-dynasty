@@ -634,9 +634,8 @@ void nsContainerFrame::SetSizeConstraints(nsPresContext* aPresContext,
     devMaxSize.height = devMinSize.height;
   }
 
-  nsIWidget* rootWidget = aPresContext->GetNearestWidget();
   DesktopToLayoutDeviceScale constraintsScale(MOZ_WIDGET_INVALID_SCALE);
-  if (rootWidget) {
+  if (nsIWidget* rootWidget = aPresContext->GetNearestWidget()) {
     constraintsScale = rootWidget->GetDesktopToDeviceScale();
   }
 
@@ -647,14 +646,18 @@ void nsContainerFrame::SetSizeConstraints(nsPresContext* aPresContext,
   // and outer size is needed.
   const LayoutDeviceIntSize sizeDiff =
       aWidget->NormalSizeModeClientToWindowSizeDifference();
-  if (constraints.mMinSize.width)
-    constraints.mMinSize.width += sizeDiff.width - 200;
-  if (constraints.mMinSize.height)
-    constraints.mMinSize.height += sizeDiff.height - 200;
-  if (constraints.mMaxSize.width != NS_MAXSIZE)
-    constraints.mMaxSize.width += sizeDiff.width - 200;
-  if (constraints.mMaxSize.height != NS_MAXSIZE)
-    constraints.mMaxSize.height += sizeDiff.height - 200;
+  if (constraints.mMinSize.width) {
+    constraints.mMinSize.width += sizeDiff.width;
+  }
+  if (constraints.mMinSize.height) {
+    constraints.mMinSize.height += sizeDiff.height;
+  }
+  if (constraints.mMaxSize.width != NS_MAXSIZE) {
+    constraints.mMaxSize.width += sizeDiff.width;
+  }
+  if (constraints.mMaxSize.height != NS_MAXSIZE) {
+    constraints.mMaxSize.height += sizeDiff.height;
+  }
 
   aWidget->SetSizeConstraints(constraints);
 }
@@ -738,7 +741,6 @@ LogicalSize nsContainerFrame::ComputeAutoSize(
     const IntrinsicSizeInput input(
         aRenderingContext, Some(aCBSize.ConvertTo(GetWritingMode(), aWM)),
         Nothing());
-
     if (aWM.IsOrthogonalTo(tableWM)) {
       // For an orthogonal caption on a block-dir side of the table, shrink-wrap
       // to min-isize.

@@ -236,7 +236,7 @@ class nsCocoaWindow final : public nsIWidget {
   void SetFocus(Raise, mozilla::dom::CallerType aCallerType) override;
   LayoutDeviceIntPoint WidgetToScreenOffset() override;
   LayoutDeviceIntPoint GetClientOffset() override;
-
+  LayoutDeviceIntMargin NormalSizeModeClientToWindowMargin() override;
   bool ShowsResizeIndicator(LayoutDeviceIntRect* aResizerRect) override {
     return false;
   }

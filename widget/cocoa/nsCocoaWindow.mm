@@ -164,6 +164,15 @@ static NSString* const CGSSpacesKey = @"Spaces";
 extern CGSConnection _CGSDefaultConnection(void);
 extern CGError CGSSetWindowTransform(CGSConnection cid, CGSWindow wid,
                                      CGAffineTransform transform);
+CG_EXTERN void CGContextResetCTM(CGContextRef);
+CG_EXTERN void CGContextSetCTM(CGContextRef, CGAffineTransform);
+CG_EXTERN void CGContextResetClip(CGContextRef);
+
+typedef CFTypeRef CGSRegionObj;
+CGError CGSNewRegionWithRect(const CGRect* rect, CGSRegionObj* outRegion);
+CGError CGSNewRegionWithRectList(const CGRect* rects, int rectCount,
+                                 CGSRegionObj* outRegion);
+
 }
 
 static void RollUpPopups(nsIRollupListener::AllowAnimations aAllowAnimations =
@@ -5746,7 +5755,7 @@ bool nsCocoaWindow::NeedsRecreateToReshow() {
 bool nsCocoaWindow::ShouldUseOffMainThreadCompositing() {
   // We need to enable OMTC in popups which contain remote layer
   // trees, since the remote content won't be rendered at all otherwise.
-  if (HasRemoteContent() && nsCocoaFeatures::OnMountainLionOrLater()) {
+  if (HasRemoteContent()) {
     return true;
   }
 
@@ -7093,7 +7102,26 @@ LayoutDeviceIntPoint nsCocoaWindow::GetClientOffset() {
   NS_OBJC_END_TRY_BLOCK_RETURN(LayoutDeviceIntPoint(0, 0));
 }
 
+LayoutDeviceIntMargin nsCocoaWindow::NormalSizeModeClientToWindowMargin() {
+  NS_OBJC_BEGIN_TRY_BLOCK_RETURN;
 
+  if (!mWindow || mWindow.drawsContentsIntoWindowFrame ||
+      mWindowType == WindowType::Popup) {
+    return {};
+  }
+
+  CGFloat backingScale = ComputeBackingScaleFactor();
+  LayoutDeviceIntRect r(0, 0, GetClientSize().width, GetClientSize().height);
+  NSRect clientNSRect = nsCocoaUtils::DevPixelsToCocoaPoints(r, backingScale);
+  NSRect frameNSRect = [mWindow frameRectForChildViewRect:clientNSRect];
+
+  const auto clientRect = nsCocoaUtils::CocoaRectToGeckoRectDevPix(clientNSRect, backingScale);
+  const auto frameRect = nsCocoaUtils::CocoaRectToGeckoRectDevPix(frameNSRect, backingScale);
+
+  return frameRect - clientRect;
+  NS_OBJC_END_TRY_BLOCK_RETURN({});
+
+}
 nsMenuBarX* nsCocoaWindow::GetMenuBar() { return mMenuBar; }
 
 void nsCocoaWindow::CaptureRollupEvents(bool aDoCapture) {
