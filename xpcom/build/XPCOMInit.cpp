@@ -111,6 +111,10 @@
 
 #include "mozilla/GeckoTrace.h"
 
+#ifdef MOZ_WIDGET_COCOA
+#  include "nsCocoaFeatures.h"
+#endif
+
 using base::AtExitManager;
 using mozilla::ipc::IOThreadParent;
 
@@ -807,6 +811,15 @@ nsresult ShutdownXPCOM(nsIServiceManager* aServMgr) {
 
   NS_IF_RELEASE(gDebug);
 
+#ifdef XP_MACOSX
+  //shutting down iothreads here causes a hang in profilemanager
+  //on machines before 10.11. we need to use the modern mach ports
+  //approach for longevity. someone needs to look at a better fix
+  // in ipc/chromium/src/base/message_pump_kqueue.cc
+  // see
+  // https://phabricator.services.mozilla.com/D251393?vs=on&id=1047516
+  if (nsCocoaFeatures::OnElCapitanOrLater())
+#endif
   mozilla::ipc::IOThread::Shutdown();
 
   delete sMessageLoop;

@@ -76,12 +76,39 @@ bool SocketProcessHost::Launch() {
   prefSerializer.AddSharedPrefCmdLineArgs(*this, extraArgs);
 
   mLaunchPhase = LaunchPhase::Waiting;
+#ifdef XP_MACOSX
+/* sadly we have to change this to AsyncLaunch for now, because
+  there is strange behaviour for < 10.11 systems where LaunchAndWaitForProcessHandle
+  /will block and constipate startup if we use the pure machport IPC
+  introduced here:
+  https://bugzilla.mozilla.org/show_bug.cgi?id=901050
+  https://bugzilla.mozilla.org/show_bug.cgi?id=1973796  
+  
+  so we are winging it by using AsyncLaunch instead. hopefully
+  there's a better solution in the future, otherwise we risk 
+  being left behind indefinitely. 
+
+  this can be backed out cleanly if necessary.
+  or so i think...
+  ... or hope ...
+*/
+  if (__builtin_available(macOS 10.11, *)) {
+#endif
   if (!GeckoChildProcessHost::LaunchAndWaitForProcessHandle(
           std::move(extraArgs))) {
     mLaunchPhase = LaunchPhase::Complete;
     return false;
   }
-
+#ifdef XP_MACOSX
+  } else { // 10.10 and lower
+    if (!GeckoChildProcessHost::LaunchAndWaitForProcessHandle(
+            std::move(extraArgs))) {
+      mLaunchPhase = LaunchPhase::Complete;
+      return false;
+    }
+  
+  }
+#endif
   return true;
 }
 
