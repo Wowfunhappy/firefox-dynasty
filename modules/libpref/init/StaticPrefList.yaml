@@ -3481,6 +3481,12 @@
   value: true
   mirror: always
 
+# Whether to enable showPicker() support for datalist.
+- name: dom.input.showPicker_datalist.enabled
+  type: bool
+  value: @IS_EARLY_BETA_OR_EARLIER@
+  mirror: always
+
 # Does mousewheel-scrolling over a focused <input type="number"> or
 # <input type="range"> field cause the value to increase/decrease (rather
 # than scrolling the page)?
@@ -14248,7 +14254,7 @@
 # Max time to shutdown the resolver threads
 - name: network.dns.resolver_shutdown_timeout_ms
   type: uint32_t
-  value: 2000
+  value: 5000
   mirror: always
 
 # When true on Windows DNS resolutions for single label domains
@@ -16929,7 +16935,7 @@
 - name: security.sandbox.gpu.level
   type: int32_t
 #if defined(XP_WIN)
-#if defined(NIGHTLY_BUILD)
+#if defined(EARLY_BETA_OR_EARLIER)
   value: 2
 #else
   value: 1

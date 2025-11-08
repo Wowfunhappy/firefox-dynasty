@@ -3408,7 +3408,7 @@ nsresult ScriptLoader::MaybePrepareForDiskCacheAfterExecute(
 
 nsresult ScriptLoader::MaybePrepareModuleForDiskCacheAfterExecute(
     ModuleLoadRequest* aRequest, nsresult aRv) {
-  MOZ_ASSERT(aRequest->IsTopLevel());
+  MOZ_ASSERT(aRequest->IsTopLevel() || aRequest->IsDynamicImport());
 
   if (mCache) {
     // Disk cache is handled by SharedScriptCache.
@@ -4126,6 +4126,7 @@ nsresult ScriptLoader::VerifySRI(ScriptLoadRequest* aRequest,
     }
     if (NS_FAILED(rv)) {
       rv = NS_ERROR_SRI_CORRUPT;
+      TRACE_FOR_TEST(aRequest, "sri:corrupt");
     }
   }
 
@@ -4509,7 +4510,7 @@ static bool MimeTypeMatchesExpectedModuleType(
     case JS::ModuleType::JSON:
       return nsContentUtils::IsJsonMimeType(typeString);
     case JS::ModuleType::CSS:
-      return nsContentUtils::IsCssMimeType(typeString);
+      return nsContentUtils::HasCssMimeTypeEssence(typeString);
     case JS::ModuleType::Unknown:
     case JS::ModuleType::Bytes:
       break;

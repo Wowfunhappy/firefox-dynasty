@@ -634,7 +634,7 @@ const BASE_MESSAGES = () => [
               fontSize: "13px",
             },
             screen_style: {
-              width: "764px",
+              width: "700px",
               height: "650px",
             },
             logo: {
@@ -1997,20 +1997,6 @@ const BASE_MESSAGES = () => [
             logo: {},
             title: {
               string_id: "restored-from-backup-success-title",
-            },
-            cta_paragraph: {
-              text: {
-                string_id: "restored-from-backup-success-no-checklist-subtitle",
-                string_name: "settings",
-                paddingInline: "0 100px",
-              },
-              action: {
-                type: "OPEN_ABOUT_PAGE",
-                data: {
-                  args: "preferences",
-                  where: "tab",
-                },
-              },
             },
             primary_button: {
               label: {

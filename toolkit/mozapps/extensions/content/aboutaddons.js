@@ -57,6 +57,12 @@ XPCOMUtils.defineLazyPreferenceGetter(
   "extensions.dataCollectionPermissions.enabled",
   false
 );
+XPCOMUtils.defineLazyPreferenceGetter(
+  this,
+  "FORCED_COLORS_OVERRIDE_ENABLED",
+  "browser.theme.forced-colors-override.enabled",
+  true
+);
 
 const PLUGIN_ICON_URL = "chrome://global/skin/icons/plugin.svg";
 const EXTENSION_ICON_URL =
@@ -309,7 +315,16 @@ async function getAddonMessageInfo(
       type: "warning",
     };
   } else if (addon.blocklistState === STATE_SOFTBLOCKED) {
-    const fluentBaseId = "details-notification-soft-blocked";
+    const softBlockFluentIdsMap = {
+      extension: {
+        enabled: "details-notification-soft-blocked-extension-enabled2",
+        disabled: "details-notification-soft-blocked-extension-disabled2",
+      },
+      other: {
+        enabled: "details-notification-soft-blocked-other-enabled2",
+        disabled: "details-notification-soft-blocked-other-disabled2",
+      },
+    };
     let typeSuffix = addon.type === "extension" ? "extension" : "other";
     let stateSuffix;
     // If the Addon Card is not expanded, delay changing the messagebar
@@ -320,7 +335,7 @@ async function getAddonMessageInfo(
     } else {
       stateSuffix = !isInDisabledSection ? "enabled" : "disabled";
     }
-    let messageId = `${fluentBaseId}-${typeSuffix}-${stateSuffix}`;
+    let messageId = softBlockFluentIdsMap[typeSuffix][stateSuffix];
 
     return {
       linkUrl: await addon.getBlocklistURL(),
@@ -4163,8 +4178,10 @@ class ForcedColorsNotice extends HTMLElement {
   }
 
   render() {
-    this.hidden = !this.forcedColorsMediaQuery.matches;
-    if (!this.hidden && this.childElementCount == 0) {
+    let shouldShowNotice =
+      FORCED_COLORS_OVERRIDE_ENABLED && this.forcedColorsMediaQuery.matches;
+    this.hidden = !shouldShowNotice;
+    if (shouldShowNotice && this.childElementCount == 0) {
       this.appendChild(importTemplate("forced-colors-notice"));
     }
   }

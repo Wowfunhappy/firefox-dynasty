@@ -920,10 +920,16 @@ class ResponseOrChunkResolvers {
  * @typedef {object} EngineRunRequest
  * @property {?string} [id] - The identifier for tracking this request. If not provided, an id will be auto-generated. Each inference callback will reference this id.
  * @property {any[]} args - The arguments to pass to the pipeline. The required arguments depend on your model. See [Hugging Face Transformers documentation](https://huggingface.co/docs/transformers.js/en/api/models) for more details.
- * @property {?object} options - The generation options to pass to the model. Refer to the [GenerationConfigType documentation](https://huggingface.co/docs/transformers.js/en/api/utils/generation#module_utils/generation..GenerationConfigType) for available options.
+ * @property {?object} [options] - The generation options to pass to the model. Refer to the [GenerationConfigType documentation](https://huggingface.co/docs/transformers.js/en/api/utils/generation#module_utils/generation..GenerationConfigType) for available options.
  * @property {?Uint8Array} [data] - For the imagetoText model, this is the array containing the image data.
  *
- * @template EngineRunResponse
+ * @typedef {object} MLEntry
+ *
+ * @typedef {object} MetricsResponse
+ *   The metrics of the query
+ * @property {{name: string, when: number}[]} metrics
+ *
+ * @typedef {MLEntry[] & MetricsResponse} EngineRunResponse
  */
 export class MLEngine {
   /**
@@ -1427,6 +1433,11 @@ export class MLEngine {
    * @returns {Promise<null | { cpuTime: null | number, memory: null | number}>}
    */
   async getInferenceResources() {
+    // TODO(Greg): ask that question directly to the inference process *or* move your metrics down into the child process
+    // so you don't have to do any IPC at all.
+    // you can get the memory with ChromeUtils.currentProcessMemoryUsage and the CPU since start with ChromeUtils.cpuTimeSinceProcessStart
+    // theses call can be done anywhere in the inference process including the workers, which means you can Glean metrics in any place with
+    // no IPC
     try {
       const { children } = await ChromeUtils.requestProcInfo();
       const [inference] = children.filter(child => child.type == "inference");

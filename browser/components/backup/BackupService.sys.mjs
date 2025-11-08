@@ -586,7 +586,7 @@ export class BackupService extends EventTarget {
    *
    * @see BACKUP_DIR_NAME
    */
-  static #backupFolderName = null;
+  static #backupFolderName = "Restore Firefox";
 
   /**
    * The name of the backup archive file. Should be localized.
@@ -870,8 +870,14 @@ export class BackupService extends EventTarget {
   #wasRestorePreviouslyDisabled = false;
 
   /**
-   * Monitors prefs that are relevant to the status of the backup service.
-   * Unlike #observer, this does not wait for an idle tick.
+   * Called when prefs or other conditions relevant to the status of the backup
+   * service change. Unlike #observer, this does not wait for an idle tick.
+   *
+   * This callback doesn't take any parameters. It's here so it can be removed
+   * by uninitStatusObservers, and also so its 'this' value remains accurate.
+   * If null, the conditions are not currently being monitored.
+   *
+   * @type {Function?}
    */
   #statusPrefObserver = null;
 
@@ -1025,8 +1031,10 @@ export class BackupService extends EventTarget {
    * Prefs that should be monitored. When one of these prefs changes, the
    * 'backup-service-status-changed' observers are notified and telemetry
    * updates.
+   *
+   * @type {string[]}
    */
-  static get #STATUS_OBSERVER_PREFS() {
+  static get STATUS_OBSERVER_PREFS() {
     return [
       BACKUP_ARCHIVE_ENABLED_PREF_NAME,
       BACKUP_RESTORE_ENABLED_PREF_NAME,
@@ -3361,17 +3369,20 @@ export class BackupService extends EventTarget {
    */
   setParentDirPath(parentDirPath) {
     try {
-      if (!parentDirPath || !PathUtils.filename(parentDirPath)) {
+      let filename = parentDirPath ? PathUtils.filename(parentDirPath) : null;
+      if (!filename) {
         throw new BackupError(
           "Parent directory path is invalid.",
           ERRORS.FILE_SYSTEM_ERROR
         );
       }
-      // Recreate the backups path with the new parent directory.
-      let fullPath = PathUtils.join(
-        parentDirPath,
-        BackupService.BACKUP_DIR_NAME
-      );
+
+      let fullPath = parentDirPath;
+      if (filename != BackupService.BACKUP_DIR_NAME) {
+        // Recreate the backups path with the new parent directory.
+        fullPath = PathUtils.join(parentDirPath, BackupService.BACKUP_DIR_NAME);
+      }
+
       Services.prefs.setStringPref(BACKUP_DIR_PREF_NAME, fullPath);
     } catch (e) {
       lazy.logConsole.error(
@@ -3907,6 +3918,17 @@ export class BackupService extends EventTarget {
     }
   }
 
+  /**
+   * Makes this instance responsible for monitoring the conditions that can
+   * cause backups or restores to be unavailable.
+   *
+   * When one arrives, observers of the 'backup-service-status-changed' topic
+   * will be notified and telemetry will be emitted.
+   *
+   * This is not done by default since that would cause N emissions of that
+   * topic per change for N instances, which can be a problem with testing. The
+   * global BackupService has status observers by default.
+   */
   initStatusObservers() {
     if (this.#statusPrefObserver != null) {
       return;
@@ -3919,19 +3941,25 @@ export class BackupService extends EventTarget {
       this.#notifyStatusObservers();
     };
 
-    for (let pref of BackupService.#STATUS_OBSERVER_PREFS) {
+    for (let pref of BackupService.STATUS_OBSERVER_PREFS) {
       Services.prefs.addObserver(pref, this.#statusPrefObserver);
     }
     lazy.NimbusFeatures.backupService.onUpdate(this.#statusPrefObserver);
     this.#notifyStatusObservers();
   }
 
+  /**
+   * Removes the observers configured by initStatusObservers.
+   *
+   * This is done automatically on shutdown, but you can do it earlier if you'd
+   * like that instance to stop emitting events.
+   */
   uninitStatusObservers() {
     if (this.#statusPrefObserver == null) {
       return;
     }
 
-    for (let pref of BackupService.#STATUS_OBSERVER_PREFS) {
+    for (let pref of BackupService.STATUS_OBSERVER_PREFS) {
       Services.prefs.removeObserver(pref, this.#statusPrefObserver);
     }
     lazy.NimbusFeatures.backupService.offUpdate(this.#statusPrefObserver);

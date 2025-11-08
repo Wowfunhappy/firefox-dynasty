@@ -108,7 +108,7 @@ def filter_for_repo_type(task, parameters):
 
     This filter is temporarily in-place to facilitate the hg.mozilla.org ->
     Github migration."""
-    run_on_repo_types = set(task.attributes.get("run_on_repo_type", ["hg"]))
+    run_on_repo_types = set(task.attributes.get("run_on_repo_type", ["git", "hg"]))
     return match_run_on_repo_type(parameters["repository_type"], run_on_repo_types)
 
 
@@ -795,7 +795,8 @@ def target_tasks_general_perf_testing(full_task_graph, parameters, graph_config)
                         "safari-jetstream3" in try_name
                         and "macosx1500-aarch64" in platform
                     ):
-                        return True
+                        return False
+                    return True
         # Android selection
         elif accept_raptor_android_build(platform):
             if "hw-s24" in platform and "speedometer3" not in try_name:

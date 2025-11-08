@@ -9,6 +9,7 @@
 
 /**
  * @import {Query} from "UrlbarProvidersManager.sys.mjs"
+ * @import {UrlbarSearchStringTokenData} from "UrlbarTokenizer.sys.mjs"
  */
 
 import { XPCOMUtils } from "resource://gre/modules/XPCOMUtils.sys.mjs";
@@ -2311,16 +2312,6 @@ UrlbarUtils.RESULT_PAYLOAD_SCHEMA = {
  */
 
 /**
- * @typedef UrlbarSearchStringTokenData
- * @property {Values<typeof lazy.UrlbarTokenizer.TYPE>} type
- *   The type of the token.
- * @property {string} value
- *   The value of the token.
- * @property {string} lowerCaseValue
- *   The lower case version of the value.
- */
-
-/**
  * UrlbarQueryContext defines a user's autocomplete input from within the urlbar.
  * It supplements it with details of how the search results should be obtained
  * and what they consist of.
@@ -2472,6 +2463,12 @@ export class UrlbarQueryContext {
    *   The maximum number of results that will be displayed for this query.
    */
   maxResults;
+
+  /**
+   * @type {string}
+   *   The name of the muxer to use for this query.
+   */
+  muxer;
 
   /**
    * @type {boolean}
@@ -2786,9 +2783,11 @@ export class UrlbarProvider {
    * Note: Extended classes should return a Promise resolved when the provider
    *       is done searching AND returning results.
    *
-   * @param {UrlbarQueryContext} _queryContext The query context object
-   * @param {Function} _addCallback Callback invoked by the provider to add a new
-   *        result. A UrlbarResult should be passed to it.
+   * @param {UrlbarQueryContext} _queryContext
+   *   The query context object
+   * @param {(provider: UrlbarProvider, result: UrlbarResult) => void} _addCallback
+   *   Callback invoked by the provider to add a new result.
+   * @returns {void|Promise<void>}
    * @abstract
    */
   startQuery(_queryContext, _addCallback) {

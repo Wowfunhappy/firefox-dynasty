@@ -912,23 +912,6 @@
       }
     ]
   },
-  "1819476": {
-    "label": "axisbank.com",
-    "bugs": {
-      "1819476": {
-        "issue": "page-fails-to-load",
-        "matches": ["*://*.axisbank.com/*"]
-      }
-    },
-    "interventions": [
-      {
-        "platforms": ["all"],
-        "content_scripts": {
-          "js": ["bug1819476-axisbank.com-webkitSpeechRecognition-shim.js"]
-        }
-      }
-    ]
-  },
   "1823966": {
     "label": "elearning.dmv.ca.gov",
     "bugs": {
@@ -1319,11 +1302,11 @@
     ]
   },
   "1836135": {
-    "label": "gts-pro.sdimedia.com",
+    "label": "gts-pro.iyuno.com",
     "bugs": {
       "1898978": {
         "issue": "firefox-blocked-completely",
-        "matches": ["*://gts-pro.sdimedia.com/*"]
+        "matches": ["*://gts-pro.iyuno.com/*"]
       }
     },
     "interventions": [
@@ -4527,21 +4510,6 @@
       }
     ]
   },
-  "1949152": {
-    "label": "gatufotogruppen.com",
-    "bugs": {
-      "1949152": {
-        "issue": "firefox-blocked-completely",
-        "matches": ["*://www.gatufotogruppen.se/*"]
-      }
-    },
-    "interventions": [
-      {
-        "platforms": ["all"],
-        "ua_string": ["Chrome_with_FxQuantum"]
-      }
-    ]
-  },
   "1949466": {
     "label": "lapalabradeldia.com",
     "bugs": {
@@ -5779,6 +5747,23 @@
       }
     ]
   },
+  "1992923": {
+    "label": "godotfest.com",
+    "bugs": {
+      "1992923": {
+        "issue": "broken-images",
+        "matches": ["*://godotfest.com/*"]
+      }
+    },
+    "interventions": [
+      {
+        "platforms": ["android"],
+        "content_scripts": {
+          "css": ["1992923-godotfest.com-fix-blur-effects.css"]
+        }
+      }
+    ]
+  },
   "1993201": {
     "label": "portal.pilot.ly",
     "bugs": {
@@ -5841,6 +5826,23 @@
         "platforms": ["desktop"],
         "content_scripts": {
           "css": ["1993454-www.wrangler.in-fix-product-image-hovering.css"]
+        }
+      }
+    ]
+  },
+  "1993517": {
+    "label": "onlinebank.resursbank.se",
+    "bugs": {
+      "1993517": {
+        "issue": "page-fails-to-load",
+        "matches": ["*://onlinebank.resursbank.se/*"]
+      }
+    },
+    "interventions": [
+      {
+        "platforms": ["desktop"],
+        "content_scripts": {
+          "js": ["bug1993517-onlinebank.resursbank.se-autoclose-bankid-tabs.js"]
         }
       }
     ]

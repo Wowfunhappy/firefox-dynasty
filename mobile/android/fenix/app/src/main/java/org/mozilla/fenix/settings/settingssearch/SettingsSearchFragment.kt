@@ -2,8 +2,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-@file:OptIn(ExperimentalMaterial3Api::class)
-
 package org.mozilla.fenix.settings.settingssearch
 
 import android.os.Bundle
@@ -11,9 +9,9 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import androidx.appcompat.app.AppCompatActivity
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.fragment.app.Fragment
 import androidx.fragment.compose.content
+import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.navigation.fragment.findNavController
 import org.mozilla.fenix.components.StoreProvider
 import org.mozilla.fenix.ext.components
@@ -49,17 +47,35 @@ class SettingsSearchFragment : Fragment() {
     }
 
     private fun buildSettingsSearchStore(): SettingsSearchStore {
+        val recentSettingsSearchesRepository = FenixRecentSettingsSearchesRepository(requireContext())
+
         return StoreProvider.get(this) {
             SettingsSearchStore(
-                initialState = SettingsSearchState.Default,
+                initialState = SettingsSearchState.Default(emptyList()),
                 middleware = listOf(
                     SettingsSearchMiddleware(
-                        SettingsSearchMiddleware.Companion.Dependencies(
-                            navController = findNavController(),
-                         ),
                         fenixSettingsIndexer = requireContext().components.settingsIndexer,
                     ),
                 ),
+            )
+        }.also {
+            it.dispatch(
+                SettingsSearchAction.EnvironmentRehydrated(
+                    environment = SettingsSearchEnvironment(
+                        fragment = this,
+                        navController = findNavController(),
+                        context = requireContext(),
+                        recentSettingsSearchesRepository = recentSettingsSearchesRepository,
+                    ),
+                ),
+            )
+
+            viewLifecycleOwner.lifecycle.addObserver(
+                object : DefaultLifecycleObserver {
+                    override fun onDestroy(owner: androidx.lifecycle.LifecycleOwner) {
+                        it.dispatch(SettingsSearchAction.EnvironmentCleared)
+                    }
+                },
             )
         }
     }

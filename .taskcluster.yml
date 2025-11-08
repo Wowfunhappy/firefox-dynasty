@@ -102,7 +102,7 @@ tasks:
                                 description: 'Created by a [cron task](https://firefox-ci-tc.services.mozilla.com/tasks/${cron.task_id}) (${treeherder_link})'
 
               provisionerId: "${trustDomain}-${repository.level}"
-              workerType: "decision-gcp"
+              workerType: "decision"
 
               tags:
                   $if: 'tasks_for == "hg-push"'
@@ -405,6 +405,7 @@ tasks:
                               REPOSITORIES: {$json: {gecko: "Mozilla Firefox"}}
                               TASKCLUSTER_CACHES: /builds/worker/checkouts
                               TASKCLUSTER_VOLUMES: /builds/worker/artifacts
+                              MOZ_UPLOAD_DIR: /builds/worker/artifacts
                               MOZ_AUTOMATION: '1'
                               # mach generates pyc files when reading `mach_commands.py`
                               # This causes cached_task digest generation to be random for

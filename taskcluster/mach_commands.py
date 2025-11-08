@@ -253,13 +253,28 @@ def taskgraph_decision(command_context, **options):
     try:
         setup_logging(command_context)
 
-        monitor = SystemResourceMonitor(poll_interval=0.1)
-        monitor.start()
+        in_automation = os.environ.get("MOZ_AUTOMATION") == "1"
+        moz_upload_dir = os.environ.get("MOZ_UPLOAD_DIR")
+        if in_automation and moz_upload_dir:
+            monitor = SystemResourceMonitor(poll_interval=0.1)
+            monitor.start()
+        else:
+            monitor = None
 
-        start = time.monotonic()
-        ret = taskgraph_commands["decision"].func(options)
-        end = time.monotonic()
-        if os.environ.get("MOZ_AUTOMATION") == "1":
+        try:
+            start = time.monotonic()
+            ret = taskgraph_commands["decision"].func(options)
+            end = time.monotonic()
+        finally:
+            if monitor is not None:
+                monitor.stop()
+                upload_dir = pathlib.Path(moz_upload_dir)
+                profile_path = upload_dir / "profile_build_resources.json"
+                with open(profile_path, "w", encoding="utf-8", newline="\n") as f:
+                    to_write = json.dumps(monitor.as_profile(), separators=(",", ":"))
+                    f.write(to_write)
+
+        if in_automation:
             perfherder_data = {
                 "framework": {"name": "build_metrics"},
                 "suites": [
@@ -276,19 +291,12 @@ def taskgraph_decision(command_context, **options):
                 f"PERFHERDER_DATA: {json.dumps(perfherder_data)}",
                 file=sys.stderr,
             )
-            moz_upload_dir = os.environ.get("MOZ_UPLOAD_DIR")
+
             if moz_upload_dir:
                 upload_dir = pathlib.Path(moz_upload_dir)
                 out_path = upload_dir / "perfherder-data-decision.json"
                 with out_path.open("w", encoding="utf-8") as f:
                     json.dump(perfherder_data, f)
-
-                # Save resource profile
-                monitor.stop()
-                profile_path = upload_dir / "profile_build_resources.json"
-                with open(profile_path, "w", encoding="utf-8", newline="\n") as f:
-                    to_write = json.dumps(monitor.as_profile(), separators=(",", ":"))
-                    f.write(to_write)
 
         return ret
     except Exception:

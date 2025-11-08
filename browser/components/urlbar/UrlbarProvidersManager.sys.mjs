@@ -8,8 +8,9 @@
  */
 
 /**
- * @import { UrlbarProvider, UrlbarSearchStringTokenData } from "UrlbarUtils.sys.mjs"
+ * @import { UrlbarProvider } from "UrlbarUtils.sys.mjs"
  * @import { UrlbarMuxer } from "UrlbarUtils.sys.mjs"
+ * @import { UrlbarSearchStringTokenData } from "UrlbarTokenizer.sys.mjs"
  */
 
 const lazy = {};
@@ -425,7 +426,8 @@ export class ProvidersManager {
     }
 
     // Apply tokenization.
-    lazy.UrlbarTokenizer.tokenize(queryContext);
+    let tokens = lazy.UrlbarTokenizer.tokenize(queryContext);
+    queryContext.tokens = tokens;
 
     // If there's a single source, we are in restriction mode.
     if (queryContext.sources && queryContext.sources.length == 1) {
@@ -755,15 +757,23 @@ export class Query {
     }
 
     // Start querying active providers.
+    /**
+     * @type {(provider: UrlbarProvider) => Promise<void>}
+     */
     let startQuery = async provider => {
       provider.logger.debug(
         `Starting query for "${this.context.searchString}"`
       );
       let addedResult = false;
-      await provider.tryMethod("startQuery", this.context, (...args) => {
-        addedResult = true;
-        this.add(...args);
-      });
+      await provider.tryMethod(
+        "startQuery",
+        this.context,
+        /** @type {Parameters<UrlbarProvider['startQuery']>[1]} */
+        (innerProvider, result) => {
+          addedResult = true;
+          this.add(innerProvider, result);
+        }
+      );
       if (!addedResult) {
         this.context.deferUserSelectionProviders.delete(provider.name);
       }

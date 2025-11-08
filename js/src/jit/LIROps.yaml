@@ -4119,7 +4119,7 @@
     # Negative divisor case not implemented for all targets.
     negativeDivisor: bool
 #endif
-#if defined(JS_CODEGEN_MIPS64) || defined(JS_CODEGEN_LOONG64) || defined(JS_CODEGEN_RISCV64)
+#if defined(JS_CODEGEN_MIPS64) || defined(JS_CODEGEN_LOONG64)
   num_temps: 1
 #endif
   mir_op: Div
@@ -4403,11 +4403,33 @@
 #endif
 
 #ifdef JS_CODEGEN_ARM64
-- name: DivOrModI64
-  gen_boilerplate: false
+- name: DivI64
+  result_type: Int64
+  operands:
+    lhs: WordSized
+    rhs: WordSized
+  mir_op: Div
 
-- name: UDivOrModI64
-  gen_boilerplate: false
+- name: ModI64
+  result_type: Int64
+  operands:
+    lhs: WordSized
+    rhs: WordSized
+  mir_op: Mod
+
+- name: UDivI64
+  result_type: Int64
+  operands:
+    lhs: WordSized
+    rhs: WordSized
+  mir_op: Div
+
+- name: UModI64
+  result_type: Int64
+  operands:
+    lhs: WordSized
+    rhs: WordSized
+  mir_op: Mod
 
 - name: DivConstantI
   result_type: WordSized
@@ -4415,25 +4437,30 @@
     numerator: WordSized
   arguments:
     denominator: int32_t
-  num_temps: 1
   mir_op: Div
 
-- name: UDivConstantI
+- name: UDivConstant
+  result_type: WordSized
+  operands:
+    numerator: WordSized
+  arguments:
+    denominator: uint32_t
+  mir_op: Div
+
+- name: ModConstantI
   result_type: WordSized
   operands:
     numerator: WordSized
   arguments:
     denominator: int32_t
-  num_temps: 1
-  mir_op: Div
+  mir_op: Mod
 
-- name: ModMaskI
+- name: UModConstant
   result_type: WordSized
   operands:
-    input: WordSized
+    numerator: WordSized
   arguments:
-    shift: int32_t
-  num_temps: 2
+    denominator: uint32_t
   mir_op: Mod
 
 - name: UDiv
@@ -4441,7 +4468,6 @@
   operands:
     lhs: WordSized
     rhs: WordSized
-  num_temps: 1
   mir_op: Div
 
 - name: UMod
@@ -4613,14 +4639,47 @@
 #endif
 
 #ifdef JS_CODEGEN_RISCV64
-- name: DivOrModI64
-  gen_boilerplate: false
+- name: UDiv
+  result_type: WordSized
+  operands:
+    lhs: WordSized
+    rhs: WordSized
+  mir_op: Div
 
-- name: UDivOrMod
-  gen_boilerplate: false
+- name: UMod
+  result_type: WordSized
+  operands:
+    lhs: WordSized
+    rhs: WordSized
+  mir_op: Mod
 
-- name: UDivOrModI64
-  gen_boilerplate: false
+- name: DivI64
+  result_type: Int64
+  operands:
+    lhs: WordSized
+    rhs: WordSized
+  mir_op: Div
+
+- name: ModI64
+  result_type: Int64
+  operands:
+    lhs: WordSized
+    rhs: WordSized
+  mir_op: Mod
+
+- name: UDivI64
+  result_type: Int64
+  operands:
+    lhs: WordSized
+    rhs: WordSized
+  mir_op: Div
+
+- name: UModI64
+  result_type: Int64
+  operands:
+    lhs: WordSized
+    rhs: WordSized
+  mir_op: Mod
 
 - name: ModMaskI
   result_type: WordSized

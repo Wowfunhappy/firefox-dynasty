@@ -74,8 +74,8 @@ export class IPProtectionPanel {
    *  The location country code
    * @property {"generic" | ""} error
    *  The error type as a string if an error occurred, or empty string if there are no errors.
-   * @property {"alpha"} variant
-   *  The feature variant type as a string.
+   * @property {boolean} isAlpha
+   *  True if we're running the Alpha variant, else false.
    * @property {boolean} hasUpgraded
    *  True if a Mozilla VPN subscription is linked to the user's Mozilla account.
    */
@@ -106,10 +106,8 @@ export class IPProtectionPanel {
    *
    * @param {Window} window
    *   Window containing the panelView to manage.
-   * @param {string} variant
-   *   Variant of the panel that should be used.
    */
-  constructor(window, variant = "") {
+  constructor(window) {
     this.handleEvent = this.#handleEvent.bind(this);
 
     let { activatedAt: protectionEnabledSince } = lazy.IPProtectionService;
@@ -123,7 +121,7 @@ export class IPProtectionPanel {
         code: "us",
       },
       error: "",
-      variant,
+      isAlpha: lazy.IPPEnrollAndEntitleManager.isAlpha,
       hasUpgraded: lazy.IPPEnrollAndEntitleManager.hasUpgraded,
     };
 
@@ -210,6 +208,16 @@ export class IPProtectionPanel {
     } else {
       this.#createPanel(panelView);
     }
+
+    // TODO: Stop counting after all onboarding messages have been shown - Bug 1997332
+    let currentCount = Services.prefs.getIntPref(
+      "browser.ipProtection.panelOpenCount"
+    );
+    let updatedCount = currentCount + 1;
+    Services.prefs.setIntPref(
+      "browser.ipProtection.panelOpenCount",
+      updatedCount
+    );
   }
 
   /**

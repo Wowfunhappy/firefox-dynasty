@@ -255,16 +255,8 @@ const DEFAULT_ENVIRONMENT_PREFS = new Map([
     "browser.urlbar.dnsResolveSingleWordsAfterSearch",
     { what: RECORD_DEFAULTPREF_VALUE },
   ],
-  [
-    "browser.urlbar.quicksuggest.dataCollection.enabled",
-    { what: RECORD_DEFAULTPREF_VALUE },
-  ],
   ["browser.urlbar.showSearchSuggestionsFirst", { what: RECORD_PREF_VALUE }],
   ["browser.urlbar.showSearchTerms.enabled", { what: RECORD_PREF_VALUE }],
-  [
-    "browser.urlbar.suggest.quicksuggest.nonsponsored",
-    { what: RECORD_DEFAULTPREF_VALUE },
-  ],
   [
     "browser.urlbar.suggest.quicksuggest.sponsored",
     { what: RECORD_DEFAULTPREF_VALUE },

@@ -5,11 +5,19 @@
 #ifndef mozilla_htmlaccel_htmlaccelEnabled_h
 #define mozilla_htmlaccel_htmlaccelEnabled_h
 
+#include "mozilla/Assertions.h"
 #if defined(__x86_64__)
 #  include "mozilla/SSE.h"
 #endif
 
 namespace mozilla::htmlaccel {
+
+// MOZ_MAY_HAVE_HTMLACCEL gets defined iff `htmlaccelEnabled()` may return
+// `true`. The purpose is this define is to accommodate builds that don't
+// link `htmlaccelNotInline.cpp` and have even the most basic constant
+// propagation turned off so that `htmlaccelEnabled()` statically returning
+// false isn't enough to remove calls to functions whose definitions are
+// missing.
 
 /// This function is appropriate to call when the SIMD path is compiled
 /// with `HTML_ACCEL_FLAGS`.
@@ -21,9 +29,19 @@ inline bool htmlaccelEnabled() {
   // GCC 12 or newer is required for __builtin_shuffle.
   return false;
 #elif defined(__aarch64__) && defined(__LITTLE_ENDIAN__)
+#  define MOZ_MAY_HAVE_HTMLACCEL 1
   return true;
 #elif defined(__x86_64__)
-  return mozilla::supports_bmi() && mozilla::supports_avx();
+#  define MOZ_MAY_HAVE_HTMLACCEL 1
+  bool ret = mozilla::supports_bmi();
+  if (ret) {
+    // As a micro optimization for the innerHTML getter, don't bother
+    // calling `supports_avx` in release builds, since the implementation
+    // of SSE.h supports_bmi implies supports_avx anyway.
+    MOZ_ASSERT(mozilla::supports_avx(),
+               "supports_bmi is supposed to imply supports_avx");
+  }
+  return ret;
 #else
   return false;
 #endif

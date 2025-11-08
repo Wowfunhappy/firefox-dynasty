@@ -18,6 +18,7 @@ transforms:
 # https://wiki.mozilla.org/Sheriffing/Job_Visibility_Policy
 
 task-defaults:
+    run-on-repo-type: [hg]
     attributes:
         retrigger: true
     use-python: default
@@ -269,6 +270,7 @@ tasks:
                 windows.*32.*/debug: 6
                 windows.*-ccov.*/opt: 9
                 windows10.*/opt: 2
+                windows11.*asan/opt: 4
                 windows11.*/opt: 3
                 default: 8
         variants:
