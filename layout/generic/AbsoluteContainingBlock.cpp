@@ -816,7 +816,7 @@ void AbsoluteContainingBlock::ResolveSizeDependentOffsets(
 void AbsoluteContainingBlock::ResolveAutoMarginsAfterLayout(
     ReflowInput& aKidReflowInput, const LogicalSize& aCBSize,
     const LogicalSize& aKidSize, LogicalMargin& aMargin,
-    LogicalMargin& aOffsets) {
+    const LogicalMargin& aOffsets) {
   MOZ_ASSERT(aKidReflowInput.mFlags.mDeferAutoMarginComputation);
 
   WritingMode wm = aKidReflowInput.GetWritingMode();
@@ -849,7 +849,7 @@ void AbsoluteContainingBlock::ResolveAutoMarginsAfterLayout(
         styleMargin
             ->GetMargin(LogicalSide::IEnd, outerWM, anchorResolutionParams)
             ->IsAuto(),
-        aMargin, aOffsets);
+        aMargin);
   } else {
     ReflowInput::ComputeAbsPosBlockAutoMargin(
         availMarginSpace, outerWM,
@@ -859,7 +859,7 @@ void AbsoluteContainingBlock::ResolveAutoMarginsAfterLayout(
         styleMargin
             ->GetMargin(LogicalSide::BEnd, outerWM, anchorResolutionParams)
             ->IsAuto(),
-        aMargin, aOffsets);
+        aMargin);
   }
 
   aKidReflowInput.SetComputedLogicalMargin(outerWM, aMargin);
@@ -1119,10 +1119,14 @@ void AbsoluteContainingBlock::ReflowAbsoluteFrame(
     AutoFallbackStyleSetter fallback(aKidFrame, currentFallbackStyle,
                                      aAnchorPosResolutionCache,
                                      firstTryIndex == currentFallbackIndex);
-    const auto cb = [&]() {
+    auto cb = [&]() {
       if (isGrid) {
         // TODO(emilio): how does position-area interact with grid?
-        return ContainingBlockRect{nsGridContainerFrame::GridItemCB(aKidFrame)};
+        const auto border = aDelegatingFrame->GetUsedBorder();
+        const nsPoint borderShift{border.left, border.top};
+        // Shift in by border of the overall grid container.
+        return ContainingBlockRect{nsGridContainerFrame::GridItemCB(aKidFrame) +
+                                   borderShift};
       }
 
       auto positionArea = aKidFrame->StylePosition()->mPositionArea;
@@ -1153,8 +1157,8 @@ void AbsoluteContainingBlock::ReflowAbsoluteFrame(
           StylePositionArea resolvedPositionArea{};
           const auto scrolledAnchorCb = AnchorPositioningUtils::
               AdjustAbsoluteContainingBlockRectForPositionArea(
-                  scrolledAnchorRect, aOriginalContainingBlockRect,
-                  aKidFrame->GetWritingMode(),
+                  scrolledAnchorRect + aOriginalContainingBlockRect.TopLeft(),
+                  aOriginalContainingBlockRect, aKidFrame->GetWritingMode(),
                   aDelegatingFrame->GetWritingMode(), positionArea,
                   &resolvedPositionArea);
           return ContainingBlockRect{offset, resolvedPositionArea,
@@ -1299,24 +1303,29 @@ void AbsoluteContainingBlock::ReflowAbsoluteFrame(
               AnchorPosResolutionParams::From(aKidFrame,
                                               aAnchorPosResolutionCache),
               &cbSize);
-      const bool iInsetAuto =
+      const bool iStartInsetAuto =
           stylePos
               ->GetAnchorResolvedInset(LogicalSide::IStart, outerWM,
                                        anchorResolutionParams)
-              ->IsAuto() ||
+              ->IsAuto();
+      const bool iEndInsetAuto =
           stylePos
               ->GetAnchorResolvedInset(LogicalSide::IEnd, outerWM,
                                        anchorResolutionParams)
               ->IsAuto();
-      const bool bInsetAuto =
+      const bool iInsetAuto = iStartInsetAuto || iEndInsetAuto;
+
+      const bool bStartInsetAuto =
           stylePos
               ->GetAnchorResolvedInset(LogicalSide::BStart, outerWM,
                                        anchorResolutionParams)
-              ->IsAuto() ||
+              ->IsAuto();
+      const bool bEndInsetAuto =
           stylePos
               ->GetAnchorResolvedInset(LogicalSide::BEnd, outerWM,
                                        anchorResolutionParams)
               ->IsAuto();
+      const bool bInsetAuto = bStartInsetAuto || bEndInsetAuto;
       const LogicalSize kidMarginBox{
           outerWM, margin.IStartEnd(outerWM) + kidSize.ISize(outerWM),
           margin.BStartEnd(outerWM) + kidSize.BSize(outerWM)};
@@ -1360,16 +1369,14 @@ void AbsoluteContainingBlock::ReflowAbsoluteFrame(
             (offsets.BStart(outerWM) + kidMarginBox.BSize(outerWM));
       }
 
-      LogicalRect rect(outerWM,
-                       border.StartOffset(outerWM) +
-                           offsets.StartOffset(outerWM) +
-                           margin.StartOffset(outerWM),
-                       kidSize);
-      nsRect r = rect.GetPhysicalRect(
-          outerWM, cbSize.GetPhysicalSize(outerWM) +
-                       border.Size(outerWM).GetPhysicalSize(outerWM));
+      LogicalRect rect(
+          outerWM, offsets.StartOffset(outerWM) + margin.StartOffset(outerWM),
+          kidSize);
+      nsRect r = rect.GetPhysicalRect(outerWM, cbSize.GetPhysicalSize(outerWM));
 
-      // Offset the frame rect by the given origin of the absolute CB.
+      // So far, we've positioned against the padding edge of the containing
+      // block, which is necessary for inset computation. However, the position
+      // of a frame originates against the border box.
       r += cb.mRect.TopLeft();
       if (cb.mAnchorShiftInfo) {
         // Push the frame out to where the anchor is.
@@ -1377,6 +1384,16 @@ void AbsoluteContainingBlock::ReflowAbsoluteFrame(
       }
 
       aKidFrame->SetRect(r);
+
+      // For the purpose of computing the inset-modified containing block,
+      // `auto` is considered the same as 0.
+      // https://drafts.csswg.org/css-position-3/#resolving-insets
+      LogicalMargin insetModification{
+          outerWM, bStartInsetAuto ? 0 : offsets.BStart(outerWM),
+          iEndInsetAuto ? 0 : offsets.IEnd(outerWM),
+          bEndInsetAuto ? 0 : offsets.BEnd(outerWM),
+          iStartInsetAuto ? 0 : offsets.IStart(outerWM)};
+      cb.mRect.Deflate(insetModification.GetPhysicalMargin(outerWM));
 
       nsView* view = aKidFrame->GetView();
       if (view) {
@@ -1429,24 +1446,18 @@ void AbsoluteContainingBlock::ReflowAbsoluteFrame(
     }();
 
     const auto fits = aStatus.IsComplete() && [&]() {
-      // TODO(dshin, bug 1996832): This should probably be done at call sites of
-      // `AbsoluteContainingBlock::Reflow`.
-      const auto paddingEdgeShift = [&]() {
-        const auto border = aDelegatingFrame->GetUsedBorder();
-        return nsPoint{border.left, border.top};
-      }();
-      auto overflowCheckRect = cb.mRect + paddingEdgeShift;
-      if (aAnchorPosResolutionCache && cb.mAnchorShiftInfo) {
-        overflowCheckRect =
-            GrowOverflowCheckRect(overflowCheckRect, aKidFrame->GetNormalRect(),
-                                  cb.mAnchorShiftInfo->mResolvedArea);
-        aAnchorPosResolutionCache->mReferenceData->mContainingBlockRect =
-            overflowCheckRect;
-        const auto originalContainingBlockRect =
-            aOriginalContainingBlockRect + paddingEdgeShift;
+      const auto overflowCheckRect = cb.mRect;
+      if (aAnchorPosResolutionCache) {
+        if (cb.mAnchorShiftInfo) {
+          aAnchorPosResolutionCache->mReferenceData->mContainingBlockRect =
+              GrowOverflowCheckRect(overflowCheckRect,
+                                    aKidFrame->GetNormalRect(),
+                                    cb.mAnchorShiftInfo->mResolvedArea);
+        }
         return AnchorPositioningUtils::FitsInContainingBlock(
-            overflowCheckRect, originalContainingBlockRect,
-            aKidFrame->GetRect());
+            AnchorPositioningUtils::ContainingBlockInfo::ExplicitCBFrameSize(
+                aOriginalContainingBlockRect),
+            aKidFrame, aAnchorPosResolutionCache->mReferenceData);
       }
       return overflowCheckRect.Contains(aKidFrame->GetRect());
     }();

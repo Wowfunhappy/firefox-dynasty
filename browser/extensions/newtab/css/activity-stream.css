@@ -1995,9 +1995,6 @@ main section {
 }
 
 .personalize-button {
-  --button-collapsed-width: calc(var(--size-item-small) + var(--size-item-medium));
-  --button-full-width: calc(2 * var(--button-collapsed-width));
-  --label-shift-by-value: calc(-1 * var(--space-small));
   border: 0;
   border-radius: var(--border-radius-small);
   background-color: var(--button-background-color, rgba(21, 20, 26, 0.07));
@@ -2009,9 +2006,7 @@ main section {
   display: flex;
   align-items: center;
   overflow: hidden;
-  width: var(--button-collapsed-width);
-  min-width: var(--button-collapsed-width);
-  transition: all 0.5s ease-in-out;
+  transition: background-color 0.3s ease;
 }
 .lightWallpaper .personalize-button, .darkWallpaper .personalize-button {
   background-color: var(--newtab-weather-background-color);
@@ -2022,17 +2017,15 @@ main section {
   }
 }
 .personalize-button:hover {
-  background-color: var(--newtab-element-hover-color);
-}
-.personalize-button:focus {
-  background-color: var(--newtab-element-active-color);
+  background-color: var(--newtab-button-static-hover-background);
 }
 .personalize-button:active {
-  background-color: var(--newtab-element-active-color);
+  background-color: var(--newtab-button-static-active-background);
 }
 .personalize-button:focus-visible {
   border: 0;
   outline: var(--focus-outline);
+  background-color: var(--newtab-button-static-active-background);
 }
 .personalize-button.personalize-animate-exit-done {
   visibility: hidden;
@@ -2056,27 +2049,22 @@ main section {
   width: 100%;
 }
 .personalize-button > label {
-  margin-inline-start: 0;
+  margin-inline-end: 0;
   opacity: 0;
-  transform: translateX(var(--label-shift-by-value));
   white-space: nowrap;
-  transition: opacity 0.5s ease-in-out, margin 0.5s ease-in-out, transform 0.5s ease-in-out;
+  overflow: hidden;
+  max-width: 0;
+  transition: opacity 0.3s ease, margin 0.3s ease, max-width 0.3s ease;
 }
 
-.personalize-button:hover,
-.personalize-button:focus {
-  width: fit-content;
-  min-width: var(--button-full-width);
-}
 .personalize-button:hover > label,
-.personalize-button:focus > label {
+.personalize-button:focus-visible > label {
   opacity: 1;
-  transform: translateX(0);
-  margin-inline-start: var(--space-small);
-  transition-duration: 0.2s;
+  margin-inline-end: var(--space-medium);
+  max-width: 30ch;
 }
 
-.customize-menu {
+.customize-menu-animate-wrapper {
   color: var(--newtab-text-primary-color);
   background-color: var(--newtab-background-color-secondary);
   width: 432px;
@@ -2088,34 +2076,41 @@ main section {
   z-index: 1001;
   padding-block: 0 var(--space-large);
   padding-inline: var(--space-large);
-  overflow: auto;
   transform: translateX(435px);
   visibility: hidden;
   cursor: default;
 }
-.customize-menu.customize-animate-enter, .customize-menu.customize-animate-exit, .customize-menu.customize-animate-enter-done, .customize-menu.customize-animate-exit-done {
+.customize-menu-animate-wrapper.customize-animate-enter, .customize-menu-animate-wrapper.customize-animate-exit, .customize-menu-animate-wrapper.customize-animate-enter-done, .customize-menu-animate-wrapper.customize-animate-exit-done {
   display: block;
 }
 @media (prefers-reduced-motion: no-preference) {
-  .customize-menu.customize-animate-enter, .customize-menu.customize-animate-exit, .customize-menu.customize-animate-enter-done, .customize-menu.customize-animate-exit-done {
+  .customize-menu-animate-wrapper.customize-animate-enter, .customize-menu-animate-wrapper.customize-animate-exit, .customize-menu-animate-wrapper.customize-animate-enter-done, .customize-menu-animate-wrapper.customize-animate-exit-done {
     transition: transform 250ms cubic-bezier(0.46, 0.03, 0.52, 0.96), visibility 250ms;
   }
 }
 @media (forced-colors: active) {
-  .customize-menu {
+  .customize-menu-animate-wrapper {
     border-inline-start: solid 1px;
   }
 }
-.customize-menu:dir(rtl) {
+.customize-menu-animate-wrapper:dir(rtl) {
   transform: translateX(-435px);
 }
-.customize-menu.customize-animate-enter-done, .customize-menu.customize-animate-enter-active {
+.customize-menu-animate-wrapper.customize-animate-enter-done, .customize-menu-animate-wrapper.customize-animate-enter-active {
   box-shadow: 0 2px 14px 0 rgba(0, 0, 0, 0.2);
   visibility: visible;
   transform: translateX(0);
 }
-.customize-menu.customize-animate-exit-active {
+.customize-menu-animate-wrapper.customize-animate-exit-active {
   box-shadow: 0 2px 14px 0 rgba(0, 0, 0, 0.2);
+}
+
+.customize-menu {
+  overflow: auto;
+  height: 100%;
+}
+.customize-menu.subpanel-open {
+  overflow: clip;
 }
 .customize-menu .close-button-wrapper {
   position: sticky;
@@ -2337,10 +2332,7 @@ main section {
 }
 
 .sections-mgmt-panel {
-  /* XXXdholbert The 32px subtraction here is to account for our 16px of
-  * margin on top and bottom. Ideally this should change to use
-  * 'height: stretch' when bug 1789477 lands. */
-  height: calc(100% - var(--space-xxlarge));
+  height: 100%;
   inset-inline-start: var(--space-xlarge);
   position: absolute;
   inset-block-start: 0;
@@ -2350,6 +2342,7 @@ main section {
   margin-block: var(--space-large) 0;
   padding: 0;
   background-color: var(--newtab-background-color-secondary);
+  overflow-y: auto;
 }
 .sections-mgmt-panel:dir(rtl) {
   transform: translateX(-100%);
@@ -2655,16 +2648,15 @@ main section {
   gap: unset;
   grid-auto-rows: unset;
   grid-template-columns: unset;
-  /* XXXdholbert The 32px subtraction here is to account for our 16px of
-   * margin on top and bottom. Ideally this should change to use
-   * 'height: stretch' when bug 1789477 lands. */
-  height: calc(100% - var(--space-xlarge));
+  height: 100%;
+  padding-block-end: var(--space-xxlarge);
   inset-inline-start: var(--space-xlarge);
   position: absolute;
   inset-block-start: 0;
   width: 380px;
   z-index: 2;
   transform: translateX(100%);
+  overflow-y: auto;
 }
 .wallpaper-list.category:dir(rtl) {
   transform: translateX(-100%);
