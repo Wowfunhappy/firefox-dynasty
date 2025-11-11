@@ -261,7 +261,7 @@ export default class TurnOnScheduledBackups extends MozLitElement {
           ? "turn-on-scheduled-backups-location-default-folder"
           : nothing}
         data-l10n-args=${hasFilename ? l10nArgs : nothing}
-        data-l10n-attrs=${hasFilename ? "value" : "placeholder"}
+        data-l10n-attrs=${hasFilename ? "value" : nothing}
         style=${`background-image: url(${iconURL})`}
       />
     `;
@@ -364,7 +364,7 @@ export default class TurnOnScheduledBackups extends MozLitElement {
     // - other unknown errors
     if (
       (this._showPasswordOptions && !this._passwordsMatch) ||
-      (this._newPath == "" && this.defaultLabel == "") ||
+      (!this._newPath && !this.defaultLabel) ||
       this.enableBackupErrorCode != ERRORS.NONE
     ) {
       this.disableSubmit = true;

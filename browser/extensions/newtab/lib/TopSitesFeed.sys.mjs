@@ -2,6 +2,17 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+// We use importESModule here instead of static import so that
+// the Karma test environment won't choke on this module. This
+// is because the Karma test environment already stubs out
+// AppConstants, and overrides importESModule to be a no-op (which
+// can't be done for a static import statement).
+
+// eslint-disable-next-line mozilla/use-static-import
+const { AppConstants } = ChromeUtils.importESModule(
+  "resource://gre/modules/AppConstants.sys.mjs"
+);
+
 import {
   actionCreators as ac,
   actionTypes as at,
@@ -31,6 +42,7 @@ ChromeUtils.defineESModuleGetters(lazy, {
   ObliviousHTTP: "resource://gre/modules/ObliviousHTTP.sys.mjs",
   PageThumbs: "resource://gre/modules/PageThumbs.sys.mjs",
   PersistentCache: "resource://newtab/lib/PersistentCache.sys.mjs",
+  PlacesUtils: "resource://gre/modules/PlacesUtils.sys.mjs",
   Region: "resource://gre/modules/Region.sys.mjs",
   RemoteSettings: "resource://services-settings/remote-settings.sys.mjs",
   Sampling: "resource://gre/modules/components-utils/Sampling.sys.mjs",
@@ -44,10 +56,23 @@ ChromeUtils.defineLazyGetter(lazy, "log", () => {
   return new Logger("TopSitesFeed");
 });
 
+ChromeUtils.defineLazyGetter(lazy, "pageFrecencyThreshold", () => {
+  // @backward-compat { version 147 }
+  // Frecency was changed in 147 Nightly.
+  if (Services.vc.compare(AppConstants.MOZ_APP_VERSION, "147.0a1") >= 0) {
+    // 30 days ago, 5 visits. The threshold avoids one non-typed visit from
+    // immediately being included in recent history to mimic the original
+    // threshold which aimed to prevent first-run visits from being included in
+    // Top Sites.
+    return lazy.PlacesUtils.history.pageFrecencyThreshold(30, 5, false);
+  }
+  // The old threshold used for classic frecency: Slightly over one visit.
+  return 101;
+});
+
 const DEFAULT_SITES_PREF = "default.sites";
 const SHOWN_ON_NEWTAB_PREF = "feeds.topsites";
 export const DEFAULT_TOP_SITES = [];
-const FRECENCY_THRESHOLD = 100 + 1; // 1 visit (skip first-run/one-time pages)
 const MIN_FAVICON_SIZE = 96;
 const CACHED_LINK_PROPS_TO_MIGRATE = ["screenshot", "customScreenshot"];
 const PINNED_FAVICON_PROPS_TO_MIGRATE = [
@@ -1129,8 +1154,9 @@ export class TopSitesFeed {
   }
 
   /**
-   * _maybeInsertSearchShortcuts - if the search shortcuts experiment is running,
-   *                               insert search shortcuts if needed
+   * If the search shortcuts experiment is running, insert search shortcuts if
+   * needed.
+   *
    * @param {Array} plainPinnedSites (from the pinnedSitesCache)
    * @returns {Boolean} Did we insert any search shortcuts?
    */
@@ -1327,7 +1353,7 @@ export class TopSitesFeed {
     const cache = await this.frecentCache.request({
       // We need to overquery due to the top 5 alexa search + default search possibly being removed
       numItems: numFetch + SEARCH_FILTERS.length + 1,
-      topsiteFrecency: FRECENCY_THRESHOLD,
+      topsiteFrecency: lazy.pageFrecencyThreshold,
     });
     for (let link of cache) {
       const hostname = lazy.NewTabUtils.shortURL(link);
@@ -1655,6 +1681,7 @@ export class TopSitesFeed {
 
   /**
    * Refresh the top sites data for content.
+   *
    * @param {bool} options.broadcast Should the update be broadcasted.
    * @param {bool} options.isStartup Being called while TopSitesFeed is initting.
    */
@@ -1797,6 +1824,7 @@ export class TopSitesFeed {
 
   /**
    * Fetch, cache and broadcast a screenshot for a specific topsite.
+   *
    * @param link cached topsite object
    * @param url where to fetch the image from
    * @param isStartup Whether the screenshot is fetched while initting TopSitesFeed.
@@ -1828,6 +1856,7 @@ export class TopSitesFeed {
 
   /**
    * Dispatch screenshot preview to target or notify if request failed.
+   *
    * @param customScreenshotURL {string} The URL used to capture the screenshot
    * @param target {string} Id of content process where to dispatch the result
    */
@@ -1864,6 +1893,7 @@ export class TopSitesFeed {
 
   /**
    * Pin a site at a specific position saving only the desired keys.
+   *
    * @param customScreenshotURL {string} User set URL of preview image for site
    * @param label {string} User set string of custom site name
    */

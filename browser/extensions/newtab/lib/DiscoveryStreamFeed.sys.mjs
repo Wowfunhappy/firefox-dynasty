@@ -557,6 +557,7 @@ export class DiscoveryStreamFeed {
 
   /**
    * Returns true if data in the cache for a particular key has expired or is missing.
+   *
    * @param {object} cachedData data returned from cache.get()
    * @param {string} key a cache key
    * @param {string?} url for "feed" only, the URL of the feed.
@@ -873,8 +874,8 @@ export class DiscoveryStreamFeed {
   }
 
   /**
-   * buildFeedPromise - Adds the promise result to newFeeds and
-   *                    pushes a promise to newsFeedsPromises.
+   * Adds the promise result to newFeeds and pushes a promise to newsFeedsPromises.
+   *
    * @param {Object} Has both newFeedsPromises (Array) and newFeeds (Object)
    * @param {Boolean} isStartup We have different cache handling for startup.
    * @returns {Function} We return a function so we can contain
@@ -949,8 +950,9 @@ export class DiscoveryStreamFeed {
   }
 
   /**
-   * reduceFeedComponents - Filters out components with no feeds, and combines
-   *                        all feeds on this component with the feeds from other components.
+   * Filters out components with no feeds, and combines all feeds on this component
+   * with the feeds from other components.
+   *
    * @param {Boolean} isStartup We have different cache handling for startup.
    * @returns {Function} We return a function so we can contain the scope for isStartup.
    *                     Reduces feeds into promises and feed data.
@@ -965,8 +967,8 @@ export class DiscoveryStreamFeed {
   }
 
   /**
-   * buildFeedPromises - Filters out rows with no components,
-   *                     and gets us a promise for each unique feed.
+   * Filters out rows with no components, and gets us a promise for each unique feed.
+   *
    * @param {Object} layout This is the Discovery Stream layout object.
    * @param {Boolean} isStartup We have different cache handling for startup.
    * @returns {Object} An object with newFeedsPromises (Array) and newFeeds (Object),

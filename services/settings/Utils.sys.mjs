@@ -155,6 +155,7 @@ export var Utils = {
 
   /**
    * Internal method to enable pulling data from preview buckets.
+   *
    * @param enabled
    */
   enablePreviewMode(enabled) {
@@ -404,6 +405,7 @@ export var Utils = {
    *     "metadata": {}
    *   }
    * ```
+   *
    * @param {String} serverUrl         The server URL (eg. `https://server.org/v1`)
    * @param {int}    expectedTimestamp The timestamp that the server is supposed to return.
    *                                   We obtained it from the Megaphone notification payload,

@@ -834,9 +834,14 @@ bool DisplayPortUtils::MaybeCreateDisplayPort(
 
 nsIFrame* DisplayPortUtils::OneStepInAsyncScrollableAncestorChain(
     nsIFrame* aFrame) {
+  if (aFrame->IsMenuPopupFrame()) {
+    return nullptr;
+  }
   if (aFrame->StyleDisplay()->mPosition == StylePositionProperty::Fixed &&
       nsLayoutUtils::IsReallyFixedPos(aFrame)) {
-    return aFrame->PresShell()->GetRootScrollContainerFrame();
+    if (nsIFrame* root = aFrame->PresShell()->GetRootScrollContainerFrame()) {
+      return root;
+    }
   }
   return nsLayoutUtils::GetCrossDocParentFrameInProcess(aFrame);
 }

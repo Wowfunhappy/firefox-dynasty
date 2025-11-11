@@ -105,7 +105,6 @@ ChromeUtils.defineESModuleGetters(this, {
   UITour: "moz-src:///browser/components/uitour/UITour.sys.mjs",
   UpdateUtils: "resource://gre/modules/UpdateUtils.sys.mjs",
   URILoadingHelper: "resource:///modules/URILoadingHelper.sys.mjs",
-  UrlbarInput: "moz-src:///browser/components/urlbar/UrlbarInput.sys.mjs",
   UrlbarPrefs: "moz-src:///browser/components/urlbar/UrlbarPrefs.sys.mjs",
   UrlbarProviderSearchTips:
     "moz-src:///browser/components/urlbar/UrlbarProviderSearchTips.sys.mjs",
@@ -368,10 +367,7 @@ ChromeUtils.defineLazyGetter(this, "gNavToolbox", () => {
 });
 
 ChromeUtils.defineLazyGetter(this, "gURLBar", () => {
-  let urlbar = new UrlbarInput({
-    textbox: document.getElementById("urlbar"),
-    sapName: "urlbar",
-  });
+  let urlbar = document.getElementById("urlbar");
 
   let beforeFocusOrSelect = event => {
     // In customize mode, the url bar is disabled. If a new tab is opened or the
@@ -1965,6 +1961,7 @@ var XULBrowserWindow = {
 
       /**
        * Encode bidirectional formatting characters.
+       *
        * @see https://url.spec.whatwg.org/#url-rendering-i18n
        * @see https://www.unicode.org/reports/tr9/#Directional_Formatting_Characters
        */
@@ -2381,6 +2378,7 @@ var XULBrowserWindow = {
    * Updates macOS platform code with the current URI and page title.
    * From there, we update the current NSUserActivity, enabling Handoff to other
    * Apple devices.
+   *
    * @param {Window} window
    *   The window in which the navigation occurred.
    * @param {nsIURI} uri
@@ -2412,6 +2410,7 @@ var XULBrowserWindow = {
    * identity panel. For browsers whose content does not have a principal,
    * this tries the precursor. If this is null, we should not override the
    * browser's currentURI.
+   *
    * @param {MozBrowser} browser
    *   The browser that we need a URI to show the user in the
    *   identity panel.
@@ -4261,7 +4260,7 @@ var PanicButtonNotifier = {
 class TabDialogBox {
   static _containerFor(browser) {
     return browser.closest(
-      ".browserStack, .webextension-popup-stack, .sidebar-browser-stack"
+      ".browserSidebarContainer, .webextension-popup-stack, .sidebar-browser-stack"
     );
   }
 
@@ -4292,6 +4291,7 @@ class TabDialogBox {
 
   /**
    * Open a dialog on tab or content level.
+   *
    * @param {String} aURL - URL of the dialog to load in the tab box.
    * @param {Object} [aOptions]
    * @param {String} [aOptions.features] - Comma separated list of window

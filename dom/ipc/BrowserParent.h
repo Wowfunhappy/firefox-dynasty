@@ -701,8 +701,7 @@ class BrowserParent final : public PBrowserParent,
 
   void NavigateByKey(bool aForward, bool aForDocumentNavigation);
 
-  bool GetDocShellIsActive();
-  void SetDocShellIsActive(bool aDocShellIsActive);
+  bool GetDocShellIsActive() const;
 
   bool GetHasPresented();
   bool GetHasLayers();

@@ -5198,8 +5198,10 @@ nsGlobalWindowInner::ShowSlowScriptDialog(JSContext* aCx,
 
 nsresult nsGlobalWindowInner::Observe(nsISupports* aSubject, const char* aTopic,
                                       const char16_t* aData) {
-  if (!nsCRT::strcmp(aTopic, "audio-playback") &&
-      ToSupports(GetOuterWindow()) == aSubject) {
+  if (!nsCRT::strcmp(aTopic, "audio-playback")) {
+    if (ToSupports(GetOuterWindow()) != aSubject) {
+      return NS_OK;
+    }
     AUTO_PROFILER_MARKER_UNTYPED("audio-playback", DOM, {});
 
     nsGlobalWindowOuter* outer =
@@ -5316,7 +5318,7 @@ nsresult nsGlobalWindowInner::Observe(nsISupports* aSubject, const char* aTopic,
     return rv.StealNSResult();
   }
 
-  NS_WARNING("unrecognized topic in nsGlobalWindowInner::Observe");
+  NS_WARNING(nsPrintfCString("unrecognized topic %s", aTopic).get());
   return NS_ERROR_FAILURE;
 }
 
