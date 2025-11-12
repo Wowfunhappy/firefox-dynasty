@@ -11105,6 +11105,12 @@
   value: true
   mirror: always
 
+# Whether to remove the accent property from the operator dictionary.
+- name: mathml.operator_dictionary_accent.disabled
+  type: bool
+  value: false
+  mirror: always
+
 # Whether to disable the MathML3 support for the mathvariant attribute. For
 # MathML Core, support is restricted to the <mi> element and to value "normal".
 # Corresponding automatic italicization on single-char <mi> element is also
@@ -15216,11 +15222,6 @@
   #
   # See https://bugzilla.mozilla.org/show_bug.cgi?id=1979279 for details.
   value: 1
-#elif defined(ANDROID)
-  # Disable GSO on Android.
-  #
-  # See <https://bugzilla.mozilla.org/show_bug.cgi?id=1987256> for details.
-  value: 1
 #else
   # Current industry standard. Likely worth tuning.
   value: 10
@@ -17112,6 +17113,13 @@
 -   name: security.sandbox.chrome-pipe-rule.enabled
     type: RelaxedAtomicBool
     value: false
+    mirror: always
+
+  # Whether \Device\KsecDD is closed in content process. We are closing this
+  # using a pref to give users a work-around if they have issues.
+-   name: security.sandbox.content.close-ksecdd-handle
+    type: RelaxedAtomicBool
+    value: true
     mirror: always
 #endif
 

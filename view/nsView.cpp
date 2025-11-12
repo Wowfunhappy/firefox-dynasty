@@ -28,15 +28,9 @@
 using namespace mozilla;
 using namespace mozilla::widget;
 
-nsView::nsView(nsViewManager* aViewManager, ViewVisibility aVisibility)
+nsView::nsView(nsViewManager* aViewManager)
     : mViewManager(aViewManager),
-      mParent(nullptr),
-      mNextSibling(nullptr),
-      mFirstChild(nullptr),
       mFrame(nullptr),
-      mVis(aVisibility),
-      mPosX(0),
-      mPosY(0),
       mWidgetIsTopLevel(false),
       mForcedRepaint(false),
       mNeedsWindowPropertiesSync(false) {
@@ -50,45 +44,22 @@ nsView::nsView(nsViewManager* aViewManager, ViewVisibility aVisibility)
 
 void nsView::DropMouseGrabbing() {
   if (mViewManager->GetPresShell()) {
-    PresShell::ClearMouseCaptureOnView(this);
+    PresShell::ClearMouseCapture();
   }
 }
 
 nsView::~nsView() {
   MOZ_COUNT_DTOR(nsView);
 
-  while (GetFirstChild()) {
-    nsView* child = GetFirstChild();
-    if (child->GetViewManager() == mViewManager) {
-      child->Destroy();
-    } else {
-      // just unhook it. Someone else will want to destroy this.
-      RemoveChild(child);
-    }
-  }
-
   if (mViewManager) {
     DropMouseGrabbing();
 
     nsView* rootView = mViewManager->GetRootView();
-
-    if (rootView) {
-      // Root views can have parents!
-      if (mParent) {
-        mViewManager->RemoveChild(this);
-      }
-
-      if (rootView == this) {
-        // Inform the view manager that the root view has gone away...
-        mViewManager->SetRootView(nullptr);
-      }
-    } else if (mParent) {
-      mParent->RemoveChild(this);
+    if (rootView == this) {
+      // Inform the view manager that the root view has gone away...
+      mViewManager->SetRootView(nullptr);
     }
-
     mViewManager = nullptr;
-  } else if (mParent) {
-    mParent->RemoveChild(this);
   }
 
   if (mPreviousWindow) {
@@ -164,37 +135,21 @@ void nsView::Destroy() {
   nsView::operator delete(this);
 }
 
-void nsView::SetPosition(nscoord aX, nscoord aY) {
-  mDimBounds.MoveBy(aX - mPosX, aY - mPosY);
-  mPosX = aX;
-  mPosY = aY;
-
-  NS_ASSERTION(GetParent() || (aX == 0 && aY == 0),
-               "Don't try to move the root widget to something non-zero");
-}
-
-bool nsView::IsEffectivelyVisible() {
-  for (nsView* v = this; v; v = v->mParent) {
-    if (v->GetVisibility() == ViewVisibility::Hide) {
-      return false;
-    }
-  }
-  return true;
-}
-
 struct WidgetViewBounds {
   nsRect mBounds;
   int32_t mRoundTo = 1;
 };
 
-static WidgetViewBounds CalcWidgetViewBounds(
-    const nsRect& aBounds, int32_t aAppUnitsPerDevPixel, nsView* aParentView,
-    nsIWidget* aThisWidget, WindowType aType, TransparencyMode aTransparency) {
+static WidgetViewBounds CalcWidgetViewBounds(const nsRect& aBounds,
+                                             int32_t aAppUnitsPerDevPixel,
+                                             nsIFrame* aParentFrame,
+                                             nsIWidget* aThisWidget,
+                                             WindowType aType) {
   nsRect viewBounds(aBounds);
   nsIWidget* parentWidget = nullptr;
-  if (aParentView) {
+  if (aParentFrame) {
     nsPoint offset;
-    parentWidget = aParentView->GetNearestWidget(&offset, aAppUnitsPerDevPixel);
+    parentWidget = aParentFrame->GetNearestWidget(offset);
     // make viewBounds be relative to the parent widget, in appunits
     viewBounds += offset;
 
@@ -237,8 +192,8 @@ static LayoutDeviceIntRect WidgetViewBoundsToDevicePixels(
 LayoutDeviceIntRect nsView::CalcWidgetBounds(WindowType aType,
                                              TransparencyMode aTransparency) {
   int32_t p2a = mViewManager->AppUnitsPerDevPixel();
-  auto viewBounds = CalcWidgetViewBounds(mDimBounds, p2a, GetParent(),
-                                         mWindow.get(), aType, aTransparency);
+  auto viewBounds =
+      CalcWidgetViewBounds(mDimBounds, p2a, nullptr, mWindow.get(), aType);
   auto newBounds =
       WidgetViewBoundsToDevicePixels(viewBounds, p2a, aType, aTransparency);
 
@@ -250,19 +205,18 @@ LayoutDeviceIntRect nsView::CalcWidgetBounds(WindowType aType,
   // mViewToWidgetOffset is added to coordinates relative to the view origin
   // to get coordinates relative to the widget.
   // The view origin, relative to the parent widget, is at
-  // (mPosX,mPosY) - mDimBounds.TopLeft() + viewBounds.TopLeft().
+  // mDimBounds.TopLeft() + viewBounds.TopLeft().
   // Our widget, relative to the parent widget, is roundedOffset.
-  mViewToWidgetOffset = nsPoint(mPosX, mPosY) - mDimBounds.TopLeft() +
-                        viewBounds.mBounds.TopLeft() - roundedOffset;
+  mViewToWidgetOffset =
+      mDimBounds.TopLeft() + viewBounds.mBounds.TopLeft() - roundedOffset;
   return newBounds;
 }
 
 LayoutDeviceIntRect nsView::CalcWidgetBounds(
-    const nsRect& aBounds, int32_t aAppUnitsPerDevPixel, nsView* aParentView,
+    const nsRect& aBounds, int32_t aAppUnitsPerDevPixel, nsIFrame* aParentFrame,
     nsIWidget* aThisWidget, WindowType aType, TransparencyMode aTransparency) {
-  auto viewBounds =
-      CalcWidgetViewBounds(aBounds, aAppUnitsPerDevPixel, aParentView,
-                           aThisWidget, aType, aTransparency);
+  auto viewBounds = CalcWidgetViewBounds(aBounds, aAppUnitsPerDevPixel,
+                                         aParentFrame, aThisWidget, aType);
   return WidgetViewBoundsToDevicePixels(viewBounds, aAppUnitsPerDevPixel, aType,
                                         aTransparency);
 }
@@ -274,111 +228,15 @@ LayoutDeviceIntRect nsView::RecalcWidgetBounds() {
 }
 
 void nsView::SetDimensions(const nsRect& aRect) {
-  nsRect dims = aRect;
-  dims.MoveBy(mPosX, mPosY);
-
   // Don't use nsRect's operator== here, since it returns true when
   // both rects are empty even if they have different widths and we
   // have cases where that sort of thing matters to us.
-  if (mDimBounds.TopLeft() == dims.TopLeft() &&
-      mDimBounds.Size() == dims.Size()) {
+  if (mDimBounds.TopLeft() == aRect.TopLeft() &&
+      mDimBounds.Size() == aRect.Size()) {
     return;
   }
 
-  mDimBounds = dims;
-}
-
-void nsView::NotifyEffectiveVisibilityChanged(bool aEffectivelyVisible) {
-  if (!aEffectivelyVisible) {
-    DropMouseGrabbing();
-  }
-
-  SetForcedRepaint(true);
-
-  for (nsView* child = mFirstChild; child; child = child->mNextSibling) {
-    if (child->mVis == ViewVisibility::Hide) {
-      // It was effectively hidden and still is
-      continue;
-    }
-    // Our child is visible if we are
-    child->NotifyEffectiveVisibilityChanged(aEffectivelyVisible);
-  }
-}
-
-void nsView::SetVisibility(ViewVisibility aVisibility) {
-  mVis = aVisibility;
-  NotifyEffectiveVisibilityChanged(IsEffectivelyVisible());
-}
-
-void nsView::InvalidateHierarchy() {
-  if (mViewManager->GetRootView() == this) {
-    mViewManager->InvalidateHierarchy();
-  }
-
-  for (nsView* child = mFirstChild; child; child = child->GetNextSibling()) {
-    child->InvalidateHierarchy();
-  }
-}
-
-void nsView::InsertChild(nsView* aChild, nsView* aSibling) {
-  MOZ_ASSERT(nullptr != aChild, "null ptr");
-
-  if (nullptr != aChild) {
-    if (nullptr != aSibling) {
-#ifdef DEBUG
-      NS_ASSERTION(aSibling->GetParent() == this,
-                   "tried to insert view with invalid sibling");
-#endif
-      // insert after sibling
-      aChild->SetNextSibling(aSibling->GetNextSibling());
-      aSibling->SetNextSibling(aChild);
-    } else {
-      aChild->SetNextSibling(mFirstChild);
-      mFirstChild = aChild;
-    }
-    aChild->SetParent(this);
-
-    // If we just inserted a root view, then update the RootViewManager
-    // on all view managers in the new subtree.
-
-    nsViewManager* vm = aChild->GetViewManager();
-    if (vm->GetRootView() == aChild) {
-      aChild->InvalidateHierarchy();
-    }
-  }
-}
-
-void nsView::RemoveChild(nsView* child) {
-  MOZ_ASSERT(nullptr != child, "null ptr");
-
-  if (nullptr != child) {
-    nsView* prevKid = nullptr;
-    nsView* kid = mFirstChild;
-    DebugOnly<bool> found = false;
-    while (nullptr != kid) {
-      if (kid == child) {
-        if (nullptr != prevKid) {
-          prevKid->SetNextSibling(kid->GetNextSibling());
-        } else {
-          mFirstChild = kid->GetNextSibling();
-        }
-        child->SetParent(nullptr);
-        found = true;
-        break;
-      }
-      prevKid = kid;
-      kid = kid->GetNextSibling();
-    }
-    NS_ASSERTION(found, "tried to remove non child");
-
-    // If we just removed a root view, then update the RootViewManager
-    // on all view managers in the removed subtree.
-
-    nsViewManager* vm = child->GetViewManager();
-    if (vm->GetRootView() == child) {
-      child->InvalidateHierarchy();
-    }
-  }
+  mDimBounds = aRect;
 }
 
 void nsView::SetNeedsWindowPropertiesSync() {
@@ -493,131 +351,13 @@ void nsView::List(FILE* out, int32_t aIndent) const {
             windowBounds.Width(), windowBounds.Height());
   }
   nsRect brect = GetBounds();
-  fprintf(out, "{%d,%d,%d,%d} @ %d,%d", brect.X(), brect.Y(), brect.Width(),
-          brect.Height(), mPosX, mPosY);
-  fprintf(out, " vis=%d frame=%p <\n", int(mVis), mFrame);
-  for (nsView* kid = mFirstChild; kid; kid = kid->GetNextSibling()) {
-    NS_ASSERTION(kid->GetParent() == this, "incorrect parent");
-    kid->List(out, aIndent + 1);
-  }
+  fprintf(out, "{%d,%d,%d,%d}", brect.X(), brect.Y(), brect.Width(),
+          brect.Height());
+  fprintf(out, " frame=%p <\n", mFrame);
   for (i = aIndent; --i >= 0;) fputs("  ", out);
   fputs(">\n", out);
 }
 #endif  // DEBUG
-
-nsPoint nsView::GetOffsetTo(const nsView* aOther) const {
-  return GetOffsetTo(aOther, GetViewManager()->AppUnitsPerDevPixel());
-}
-
-nsPoint nsView::GetOffsetTo(const nsView* aOther, const int32_t aAPD) const {
-  MOZ_ASSERT(GetParent() || !aOther || aOther->GetParent() || this == aOther,
-             "caller of (outer) GetOffsetTo must not pass unrelated views");
-  // We accumulate the final result in offset
-  nsPoint offset(0, 0);
-  // The offset currently accumulated at the current APD
-  nsPoint docOffset(0, 0);
-  const nsView* v = this;
-  nsViewManager* currVM = v->GetViewManager();
-  int32_t currAPD = currVM->AppUnitsPerDevPixel();
-  const nsView* root = nullptr;
-  for (; v != aOther && v; root = v, v = v->GetParent()) {
-    nsViewManager* newVM = v->GetViewManager();
-    if (newVM != currVM) {
-      int32_t newAPD = newVM->AppUnitsPerDevPixel();
-      if (newAPD != currAPD) {
-        offset += docOffset.ScaleToOtherAppUnits(currAPD, aAPD);
-        docOffset.x = docOffset.y = 0;
-        currAPD = newAPD;
-      }
-      currVM = newVM;
-    }
-    docOffset += v->GetPosition();
-  }
-  offset += docOffset.ScaleToOtherAppUnits(currAPD, aAPD);
-
-  if (v != aOther) {
-    // Looks like aOther wasn't an ancestor of |this|.  So now we have
-    // the root-VM-relative position of |this| in |offset|.  Get the
-    // root-VM-relative position of aOther and subtract it.
-    nsPoint negOffset = aOther->GetOffsetTo(root, aAPD);
-    offset -= negOffset;
-  }
-
-  return offset;
-}
-
-nsPoint nsView::GetOffsetToWidget(nsIWidget* aWidget) const {
-  nsPoint pt;
-  // Get the view for widget
-  nsView* widgetView = GetViewFor(aWidget);
-  if (!widgetView) {
-    return pt;
-  }
-
-  // Get the offset to the widget view in the widget view's APD
-  // We get the offset in the widget view's APD first and then convert to our
-  // APD afterwards so that we can include the widget view's ViewToWidgetOffset
-  // in the sum in its native APD, and then convert the whole thing to our APD
-  // so that we don't have to convert the APD of the relatively small
-  // ViewToWidgetOffset by itself with a potentially large relative rounding
-  // error.
-  pt = -widgetView->GetOffsetTo(this);
-  // Add in the offset to the widget.
-  pt += widgetView->ViewToWidgetOffset();
-
-  // Convert to our appunits.
-  int32_t widgetAPD = widgetView->GetViewManager()->AppUnitsPerDevPixel();
-  int32_t ourAPD = GetViewManager()->AppUnitsPerDevPixel();
-  pt = pt.ScaleToOtherAppUnits(widgetAPD, ourAPD);
-  return pt;
-}
-
-nsIWidget* nsView::GetNearestWidget(nsPoint* aOffset) const {
-  return GetNearestWidget(aOffset, GetViewManager()->AppUnitsPerDevPixel());
-}
-
-nsIWidget* nsView::GetNearestWidget(nsPoint* aOffset,
-                                    const int32_t aAPD) const {
-  // aOffset is based on the view's position, which ignores any chrome on
-  // attached parent widgets.
-
-  // We accumulate the final result in pt
-  nsPoint pt(0, 0);
-  // The offset currently accumulated at the current APD
-  nsPoint docPt(0, 0);
-  const nsView* v = this;
-  nsViewManager* currVM = v->GetViewManager();
-  int32_t currAPD = currVM->AppUnitsPerDevPixel();
-  for (; v && !v->HasWidget(); v = v->GetParent()) {
-    nsViewManager* newVM = v->GetViewManager();
-    if (newVM != currVM) {
-      int32_t newAPD = newVM->AppUnitsPerDevPixel();
-      if (newAPD != currAPD) {
-        pt += docPt.ScaleToOtherAppUnits(currAPD, aAPD);
-        docPt.x = docPt.y = 0;
-        currAPD = newAPD;
-      }
-      currVM = newVM;
-    }
-    docPt += v->GetPosition();
-  }
-  if (!v) {
-    if (aOffset) {
-      pt += docPt.ScaleToOtherAppUnits(currAPD, aAPD);
-      *aOffset = pt;
-    }
-    return nullptr;
-  }
-
-  // pt is now the offset from v's origin to this view's origin.
-  // We add the ViewToWidgetOffset to get the offset to the widget.
-  if (aOffset) {
-    docPt += v->ViewToWidgetOffset();
-    pt += docPt.ScaleToOtherAppUnits(currAPD, aAPD);
-    *aOffset = pt;
-  }
-  return v->GetWidget();
-}
 
 bool nsView::IsRoot() const {
   NS_ASSERTION(mViewManager != nullptr,

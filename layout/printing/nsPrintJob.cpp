@@ -40,6 +40,7 @@
 #include "nsPrintObject.h"
 #include "nsQueryObject.h"
 #include "nsReadableUtils.h"
+#include "nsSubDocumentFrame.h"
 #include "nsView.h"
 
 // Print Options
@@ -719,11 +720,9 @@ nsresult nsPrintJob::ReconstructAndReflow() {
     bool documentIsTopLevel = true;
     if (po->mParent) {
       nsSize adjSize;
-      bool doReturn;
-      nsresult rv = SetRootView(po, doReturn, documentIsTopLevel, adjSize);
-
-      MOZ_ASSERT(!documentIsTopLevel, "How could this happen?");
-
+      bool doReturn = false;
+      documentIsTopLevel = false;
+      nsresult rv = SetRootView(po, documentIsTopLevel, doReturn, adjSize);
       if (NS_FAILED(rv) || doReturn) {
         return rv;
       }
@@ -1181,26 +1180,11 @@ nsresult nsPrintJob::UpdateSelectionAndShrinkPrintObject(
   return NS_OK;
 }
 
-nsView* nsPrintJob::GetParentViewForRoot() {
-  if (mIsCreatingPrintPreview) {
-    if (nsCOMPtr<nsIDocumentViewer> viewer =
-            do_QueryInterface(mDocViewerPrint)) {
-      return viewer->FindContainerView();
-    }
-  }
-  return nullptr;
-}
-
-nsresult nsPrintJob::SetRootView(nsPrintObject* aPO, bool& doReturn,
-                                 bool& documentIsTopLevel, nsSize& adjSize) {
+nsresult nsPrintJob::SetRootView(nsPrintObject* aPO, bool aDocumentIsTopLevel,
+                                 bool& doReturn, nsSize& adjSize) {
   bool canCreateScrollbars = true;
 
-  nsView* rootView;
-  nsView* parentView = nullptr;
-
-  doReturn = false;
-
-  if (aPO->mParent && aPO->mParent->PrintingIsEnabled()) {
+  if (!aDocumentIsTopLevel) {
     nsIFrame* frame =
         aPO->mContent ? aPO->mContent->GetPrimaryFrame() : nullptr;
     // Without a frame, this document can't be displayed; therefore, there is no
@@ -1215,43 +1199,25 @@ nsresult nsPrintJob::SetRootView(nsPrintObject* aPO, bool& doReturn,
     // zoom this would be wrong as we use the same mPrt->mPrintDC for all
     // subdocuments.
     adjSize = frame->GetContentRect().Size();
-    documentIsTopLevel = false;
     // presshell exists because parent is printable
 
     // the top nsPrintObject's widget will always have scrollbars
     if (frame && frame->IsSubDocumentFrame()) {
-      nsView* view = frame->GetView();
-      NS_ENSURE_TRUE(view, NS_ERROR_FAILURE);
-      view = view->GetFirstChild();
-      NS_ENSURE_TRUE(view, NS_ERROR_FAILURE);
-      parentView = view;
       canCreateScrollbars = false;
     }
   } else {
     adjSize = mPrt->mPrintDC->GetDeviceSurfaceDimensions();
-    documentIsTopLevel = true;
-    parentView = GetParentViewForRoot();
   }
 
-  if (aPO->mViewManager->GetRootView()) {
-    // Reuse the root view that is already on the root frame.
-    rootView = aPO->mViewManager->GetRootView();
-    // Remove it from its existing parent if necessary
-    aPO->mViewManager->RemoveChild(rootView);
-    rootView->SetParent(parentView);
-  } else {
+  if (!aPO->mViewManager->GetRootView()) {
     // Create a child window of the parent that is our "root view/window"
-    nsRect tbounds = nsRect(nsPoint(0, 0), adjSize);
-    rootView = aPO->mViewManager->CreateView(tbounds, parentView);
-    NS_ENSURE_TRUE(rootView, NS_ERROR_OUT_OF_MEMORY);
+    nsView* rootView = aPO->mViewManager->CreateView(adjSize);
+    aPO->mViewManager->SetRootView(rootView);
   }
 
-  if (mIsCreatingPrintPreview && documentIsTopLevel) {
+  if (mIsCreatingPrintPreview && aDocumentIsTopLevel) {
     aPO->mPresContext->SetPaginatedScrolling(canCreateScrollbars);
   }
-
-  // Setup hierarchical relationship in view manager
-  aPO->mViewManager->SetRootView(rootView);
 
   return NS_OK;
 }
@@ -1275,9 +1241,21 @@ nsresult nsPrintJob::ReflowPrintObject(const UniquePtr<nsPrintObject>& aPO) {
   nsPresContext::nsPresContextType type =
       mIsCreatingPrintPreview ? nsPresContext::eContext_PrintPreview
                               : nsPresContext::eContext_Print;
-  const bool shouldBeRoot =
-      (!aPO->mParent || !aPO->mParent->PrintingIsEnabled()) &&
-      !GetParentViewForRoot();
+  const bool documentIsTopLevel =
+      !aPO->mParent || !aPO->mParent->PrintingIsEnabled();
+  auto* embedderFrame = [&]() -> nsSubDocumentFrame* {
+    if (documentIsTopLevel) {
+      if (nsCOMPtr<nsIDocumentViewer> viewer =
+              do_QueryInterface(mDocViewerPrint)) {
+        return viewer->FindContainerFrame();
+      }
+    } else if (aPO->mContent) {
+      return do_QueryFrame(aPO->mContent->GetPrimaryFrame());
+    }
+    return nullptr;
+  }();
+
+  const bool shouldBeRoot = documentIsTopLevel && !embedderFrame;
   aPO->mPresContext = shouldBeRoot ? new nsRootPresContext(aPO->mDocument, type)
                                    : new nsPresContext(aPO->mDocument, type);
   aPO->mPresContext->SetPrintSettings(mPrintSettings);
@@ -1288,11 +1266,8 @@ nsresult nsPrintJob::ReflowPrintObject(const UniquePtr<nsPrintObject>& aPO) {
   aPO->mViewManager = new nsViewManager(printData->mPrintDC);
 
   bool doReturn = false;
-  bool documentIsTopLevel = false;
   nsSize adjSize;
-
-  nsresult rv = SetRootView(aPO.get(), doReturn, documentIsTopLevel, adjSize);
-
+  nsresult rv = SetRootView(aPO.get(), documentIsTopLevel, doReturn, adjSize);
   if (NS_FAILED(rv) || doReturn) {
     return rv;
   }
@@ -1338,7 +1313,8 @@ nsresult nsPrintJob::ReflowPrintObject(const UniquePtr<nsPrintObject>& aPO) {
   RefPtr<nsPresContext> presContext = aPO->mPresContext;
   RefPtr<nsViewManager> viewManager = aPO->mViewManager;
 
-  aPO->mPresShell = doc->CreatePresShell(presContext, viewManager);
+  aPO->mPresShell =
+      doc->CreatePresShell(presContext, viewManager, embedderFrame);
   if (!aPO->mPresShell) {
     return NS_ERROR_FAILURE;
   }

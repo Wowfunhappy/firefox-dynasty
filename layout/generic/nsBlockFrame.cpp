@@ -1645,7 +1645,6 @@ void nsBlockFrame::Reflow(nsPresContext* aPresContext, ReflowOutput& aMetrics,
   // resetting the size. Because of this, we must not reflow our abs-pos
   // children in that situation --- what we think is our "new size" will not be
   // our real new size. This also happens to be more efficient.
-  WritingMode parentWM = aMetrics.GetWritingMode();
   if (HasAbsolutelyPositionedChildren()) {
     AbsoluteContainingBlock* absoluteContainer = GetAbsoluteContainingBlock();
     bool haveInterrupt = aPresContext->HasPendingInterrupt();
@@ -1695,9 +1694,8 @@ void nsBlockFrame::Reflow(nsPresContext* aPresContext, ReflowOutput& aMetrics,
           aMetrics.Height() != oldSize.height;
 
       const LogicalRect containingBlock = [&]() {
-        LogicalRect rect{parentWM, LogicalPoint{parentWM},
-                         aMetrics.Size(parentWM)};
-        rect.Deflate(parentWM, aReflowInput.ComputedLogicalBorder(parentWM));
+        LogicalRect rect(wm, LogicalPoint(wm), aMetrics.Size(wm));
+        rect.Deflate(wm, aReflowInput.ComputedLogicalBorder(wm));
         return rect;
       }();
       AbsPosReflowFlags flags{AbsPosReflowFlag::AllowFragmentation};
@@ -1713,8 +1711,8 @@ void nsBlockFrame::Reflow(nsPresContext* aPresContext, ReflowOutput& aMetrics,
       SetupLineCursorForQuery();
       absoluteContainer->Reflow(
           this, aPresContext, aReflowInput, reflowStatus,
-          containingBlock.GetPhysicalRect(parentWM, aMetrics.PhysicalSize()),
-          flags, &aMetrics.mOverflowAreas);
+          containingBlock.GetPhysicalRect(wm, aMetrics.PhysicalSize()), flags,
+          &aMetrics.mOverflowAreas);
     }
   }
 
@@ -2358,7 +2356,6 @@ void nsBlockFrame::AlignContent(BlockReflowState& aState,
     }
     for (nsIFrame* kid : GetChildList(FrameChildListID::Float)) {
       kid->MovePositionBy(wm, translation);
-      nsContainerFrame::PlaceFrameView(kid);
     }
     nsIFrame* outsideMarker = GetOutsideMarker();
     if (outsideMarker && !mLines.empty()) {
@@ -2946,7 +2943,6 @@ bool nsBlockFrame::LinesAreEmpty() const {
 
 bool nsBlockFrame::ReflowDirtyLines(BlockReflowState& aState) {
   bool keepGoing = true;
-  bool repositionViews = false;  // should we really need this?
   bool foundAnyClears = aState.mTrailingClearFromPIF != UsedClear::None;
   bool willReflowAgain = false;
   bool usedOverflowWrap = false;
@@ -3356,8 +3352,6 @@ bool nsBlockFrame::ReflowDirtyLines(BlockReflowState& aState) {
 
       if (deltaBCoord != 0) {
         SlideLine(aState, line, deltaBCoord);
-      } else {
-        repositionViews = true;
       }
 
       NS_ASSERTION(!line->IsDirty() || !line->HasFloats(),
@@ -3443,11 +3437,6 @@ bool nsBlockFrame::ReflowDirtyLines(BlockReflowState& aState) {
                  "unexpected line frames");
     aState.mPrevChild = line == line_end ? mFrames.LastChild()
                                          : line->mFirstChild->GetPrevSibling();
-  }
-
-  // Should we really have to do this?
-  if (repositionViews) {
-    nsContainerFrame::PlaceFrameView(this);
   }
 
   // We can skip trying to pull up the next line if our height is constrained
@@ -3934,22 +3923,17 @@ void nsBlockFrame::MoveChildFramesOfLine(nsLineBox* aLine,
     if (aDeltaBCoord) {
       kid->MovePositionBy(wm, translation);
     }
-
-    // Make sure the frame's view and any child views are updated
-    nsContainerFrame::PlaceFrameView(kid);
   } else {
     // Adjust the block-dir coordinate of the frames in the line.
     // Note: we need to re-position views even if aDeltaBCoord is 0, because
     // one of our parent frames may have moved and so the view's position
     // relative to its parent may have changed.
-    int32_t n = aLine->GetChildCount();
-    while (--n >= 0) {
-      if (aDeltaBCoord) {
+    if (aDeltaBCoord) {
+      int32_t n = aLine->GetChildCount();
+      while (--n >= 0) {
         kid->MovePositionBy(wm, translation);
+        kid = kid->GetNextSibling();
       }
-      // Make sure the frame's view and any child views are updated
-      nsContainerFrame::PlaceFrameView(kid);
-      kid = kid->GetNextSibling();
     }
   }
 }
@@ -4185,9 +4169,6 @@ void nsBlockFrame::ReflowBlockFrame(BlockReflowState& aState,
   const nscoord startingBCoord = aState.mBCoord;
   const CollapsingMargin incomingMargin = aState.mPrevBEndMargin;
   nscoord clearance;
-  // Save the original position of the frame so that we can reposition
-  // its view as needed.
-  nsPoint originalPosition = frame->GetPosition();
   while (true) {
     clearance = 0;
     nscoord bStartMargin = 0;
@@ -4555,13 +4536,6 @@ void nsBlockFrame::ReflowBlockFrame(BlockReflowState& aState,
     aState.mPrevChild = frame;
 
     if (childReflowInput->WillReflowAgainForClearance()) {
-      // If an ancestor of ours is going to reflow for clearance, we
-      // need to avoid calling PlaceBlock, because it unsets dirty bits
-      // on the child block (both itself, and through its call to
-      // nsIFrame::DidReflow), and those dirty bits imply dirtiness for
-      // all of the child block, including the lines it didn't reflow.
-      NS_ASSERTION(originalPosition == frame->GetPosition(),
-                   "we need to call PositionChildViews");
       return;
     }
 
@@ -4760,14 +4734,6 @@ void nsBlockFrame::ReflowBlockFrame(BlockReflowState& aState,
       }
     }
     break;  // out of the reflow retry loop
-  }
-
-  // Now that we've got its final position all figured out, position any child
-  // views it may have.  Note that the case when frame has a view got handled
-  // by FinishReflowChild, but that function didn't have the coordinates needed
-  // to correctly decide whether to reposition child views.
-  if (originalPosition != frame->GetPosition() && !frame->GetView()) {
-    nsContainerFrame::PositionChildViews(frame);
   }
 
 #ifdef DEBUG
@@ -7458,11 +7424,6 @@ void nsBlockFrame::ReflowFloat(BlockReflowState& aState, ReflowInput& aFloatRI,
   // of |PlaceFrameView| here?
   WritingMode metricsWM = metrics.GetWritingMode();
   aFloat->SetSize(metricsWM, metrics.Size(metricsWM));
-  if (auto* view = aFloat->GetView()) {
-    nsContainerFrame::SyncFrameViewAfterReflow(aState.mPresContext, aFloat,
-                                               view, metrics.InkOverflow(),
-                                               ReflowChildFlags::NoMoveView);
-  }
   aFloat->DidReflow(aState.mPresContext, &aFloatRI);
 }
 
