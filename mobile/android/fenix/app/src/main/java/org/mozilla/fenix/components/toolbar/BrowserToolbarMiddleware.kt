@@ -218,7 +218,7 @@ class BrowserToolbarMiddleware(
     @VisibleForTesting
     internal var environment: BrowserToolbarEnvironment? = null
 
-    @Suppress("LongMethod", "CyclomaticComplexMethod", "NestedBlockDepth", "ReturnCount")
+    @Suppress("LongMethod", "CyclomaticComplexMethod", "NestedBlockDepth", "ReturnCount", "CognitiveComplexMethod")
     override fun invoke(
         context: MiddlewareContext<BrowserToolbarState, BrowserToolbarAction>,
         next: (BrowserToolbarAction) -> Unit,
@@ -774,7 +774,7 @@ class BrowserToolbarMiddleware(
         val isTallWindow = environment?.fragment?.isTallWindow() == true
         val tabStripEnabled = settings.isTabStripEnabled
         val shouldUseExpandedToolbar = settings.shouldUseExpandedToolbar
-        val useCustomPrimary = settings.shouldShowToolbarCustomization && !shouldUseExpandedToolbar
+        val useCustomPrimary = settings.shouldShowToolbarCustomization
         val primarySlotAction = mapShortcutToAction(
             settings.toolbarSimpleShortcutKey,
             ToolbarAction.NewTab,
@@ -818,7 +818,7 @@ class BrowserToolbarMiddleware(
         val isWideWindow = environment.fragment.isWideWindow()
         val isTallWindow = environment.fragment.isTallWindow()
         val shouldUseExpandedToolbar = settings.shouldUseExpandedToolbar
-        val useCustomPrimary = settings.shouldShowToolbarCustomization && shouldUseExpandedToolbar
+        val useCustomPrimary = settings.shouldShowToolbarCustomization
         val primarySlotAction = mapShortcutToAction(
             settings.toolbarExpandedShortcutKey,
             getBookmarkAction(isBookmarked),
@@ -1025,9 +1025,13 @@ class BrowserToolbarMiddleware(
         browserScreenStore.observeWhileActive {
             distinctUntilChangedBy { it.pageTranslationStatus }
             .collect {
-                updateEndBrowserActions(context)
                 updateEndPageActions(context)
-                updateNavigationActions(context)
+                if (settings.toolbarSimpleShortcutKey == ShortcutType.TRANSLATE) {
+                    updateEndBrowserActions(context)
+                }
+                if (settings.toolbarExpandedShortcutKey == ShortcutType.TRANSLATE) {
+                    updateNavigationActions(context)
+                }
             }
         }
     }
@@ -1128,7 +1132,7 @@ class BrowserToolbarMiddleware(
         appStore.state.searchState.selectedSearchEngine?.searchEngine
             ?: browserStore.state.search.selectedOrDefaultSearchEngine
 
-    @Suppress("LongMethod")
+    @Suppress("LongMethod", "CognitiveComplexMethod")
     @VisibleForTesting
     internal fun buildAction(
         toolbarAction: ToolbarAction,

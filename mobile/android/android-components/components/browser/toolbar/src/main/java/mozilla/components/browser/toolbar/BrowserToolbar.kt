@@ -407,13 +407,13 @@ class BrowserToolbar @JvmOverloads constructor(
 
     override fun expand() {
         (layoutParams as? CoordinatorLayout.LayoutParams)?.apply {
-            (behavior as? EngineViewScrollingBehavior)?.forceExpand(this@BrowserToolbar)
+            (behavior as? EngineViewScrollingBehavior)?.forceExpand()
         }
     }
 
     override fun collapse() {
         (layoutParams as? CoordinatorLayout.LayoutParams)?.apply {
-            (behavior as? EngineViewScrollingBehavior)?.forceCollapse(this@BrowserToolbar)
+            (behavior as? EngineViewScrollingBehavior)?.forceCollapse()
         }
     }
 

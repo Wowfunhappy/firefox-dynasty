@@ -10,7 +10,6 @@
 #include <cmath>
 #include <limits>
 #include <type_traits>
-#include <unordered_map>
 
 #include "AudioDeviceInfo.h"
 #include "AudioStreamTrack.h"
@@ -99,6 +98,7 @@
 #include "mozilla/net/UrlClassifierFeatureFactory.h"
 #include "mozilla/nsVideoFrame.h"
 #include "nsAttrValueInlines.h"
+#include "nsAttrValueOrString.h"
 #include "nsContentPolicyUtils.h"
 #include "nsContentUtils.h"
 #include "nsCycleCollectionParticipant.h"
@@ -187,6 +187,7 @@ static const double MAX_PLAYBACKRATE = 16.0;
 
 static double ClampPlaybackRate(double aPlaybackRate) {
   MOZ_ASSERT(aPlaybackRate >= 0.0);
+  MOZ_ASSERT(std::isfinite(aPlaybackRate));
 
   if (aPlaybackRate == 0.0) {
     return aPlaybackRate;
@@ -5218,13 +5219,12 @@ void HTMLMediaElement::AfterSetAttr(int32_t aNameSpaceID, nsAtom* aName,
   if (aNameSpaceID == kNameSpaceID_None) {
     if (aName == nsGkAtoms::src) {
       mSrcMediaSource = nullptr;
+      nsAttrValueOrString srcVal(aValue);
       mSrcAttrTriggeringPrincipal = nsContentUtils::GetAttrTriggeringPrincipal(
-          this, aValue ? aValue->GetStringValue() : EmptyString(),
-          aMaybeScriptedPrincipal);
+          this, srcVal.String(), aMaybeScriptedPrincipal);
       if (aValue) {
-        nsString srcStr = aValue->GetStringValue();
         nsCOMPtr<nsIURI> uri;
-        NewURIFromString(srcStr, getter_AddRefs(uri));
+        NewURIFromString(srcVal.String(), getter_AddRefs(uri));
         if (uri && IsMediaSourceURI(uri)) {
           nsresult rv = NS_GetSourceForMediaSourceURI(
               uri, getter_AddRefs(mSrcMediaSource));
@@ -6109,7 +6109,7 @@ void HTMLMediaElement::CheckProgress(bool aHaveNewProgress) {
   MOZ_ASSERT(NS_IsMainThread());
   MOZ_ASSERT(mNetworkState == NETWORK_LOADING);
 
-  TimeStamp now = TimeStamp::NowLoRes();
+  TimeStamp now = TimeStamp::Now();
 
   if (aHaveNewProgress) {
     mDataTime = now;
@@ -6127,11 +6127,11 @@ void HTMLMediaElement::CheckProgress(bool aHaveNewProgress) {
                  TimeDuration::FromMilliseconds(PROGRESS_MS) &&
              mDataTime > mProgressTime)) {
     QueueEvent(u"progress"_ns);
-    // Resolution() ensures that future data will have now > mProgressTime,
+    // Going back 1ms ensures that future data will have now > mProgressTime,
     // and so will trigger another event.  mDataTime is not reset because it
     // is still required to detect stalled; it is similarly offset by
-    // resolution to indicate the new data has not yet arrived.
-    mProgressTime = now - TimeDuration::Resolution();
+    // 1ms to indicate the new data has not yet arrived.
+    mProgressTime = now - TimeDuration::FromMilliseconds(1);
     if (mDataTime > mProgressTime) {
       mDataTime = mProgressTime;
     }
@@ -6185,7 +6185,7 @@ void HTMLMediaElement::StartProgressTimer() {
 
 void HTMLMediaElement::StartProgress() {
   // Record the time now for detecting stalled.
-  mDataTime = TimeStamp::NowLoRes();
+  mDataTime = TimeStamp::Now();
   // Reset mProgressTime so that mDataTime is not indicating bytes received
   // after the last progress event.
   mProgressTime = TimeStamp();

@@ -1515,7 +1515,7 @@ already_AddRefed<nsIDocumentEncoder> EditorBase::GetAndInitDocEncoder(
   RefPtr<Document> doc = GetDocument();
   NS_ASSERTION(doc, "Need a document");
 
-  nsresult rv = docEncoder->NativeInit(
+  nsresult rv = docEncoder->Init(
       doc, aFormatType,
       aDocumentEncoderFlags | nsIDocumentEncoder::RequiresReinitAfterOutput);
   if (NS_FAILED(rv)) {
@@ -2535,7 +2535,7 @@ EditorBase::InsertNodeWithTransaction(ContentNodeType& aContentToInsert,
   }
 
   return CreateNodeResultBase<ContentNodeType>(
-      &aContentToInsert, transaction->SuggestPointToPutCaret<EditorDOMPoint>());
+      aContentToInsert, transaction->SuggestPointToPutCaret<EditorDOMPoint>());
 }
 
 Result<CreateElementResult, nsresult>
@@ -2687,7 +2687,7 @@ Result<CreateElementResult, nsresult> EditorBase::InsertBRElement(
     return Err(NS_ERROR_EDITOR_UNEXPECTED_DOM_TREE);
   }
   return CreateElementResult(
-      newBRElement,
+      *newBRElement,
       EditorDOMPoint(newBRElement, aBRElementType == BRElementType::Normal
                                        ? InterlinePosition::StartOfNextLine
                                        : InterlinePosition::EndOfLine));
@@ -6620,16 +6620,11 @@ EditorBase::AutoEditActionDataSetter::AutoEditActionDataSetter(
       mParentData(aEditorBase.mEditActionData),
       mData(VoidString()),
       mRawEditAction(aEditAction),
-      mTopLevelEditSubAction(EditSubAction::eNone),
-      mAborted(false),
-      mHasTriedToDispatchBeforeInputEvent(false),
-      mBeforeInputEventCanceled(false),
-      mMakeBeforeInputEventNonCancelable(false),
-      mHasTriedToDispatchClipboardEvent(false),
       mEditorWasDestroyedDuringHandlingEditAction(
           mParentData &&
           mParentData->mEditorWasDestroyedDuringHandlingEditAction),
-      mHandled(false) {
+      mEditorWasReinitialized(mParentData &&
+                              mParentData->mEditorWasReinitialized) {
   // If we're nested edit action, copies necessary data from the parent.
   if (mParentData) {
     mSelection = mParentData->mSelection;

@@ -17,10 +17,7 @@
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
-#include <initializer_list>
-#include <iterator>
 #include <limits>
-#include <type_traits>
 
 #include "Attr.h"
 #include "ErrorList.h"
@@ -29,6 +26,7 @@
 #include "MobileViewportManager.h"
 #include "NSSErrorsService.h"
 #include "NodeUbiReporting.h"
+#include "NonCustomCSSPropertyId.h"
 #include "PLDHashTable.h"
 #include "StorageAccessPermissionRequest.h"
 #include "ThirdPartyUtil.h"
@@ -292,7 +290,6 @@
 #include "nsBaseHashtable.h"
 #include "nsBidiUtils.h"
 #include "nsCRT.h"
-#include "nsCSSPropertyID.h"
 #include "nsCSSProps.h"
 #include "nsCSSPseudoElements.h"
 #include "nsCSSRendering.h"
@@ -17206,13 +17203,6 @@ void Document::PropagateImageUseCounters(Document* aReferencingDocument) {
   aReferencingDocument->mChildDocumentUseCounters |= mChildDocumentUseCounters;
 }
 
-void Document::CollectShadowedHTMLFormElementProperty(const nsAString& aName) {
-  if (mShadowedHTMLFormElementProperties.Length() <= 10 &&
-      !mShadowedHTMLFormElementProperties.Contains(aName)) {
-    mShadowedHTMLFormElementProperties.AppendElement(aName);
-  }
-}
-
 bool Document::HasScriptsBlockedBySandbox() const {
   return mSandboxFlags & SANDBOXED_SCRIPTS;
 }
@@ -17220,7 +17210,7 @@ bool Document::HasScriptsBlockedBySandbox() const {
 void Document::SetCssUseCounterBits() {
   if (StaticPrefs::layout_css_use_counters_enabled()) {
     for (size_t i = 0; i < eCSSProperty_COUNT_with_aliases; ++i) {
-      auto id = nsCSSPropertyID(i);
+      auto id = NonCustomCSSPropertyId(i);
       if (Servo_IsPropertyIdRecordedInUseCounter(mStyleUseCounters.get(), id)) {
         SetUseCounter(nsCSSProps::UseCounterFor(id));
       }
@@ -17357,13 +17347,6 @@ void Document::ReportShadowedProperties() {
     glean::security::ShadowedHtmlDocumentPropertyAccessExtra extra = {};
     extra.name = Some(NS_ConvertUTF16toUTF8(property));
     glean::security::shadowed_html_document_property_access.Record(Some(extra));
-  }
-
-  for (const nsString& property : mShadowedHTMLFormElementProperties) {
-    glean::security::ShadowedHtmlFormElementPropertyAccessExtra extra = {};
-    extra.name = Some(NS_ConvertUTF16toUTF8(property));
-    glean::security::shadowed_html_form_element_property_access.Record(
-        Some(extra));
   }
 }
 

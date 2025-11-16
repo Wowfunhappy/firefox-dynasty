@@ -16,6 +16,7 @@
 #  include <unistd.h>  // for getpid()
 #endif
 
+#include "nsDeviceContext.h"
 #include "mozilla/Attributes.h"
 #include "mozilla/AutoRestore.h"
 #include "mozilla/BasePrincipal.h"
@@ -4742,18 +4743,6 @@ NS_IMETHODIMP
 nsDocShell::GetDimensions(DimensionKind aDimensionKind, int32_t* aX,
                           int32_t* aY, int32_t* aCX, int32_t* aCY) {
   return NS_ERROR_NOT_IMPLEMENTED;
-}
-
-NS_IMETHODIMP
-nsDocShell::Repaint(bool aForce) {
-  PresShell* presShell = GetPresShell();
-  NS_ENSURE_TRUE(presShell, NS_ERROR_FAILURE);
-
-  RefPtr<nsViewManager> viewManager = presShell->GetViewManager();
-  NS_ENSURE_TRUE(viewManager, NS_ERROR_FAILURE);
-
-  viewManager->InvalidateAllViews();
-  return NS_OK;
 }
 
 NS_IMETHODIMP

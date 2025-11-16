@@ -28,7 +28,7 @@ loader.lazyRequireGetter(
 );
 loader.lazyRequireGetter(
   this,
-  ["isNativeAnonymous", "getAdjustedQuads"],
+  "getAdjustedQuads",
   "resource://devtools/shared/layout/utils.js",
   true
 );
@@ -71,6 +71,18 @@ const IMAGE_FETCHING_TIMEOUT = 500;
  *         Properly cased version of the node tag name
  */
 const getNodeDisplayName = function (rawNode) {
+  const { implementedPseudoElement } = rawNode;
+  if (implementedPseudoElement) {
+    if (
+      implementedPseudoElement.startsWith("::view-transition") &&
+      rawNode.hasAttribute("name")
+    ) {
+      return `${implementedPseudoElement}(${rawNode.getAttribute("name")})`;
+    }
+
+    return implementedPseudoElement;
+  }
+
   if (rawNode.nodeName && !rawNode.localName) {
     // The localName & prefix APIs have been moved from the Node interface to the Element
     // interface. Use Node.nodeName as a fallback.
@@ -150,10 +162,25 @@ function standardTreeWalkerFilter(node) {
       : nodeFilterConstants.FILTER_SKIP;
   }
 
-  // Ignore all native anonymous roots inside a non-XUL document.
-  // We need to do this to skip things like form controls, scrollbars,
-  // video controls, etc (see bug 1187482).
-  if (isNativeAnonymous(node) && !isInXULDocument(node)) {
+  if (node.isNativeAnonymous && !isInXULDocument(node)) {
+    const nodeTypeAttribute = node.getAttribute && node.getAttribute("type");
+    // The ::view-transition pseudo element node has a <div type=":-moz-snapshot-containing-block">
+    // parent element that we don't want to display in the markup view.
+    // Instead, we want to directly display the ::view-transition pseudo-element.
+    if (nodeTypeAttribute === ":-moz-snapshot-containing-block") {
+      // FILTER_ACCEPT_CHILDREN means that the node won't be returned, but its children
+      // will be instead
+      return nodeFilterConstants.FILTER_ACCEPT_CHILDREN;
+    }
+
+    // Display all the ::view-transition* nodes
+    if (nodeTypeAttribute && nodeTypeAttribute.startsWith(":view-transition")) {
+      return nodeFilterConstants.FILTER_ACCEPT;
+    }
+
+    // Ignore all other native anonymous roots inside a non-XUL document.
+    // We need to do this to skip things like form controls, scrollbars,
+    // video controls, etc (see bug 1187482).
     return nodeFilterConstants.FILTER_SKIP;
   }
 
@@ -167,7 +194,7 @@ function noAnonymousContentTreeWalkerFilter(node) {
   // Ignore all native anonymous content inside a non-XUL document.
   // We need to do this to skip things like form controls, scrollbars,
   // video controls, etc (see bug 1187482).
-  if (!isInXULDocument(node) && isNativeAnonymous(node)) {
+  if (!isInXULDocument(node) && node.isNativeAnonymous) {
     return nodeFilterConstants.FILTER_SKIP;
   }
 

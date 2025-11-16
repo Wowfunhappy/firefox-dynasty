@@ -5,6 +5,7 @@
 
 #include "nsView.h"
 
+#include "nsDeviceContext.h"
 #include "mozilla/BasicEvents.h"
 #include "mozilla/DebugOnly.h"
 #include "mozilla/IntegerPrintfMacros.h"
@@ -29,11 +30,7 @@ using namespace mozilla;
 using namespace mozilla::widget;
 
 nsView::nsView(nsViewManager* aViewManager)
-    : mViewManager(aViewManager),
-      mFrame(nullptr),
-      mWidgetIsTopLevel(false),
-      mForcedRepaint(false),
-      mNeedsWindowPropertiesSync(false) {
+    : mViewManager(aViewManager), mForcedRepaint(false) {
   MOZ_COUNT_CTOR(nsView);
 
   // Views should be transparent by default. Not being transparent is
@@ -42,18 +39,10 @@ nsView::nsView(nsViewManager* aViewManager)
   // SetViewContentTransparency.
 }
 
-void nsView::DropMouseGrabbing() {
-  if (mViewManager->GetPresShell()) {
-    PresShell::ClearMouseCapture();
-  }
-}
-
 nsView::~nsView() {
   MOZ_COUNT_DTOR(nsView);
 
   if (mViewManager) {
-    DropMouseGrabbing();
-
     nsView* rootView = mViewManager->GetRootView();
     if (rootView == this) {
       // Inform the view manager that the root view has gone away...
@@ -68,8 +57,6 @@ nsView::~nsView() {
 
   // Destroy and release the widget
   DestroyWidget();
-
-  MOZ_RELEASE_ASSERT(!mFrame);
 }
 
 class DestroyWidgetRunnable : public Runnable {
@@ -95,38 +82,9 @@ void nsView::DestroyWidget() {
     // widget here. However, if we're attached to somebody elses widget, we
     // want to leave the widget alone: don't reset the client data or call
     // Destroy. Just clear our event view ptr and free our reference to it.
-    if (mWidgetIsTopLevel) {
-      mWindow->SetAttachedWidgetListener(nullptr);
-    } else {
-      mWindow->SetWidgetListener(nullptr);
-
-      nsCOMPtr<nsIRunnable> widgetDestroyer =
-          new DestroyWidgetRunnable(mWindow);
-
-      // Don't leak if we happen to arrive here after the main thread
-      // has disappeared.
-      nsCOMPtr<nsIThread> mainThread = do_GetMainThread();
-      if (mainThread) {
-        mainThread->Dispatch(widgetDestroyer.forget(), NS_DISPATCH_NORMAL);
-      }
-    }
-
+    mWindow->SetAttachedWidgetListener(nullptr);
     mWindow = nullptr;
   }
-}
-
-nsView* nsView::GetViewFor(const nsIWidget* aWidget) {
-  MOZ_ASSERT(aWidget, "null widget ptr");
-
-  nsIWidgetListener* listener = aWidget->GetWidgetListener();
-  if (listener) {
-    if (nsView* view = listener->GetView()) {
-      return view;
-    }
-  }
-
-  listener = aWidget->GetAttachedWidgetListener();
-  return listener ? listener->GetView() : nullptr;
 }
 
 void nsView::Destroy() {
@@ -189,29 +147,6 @@ static LayoutDeviceIntRect WidgetViewBoundsToDevicePixels(
                                               aViewBounds.mRoundTo);
 }
 
-LayoutDeviceIntRect nsView::CalcWidgetBounds(WindowType aType,
-                                             TransparencyMode aTransparency) {
-  int32_t p2a = mViewManager->AppUnitsPerDevPixel();
-  auto viewBounds =
-      CalcWidgetViewBounds(mDimBounds, p2a, nullptr, mWindow.get(), aType);
-  auto newBounds =
-      WidgetViewBoundsToDevicePixels(viewBounds, p2a, aType, aTransparency);
-
-  // Compute where the top-left of our widget ended up relative to the parent
-  // widget, in appunits.
-  nsPoint roundedOffset(NSIntPixelsToAppUnits(newBounds.X(), p2a),
-                        NSIntPixelsToAppUnits(newBounds.Y(), p2a));
-
-  // mViewToWidgetOffset is added to coordinates relative to the view origin
-  // to get coordinates relative to the widget.
-  // The view origin, relative to the parent widget, is at
-  // mDimBounds.TopLeft() + viewBounds.TopLeft().
-  // Our widget, relative to the parent widget, is roundedOffset.
-  mViewToWidgetOffset =
-      mDimBounds.TopLeft() + viewBounds.mBounds.TopLeft() - roundedOffset;
-  return newBounds;
-}
-
 LayoutDeviceIntRect nsView::CalcWidgetBounds(
     const nsRect& aBounds, int32_t aAppUnitsPerDevPixel, nsIFrame* aParentFrame,
     nsIWidget* aThisWidget, WindowType aType, TransparencyMode aTransparency) {
@@ -221,37 +156,12 @@ LayoutDeviceIntRect nsView::CalcWidgetBounds(
                                         aTransparency);
 }
 
-LayoutDeviceIntRect nsView::RecalcWidgetBounds() {
-  MOZ_ASSERT(mWindow);
-  return CalcWidgetBounds(mWindow->GetWindowType(),
-                          mWindow->GetTransparencyMode());
-}
-
-void nsView::SetDimensions(const nsRect& aRect) {
-  // Don't use nsRect's operator== here, since it returns true when
-  // both rects are empty even if they have different widths and we
-  // have cases where that sort of thing matters to us.
-  if (mDimBounds.TopLeft() == aRect.TopLeft() &&
-      mDimBounds.Size() == aRect.Size()) {
-    return;
-  }
-
-  mDimBounds = aRect;
-}
-
-void nsView::SetNeedsWindowPropertiesSync() {
-  mNeedsWindowPropertiesSync = true;
-  if (mViewManager) {
-    mViewManager->PostPendingUpdate();
-  }
-}
-
 // Attach to a top level widget and start receiving mirrored events.
 void nsView::AttachToTopLevelWidget(nsIWidget* aWidget) {
   MOZ_ASSERT(aWidget, "null widget ptr");
 #ifdef DEBUG
   nsIWidgetListener* parentListener = aWidget->GetWidgetListener();
-  MOZ_ASSERT(!parentListener || !parentListener->GetView(),
+  MOZ_ASSERT(!parentListener || parentListener->GetAppWindow(),
              "Expect a top level widget");
   MOZ_ASSERT(!parentListener || !parentListener->GetAsMenuPopupFrame(),
              "Expect a top level widget");
@@ -275,15 +185,10 @@ void nsView::AttachToTopLevelWidget(nsIWidget* aWidget) {
   if (mWindow->GetWindowType() != WindowType::Invisible) {
     mWindow->AsyncEnableDragDrop(true);
   }
-  mWidgetIsTopLevel = true;
-
-  // Refresh the view bounds
-  RecalcWidgetBounds();
 }
 
 // Detach this view from an attached widget.
 void nsView::DetachFromTopLevelWidget() {
-  MOZ_ASSERT(mWidgetIsTopLevel, "Not attached currently!");
   MOZ_ASSERT(mWindow, "null mWindow for DetachFromTopLevelWidget!");
 
   mWindow->SetAttachedWidgetListener(nullptr);
@@ -291,7 +196,7 @@ void nsView::DetachFromTopLevelWidget() {
           mWindow->GetPreviouslyAttachedWidgetListener()) {
     if (nsView* view = listener->GetView()) {
       // Ensure the listener doesn't think it's being used anymore
-      view->SetPreviousWidget(nullptr);
+      view->mPreviousWindow = nullptr;
     }
   }
 
@@ -301,36 +206,6 @@ void nsView::DetachFromTopLevelWidget() {
 
   mPreviousWindow = mWindow;
   mWindow = nullptr;
-
-  mWidgetIsTopLevel = false;
-}
-
-void nsView::AssertNoWindow() {
-  // XXX: it would be nice to make this a strong assert
-  if (MOZ_UNLIKELY(mWindow)) {
-    NS_ERROR("We already have a window for this view? BAD");
-    mWindow->SetWidgetListener(nullptr);
-    mWindow->Destroy();
-    mWindow = nullptr;
-  }
-}
-
-//
-// internal window creation functions
-//
-void nsView::AttachWidgetEventHandler(nsIWidget* aWidget) {
-#ifdef DEBUG
-  NS_ASSERTION(!aWidget->GetWidgetListener(), "Already have a widget listener");
-#endif
-
-  aWidget->SetWidgetListener(this);
-}
-
-void nsView::DetachWidgetEventHandler(nsIWidget* aWidget) {
-  NS_ASSERTION(!aWidget->GetWidgetListener() ||
-                   aWidget->GetWidgetListener()->GetView() == this,
-               "Wrong view");
-  aWidget->SetWidgetListener(nullptr);
 }
 
 #ifdef DEBUG
@@ -338,22 +213,13 @@ void nsView::List(FILE* out, int32_t aIndent) const {
   int32_t i;
   for (i = aIndent; --i >= 0;) fputs("  ", out);
   fprintf(out, "%p ", (void*)this);
-  if (nullptr != mWindow) {
-    nscoord p2a = mViewManager->AppUnitsPerDevPixel();
-    LayoutDeviceIntRect rect = mWindow->GetClientBounds();
-    nsRect windowBounds = LayoutDeviceIntRect::ToAppUnits(rect, p2a);
-    rect = mWindow->GetBounds();
-    nsRect nonclientBounds = LayoutDeviceIntRect::ToAppUnits(rect, p2a);
+  if (mWindow) {
     nsrefcnt widgetRefCnt = mWindow.get()->AddRef() - 1;
     mWindow.get()->Release();
-    fprintf(out, "(widget=%p[%" PRIuPTR "] pos={%d,%d,%d,%d}) ", (void*)mWindow,
-            widgetRefCnt, nonclientBounds.X(), nonclientBounds.Y(),
-            windowBounds.Width(), windowBounds.Height());
+    fprintf(out, "(widget=%p[%" PRIuPTR "] pos=%s) ", (void*)mWindow,
+            widgetRefCnt, ToString(mWindow->GetBounds()).c_str());
   }
-  nsRect brect = GetBounds();
-  fprintf(out, "{%d,%d,%d,%d}", brect.X(), brect.Y(), brect.Width(),
-          brect.Height());
-  fprintf(out, " frame=%p <\n", mFrame);
+  fprintf(out, "{%d, %d}", mSize.width, mSize.height);
   for (i = aIndent; --i >= 0;) fputs("  ", out);
   fputs(">\n", out);
 }
@@ -376,26 +242,31 @@ bool nsView::WindowResized(nsIWidget* aWidget, int32_t aWidth,
     return false;
   }
 
-  RefPtr<nsDeviceContext> devContext = mViewManager->GetDeviceContext();
+  PresShell* ps = mViewManager->GetPresShell();
+  if (!ps) {
+    return false;
+  }
+
+  nsPresContext* pc = ps->GetPresContext();
+  if (!pc) {
+    return false;
+  }
+
   // ensure DPI is up-to-date, in case of window being opened and sized
   // on a non-default-dpi display (bug 829963)
-  devContext->CheckDPIChange();
-  int32_t p2a = devContext->AppUnitsPerDevPixel();
-  if (auto* frame = GetFrame()) {
+  pc->DeviceContext()->CheckDPIChange();
+  int32_t p2a = pc->AppUnitsPerDevPixel();
+  if (auto* frame = ps->GetRootFrame()) {
     // Usually the resize would deal with this, but there are some cases (like
     // web-extension popups) where frames might already be correctly sized etc
     // due to a call to e.g. nsDocumentViewer::GetContentSize or so.
     frame->InvalidateFrame();
   }
-
-  mViewManager->SetWindowDimensions(NSIntPixelsToAppUnits(aWidth, p2a),
-                                    NSIntPixelsToAppUnits(aHeight, p2a));
+  const LayoutDeviceIntSize size(aWidth, aHeight);
+  mViewManager->SetWindowDimensions(LayoutDeviceIntSize::ToAppUnits(size, p2a));
 
   if (nsXULPopupManager* pm = nsXULPopupManager::GetInstance()) {
-    PresShell* presShell = mViewManager->GetPresShell();
-    if (presShell && presShell->GetDocument()) {
-      pm->AdjustPopupsOnWindowChange(presShell);
-    }
+    pm->AdjustPopupsOnWindowChange(ps);
   }
 
   return true;
@@ -468,11 +339,9 @@ void nsView::WillPaintWindow(nsIWidget* aWidget) {
 }
 
 bool nsView::PaintWindow(nsIWidget* aWidget, LayoutDeviceIntRegion aRegion) {
-  NS_ASSERTION(this == nsView::GetViewFor(aWidget), "wrong view for widget?");
-
   RefPtr<nsViewManager> vm = mViewManager;
-  bool result = vm->PaintWindow(aWidget, aRegion);
-  return result;
+  vm->Refresh(this, aRegion);
+  return true;
 }
 
 void nsView::DidPaintWindow() {
@@ -500,39 +369,28 @@ void nsView::DidCompositeWindow(mozilla::layers::TransactionId aTransactionId,
                                        aCompositeEnd);
 }
 
-void nsView::RequestRepaint() {
-  if (PresShell* presShell = mViewManager->GetPresShell()) {
-    presShell->SchedulePaint();
-  }
-}
-
-bool nsView::ShouldNotBeVisible() {
-  if (mFrame && mFrame->IsMenuPopupFrame()) {
-    nsXULPopupManager* pm = nsXULPopupManager::GetInstance();
-    return !pm || !pm->IsPopupOpen(mFrame->GetContent()->AsElement());
-  }
-
-  return false;
-}
-
 nsEventStatus nsView::HandleEvent(WidgetGUIEvent* aEvent,
                                   bool aUseAttachedEvents) {
-  MOZ_ASSERT(nullptr != aEvent->mWidget, "null widget ptr");
+  MOZ_ASSERT(aEvent->mWidget, "null widget ptr");
 
   nsEventStatus result = nsEventStatus_eIgnore;
-  nsView* view;
-  if (aUseAttachedEvents) {
-    nsIWidgetListener* listener = aEvent->mWidget->GetAttachedWidgetListener();
-    view = listener ? listener->GetView() : nullptr;
-  } else {
-    view = GetViewFor(aEvent->mWidget);
+  auto* listener = [&]() -> nsIWidgetListener* {
+    if (!aUseAttachedEvents) {
+      if (auto* l = aEvent->mWidget->GetWidgetListener()) {
+        return l;
+      }
+    }
+    return aEvent->mWidget->GetAttachedWidgetListener();
+  }();
+  if (NS_WARN_IF(!listener)) {
+    return result;
   }
-
-  if (view) {
-    RefPtr<nsViewManager> vm = view->GetViewManager();
-    vm->DispatchEvent(aEvent, view, &result);
+  nsViewManager::MaybeUpdateLastUserEventTime(aEvent);
+  if (RefPtr<PresShell> ps = listener->GetPresShell()) {
+    if (nsIFrame* root = ps->GetRootFrame()) {
+      ps->HandleEvent(root, aEvent, false, &result);
+    }
   }
-
   return result;
 }
 
@@ -566,9 +424,10 @@ void nsView::SafeAreaInsetsChanged(
       });
 }
 
-bool nsView::IsPrimaryFramePaintSuppressed() {
-  return StaticPrefs::layout_show_previous_page() && mFrame &&
-         mFrame->PresShell()->IsPaintingSuppressed();
+bool nsView::IsPrimaryFramePaintSuppressed() const {
+  return StaticPrefs::layout_show_previous_page() &&
+         mViewManager->GetPresShell() &&
+         mViewManager->GetPresShell()->IsPaintingSuppressed();
 }
 
 void nsView::CallOnAllRemoteChildren(

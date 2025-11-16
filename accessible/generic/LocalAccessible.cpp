@@ -1270,7 +1270,7 @@ already_AddRefed<AccAttributes> LocalAccessible::NativeAttributes() {
   }
 
   const ComputedStyle& style = *f->Style();
-  auto Atomize = [&](nsCSSPropertyID aId) -> RefPtr<nsAtom> {
+  auto Atomize = [&](NonCustomCSSPropertyId aId) -> RefPtr<nsAtom> {
     nsAutoCString value;
     style.GetComputedPropertyValue(aId, value);
     return NS_Atomize(value);
@@ -4089,6 +4089,9 @@ already_AddRefed<AccAttributes> LocalAccessible::BundleFieldsForCache(
     for (auto const& data : kRelationTypeAtoms) {
       nsTArray<uint64_t> ids;
       nsStaticAtom* const relAtom = data.mAtom;
+      if (data.mValidTag && !mContent->IsHTMLElement(data.mValidTag)) {
+        continue;
+      }
 
       Relation rel;
       if (data.mType == RelationType::LABEL_FOR) {
@@ -4252,7 +4255,7 @@ void LocalAccessible::MaybeQueueCacheUpdateForStyleChanges() {
     const auto overflowProps =
         nsCSSPropertyIDSet({eCSSProperty_overflow_x, eCSSProperty_overflow_y});
 
-    for (nsCSSPropertyID overflowProp : overflowProps) {
+    for (NonCustomCSSPropertyId overflowProp : overflowProps) {
       nsAutoCString oldOverflow, newOverflow;
       mOldComputedStyle->GetComputedPropertyValue(overflowProp, oldOverflow);
       newStyle->GetComputedPropertyValue(overflowProp, newOverflow);

@@ -273,6 +273,21 @@ let JSWINDOWACTORS = {
     messageManagerGroups: ["browsers"],
   },
 
+  CanonicalURL: {
+    parent: {
+      esModuleURI: "resource:///actors/CanonicalURLParent.sys.mjs",
+    },
+    child: {
+      esModuleURI: "resource:///actors/CanonicalURLChild.sys.mjs",
+      events: {
+        DOMContentLoaded: {},
+      },
+    },
+    enablePreference: "browser.tabs.notes.enabled",
+    matches: ["http://*/*", "https://*/*"],
+    messageManagerGroups: ["browsers"],
+  },
+
   ClickHandler: {
     parent: {
       esModuleURI: "resource:///actors/ClickHandlerParent.sys.mjs",
@@ -341,6 +356,20 @@ let JSWINDOWACTORS = {
     },
 
     allFrames: true,
+  },
+
+  CustomKeys: {
+    parent: {
+      esModuleURI: "resource:///actors/CustomKeysParent.sys.mjs",
+    },
+    child: {
+      esModuleURI: "resource:///actors/CustomKeysChild.sys.mjs",
+      events: {
+        DOMDocElementInserted: { wantUntrusted: true },
+      },
+    },
+    matches: ["about:keyboard"],
+    remoteTypes: ["privilegedabout"],
   },
 
   DecoderDoctor: {

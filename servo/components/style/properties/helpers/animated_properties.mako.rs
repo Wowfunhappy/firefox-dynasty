@@ -9,7 +9,7 @@
     from itertools import groupby
 %>
 
-#[cfg(feature = "gecko")] use crate::gecko_bindings::structs::nsCSSPropertyID;
+#[cfg(feature = "gecko")] use crate::gecko_bindings::structs::NonCustomCSSPropertyId;
 use crate::properties::{
     longhands::{
         self, visibility::computed_value::T as Visibility,
@@ -36,12 +36,12 @@ use crate::values::generics::effects::Filter;
 use void::{self, Void};
 use crate::properties_and_values::value::CustomAnimatedValue;
 
-/// Convert nsCSSPropertyID to TransitionProperty
+/// Convert NonCustomCSSPropertyId to TransitionProperty
 #[cfg(feature = "gecko")]
 #[allow(non_upper_case_globals)]
-impl From<nsCSSPropertyID> for TransitionProperty {
-    fn from(property: nsCSSPropertyID) -> TransitionProperty {
-        TransitionProperty::NonCustom(NonCustomPropertyId::from_nscsspropertyid(property).unwrap())
+impl From<NonCustomCSSPropertyId> for TransitionProperty {
+    fn from(property: NonCustomCSSPropertyId) -> TransitionProperty {
+        TransitionProperty::NonCustom(NonCustomPropertyId::from_noncustomcsspropertyid(property).unwrap())
     }
 }
 
@@ -695,7 +695,7 @@ impl Animate for AnimatedFilter {
             % endfor
             % for func in ['Brightness', 'Contrast', 'Opacity', 'Saturate']:
             (&Filter::${func}(this), &Filter::${func}(other)) => {
-                Ok(Filter::${func}(animate_multiplicative_factor(this, other, procedure)?))
+                Ok(Filter::${func}(animate_multiplicative_factor(this.0, other.0, procedure)?.into()))
             },
             % endfor
             _ => Err(()),
@@ -711,7 +711,7 @@ impl ToAnimatedZero for AnimatedFilter {
             Filter::${func}(ref this) => Ok(Filter::${func}(this.to_animated_zero()?)),
             % endfor
             % for func in ['Brightness', 'Contrast', 'Opacity', 'Saturate']:
-            Filter::${func}(_) => Ok(Filter::${func}(1.)),
+            Filter::${func}(_) => Ok(Filter::${func}(1.0.into())),
             % endfor
             _ => Err(()),
         }

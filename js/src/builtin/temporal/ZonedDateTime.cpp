@@ -11,7 +11,6 @@
 
 #include <algorithm>
 #include <cstdlib>
-#include <utility>
 
 #include "jspubtd.h"
 #include "NamespaceImports.h"
@@ -21,7 +20,6 @@
 #include "builtin/temporal/CalendarFields.h"
 #include "builtin/temporal/Duration.h"
 #include "builtin/temporal/Instant.h"
-#include "builtin/temporal/Int128.h"
 #include "builtin/temporal/PlainDate.h"
 #include "builtin/temporal/PlainDateTime.h"
 #include "builtin/temporal/PlainMonthDay.h"
@@ -50,6 +48,7 @@
 #include "vm/BigIntType.h"
 #include "vm/BytecodeUtil.h"
 #include "vm/GlobalObject.h"
+#include "vm/Int128.h"
 #include "vm/JSAtomState.h"
 #include "vm/JSContext.h"
 #include "vm/JSObject.h"

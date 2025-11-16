@@ -1574,11 +1574,7 @@ pref("browser.bookmarks.editDialog.maxRecentFolders", 7);
   // On windows these levels are:
   // See - security/sandbox/win/src/sandboxbroker/sandboxBroker.cpp
   // SetSecurityLevelForContentProcess() for what the different settings mean.
-#if defined(NIGHTLY_BUILD)
   pref("security.sandbox.content.level", 9);
-#else
-  pref("security.sandbox.content.level", 8);
-#endif
 
   // Pref controlling if messages relevant to sandbox violations are logged.
   pref("security.sandbox.logging.enabled", false);
@@ -2283,9 +2279,6 @@ pref("identity.fxaccounts.remote.root", "https://accounts.firefox.com/");
 
 // The value of the context query parameter passed in fxa requests.
 pref("identity.fxaccounts.contextParam", "oauth_webchannel_v1");
-
-// Whether to use the oauth flow for desktop or not
-pref("identity.fxaccounts.oauth.enabled", true);
 
 // The remote URL of the FxA Profile Server
 pref("identity.fxaccounts.remote.profile.uri", "https://profile.accounts.firefox.com/v1");
@@ -3516,6 +3509,8 @@ pref("browser.contextual-services.contextId.rust-component.enabled", true);
 
 // Pref to enable the IP protection feature
 pref("browser.ipProtection.enabled", false);
+// Pref to track whether the user has opted out of using IP Protection
+pref("browser.ipProtection.optedOut", false);
 // Pref to enable IP protection autostart
 pref("browser.ipProtection.autoStartEnabled", false);
 pref("browser.ipProtection.autoStartPrivateEnabled", false);

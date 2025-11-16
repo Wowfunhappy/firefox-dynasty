@@ -126,13 +126,6 @@ class nsView final : public nsIWidgetListener {
   nsViewManager* GetViewManager() const { return mViewManager; }
 
   /**
-   * Find the view for the given widget, if there is one.
-   * @return the view the widget belongs to, or null if the widget doesn't
-   * belong to any view.
-   */
-  static nsView* GetViewFor(const nsIWidget* aWidget);
-
-  /**
    * Destroy the view.
    *
    * The view destroys its child views, and destroys and releases its
@@ -145,24 +138,9 @@ class nsView final : public nsIWidgetListener {
   void Destroy();
 
   /**
-   * Called to get the dimensions and position of the view's bounds.
-   * The view's bounds (x,y) are relative to the origin of the parent view, but
-   * are in appunits of this.
-   * The view's bounds (x,y) might not be the same as the view's position,
-   * if the view has content above or to the left of its origin.
-   * @param aBounds out parameter for bounds
+   * Called to get the size of the view.
    */
-  nsRect GetBounds() const { return mDimBounds; }
-
-  /**
-   * Set the view's frame.
-   */
-  void SetFrame(nsIFrame* aRootFrame) { mFrame = aRootFrame; }
-
-  /**
-   * Retrieve the view's frame.
-   */
-  nsIFrame* GetFrame() const { return mFrame; }
+  nsSize GetSize() const { return mSize; }
 
   /**
    * Destroys the associated widget for this view.  If this method is
@@ -186,12 +164,6 @@ class nsView final : public nsIWidgetListener {
   void DetachFromTopLevelWidget();
 
   /**
-   * Returns a flag indicating whether the view owns it's widget
-   * or is attached to an existing top level widget.
-   */
-  bool IsAttachedToTopLevel() const { return mWidgetIsTopLevel; }
-
-  /**
    * In 4.0, the "cutout" nature of a view is queryable.
    * If we believe that all cutout view have a native widget, this
    * could be a replacement.
@@ -201,14 +173,6 @@ class nsView final : public nsIWidgetListener {
   nsIWidget* GetWidget() const { return mWindow; }
 
   /**
-   * The widget which we have attached a listener to can also have a "previous"
-   * listener set on it. This is to keep track of the last nsView when
-   * navigating to a new one so that we can continue to paint that if the new
-   * one isn't ready yet.
-   */
-  void SetPreviousWidget(nsIWidget* aWidget) { mPreviousWindow = aWidget; }
-
-  /**
    * Returns true if the view has a widget associated with it.
    */
   bool HasWidget() const { return mWindow != nullptr; }
@@ -216,17 +180,6 @@ class nsView final : public nsIWidgetListener {
   void SetForcedRepaint(bool aForceRepaint) { mForcedRepaint = aForceRepaint; }
 
   void SetNeedsWindowPropertiesSync();
-
-  /**
-   * Make aWidget direct its events to this view.
-   * The caller must call DetachWidgetEventHandler before this view
-   * is destroyed.
-   */
-  void AttachWidgetEventHandler(nsIWidget* aWidget);
-  /**
-   * Stop aWidget directing its events to this view.
-   */
-  void DetachWidgetEventHandler(nsIWidget* aWidget);
 
 #ifdef DEBUG
   /**
@@ -252,17 +205,12 @@ class nsView final : public nsIWidgetListener {
   LayoutDeviceIntRect CalcWidgetBounds(mozilla::widget::WindowType,
                                        mozilla::widget::TransparencyMode);
 
-  LayoutDeviceIntRect RecalcWidgetBounds();
-
-  // This is an app unit offset to add when converting view coordinates to
-  // widget coordinates.  It is the offset in view coordinates from widget
-  // origin (unlike views, widgets can't extend above or to the left of their
-  // origin) to view origin expressed in appunits of this.
-  nsPoint ViewToWidgetOffset() const { return mViewToWidgetOffset; }
-
   // nsIWidgetListener
   mozilla::PresShell* GetPresShell() override;
   nsView* GetView() override { return this; }
+  bool IsPaintSuppressed() const override {
+    return IsPrimaryFramePaintSuppressed();
+  }
   bool WindowResized(nsIWidget* aWidget, int32_t aWidth,
                      int32_t aHeight) override;
 #ifdef MOZ_WIDGET_ANDROID
@@ -280,8 +228,6 @@ class nsView final : public nsIWidgetListener {
   void DidCompositeWindow(mozilla::layers::TransactionId aTransactionId,
                           const mozilla::TimeStamp& aCompositeStart,
                           const mozilla::TimeStamp& aCompositeEnd) override;
-  void RequestRepaint() override;
-  bool ShouldNotBeVisible() override;
   MOZ_CAN_RUN_SCRIPT_BOUNDARY
   nsEventStatus HandleEvent(mozilla::WidgetGUIEvent* aEvent,
                             bool aUseAttachedEvents) override;
@@ -289,31 +235,14 @@ class nsView final : public nsIWidgetListener {
 
   virtual ~nsView();
 
-  bool IsPrimaryFramePaintSuppressed();
+  bool IsPrimaryFramePaintSuppressed() const;
 
  private:
   explicit nsView(nsViewManager* = nullptr);
 
   bool ForcedRepaint() { return mForcedRepaint; }
 
-  void InitializeWindow(bool aEnableDragDrop, bool aResetVisibility);
-
-  /**
-   * Called to indicate that the dimensions of the view have been changed.
-   * The x and y coordinates may be < 0, indicating that the view extends above
-   * or to the left of its origin position. The term 'dimensions' indicates it
-   * is relative to this view.
-   */
-  void SetDimensions(const nsRect& aRect);
-
-  // Helper function to get mouse grabbing off this view (by moving it to the
-  // parent, if we can)
-  void DropMouseGrabbing();
-
-  bool IsDirty() const { return mIsDirty; }
-  void SetIsDirty(bool aDirty) { mIsDirty = aDirty; }
-
-  void AssertNoWindow();
+  void SetSize(const nsSize& aSize) { mSize = aSize; }
 
   void CallOnAllRemoteChildren(
       const std::function<mozilla::CallState(mozilla::dom::BrowserParent*)>&
@@ -322,14 +251,8 @@ class nsView final : public nsIWidgetListener {
   nsViewManager* mViewManager;
   nsCOMPtr<nsIWidget> mWindow;
   nsCOMPtr<nsIWidget> mPreviousWindow;
-  nsIFrame* mFrame;
-  // relative to parent, but in our appunits
-  nsRect mDimBounds;
-  // in our appunits
-  nsPoint mViewToWidgetOffset;
-  bool mWidgetIsTopLevel;
+  nsSize mSize;
   bool mForcedRepaint;
-  bool mNeedsWindowPropertiesSync;
   bool mIsDirty = false;
 };
 

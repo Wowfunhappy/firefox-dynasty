@@ -7,7 +7,6 @@
 #include "ScriptLoader.h"
 
 #include <algorithm>
-#include <type_traits>
 
 #include "WorkerRunnable.h"
 #include "WorkerScope.h"
@@ -1144,6 +1143,13 @@ nsresult WorkerScriptLoader::FillCompileOptionsForRequest(
 
   if (aRequest->HasSourceMapURL()) {
     aOptions->setSourceMapURL(aRequest->GetSourceMapURL().get());
+  }
+
+  // disable top-level await for sw module scripts
+  const auto* workerPrivate = GetCurrentThreadWorkerPrivate();
+  if (workerPrivate && workerPrivate->IsServiceWorker() &&
+      aRequest->IsModuleRequest()) {
+    aOptions->topLevelAwait = false;
   }
 
   return NS_OK;

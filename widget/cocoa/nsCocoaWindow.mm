@@ -192,8 +192,7 @@ static void RollUpPopups(nsIRollupListener::AllowAnimations aAllowAnimations =
   if (!rollupWidget) {
     return;
   }
-  nsIRollupListener::RollupOptions options{
-      0, nsIRollupListener::FlushViews::Yes, nullptr, aAllowAnimations};
+  nsIRollupListener::RollupOptions options{0, nullptr, aAllowAnimations};
   rollupListener->Rollup(options);
 }
 
@@ -2339,8 +2338,7 @@ static void DrawTopLeftCornerMask(CGContextRef aCtx, int aRadius) {
   }
 
   LayoutDeviceIntPoint devPoint;
-  nsIRollupListener::RollupOptions rollupOptions{
-    popupsToRollup, nsIRollupListener::FlushViews::Yes};
+  nsIRollupListener::RollupOptions rollupOptions{popupsToRollup};
   if ([theEvent type] == NSEventTypeLeftMouseDown) {
     NSPoint point = [NSEvent mouseLocation];
     FlipCocoaScreenCoordinate(point);

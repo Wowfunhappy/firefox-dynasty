@@ -40,9 +40,9 @@ git = "https://github.com/franziskuskiefer/cose-rust"
 rev = "43c22248d136c8b38fe42ea709d08da6355cf04b"
 replace-with = "vendored-sources"
 
-[source."git+https://github.com/gfx-rs/wgpu?rev=d8f97261d23e436be75884f792b5931b383c4041"]
+[source."git+https://github.com/gfx-rs/wgpu?rev=3e8a11c626df52f39bdf1097e5bd9e1bdbf648d6"]
 git = "https://github.com/gfx-rs/wgpu"
-rev = "d8f97261d23e436be75884f792b5931b383c4041"
+rev = "3e8a11c626df52f39bdf1097e5bd9e1bdbf648d6"
 replace-with = "vendored-sources"
 
 [source."git+https://github.com/glandium/allocator-api2?rev=ad5f3d56a5a4519eff52af4ff85293431466ef5c"]
@@ -80,9 +80,9 @@ git = "https://github.com/martinthomson/ohttp.git"
 rev = "bf6a983845cc0b540effb3a615e92d914dfcfd0b"
 replace-with = "vendored-sources"
 
-[source."git+https://github.com/mozilla/application-services?rev=7ee874e18f461a83f5c8c8927039cbde3225b60d"]
+[source."git+https://github.com/mozilla/application-services?rev=799ae231ba91f5b6634672a2737cc9efdf997b70"]
 git = "https://github.com/mozilla/application-services"
-rev = "7ee874e18f461a83f5c8c8927039cbde3225b60d"
+rev = "799ae231ba91f5b6634672a2737cc9efdf997b70"
 replace-with = "vendored-sources"
 
 [source."git+https://github.com/mozilla/audioipc?rev=82fe7fa7e3aaa35468137239a0e4c2f867457214"]

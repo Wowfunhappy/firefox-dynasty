@@ -15,10 +15,8 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdlib>
-#include <initializer_list>
 #include <stdint.h>
 #include <type_traits>
-#include <utility>
 
 #include "jsnum.h"
 #include "jspubtd.h"
@@ -28,7 +26,6 @@
 #include "builtin/temporal/Calendar.h"
 #include "builtin/temporal/CalendarFields.h"
 #include "builtin/temporal/Instant.h"
-#include "builtin/temporal/Int128.h"
 #include "builtin/temporal/Int96.h"
 #include "builtin/temporal/PlainDate.h"
 #include "builtin/temporal/PlainDateTime.h"
@@ -57,6 +54,7 @@
 #include "util/StringBuilder.h"
 #include "vm/BytecodeUtil.h"
 #include "vm/GlobalObject.h"
+#include "vm/Int128.h"
 #include "vm/JSAtomState.h"
 #include "vm/JSContext.h"
 #include "vm/JSObject.h"

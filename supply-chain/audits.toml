@@ -2238,6 +2238,11 @@ criteria = "safe-to-deploy"
 version = "0.11.0"
 notes = "All code written or reviewed by Mozilla staff."
 
+[[audits.dwrote]]
+who = "Jonathan Kew <jfkthame@gmail.com>"
+criteria = "safe-to-deploy"
+delta = "0.11.0 -> 0.11.5"
+
 [[audits.either]]
 who = "Mike Hommey <mh+mozilla@glandium.org>"
 criteria = "safe-to-deploy"
@@ -3796,6 +3801,16 @@ who = "Gabriele Svelto <gsvelto@mozilla.com>"
 criteria = "safe-to-deploy"
 version = "0.4.1"
 
+[[audits.macro_rules_attribute]]
+who = "Andy Leiserson <aleiserson@mozilla.com>"
+criteria = "safe-to-deploy"
+version = "0.2.2"
+
+[[audits.macro_rules_attribute-proc_macro]]
+who = "Andy Leiserson <aleiserson@mozilla.com>"
+criteria = "safe-to-deploy"
+version = "0.2.2"
+
 [[audits.malloc_buf]]
 who = "Bobby Holley <bobbyholley@gmail.com>"
 criteria = "safe-to-deploy"
@@ -4350,7 +4365,7 @@ who = [
     "Erich Gubler <erichdongubler@gmail.com>",
 ]
 criteria = "safe-to-deploy"
-delta = "27.0.0 -> 27.0.0@git:d8f97261d23e436be75884f792b5931b383c4041"
+delta = "27.0.0 -> 27.0.0@git:3e8a11c626df52f39bdf1097e5bd9e1bdbf648d6"
 importable = false
 
 [[audits.net2]]
@@ -5610,6 +5625,12 @@ delta = "0.1.8 -> 0.1.9"
 who = "Mike Hommey <mh+mozilla@glandium.org>"
 criteria = "safe-to-run"
 delta = "0.1.9 -> 0.1.10"
+
+[[audits.serde_spanned]]
+who = "Ben Dean-Kawamura <bdk@mozilla.com>"
+criteria = "safe-to-deploy"
+version = "1.0.3"
+notes = "Relatively simple Serde trait implementations.  No IO or unsafe code."
 
 [[audits.serde_with]]
 who = "Mike Hommey <mh+mozilla@glandium.org>"
@@ -6911,7 +6932,7 @@ who = [
     "Erich Gubler <erichdongubler@gmail.com>",
 ]
 criteria = "safe-to-deploy"
-delta = "27.0.0 -> 27.0.0@git:d8f97261d23e436be75884f792b5931b383c4041"
+delta = "27.0.0 -> 27.0.0@git:3e8a11c626df52f39bdf1097e5bd9e1bdbf648d6"
 importable = false
 
 [[audits.wgpu-core-deps-apple]]
@@ -6942,7 +6963,7 @@ who = [
     "Erich Gubler <erichdongubler@gmail.com>",
 ]
 criteria = "safe-to-deploy"
-delta = "27.0.0 -> 27.0.0@git:d8f97261d23e436be75884f792b5931b383c4041"
+delta = "27.0.0 -> 27.0.0@git:3e8a11c626df52f39bdf1097e5bd9e1bdbf648d6"
 importable = false
 
 [[audits.wgpu-core-deps-windows-linux-android]]
@@ -6973,7 +6994,7 @@ who = [
     "Erich Gubler <erichdongubler@gmail.com>",
 ]
 criteria = "safe-to-deploy"
-delta = "27.0.0 -> 27.0.0@git:d8f97261d23e436be75884f792b5931b383c4041"
+delta = "27.0.0 -> 27.0.0@git:3e8a11c626df52f39bdf1097e5bd9e1bdbf648d6"
 importable = false
 
 [[audits.wgpu-hal]]
@@ -7082,7 +7103,7 @@ who = [
     "Erich Gubler <erichdongubler@gmail.com>",
 ]
 criteria = "safe-to-deploy"
-delta = "27.0.0 -> 27.0.0@git:d8f97261d23e436be75884f792b5931b383c4041"
+delta = "27.0.0 -> 27.0.0@git:3e8a11c626df52f39bdf1097e5bd9e1bdbf648d6"
 importable = false
 
 [[audits.wgpu-types]]
@@ -7186,7 +7207,7 @@ who = [
     "Erich Gubler <erichdongubler@gmail.com>",
 ]
 criteria = "safe-to-deploy"
-delta = "27.0.0 -> 27.0.0@git:d8f97261d23e436be75884f792b5931b383c4041"
+delta = "27.0.0 -> 27.0.0@git:3e8a11c626df52f39bdf1097e5bd9e1bdbf648d6"
 importable = false
 
 [[audits.whatsys]]
@@ -7949,6 +7970,30 @@ criteria = "safe-to-deploy"
 user-id = 1 # Alex Crichton (alexcrichton)
 start = "2019-05-16"
 end = "2024-05-06"
+
+[[trusted.toml]]
+criteria = "safe-to-deploy"
+user-id = 6743 # Ed Page (epage)
+start = "2022-12-14"
+end = "2026-11-12"
+
+[[trusted.toml_datetime]]
+criteria = "safe-to-deploy"
+user-id = 6743 # Ed Page (epage)
+start = "2022-10-21"
+end = "2026-11-12"
+
+[[trusted.toml_parser]]
+criteria = "safe-to-deploy"
+user-id = 6743 # Ed Page (epage)
+start = "2025-07-08"
+end = "2026-11-12"
+
+[[trusted.toml_writer]]
+criteria = "safe-to-deploy"
+user-id = 6743 # Ed Page (epage)
+start = "2025-07-08"
+end = "2026-11-12"
 
 [[trusted.unicode-ident]]
 criteria = "safe-to-deploy"

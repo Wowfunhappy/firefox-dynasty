@@ -309,7 +309,6 @@ android-custom-car:
         script: build-custom-car.sh
         arguments: [
             car_android.tar.zst,
-            blink_symbol_level=0,
             chrome_pgo_phase=2,
             dcheck_always_on=false,
             enable_nacl=false,
@@ -319,12 +318,11 @@ android-custom-car:
             is_component_build=false,
             is_debug=false,
             is_official_build=true,
-            symbol_level=0,
+            symbol_level=2,
             target_cpu="arm64",
             target_os="android",
             is_android=true,
-            is_high_end_android=true,
-            v8_symbol_level=0
+            is_high_end_android=true
         ]
         toolchain-artifact: public/build/car_android.tar.zst
 
@@ -703,6 +701,23 @@ win64-vs2022:
             - vs
             - vs-toolchain
 
+win64-vs2026:
+    description: "VS 2026"
+    attributes:
+        local-toolchain: true
+    treeherder:
+        symbol: TW64(msvc2026)
+    worker:
+        env:
+            MACH_BUILD_PYTHON_NATIVE_PACKAGE_SOURCE: system
+    run:
+        script: get_vs.py
+        arguments:
+            - build/vs/vs2026.yaml
+        resources:
+            - build/vs/vs2026.yaml
+        toolchain-artifact: project/gecko/vs/vs.tar.zst
+
 win64-WindowsAppSDK:
     description: "WindowsAppSDK headers and libraries (x86_64)"
     attributes:
@@ -767,6 +782,23 @@ win64-aarch64-vs2022:
             - build/vs/vs2022-aarch64.yaml
         toolchain-artifact: project/gecko/vs/vs.tar.zst
         toolchain-alias: win64-aarch64-vs
+
+win64-aarch64-vs2026:
+    description: "VS 2026 (AArch64)"
+    attributes:
+        local-toolchain: true
+    treeherder:
+        symbol: TWA64(msvc2026)
+    worker:
+        env:
+            MACH_BUILD_PYTHON_NATIVE_PACKAGE_SOURCE: system
+    run:
+        script: get_vs.py
+        arguments:
+            - build/vs/vs2026-aarch64.yaml
+        resources:
+            - build/vs/vs2026-aarch64.yaml
+        toolchain-artifact: project/gecko/vs/vs.tar.zst
 
 linux64-afl-instrumentation-4.0:
     description: "AFL++ instrumentation toolchain build"

@@ -940,7 +940,10 @@ class _QuickSuggestTestUtils {
         displayUrl: url.replace(/^https:\/\//, ""),
         isSponsored: false,
         shouldShowUrl: true,
-        bottomTextL10n: { id: "firefox-suggest-addons-recommended" },
+        bottomTextL10n: {
+          id: "firefox-suggest-addons-recommended",
+          cacheable: true,
+        },
         helpUrl: lazy.QuickSuggest.HELP_URL,
         telemetryType: "amo",
       },
@@ -995,7 +998,10 @@ class _QuickSuggestTestUtils {
         description,
         icon: "chrome://global/skin/icons/mdn.svg",
         shouldShowUrl: true,
-        bottomTextL10n: { id: "firefox-suggest-mdn-bottom-text" },
+        bottomTextL10n: {
+          id: "firefox-suggest-mdn-bottom-text",
+          cacheable: true,
+        },
         source: "rust",
         provider: "Mdn",
         suggestionObject: new lazy.Suggestion.Mdn({
@@ -1022,9 +1028,10 @@ class _QuickSuggestTestUtils {
     source = "rust",
     provider = "Yelp",
     isTopPick = false,
-    // The default Yelp suggestedIndex is 0, unlike most other Suggest
-    // suggestion types, which use -1. Note that many callers still use
-    // -1 here because they test without the search suggestion provider.
+    // The logic for the default Yelp `suggestedIndex` is complex and depends on
+    // whether `UrlbarProviderSearchSuggestions` is active and whether search
+    // suggestions are shown first. By default -- when the answer to both of
+    // those questions is Yes -- Yelp's `suggestedIndex` is 0.
     suggestedIndex = 0,
     isSuggestedIndexRelativeToGroup = true,
     originalUrl = undefined,
@@ -1055,7 +1062,10 @@ class _QuickSuggestTestUtils {
         source,
         provider,
         telemetryType: "yelp",
-        bottomTextL10n: { id: "firefox-suggest-yelp-bottom-text" },
+        bottomTextL10n: {
+          id: "firefox-suggest-yelp-bottom-text",
+          cacheable: true,
+        },
         url,
         originalUrl,
         title,

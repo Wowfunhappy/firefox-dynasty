@@ -359,17 +359,12 @@ class PresShell final : public nsStubDocumentObserver,
   MOZ_CAN_RUN_SCRIPT_BOUNDARY nsresult Initialize();
 
   /**
-   * Schedule a reflow for the frame model into a new width and height.  The
-   * coordinates for aWidth and aHeight must be in standard nscoord's.
-   *
-   * Returns whether layout might have changed.
+   * Schedule a reflow for the frame model into a new size, in app units.
    */
   MOZ_CAN_RUN_SCRIPT void ResizeReflow(
-      nscoord aWidth, nscoord aHeight,
-      ResizeReflowOptions = ResizeReflowOptions::NoOption);
+      const nsSize&, ResizeReflowOptions = ResizeReflowOptions::NoOption);
   MOZ_CAN_RUN_SCRIPT bool ResizeReflowIgnoreOverride(
-      nscoord aWidth, nscoord aHeight,
-      ResizeReflowOptions = ResizeReflowOptions::NoOption);
+      const nsSize&, ResizeReflowOptions = ResizeReflowOptions::NoOption);
   MOZ_CAN_RUN_SCRIPT void ForceResizeReflowWithCurrentDimensions();
 
   /** Schedule a resize event if applicable. */
@@ -398,7 +393,7 @@ class PresShell final : public nsStubDocumentObserver,
    * This is what ResizeReflowIgnoreOverride does when not shrink-wrapping (that
    * is, when ResizeReflowOptions::BSizeLimit is not specified).
    */
-  bool SimpleResizeReflow(nscoord aWidth, nscoord aHeight);
+  bool SimpleResizeReflow(const nsSize&);
 
   bool CanHandleUserInputEvents(WidgetGUIEvent* aGUIEvent);
 
@@ -767,6 +762,7 @@ class PresShell final : public nsStubDocumentObserver,
 
   inline void AddAnchorPosPositioned(nsIFrame* aFrame) {
     if (!mAnchorPosPositioned.Contains(aFrame)) {
+      MarkHasSeenAnchorPos();
       mAnchorPosPositioned.AppendElement(aFrame);
     }
   }
@@ -782,6 +778,18 @@ class PresShell final : public nsStubDocumentObserver,
 
   const nsTArray<nsIFrame*>& GetAnchorPosPositioned() const {
     return mAnchorPosPositioned;
+  }
+
+  bool HasSeenAnchorPos() const { return mHasSeenAnchorPos; }
+
+  void MarkHasSeenAnchorPos() {
+    if (mHasSeenAnchorPos) {
+      return;
+    }
+    mHasSeenAnchorPos = true;
+    if (auto* rootPS = GetRootPresShell()) {
+      rootPS->mHasSeenAnchorPos = true;
+    }
   }
 
 #ifdef MOZ_REFLOW_PERF
@@ -1281,7 +1289,7 @@ class PresShell final : public nsStubDocumentObserver,
     return mNeedLayoutFlush || mNeedStyleFlush;
   }
 
-  void SyncWindowProperties(bool aSync);
+  void SyncWindowProperties();
   struct WindowSizeConstraints {
     nsSize mMinSize;
     nsSize mMaxSize;
@@ -1555,6 +1563,7 @@ class PresShell final : public nsStubDocumentObserver,
   void SetVisualViewportSize(nscoord aWidth, nscoord aHeight);
   void ResetVisualViewportSize();
   bool IsVisualViewportSizeSet() { return mVisualViewportSizeSet; }
+  void SetNeedsWindowPropertiesSync();
   nsSize GetVisualViewportSize() {
     NS_ASSERTION(mVisualViewportSizeSet,
                  "asking for visual viewport size when its not set?");
@@ -2069,9 +2078,6 @@ class PresShell final : public nsStubDocumentObserver,
       nsRect aArea, const LayoutDeviceIntPoint aPoint,
       LayoutDeviceIntRect* aScreenRect, RenderImageFlags aFlags);
 
-  // Hide a view if it is a popup
-  void HideViewIfPopup(nsView* aView);
-
   // Utility method to restore the root scrollframe state
   void RestoreRootScrollPosition();
 
@@ -2170,13 +2176,6 @@ class PresShell final : public nsStubDocumentObserver,
   void UpdateImageLockingState();
 
   already_AddRefed<PresShell> GetParentPresShellForEventHandling();
-
-  /**
-   * Return a frame for a view which is the closest ancestor view which has
-   * a frame.  I.e., if the closest ancestor view does not have a frame,
-   * this returns a frame for the next closest ancestor view.
-   */
-  [[nodiscard]] nsIFrame* GetClosestAncestorFrameForAncestorView() const;
 
   /**
    * EventHandler is implementation of PresShell::HandleEvent().
@@ -3398,6 +3397,9 @@ class PresShell final : public nsStubDocumentObserver,
   // True if a style flush might not be a no-op
   bool mNeedStyleFlush : 1;
 
+  // Whether we need to sync window properties.
+  bool mNeedsWindowPropertiesSync : 1 = false;
+
   // True if there are throttled animations that would be processed when
   // performing a flush with mFlushAnimations == true.
   bool mNeedThrottledAnimationFlush : 1;
@@ -3493,6 +3495,11 @@ class PresShell final : public nsStubDocumentObserver,
 
   bool mProcessingReflowCommands : 1;
   bool mPendingDidDoReflow : 1;
+
+  // Whether CSS anchor positioning has ever been seen in this presshell.
+  // Additionally this will also be set to true on a root presshell if anchor
+  // positioning has ever been seen in any descendant presshell.
+  bool mHasSeenAnchorPos : 1;
 
   // The last TimeStamp when the keyup event did not exit fullscreen because it
   // was consumed.

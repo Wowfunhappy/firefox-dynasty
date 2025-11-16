@@ -25,6 +25,7 @@
 #include "nsCOMPtr.h"
 #include "nsCRT.h"
 #include "nsContentUtils.h"
+#include "nsDeviceContext.h"
 #include "nsFrameSelection.h"
 #include "nsGenericHTMLElement.h"
 #include "nsIContent.h"
@@ -713,8 +714,7 @@ nsresult nsDocumentViewer::InitPresentationStuff(bool aDoInitialReflow) {
         mPresContext->DeviceContext()->AppUnitsPerDevPixelAtUnitFullZoom());
 
     const nsSize size = LayoutDevicePixel::ToAppUnits(mBounds.Size(), p2a);
-
-    mViewManager->SetWindowDimensions(size.width, size.height);
+    mViewManager->SetWindowDimensions(size);
     mPresContext->SetInitialVisibleArea(nsRect(nsPoint(), size));
     // We rely on the default zoom not being initialized until here.
     mPresContext->RecomputeBrowsingContextDependentData();
@@ -1914,11 +1914,9 @@ nsDocumentViewer::SetBoundsWithFlags(const LayoutDeviceIntRect& aBounds,
     }
 
     int32_t p2a = mPresContext->AppUnitsPerDevPixel();
-    nscoord width = NSIntPixelsToAppUnits(mBounds.width, p2a);
-    nscoord height = NSIntPixelsToAppUnits(mBounds.height, p2a);
+    const nsSize size = LayoutDeviceSize::ToAppUnits(mBounds.Size(), p2a);
     nsView* rootView = mViewManager->GetRootView();
-    if (boundsChanged && rootView) {
-      nsRect viewDims = rootView->GetBounds();
+    if (boundsChanged && rootView && rootView->GetSize() == size) {
       // If the view/frame tree and prescontext visible area already has the new
       // size but we did not, then it's likely that we got reflowed in response
       // to a call to GetContentSize. Thus there is a disconnect between the
@@ -1928,21 +1926,19 @@ nsDocumentViewer::SetBoundsWithFlags(const LayoutDeviceIntRect& aBounds,
       // if they are the same as the new size it won't do anything, but we still
       // need to invalidate because what we want to draw to the screen has
       // changed.
-      if (viewDims.width == width && viewDims.height == height) {
-        if (nsIFrame* f = rootView->GetFrame()) {
-          f->InvalidateFrame();
+      if (nsIFrame* f = mPresShell->GetRootFrame()) {
+        f->InvalidateFrame();
 
-          // Forcibly refresh the viewport sizes even if the view size is not
-          // changed since it is possible that the |mBounds| change means that
-          // the software keyboard appeared/disappeared. In such cases we might
-          // need to fire visual viewport events.
-          mPresShell->RefreshViewportSize();
-        }
+        // Forcibly refresh the viewport sizes even if the view size is not
+        // changed since it is possible that the |mBounds| change means that
+        // the software keyboard appeared/disappeared. In such cases we might
+        // need to fire visual viewport events.
+        mPresShell->RefreshViewportSize();
       }
     }
 
     mViewManager->SetWindowDimensions(
-        width, height, !!(aFlags & nsIDocumentViewer::eDelayResize));
+        size, !!(aFlags & nsIDocumentViewer::eDelayResize));
   }
 
   // If there's a previous viewer, it's the one that's actually showing,
@@ -2180,7 +2176,7 @@ void nsDocumentViewer::MakeWindow(const nsSize& aSize) {
     return;
   }
 
-  mViewManager = new nsViewManager(mPresContext->DeviceContext());
+  mViewManager = new nsViewManager();
 
   // Create a view
   nsView* view = mViewManager->CreateView(aSize);
@@ -2213,7 +2209,7 @@ void nsDocumentViewer::MakeWindow(const nsSize& aSize) {
 void nsDocumentViewer::DetachFromTopLevelWidget() {
   if (mViewManager) {
     nsView* oldView = mViewManager->GetRootView();
-    if (oldView && oldView->IsAttachedToTopLevel()) {
+    if (oldView && oldView->HasWidget()) {
       oldView->DetachFromTopLevelWidget();
     }
   }
@@ -2568,10 +2564,9 @@ MOZ_CAN_RUN_SCRIPT_BOUNDARY NS_IMETHODIMP nsDocumentViewer::GetContentSize(
   // Just bail if that happens.
   NS_ENSURE_TRUE(prefISize != NS_UNCONSTRAINEDSIZE, NS_ERROR_FAILURE);
 
-  nscoord height = wm.IsVertical() ? prefISize : aMaxHeight;
-  nscoord width = wm.IsVertical() ? aMaxWidth : prefISize;
-
-  presShell->ResizeReflow(width, height, ResizeReflowOptions::BSizeLimit);
+  const nsSize size(wm.IsVertical() ? aMaxWidth : prefISize,
+                    wm.IsVertical() ? prefISize : aMaxHeight);
+  presShell->ResizeReflow(size, ResizeReflowOptions::BSizeLimit);
 
   RefPtr<nsPresContext> presContext = GetPresContext();
   NS_ENSURE_TRUE(presContext, NS_ERROR_FAILURE);

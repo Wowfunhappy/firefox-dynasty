@@ -63,7 +63,7 @@ category-sync3 =
 settings-pane-labs-title = { -firefoxlabs-brand-name }
 settings-category-labs =
     .tooltiptext = { -firefoxlabs-brand-name }
-pane-experimental-description3 = Give our experimental features a try! They’re in development and evolving, which could impact how { -brand-short-name } works.
+pane-experimental-description4 = Give our experimental features a try! They’re in development and evolving, which could impact how { -brand-short-name } works. We only receive data about your use of these features if you have <a data-l10n-name="data-collection">technical and interaction data</a> turned on.
 
 pane-experimental-reset =
   .label = Restore Defaults
@@ -767,6 +767,10 @@ home-prefs-stories-header =
     .label = Stories
 home-prefs-stories-description = Personalized stories based on your activity
 
+home-prefs-stories-header2 =
+    .label = Stories
+    .description = Exceptional content curated by the { -brand-product-name } family
+
 ##
 
 home-prefs-recommended-by-learn-more = How it works
@@ -787,6 +791,9 @@ home-prefs-weather-header =
   .label = Weather
 home-prefs-weather-description = Today’s forecast at a glance
 home-prefs-weather-learn-more-link = Learn more
+
+home-prefs-widgets-header =
+    .label = Widgets
 
 # Lists is a widget on New Tab, similar to a to-do widget
 home-prefs-lists-header =
@@ -1223,8 +1230,14 @@ history-remember-option-never =
 history-remember-option-custom =
     .label = Use custom settings for history
 
-history-remember-description = { -brand-short-name } will remember your browsing, download, form, and search history.
-history-dontremember-description = { -brand-short-name } will use the same settings as private browsing, and will not remember any history as you browse the Web.
+history-remember-description2 =
+    .description ={ -brand-short-name } will remember your browsing, download, form, and search history.
+
+history-dontremember-description2 =
+    .description = { -brand-short-name } will use the same settings as private browsing, and will not remember any history as you browse the Web.
+
+history-custom-description =
+    .description = { -brand-short-name } will use custom settings for your browsing, download, form and search history.
 
 history-private-browsing-permanent =
     .label = Always use private browsing mode

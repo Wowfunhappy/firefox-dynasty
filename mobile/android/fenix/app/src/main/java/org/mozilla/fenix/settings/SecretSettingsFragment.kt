@@ -36,7 +36,7 @@ class SecretSettingsFragment : PreferenceFragmentCompat() {
         showToolbar(getString(R.string.preferences_debug_settings))
     }
 
-    @Suppress("LongMethod", "CyclomaticComplexMethod")
+    @Suppress("LongMethod", "CyclomaticComplexMethod", "CognitiveComplexMethod")
     override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
         val debugSettingsRepository = DefaultDebugSettingsRepository(
             context = requireContext(),
@@ -138,6 +138,12 @@ class SecretSettingsFragment : PreferenceFragmentCompat() {
                 }
                 true
             }
+        }
+
+        requirePreference<SwitchPreference>(R.string.pref_key_use_scroll_data_for_dynamic_toolbar).apply {
+            isVisible = Config.channel.isNightlyOrDebug
+            isChecked = context.settings().useNewDynamicToolbarBehaviour
+            onPreferenceChangeListener = SharedPreferenceUpdater()
         }
 
         requirePreference<SwitchPreference>(R.string.pref_key_enable_address_sync).apply {

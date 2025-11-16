@@ -587,7 +587,7 @@ static already_AddRefed<Element> MakePseudo(Document& aDoc,
 }
 
 static bool SetProp(StyleLockedDeclarationBlock* aDecls, Document* aDoc,
-                    nsCSSPropertyID aProp, const nsACString& aValue) {
+                    NonCustomCSSPropertyId aProp, const nsACString& aValue) {
   return Servo_DeclarationBlock_SetPropertyById(
       aDecls, aProp, &aValue,
       /* is_important = */ false, aDoc->DefaultStyleAttrURLData(),
@@ -596,12 +596,14 @@ static bool SetProp(StyleLockedDeclarationBlock* aDecls, Document* aDoc,
 }
 
 static bool SetProp(StyleLockedDeclarationBlock* aDecls, Document*,
-                    nsCSSPropertyID aProp, float aLength, nsCSSUnit aUnit) {
+                    NonCustomCSSPropertyId aProp, float aLength,
+                    nsCSSUnit aUnit) {
   return Servo_DeclarationBlock_SetLengthValue(aDecls, aProp, aLength, aUnit);
 }
 
 static bool SetProp(StyleLockedDeclarationBlock* aDecls, Document*,
-                    nsCSSPropertyID aProp, const CSSToCSSMatrix4x4Flagged& aM) {
+                    NonCustomCSSPropertyId aProp,
+                    const CSSToCSSMatrix4x4Flagged& aM) {
   MOZ_ASSERT(aProp == eCSSProperty_transform);
   AutoTArray<StyleTransformOperation, 1> ops;
   ops.AppendElement(
@@ -612,37 +614,40 @@ static bool SetProp(StyleLockedDeclarationBlock* aDecls, Document*,
 }
 
 static bool SetProp(StyleLockedDeclarationBlock* aDecls, Document* aDoc,
-                    nsCSSPropertyID aProp, const StyleWritingModeProperty aWM) {
+                    NonCustomCSSPropertyId aProp,
+                    const StyleWritingModeProperty aWM) {
   return Servo_DeclarationBlock_SetKeywordValue(aDecls, aProp, (int32_t)aWM);
 }
 
 static bool SetProp(StyleLockedDeclarationBlock* aDecls, Document* aDoc,
-                    nsCSSPropertyID aProp, const StyleDirection aDirection) {
+                    NonCustomCSSPropertyId aProp,
+                    const StyleDirection aDirection) {
   return Servo_DeclarationBlock_SetKeywordValue(aDecls, aProp,
                                                 (int32_t)aDirection);
 }
 
 static bool SetProp(StyleLockedDeclarationBlock* aDecls, Document* aDoc,
-                    nsCSSPropertyID aProp,
+                    NonCustomCSSPropertyId aProp,
                     const StyleTextOrientation aTextOrientation) {
   return Servo_DeclarationBlock_SetKeywordValue(aDecls, aProp,
                                                 (int32_t)aTextOrientation);
 }
 
 static bool SetProp(StyleLockedDeclarationBlock* aDecls, Document* aDoc,
-                    nsCSSPropertyID aProp, const StyleBlend aBlend) {
+                    NonCustomCSSPropertyId aProp, const StyleBlend aBlend) {
   return Servo_DeclarationBlock_SetKeywordValue(aDecls, aProp, (int32_t)aBlend);
 }
 
 static bool SetProp(
-    StyleLockedDeclarationBlock* aDecls, Document*, nsCSSPropertyID aProp,
+    StyleLockedDeclarationBlock* aDecls, Document*,
+    NonCustomCSSPropertyId aProp,
     const StyleOwnedSlice<mozilla::StyleFilter>& aBackdropFilters) {
   return Servo_DeclarationBlock_SetBackdropFilter(aDecls, aProp,
                                                   &aBackdropFilters);
 }
 
 static bool SetProp(StyleLockedDeclarationBlock* aDecls, Document*,
-                    nsCSSPropertyID aProp,
+                    NonCustomCSSPropertyId aProp,
                     const StyleColorScheme& aColorScheme) {
   return Servo_DeclarationBlock_SetColorScheme(aDecls, aProp, &aColorScheme);
 }
@@ -661,26 +666,26 @@ static nsTArray<Keyframe> BuildGroupKeyframes(
   Keyframe firstKeyframe;
   firstKeyframe.mOffset = Some(0.0);
   PropertyValuePair transform{
-      AnimatedPropertyID(eCSSProperty_transform),
+      CSSPropertyId(eCSSProperty_transform),
       Servo_DeclarationBlock_CreateEmpty().Consume(),
   };
   SetProp(transform.mServoDeclarationBlock, aDoc, eCSSProperty_transform,
           aTransform);
   PropertyValuePair width{
-      AnimatedPropertyID(eCSSProperty_width),
+      CSSPropertyId(eCSSProperty_width),
       Servo_DeclarationBlock_CreateEmpty().Consume(),
   };
   CSSSize cssSize = CSSSize::FromAppUnits(aSize);
   SetProp(width.mServoDeclarationBlock, aDoc, eCSSProperty_width, cssSize.width,
           eCSSUnit_Pixel);
   PropertyValuePair height{
-      AnimatedPropertyID(eCSSProperty_height),
+      CSSPropertyId(eCSSProperty_height),
       Servo_DeclarationBlock_CreateEmpty().Consume(),
   };
   SetProp(height.mServoDeclarationBlock, aDoc, eCSSProperty_height,
           cssSize.height, eCSSUnit_Pixel);
   PropertyValuePair backdropFilters{
-      AnimatedPropertyID(eCSSProperty_backdrop_filter),
+      CSSPropertyId(eCSSProperty_backdrop_filter),
       Servo_DeclarationBlock_CreateEmpty().Consume(),
   };
   SetProp(backdropFilters.mServoDeclarationBlock, aDoc,
@@ -693,13 +698,13 @@ static nsTArray<Keyframe> BuildGroupKeyframes(
   Keyframe lastKeyframe;
   lastKeyframe.mOffset = Some(1.0);
   lastKeyframe.mPropertyValues.AppendElement(
-      PropertyValuePair{AnimatedPropertyID(eCSSProperty_transform)});
+      PropertyValuePair{CSSPropertyId(eCSSProperty_transform)});
   lastKeyframe.mPropertyValues.AppendElement(
-      PropertyValuePair{AnimatedPropertyID(eCSSProperty_width)});
+      PropertyValuePair{CSSPropertyId(eCSSProperty_width)});
   lastKeyframe.mPropertyValues.AppendElement(
-      PropertyValuePair{AnimatedPropertyID(eCSSProperty_height)});
+      PropertyValuePair{CSSPropertyId(eCSSProperty_height)});
   lastKeyframe.mPropertyValues.AppendElement(
-      PropertyValuePair{AnimatedPropertyID(eCSSProperty_backdrop_filter)});
+      PropertyValuePair{CSSPropertyId(eCSSProperty_backdrop_filter)});
 
   nsTArray<Keyframe> result;
   result.AppendElement(std::move(firstKeyframe));

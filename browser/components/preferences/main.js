@@ -1195,14 +1195,110 @@ let SETTINGS_CONFIG = {
         control: "moz-toggle",
       },
       {
-        id: "lists",
-        l10nId: "home-prefs-lists-header",
+        id: "widgets",
+        l10nId: "home-prefs-widgets-header",
+        control: "moz-toggle",
+        items: [
+          {
+            id: "lists",
+            l10nId: "home-prefs-lists-header",
+            control: "moz-checkbox",
+          },
+          {
+            id: "timer",
+            l10nId: "home-prefs-timer-header",
+            control: "moz-checkbox",
+          },
+        ],
+      },
+      {
+        id: "shortcuts",
+        l10nId: "home-prefs-shortcuts-header",
+        control: "moz-toggle",
+        items: [
+          {
+            id: "shortcutsRows",
+            control: "moz-select",
+            options: [
+              {
+                value: 1,
+                l10nId: "home-prefs-sections-rows-option",
+                l10nArgs: { num: 1 },
+              },
+              {
+                value: 2,
+                l10nId: "home-prefs-sections-rows-option",
+                l10nArgs: { num: 2 },
+              },
+              {
+                value: 3,
+                l10nId: "home-prefs-sections-rows-option",
+                l10nArgs: { num: 3 },
+              },
+              {
+                value: 4,
+                l10nId: "home-prefs-sections-rows-option",
+                l10nArgs: { num: 4 },
+              },
+            ],
+          },
+        ],
+      },
+      {
+        id: "stories",
+        l10nId: "home-prefs-stories-header2",
         control: "moz-toggle",
       },
       {
-        id: "timer",
-        l10nId: "home-prefs-timer-header",
+        id: "recentActivity",
+        l10nId: "home-prefs-recent-activity-header",
         control: "moz-toggle",
+        items: [
+          {
+            id: "recentActivityRows",
+            control: "moz-select",
+            controlAttrs: {
+              class: "newtab-rows-select",
+            },
+            options: [
+              {
+                value: 1,
+                l10nId: "home-prefs-sections-rows-option",
+                l10nArgs: { num: 1 },
+              },
+              {
+                value: 2,
+                l10nId: "home-prefs-sections-rows-option",
+                l10nArgs: { num: 2 },
+              },
+              {
+                value: 3,
+                l10nId: "home-prefs-sections-rows-option",
+                l10nArgs: { num: 3 },
+              },
+              {
+                value: 4,
+                l10nId: "home-prefs-sections-rows-option",
+                l10nArgs: { num: 4 },
+              },
+            ],
+          },
+          {
+            id: "recentActivityVisited",
+            l10nId: "home-prefs-highlights-option-visited-pages",
+            control: "moz-checkbox",
+          },
+          {
+            id: "recentActivityBookmarks",
+            l10nId: "home-prefs-highlights-options-bookmarks",
+            control: "moz-checkbox",
+          },
+          {
+            id: "recentActivityDownloads",
+            l10nId: "home-prefs-highlights-option-most-recent-download",
+            control: "moz-checkbox",
+          },
+        ],
       },
     ],
   },
@@ -1683,6 +1779,73 @@ let SETTINGS_CONFIG = {
         // controllingExtensionInfo attribute here. We will want one in the redesigned page,
         // using storeId: "proxy.settings".
         controllingExtensionInfo: undefined,
+      },
+    ],
+  },
+  history: {
+    items: [
+      {
+        id: "historyMode",
+        control: "moz-select",
+        options: [
+          {
+            value: "remember",
+            l10nId: "history-remember-option-all",
+          },
+          { value: "dontremember", l10nId: "history-remember-option-never" },
+          { value: "custom", l10nId: "history-remember-option-custom" },
+        ],
+        controlAttrs: {
+          "search-l10n-ids": `
+            history-remember-description2,
+            history-dontremember-description2,
+            history-private-browsing-permanent.label,
+            history-remember-browser-option.label,
+            history-remember-search-option.label,
+            history-clear-on-close-option.label,
+            history-clear-on-close-settings.label
+          `,
+        },
+      },
+      {
+        id: "privateBrowsingAutoStart",
+        l10nId: "history-private-browsing-permanent",
+      },
+      {
+        id: "rememberHistory",
+        l10nId: "history-remember-browser-option",
+      },
+      {
+        id: "rememberForms",
+        l10nId: "history-remember-search-option",
+      },
+      {
+        id: "alwaysClear",
+        l10nId: "history-clear-on-close-option",
+      },
+      {
+        id: "clearDataSettings",
+        l10nId: "history-clear-on-close-settings",
+        control: "moz-box-button",
+        controlAttrs: {
+          "search-l10n-ids": `
+            clear-data-settings-label,
+            history-section-label,
+            item-history-and-downloads.label,
+            item-cookies.label,
+            item-active-logins.label,
+            item-cache.label,
+            item-form-search-history.label,
+            data-section-label,
+            item-site-settings.label,
+            item-offline-apps.label
+          `,
+        },
+      },
+      {
+        id: "clearHistoryButton",
+        l10nId: "history-clear-button",
+        control: "moz-box-button",
       },
     ],
   },

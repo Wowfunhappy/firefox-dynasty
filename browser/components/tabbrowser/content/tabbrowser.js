@@ -99,6 +99,7 @@
       this.pinnedTabsContainer = document.getElementById(
         "pinned-tabs-container"
       );
+      this.splitViewCommandSet = document.getElementById("splitViewCommands");
 
       ChromeUtils.defineESModuleGetters(this, {
         AsyncTabSwitcher:
@@ -110,6 +111,7 @@
           "moz-src:///browser/components/newtab/SponsorProtection.sys.mjs",
         TabMetrics:
           "moz-src:///browser/components/tabbrowser/TabMetrics.sys.mjs",
+        TabNotes: "moz-src:///browser/components/tabbrowser/TabNotes.sys.mjs",
         TabStateFlusher:
           "resource:///modules/sessionstore/TabStateFlusher.sys.mjs",
         TaskbarTabsUtils:
@@ -8288,6 +8290,20 @@
         }
         const { url, description, previewImageURL } = event.detail;
         this.setPageInfo(tab, url, description, previewImageURL);
+      });
+
+      this.splitViewCommandSet.addEventListener("command", event => {
+        switch (event.target.id) {
+          case "splitViewCmd_separateTabs":
+            this.#activeSplitView.unsplitTabs();
+            break;
+          case "splitViewCmd_reverseTabs":
+            this.#activeSplitView.reverseTabs();
+            break;
+          case "splitViewCmd_closeTabs":
+            this.#activeSplitView.close();
+            break;
+        }
       });
     }
 

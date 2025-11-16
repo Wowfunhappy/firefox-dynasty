@@ -339,10 +339,14 @@ void ViewportFrame::RemoveFrame(DestroyContext& aContext, ChildListID aListID,
 }
 #endif
 
+void ViewportFrame::SetView(nsView* aView) {
+  MOZ_ASSERT(!mView, "Should not swap views");
+  mView = aView;
+}
+
 void ViewportFrame::Destroy(DestroyContext& aContext) {
-  // Prevent event dispatch during destruction.
-  if (auto* view = GetView()) {
-    view->SetFrame(nullptr);
+  if (PresShell()->IsDestroying()) {
+    PresShell::ClearMouseCapture(this);
   }
   nsContainerFrame::Destroy(aContext);
 }
@@ -498,9 +502,8 @@ void ViewportFrame::Reflow(nsPresContext* aPresContext,
   // so we don't need to change our overflow areas.
   FinishAndStoreOverflow(&aDesiredSize);
 
-  if (auto* view = GetView()) {
-    view->GetViewManager()->ResizeView(
-        view, nsRect(nsPoint(), aDesiredSize.PhysicalSize()));
+  if (mView) {
+    mView->GetViewManager()->ResizeView(mView, aDesiredSize.PhysicalSize());
   }
 
   NS_FRAME_TRACE_REFLOW_OUT("ViewportFrame::Reflow", aStatus);

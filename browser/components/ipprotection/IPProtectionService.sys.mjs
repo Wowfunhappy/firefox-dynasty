@@ -12,8 +12,11 @@ ChromeUtils.defineESModuleGetters(lazy, {
     "resource:///modules/ipprotection/IPPEnrollAndEntitleManager.sys.mjs",
   IPPHelpers: "resource:///modules/ipprotection/IPProtectionHelpers.sys.mjs",
   IPPNimbusHelper: "resource:///modules/ipprotection/IPPNimbusHelper.sys.mjs",
+  IPPOptOutHelper: "resource:///modules/ipprotection/IPPOptOutHelper.sys.mjs",
   IPPSignInWatcher: "resource:///modules/ipprotection/IPPSignInWatcher.sys.mjs",
   IPPStartupCache: "resource:///modules/ipprotection/IPPStartupCache.sys.mjs",
+  IPPVPNAddonHelper:
+    "resource:///modules/ipprotection/IPPVPNAddonHelper.sys.mjs",
   SpecialMessageActions:
     "resource://messaging-system/lib/SpecialMessageActions.sys.mjs",
 });
@@ -31,6 +34,8 @@ const ENABLED_PREF = "browser.ipProtection.enabled";
  *  The user is not eligible (via nimbus) or still not signed in. No UI is available.
  * @property {string} UNAUTHENTICATED
  *  The user is signed out but eligible (via nimbus). The panel should show the login view.
+ * @property {string} OPTED_OUT
+ *  The user has opted out from using VPN. The toolbar icon and panel should not be visible.
  * @property {string} READY
  *  Ready to be activated.
  *
@@ -41,6 +46,7 @@ export const IPProtectionStates = Object.freeze({
   UNINITIALIZED: "uninitialized",
   UNAVAILABLE: "unavailable",
   UNAUTHENTICATED: "unauthenticated",
+  OPTED_OUT: "optedout",
   READY: "ready",
 });
 
@@ -154,9 +160,21 @@ class IPProtectionServiceSingleton extends EventTarget {
       return IPProtectionStates.UNINITIALIZED;
     }
 
+    if (lazy.IPPOptOutHelper.optedOut) {
+      return IPProtectionStates.OPTED_OUT;
+    }
+
     // Maybe we have to use the cached state, because we are not initialized yet.
     if (!lazy.IPPStartupCache.isStartupCompleted) {
       return lazy.IPPStartupCache.state;
+    }
+
+    // If the VPN add-on is installed...
+    if (
+      lazy.IPPVPNAddonHelper.vpnAddonDetected &&
+      lazy.IPPEnrollAndEntitleManager.hasUpgraded
+    ) {
+      return IPProtectionStates.UNAVAILABLE;
     }
 
     // For non authenticated users, we can check if they are eligible (the UI

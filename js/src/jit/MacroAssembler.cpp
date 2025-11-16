@@ -2062,7 +2062,8 @@ void MacroAssembler::loadInt32ToStringWithBase(
       // "Unsigned Division by 7" for the case when |rmc.multiplier| exceeds
       // UINT32_MAX and we need to adjust the shift amount.
 
-      auto rmc = ReciprocalMulConstants::computeUnsignedDivisionConstants(base);
+      auto rmc = ReciprocalMulConstants::computeUnsignedDivisionConstants(
+          uint32_t(base));
 
       // We first compute |q = (M * n) >> 32), where M = rmc.multiplier.
       mulHighUnsigned32(Imm32(rmc.multiplier), input, scratch1);
@@ -4885,7 +4886,6 @@ void MacroAssembler::setupAlignedABICall() {
   dynamicAlignment_ = false;
 }
 
-#ifdef JS_CHECK_UNSAFE_CALL_WITH_ABI
 void MacroAssembler::wasmCheckUnsafeCallWithABIPre() {
   // Set the JSContext::inUnsafeCallWithABI flag.
   loadPtr(Address(InstanceReg, wasm::Instance::offsetOfCx()),
@@ -4895,6 +4895,7 @@ void MacroAssembler::wasmCheckUnsafeCallWithABIPre() {
   store32(Imm32(1), flagAddr);
 }
 
+#ifdef JS_CHECK_UNSAFE_CALL_WITH_ABI
 void MacroAssembler::wasmCheckUnsafeCallWithABIPost() {
   // Check JSContext::inUnsafeCallWithABI was cleared as expected.
   Label ok;
@@ -4986,7 +4987,6 @@ void MacroAssembler::callWithABINoProfiler(void* fun, ABIType result,
   uint32_t stackAdjust;
   callWithABIPre(&stackAdjust);
 
-#ifdef JS_CHECK_UNSAFE_CALL_WITH_ABI
   if (check == CheckUnsafeCallWithABI::Check) {
     // Set the JSContext::inUnsafeCallWithABI flag.
     push(ReturnReg);
@@ -4997,7 +4997,6 @@ void MacroAssembler::callWithABINoProfiler(void* fun, ABIType result,
     // On arm64, SP may be < PSP now (that's OK).
     // eg testcase: tests/bug1375074.js
   }
-#endif
 
   call(ImmPtr(fun));
 
@@ -5029,13 +5028,9 @@ CodeOffset MacroAssembler::callWithABI(wasm::BytecodeOffset bytecode,
 
   // The instance register is used in builtin thunks and must be set.
   bool needsBuiltinThunk = wasm::NeedsBuiltinThunk(imm);
-#ifdef JS_CHECK_UNSAFE_CALL_WITH_ABI
   // The builtin thunk exits the JIT activation, if we don't have one we must
   // use AutoUnsafeCallWithABI inside the builtin and check that here.
   bool checkUnsafeCallWithABI = !needsBuiltinThunk;
-#else
-  bool checkUnsafeCallWithABI = false;
-#endif
   if (needsBuiltinThunk || checkUnsafeCallWithABI) {
     if (instanceOffset) {
       loadPtr(Address(getStackPointer(), *instanceOffset + stackAdjust),
@@ -5045,11 +5040,9 @@ CodeOffset MacroAssembler::callWithABI(wasm::BytecodeOffset bytecode,
     }
   }
 
-#ifdef JS_CHECK_UNSAFE_CALL_WITH_ABI
   if (checkUnsafeCallWithABI) {
     wasmCheckUnsafeCallWithABIPre();
   }
-#endif
 
   CodeOffset raOffset = call(
       wasm::CallSiteDesc(bytecode.offset(), wasm::CallSiteKind::Symbolic), imm);
@@ -6398,14 +6391,12 @@ CodeOffset MacroAssembler::wasmCallBuiltinInstanceMethod(
     MOZ_CRASH("Unknown abi passing style for pointer");
   }
 
-#ifdef JS_CHECK_UNSAFE_CALL_WITH_ABI
   // The builtin thunk exits the JIT activation, if we don't have one we must
   // use AutoUnsafeCallWithABI inside the builtin and check that here.
   bool checkUnsafeCallWithABI = !wasm::NeedsBuiltinThunk(builtin);
   if (checkUnsafeCallWithABI) {
     wasmCheckUnsafeCallWithABIPre();
   }
-#endif
 
   CodeOffset ret = call(desc, builtin);
 

@@ -94,45 +94,39 @@ class ReviewPromptMiddleware(
         next(action)
     }
 
+    @Suppress("CognitiveComplexMethod")
     private fun handleReviewPromptCheck(context: MiddlewareContext<AppState, AppAction>) {
         if (context.state.reviewPrompt != ReviewPromptState.Unknown) {
             // We only want to try to show it once to avoid unnecessary disk reads.
             return
         }
 
-        createJexlHelper().use { jexlHelper ->
+        val shouldShowPrompt: Boolean = createJexlHelper().use { jexlHelper ->
             // Keep the legacy criteria around, but use the nimbus data and jexl to trigger.
             // Leaving the original if-else logic and early return for readability.
             if (!isReviewPromptFeatureEnabled()) {
-                // We build the legacy criteria using the same triggers as before.
-                val legacyCriteria = buildTriggerLegacyCriteria(
-                    jexlHelper,
-                ).all { it }
-                if (legacyCriteria) {
-                    context.dispatch(ShowPlayStorePrompt)
-                } else {
-                    context.dispatch(DoNotShowReviewPrompt)
-                }
-                return@use
+                val legacyCriteriaSatisfied = buildTriggerLegacyCriteria(jexlHelper).all { it }
+                return@use legacyCriteriaSatisfied
             }
 
             // Otherwise, we use the new criteria.
             val allMainCriteriaSatisfied = buildTriggerMainCriteria(jexlHelper).all { it }
             if (!allMainCriteriaSatisfied) {
-                context.dispatch(DoNotShowReviewPrompt)
-                return@use
+                return@use false
             }
 
             val atLeastOneOfSubCriteriaSatisfied = buildTriggerSubCriteria(jexlHelper).any { it }
-            if (atLeastOneOfSubCriteriaSatisfied) {
-                if (isTelemetryEnabled()) {
-                    context.dispatch(ShowCustomReviewPrompt)
-                } else {
-                    context.dispatch(ShowPlayStorePrompt)
-                }
+            return@use atLeastOneOfSubCriteriaSatisfied
+        }
+
+        if (shouldShowPrompt) {
+            if (isTelemetryEnabled()) {
+                context.dispatch(ShowCustomReviewPrompt)
             } else {
-                context.dispatch(DoNotShowReviewPrompt)
+                context.dispatch(ShowPlayStorePrompt)
             }
+        } else {
+            context.dispatch(DoNotShowReviewPrompt)
         }
     }
 }

@@ -72,6 +72,7 @@
 #include "nsCRT.h"
 #include "nsCSSFrameConstructor.h"
 #include "nsContentUtils.h"
+#include "nsDeviceContext.h"
 #include "nsDocShell.h"
 #include "nsFontCache.h"
 #include "nsFontFaceLoader.h"
@@ -543,20 +544,16 @@ void nsPresContext::PreferenceChanged(const char* aPrefName) {
     OwningNonNull<mozilla::PresShell> presShell(*mPresShell);
     // Re-fetch the view manager's window dimensions in case there's a
     // deferred resize which hasn't affected our mVisibleArea yet
-    nscoord oldWidthAppUnits, oldHeightAppUnits;
     RefPtr<nsViewManager> vm = presShell->GetViewManager();
     if (!vm) {
       return;
     }
-    vm->GetWindowDimensions(&oldWidthAppUnits, &oldHeightAppUnits);
-    float oldWidthDevPixels = oldWidthAppUnits / oldAppUnitsPerDevPixel;
-    float oldHeightDevPixels = oldHeightAppUnits / oldAppUnitsPerDevPixel;
+    auto oldSizeDevPixels = LayoutDeviceSize::FromAppUnits(
+        vm->GetWindowDimensions(), oldAppUnitsPerDevPixel);
 
     UIResolutionChangedInternal();
-
-    nscoord width = NSToCoordRound(oldWidthDevPixels * AppUnitsPerDevPixel());
-    nscoord height = NSToCoordRound(oldHeightDevPixels * AppUnitsPerDevPixel());
-    vm->SetWindowDimensions(width, height);
+    vm->SetWindowDimensions(
+        LayoutDeviceSize::ToAppUnits(oldSizeDevPixels, AppUnitsPerDevPixel()));
     return;
   }
 
@@ -1401,11 +1398,9 @@ void nsPresContext::SetFullZoom(float aZoom) {
 
   // Re-fetch the view manager's window dimensions in case there's a deferred
   // resize which hasn't affected our mVisibleArea yet
-  nscoord oldWidthAppUnits, oldHeightAppUnits;
-  mPresShell->GetViewManager()->GetWindowDimensions(&oldWidthAppUnits,
-                                                    &oldHeightAppUnits);
-  float oldWidthDevPixels = oldWidthAppUnits / float(mCurAppUnitsPerDevPixel);
-  float oldHeightDevPixels = oldHeightAppUnits / float(mCurAppUnitsPerDevPixel);
+  const auto oldSizeDevPixels = LayoutDeviceSize::FromAppUnits(
+      mPresShell->GetViewManager()->GetWindowDimensions(),
+      mCurAppUnitsPerDevPixel);
   mDeviceContext->SetFullZoom(aZoom);
 
   mFullZoom = aZoom;
@@ -1413,8 +1408,7 @@ void nsPresContext::SetFullZoom(float aZoom) {
   AppUnitsPerDevPixelChanged();
 
   mPresShell->GetViewManager()->SetWindowDimensions(
-      NSToCoordRound(oldWidthDevPixels * AppUnitsPerDevPixel()),
-      NSToCoordRound(oldHeightDevPixels * AppUnitsPerDevPixel()));
+      LayoutDeviceSize::ToAppUnits(oldSizeDevPixels, AppUnitsPerDevPixel()));
 }
 
 void nsPresContext::SetOverrideDPPX(float aDPPX) {

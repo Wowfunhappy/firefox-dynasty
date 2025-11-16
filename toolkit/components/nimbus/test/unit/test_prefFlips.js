@@ -1,5 +1,6 @@
 /* Any copyright is dedicated to the Public Domain.
- * http://creativecommons.org/publicdomain/zero/1.0/ */
+ * http://creativecommons.org/publicdomain/zero/1.0/
+ */
 
 const { PrefUtils } = ChromeUtils.importESModule(
   "moz-src:///toolkit/modules/PrefUtils.sys.mjs"
@@ -2381,34 +2382,25 @@ async function test_prefFlips_restore_unenroll() {
     }
   );
 
-  // Set up a previous ExperimentStore on disk.
-  let storePath;
-  {
-    const store = NimbusTestUtils.stubs.store();
-    await store.init();
-
-    await NimbusTestUtils.addEnrollmentForRecipe(recipe, {
-      store,
-      extra: {
-        source: "rs-loader",
-        prefFlips: {
-          originalValues: {
-            "test.pref.please.ignore": null,
+  const { manager, cleanup } = await setupTest({
+    storePath: await NimbusTestUtils.createStoreWith(store => {
+      NimbusTestUtils.addEnrollmentForRecipe(recipe, {
+        store,
+        extra: {
+          source: "rs-loader",
+          prefFlips: {
+            originalValues: {
+              "test.pref.please.ignore": null,
+            },
           },
         },
-      },
-    });
+      });
 
-    storePath = await NimbusTestUtils.saveStore(store);
-  }
-
-  // Set the pref controlled by the experiment.
-  Services.prefs.setStringPref("test.pref.please.ignore", "test-value");
-
-  const { manager, cleanup } = await setupTest({
-    storePath,
+      // Set the pref controlled by the experiment.
+      Services.prefs.setStringPref("test.pref.please.ignore", "test-value");
+    }),
     secureExperiments: [recipe],
-    migrationState: NimbusTestUtils.migrationState.IMPORTED_ENROLLMENTS_TO_SQL,
+    migrationState: NimbusTestUtils.migrationState.LATEST,
   });
 
   const activeEnrollment = manager.store.getExperimentForFeature(FEATURE_ID);
@@ -2873,17 +2865,12 @@ add_task(async function test_prefFlips_update_failure() {
 });
 
 async function test_prefFlips_restore() {
-  let storePath;
-
   const PREF_1 = "pref.one";
   const PREF_2 = "pref.two";
   const PREF_3 = "pref.three";
   const PREF_4 = "pref.FOUR";
 
-  {
-    const store = NimbusTestUtils.stubs.store();
-    await store.init();
-
+  const storePath = await NimbusTestUtils.createStoreWith(store => {
     NimbusTestUtils.addEnrollmentForRecipe(
       NimbusTestUtils.factories.recipe.withFeatureConfig(
         "rollout-1",
@@ -2971,13 +2958,11 @@ async function test_prefFlips_restore() {
         },
       }
     );
-
-    storePath = await NimbusTestUtils.saveStore(store);
-  }
+  });
 
   const { manager, cleanup } = await setupTest({
     storePath,
-    migrationState: NimbusTestUtils.migrationState.IMPORTED_ENROLLMENTS_TO_SQL,
+    migrationState: NimbusTestUtils.migrationState.LATEST,
   });
 
   Assert.ok(manager.store.get("rollout-1").active, "rollout-1 is active");
@@ -3045,13 +3030,9 @@ add_task(async function test_prefFlips_restore_db() {
 });
 
 async function test_prefFlips_restore_failure_conflict() {
-  let storePath;
-
   const PREF = "pref.foo.bar";
-  {
-    const store = NimbusTestUtils.stubs.store();
-    await store.init();
 
+  const storePath = await NimbusTestUtils.createStoreWith(store => {
     NimbusTestUtils.addEnrollmentForRecipe(
       NimbusTestUtils.factories.recipe.withFeatureConfig("rollout-1", {
         featureId: FEATURE_ID,
@@ -3122,13 +3103,11 @@ async function test_prefFlips_restore_failure_conflict() {
         },
       }
     );
-
-    storePath = await NimbusTestUtils.saveStore(store);
-  }
+  });
 
   const { manager, cleanup } = await setupTest({
     storePath,
-    migrationState: NimbusTestUtils.migrationState.IMPORTED_ENROLLMENTS_TO_SQL,
+    migrationState: NimbusTestUtils.migrationState.LATEST,
   });
 
   await NimbusTestUtils.waitForActiveEnrollments(["rollout-1"]);
@@ -3223,7 +3202,7 @@ async function test_prefFlips_restore_failure_wrong_type() {
   const { manager, cleanup } = await setupTest({
     storePath,
     secureExperiments: [recipe],
-    migrationState: NimbusTestUtils.migrationState.IMPORTED_ENROLLMENTS_TO_SQL,
+    migrationState: NimbusTestUtils.migrationState.LATEST,
   });
 
   await NimbusTestUtils.flushStore(manager.store);

@@ -121,6 +121,7 @@ firefox_desktop_metrics = [
     "browser/components/attribution/metrics.yaml",
     "browser/components/backup/metrics.yaml",
     "browser/components/contextualidentity/metrics.yaml",
+    "browser/components/customkeys/metrics.yaml",
     "browser/components/downloads/metrics.yaml",
     "browser/components/extensions/metrics.yaml",
     "browser/components/firefoxview/metrics.yaml",
@@ -218,6 +219,7 @@ gecko_pings = [
 # Order is lexicographical, enforced by t/c/glean/tests/pytest/test_yaml_indices.py
 firefox_desktop_pings = [
     "browser/components/asrouter/pings.yaml",
+    "browser/components/backup/pings.yaml",
     "browser/components/newtab/pings.yaml",
     "browser/components/profiles/pings.yaml",
     "browser/components/search/pings.yaml",

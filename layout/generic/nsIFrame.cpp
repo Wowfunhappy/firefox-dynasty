@@ -50,6 +50,7 @@
 #include "mozilla/TextControlElement.h"
 #include "mozilla/ToString.h"
 #include "mozilla/Try.h"
+#include "mozilla/ViewportFrame.h"
 #include "mozilla/ViewportUtils.h"
 #include "mozilla/WritingModes.h"
 #include "mozilla/dom/AncestorIterator.h"
@@ -121,6 +122,7 @@
 #include "nsRegion.h"
 #include "nsStyleChangeList.h"
 #include "nsSubDocumentFrame.h"
+#include "nsViewportInfo.h"
 #include "nsWindowSizes.h"
 
 #ifdef ACCESSIBILITY
@@ -941,7 +943,6 @@ void nsIFrame::Destroy(DestroyContext& aContext) {
   }
 
   if (nsView* view = GetView()) {
-    view->SetFrame(nullptr);
     view->Destroy();
   }
 
@@ -1258,7 +1259,7 @@ void nsIFrame::DidSetComputedStyle(ComputedStyle* aOldComputedStyle) {
 
   const bool isRootElementStyle = Style()->IsRootElementStyle();
   if (isRootElementStyle) {
-    PresShell()->SyncWindowProperties(/* aSync = */ false);
+    PresShell()->SetNeedsWindowPropertiesSync();
   }
 
   const nsStyleImageLayers* oldLayers =
@@ -3324,6 +3325,7 @@ void nsIFrame::BuildDisplayListForStackingContext(
 
   const bool useStickyPosition =
       disp->mPosition == StylePositionProperty::Sticky;
+  bool shouldFlattenStickyItem = true;
 
   const bool useFixedPosition =
       disp->mPosition == StylePositionProperty::Fixed &&
@@ -3362,7 +3364,7 @@ void nsIFrame::BuildDisplayListForStackingContext(
   // NOTE(emilio): The order of these RAII objects is quite subtle.
   nsDisplayListBuilder::AutoEnterViewTransitionCapture
       inViewTransitionCaptureSetter(aBuilder, capturedByViewTransition);
-  nsDisplayListBuilder::AutoContainerASRTracker contASRTracker(aBuilder);
+  RefPtr<const ActiveScrolledRoot> stickyASR = nullptr;
   nsDisplayListBuilder::AutoCurrentActiveScrolledRootSetter asrSetter(aBuilder);
   if (aBuilder->IsInViewTransitionCapture()) {
     // View transition contents shouldn't scroll along our ASR. They get
@@ -3370,6 +3372,29 @@ void nsIFrame::BuildDisplayListForStackingContext(
     // anyways).
     asrSetter.SetCurrentActiveScrolledRoot(nullptr);
   }
+  if (useStickyPosition) {
+    StickyScrollContainer* stickyScrollContainer =
+        StickyScrollContainer::GetOrCreateForFrame(this);
+    if (stickyScrollContainer) {
+      if (aBuilder->IsPaintingToWindow() &&
+          !aBuilder->IsInViewTransitionCapture() &&
+          stickyScrollContainer->ScrollContainer()
+              ->IsMaybeAsynchronouslyScrolled()) {
+        shouldFlattenStickyItem = false;
+      }
+      stickyScrollContainer->SetShouldFlatten(shouldFlattenStickyItem);
+    }
+
+    if (shouldFlattenStickyItem) {
+      stickyASR = aBuilder->CurrentActiveScrolledRoot();
+    } else {
+      stickyASR = aBuilder->AllocateActiveScrolledRootForSticky(
+          aBuilder->CurrentActiveScrolledRoot(), this);
+      asrSetter.SetCurrentActiveScrolledRoot(stickyASR);
+    }
+  }
+
+  nsDisplayListBuilder::AutoContainerASRTracker contASRTracker(aBuilder);
 
   auto cssClip = GetClipPropClipRect(disp, effects, GetSize());
   auto ApplyClipProp = [&](DisplayListClipState::AutoSaveRestore& aClipState) {
@@ -3448,6 +3473,7 @@ void nsIFrame::BuildDisplayListForStackingContext(
 
   nsDisplayListCollection set(aBuilder);
   Maybe<nsRect> clipForMask;
+
   {
     DisplayListClipState::AutoSaveRestore nestedClipState(aBuilder);
     nsDisplayListBuilder::AutoInTransformSetter inTransformSetter(aBuilder,
@@ -3456,6 +3482,11 @@ void nsIFrame::BuildDisplayListForStackingContext(
                                                           usingFilter);
     nsDisplayListBuilder::AutoInEventsOnly inEventsSetter(
         aBuilder, opacityItemForEventsOnly);
+
+    DisplayListClipState::AutoSaveRestore stickyItemNestedClipState(aBuilder);
+    if (useStickyPosition && !shouldFlattenStickyItem) {
+      stickyItemNestedClipState.MaybeRemoveDisplayportClip();
+    }
 
     // If we have a mask, compute a clip to bound the masked content.
     // This is necessary in case the content moves with an ancestor
@@ -3874,9 +3905,11 @@ void nsIFrame::BuildDisplayListForStackingContext(
     // item as well.
     const ActiveScrolledRoot* fixedASR = ActiveScrolledRoot::PickAncestor(
         containerItemASR, aBuilder->CurrentActiveScrolledRoot());
+    const ActiveScrolledRoot* scrollTargetASR =
+        containerItemASR ? containerItemASR->GetNearestScrollASR() : nullptr;
     resultList.AppendNewToTop<nsDisplayFixedPosition>(
         aBuilder, this, &resultList, fixedASR,
-        nsDisplayItem::ContainerASRType::AncestorOfContained, containerItemASR,
+        nsDisplayItem::ContainerASRType::AncestorOfContained, scrollTargetASR,
         ShouldForceIsolation());
     createdContainer = true;
   } else if (useStickyPosition && !capturedByViewTransition) {
@@ -3893,19 +3926,17 @@ void nsIFrame::BuildDisplayListForStackingContext(
     // that on the display item as the "container ASR" (i.e. the normal ASR of
     // the container item, excluding the special behaviour induced by fixed
     // descendants).
-    const ActiveScrolledRoot* stickyASR = ActiveScrolledRoot::PickAncestor(
+    DisplayListClipState::AutoSaveRestore stickyItemClipState(aBuilder);
+    stickyItemClipState.MaybeRemoveDisplayportClip();
+    const ActiveScrolledRoot* stickyItemASR = ActiveScrolledRoot::PickAncestor(
         containerItemASR, aBuilder->CurrentActiveScrolledRoot());
 
     auto* stickyItem = MakeDisplayItem<nsDisplayStickyPosition>(
-        aBuilder, this, &resultList, stickyASR,
+        aBuilder, this, &resultList, stickyItemASR,
         nsDisplayItem::ContainerASRType::AncestorOfContained,
-        aBuilder->CurrentActiveScrolledRoot(),
-        clipState.IsClippedToDisplayPort());
+        aBuilder->CurrentActiveScrolledRoot());
 
-    auto* ssc = StickyScrollContainer::GetOrCreateForFrame(this);
-    const bool shouldFlatten =
-        !ssc || !ssc->ScrollContainer()->IsMaybeAsynchronouslyScrolled();
-    stickyItem->SetShouldFlatten(shouldFlatten);
+    stickyItem->SetShouldFlatten(shouldFlattenStickyItem);
 
     resultList.AppendToTop(stickyItem);
     createdContainer = true;
@@ -3913,9 +3944,11 @@ void nsIFrame::BuildDisplayListForStackingContext(
     // If the sticky element is inside a filter, annotate the scroll frame that
     // scrolls the filter as having out-of-flow content inside a filter (this
     // inhibits paint skipping).
-    if (aBuilder->GetFilterASR() && aBuilder->GetFilterASR() == stickyASR) {
+    if (aBuilder->GetFilterASR() && aBuilder->GetFilterASR() == stickyItemASR) {
       aBuilder->GetFilterASR()
-          ->mScrollContainerFrame->SetHasOutOfFlowContentInsideFilter();
+          ->GetNearestScrollASR()
+          ->ScrollFrame()
+          ->SetHasOutOfFlowContentInsideFilter();
     }
   }
 
@@ -7711,19 +7744,19 @@ nsIFrame* nsIFrame::GetTailContinuation() {
   return frame;
 }
 
-// Associated view object
-void nsIFrame::SetView(nsView* aView) {
-  if (aView) {
-    MOZ_ASSERT(MayHaveView(), "Only specific frame types can have an nsView");
-    MOZ_ASSERT(!GetParent(), "Only the viewport can have views");
-    aView->SetFrame(this);
-
-    // Store the view on the frame.
-    SetViewInternal(aView);
-  } else {
-    MOZ_ASSERT_UNREACHABLE("Destroying a view while the frame is alive?");
-    SetViewInternal(nullptr);
+nsIWidget* nsIFrame::GetOwnWidget() const {
+  if (auto* view = GetView()) {
+    return view->GetWidget();
   }
+  if (IsMenuPopupFrame()) {
+    return static_cast<const nsMenuPopupFrame*>(this)->GetWidget();
+  }
+  return nullptr;
+}
+
+nsView* nsIFrame::DoGetView() const {
+  MOZ_ASSERT(IsViewportFrame());
+  return static_cast<const ViewportFrame*>(this)->GetViewportFrameView();
 }
 
 template <nsPoint (nsIFrame::*PositionGetter)() const>
@@ -7754,6 +7787,10 @@ static nsPoint OffsetCalculator(const nsIFrame* aThis, const nsIFrame* aOther) {
 
 nsPoint nsIFrame::GetOffsetTo(const nsIFrame* aOther) const {
   return OffsetCalculator<&nsIFrame::GetPosition>(this, aOther);
+}
+
+nsPoint nsIFrame::GetOffsetToRootFrame() const {
+  return GetOffsetTo(PresShell()->GetRootFrame());
 }
 
 nsPoint nsIFrame::GetOffsetToIgnoringScrolling(const nsIFrame* aOther) const {
@@ -7845,27 +7882,6 @@ nsRect nsIFrame::GetScreenRectInAppUnits() const {
   return nsRect(rootScreenPos + GetOffsetTo(rootFrame), GetSize());
 }
 
-// Returns the offset from this frame to the closest geometric parent that
-// has a view. Also returns the containing view or null in case of error
-void nsIFrame::GetOffsetFromView(nsPoint& aOffset, nsView** aView) const {
-  MOZ_ASSERT(aView, "null OUT parameter pointer");
-  nsIFrame* frame = const_cast<nsIFrame*>(this);
-
-  *aView = nullptr;
-  aOffset.MoveTo(0, 0);
-  while (true) {
-    aOffset += frame->GetPosition();
-    frame = frame->GetParent();
-    if (!frame) {
-      break;
-    }
-    if (auto* view = frame->GetView()) {
-      *aView = view;
-      break;
-    }
-  }
-}
-
 nsIWidget* nsIFrame::GetNearestWidget() const {
   if (!HasAnyStateBits(NS_FRAME_IN_POPUP)) {
     return PresContext()->GetRootWidget();
@@ -7885,7 +7901,6 @@ nsIWidget* nsIFrame::GetNearestWidget(nsPoint& aOffset) const {
     }
     if (auto* view = frame->GetView()) {
       if (auto* widget = view->GetWidget()) {
-        aOffset += view->ViewToWidgetOffset();
         aOffset = aOffset.ScaleToOtherAppUnits(curAPD, targetAPD);
         return widget;
       }
@@ -8513,12 +8528,6 @@ bool nsIFrame::UpdateOverflow() {
   UnionChildOverflow(overflowAreas);
 
   if (FinishAndStoreOverflow(overflowAreas, GetSize())) {
-    if (nsView* view = GetView()) {
-      // Make sure the frame's view is properly sized.
-      nsViewManager* vm = view->GetViewManager();
-      vm->ResizeView(view, overflowAreas.InkOverflow());
-    }
-
     return true;
   }
 
@@ -8674,9 +8683,8 @@ bool nsIFrame::IsBlockContainer() const {
   //
   // If we ever start skipping table row groups from being containing blocks,
   // you need to remove the StickyScrollContainer hack referencing bug 1421660.
-  return !IsLineParticipant() && !IsBlockWrapper() && !IsSubgrid() &&
-         // Table rows are not containing blocks either
-         !IsTableRowFrame();
+  // Table rows are not containing blocks either
+  return !IsLineParticipant() && !IsBlockWrapper() && !IsTableRowFrame();
 }
 
 nsIFrame* nsIFrame::GetContainingBlock(
@@ -9275,9 +9283,7 @@ static nsresult GetNextPrevLineFromBlockFrame(PeekOffsetStruct* aPos,
         farStoppingFrame = firstFrame;
       }
     }
-    nsPoint offset;
-    nsView* view;  // used for call of get offset from view
-    aBlockFrame->GetOffsetFromView(offset, &view);
+    nsPoint offset = aBlockFrame->GetOffsetToRootFrame();
     nsPoint newDesiredPos =
         aPos->mDesiredCaretPos -
         offset;  // get desired position into blockframe coords
@@ -9338,12 +9344,7 @@ static nsresult GetNextPrevLineFromBlockFrame(PeekOffsetStruct* aPos,
       while (!found) {
         nsPoint point;
         nsRect tempRect = resultFrame->GetRect();
-        nsPoint offset;
-        nsView* view;  // used for call of get offset from view
-        resultFrame->GetOffsetFromView(offset, &view);
-        if (!view) {
-          return NS_ERROR_FAILURE;
-        }
+        nsPoint offset = resultFrame->GetOffsetToRootFrame();
         if (resultFrame->GetWritingMode().IsVertical()) {
           point.y = aPos->mDesiredCaretPos.y;
           point.x = tempRect.width + offset.x;
@@ -9352,10 +9353,8 @@ static nsresult GetNextPrevLineFromBlockFrame(PeekOffsetStruct* aPos,
           point.x = aPos->mDesiredCaretPos.x;
         }
 
-        if (!resultFrame->GetView()) {
-          nsView* view;
-          nsPoint offset;
-          resultFrame->GetOffsetFromView(offset, &view);
+        if (!resultFrame->IsViewportFrame()) {
+          nsPoint offset = resultFrame->GetOffsetToRootFrame();
           nsIFrame::ContentOffsets offsets =
               resultFrame->GetContentOffsetsFromPoint(
                   point - offset, nsIFrame::IGNORE_NATIVE_ANONYMOUS_SUBTREE);
@@ -9396,9 +9395,7 @@ static nsresult GetNextPrevLineFromBlockFrame(PeekOffsetStruct* aPos,
       }
       while (!found) {
         nsPoint point = aPos->mDesiredCaretPos;
-        nsView* view;
-        nsPoint offset;
-        resultFrame->GetOffsetFromView(offset, &view);
+        nsPoint offset = resultFrame->GetOffsetToRootFrame();
         nsIFrame::ContentOffsets offsets =
             resultFrame->GetContentOffsetsFromPoint(
                 point - offset, nsIFrame::IGNORE_NATIVE_ANONYMOUS_SUBTREE);
@@ -10455,22 +10452,6 @@ nsIFrame::SelectablePeekReport nsIFrame::GetFrameFromDirection(
     const PeekOffsetStruct& aPos) {
   return GetFrameFromDirection(aPos.mDirection, aPos.mOptions,
                                aPos.mAncestorLimiter);
-}
-
-nsView* nsIFrame::GetClosestView(nsPoint* aOffset) const {
-  nsPoint offset(0, 0);
-  for (const nsIFrame* f = this; f; f = f->GetParent()) {
-    if (auto* view = f->GetView()) {
-      if (aOffset) {
-        *aOffset = offset;
-      }
-      return view;
-    }
-    offset += f->GetPosition();
-  }
-
-  MOZ_ASSERT_UNREACHABLE("No view on any parent?  How did that happen?");
-  return nullptr;
 }
 
 /* virtual */

@@ -28,6 +28,7 @@ ChromeUtils.defineESModuleGetters(lazy, {
   HighlightsFeed: "resource://newtab/lib/HighlightsFeed.sys.mjs",
   ListsFeed: "resource://newtab/lib/Widgets/ListsFeed.sys.mjs",
   NewTabAttributionFeed: "resource://newtab/lib/NewTabAttributionFeed.sys.mjs",
+  NewTabActorRegistry: "resource://newtab/lib/NewTabActorRegistry.sys.mjs",
   NewTabInit: "resource://newtab/lib/NewTabInit.sys.mjs",
   NewTabMessaging: "resource://newtab/lib/NewTabMessaging.sys.mjs",
   NimbusFeatures: "resource://nimbus/ExperimentAPI.sys.mjs",
@@ -94,6 +95,8 @@ const LOCALE_SECTIONS_CONFIG =
   "browser.newtabpage.activity-stream.discoverystream.sections.locale-content-config";
 
 const BROWSER_URLBAR_PLACEHOLDERNAME = "browser.urlbar.placeholderName";
+const PREF_SHOULD_AS_INITIALIZE_FEEDS =
+  "browser.newtabpage.activity-stream.testing.shouldInitializeFeeds";
 
 export const WEATHER_OPTIN_REGIONS = [
   "AT", // Austria
@@ -142,6 +145,17 @@ export function csvPrefHasValue(stringPrefName, value) {
     .filter(item => item);
 
   return prefValues.includes(value);
+}
+
+export function shouldInitializeFeeds(defaultValue = true) {
+  // For tests/automation: when false, newtab won't initialize
+  // select feeds in this session.
+  // Flipping after initialization has no effect on the current session.
+  const shouldInitialize = Services.prefs.getBoolPref(
+    PREF_SHOULD_AS_INITIALIZE_FEEDS,
+    defaultValue
+  );
+  return shouldInitialize;
 }
 
 function useInferredPersonalization({ geo, locale }) {
@@ -981,6 +995,13 @@ export const PREFS_CONFIG = new Map([
     },
   ],
   [
+    "widgets.enabled",
+    {
+      title: "Allows users to toggle all widgets on and off at once",
+      value: false,
+    },
+  ],
+  [
     "widgets.lists.enabled",
     {
       title: "Enables the to-do lists widget",
@@ -1308,6 +1329,13 @@ export const PREFS_CONFIG = new Map([
     },
   ],
   [
+    "discoverystream.sections.clientLayout.enabled",
+    {
+      title: "Enables client side layout for recommended stories",
+      value: false,
+    },
+  ],
+  [
     "support.url",
     {
       title: "Link to HNT's support page",
@@ -1551,6 +1579,7 @@ const FEEDS_DATA = [
 ];
 
 const FEEDS_CONFIG = new Map();
+
 for (const config of FEEDS_DATA) {
   const pref = `feeds.${config.name}`;
   FEEDS_CONFIG.set(pref, config.factory);
@@ -1564,8 +1593,22 @@ export class ActivityStream {
   constructor() {
     this.initialized = false;
     this.store = new lazy.Store();
-    this.feeds = FEEDS_CONFIG;
     this._defaultPrefs = new lazy.DefaultPrefs(PREFS_CONFIG);
+  }
+
+  get feeds() {
+    if (shouldInitializeFeeds()) {
+      return FEEDS_CONFIG;
+    }
+
+    // We currently make excpetions for topsites, and prefs feeds
+    // because they currently impacts tests timing for places initialization.
+    // See bug 1999166.
+    const feeds = new Map([
+      ["feeds.system.topsites", FEEDS_CONFIG.get("feeds.system.topsites")],
+      ["feeds.prefs", FEEDS_CONFIG.get("feeds.prefs")],
+    ]);
+    return feeds;
   }
 
   init() {
@@ -1573,6 +1616,7 @@ export class ActivityStream {
     this._defaultPrefs.init();
     Services.obs.addObserver(this, "intl:app-locales-changed");
     Services.obs.addObserver(this, "browser-search-engine-modified");
+    lazy.NewTabActorRegistry.init();
 
     // Bug 1969587: Because our pref system does not support async getValue(),
     // we mirror the value of the BROWSER_URLBAR_PLACEHOLDERNAME pref into

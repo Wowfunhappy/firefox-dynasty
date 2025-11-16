@@ -49,6 +49,14 @@ if (Services.prefs.getBoolPref("browser.settings-redesign.enabled")) {
     },
     { id: "browser.newtabpage.activity-stream.showWeather", type: "bool" },
     {
+      id: "browser.newtabpage.activity-stream.widgets.system.enabled",
+      type: "bool",
+    },
+    {
+      id: "browser.newtabpage.activity-stream.widgets.enabled",
+      type: "bool",
+    },
+    {
       id: "browser.newtabpage.activity-stream.widgets.system.lists.enabled",
       type: "bool",
     },
@@ -62,6 +70,38 @@ if (Services.prefs.getBoolPref("browser.settings-redesign.enabled")) {
     },
     {
       id: "browser.newtabpage.activity-stream.widgets.focusTimer.enabled",
+      type: "bool",
+    },
+    {
+      id: "browser.newtabpage.activity-stream.feeds.topsites",
+      type: "bool",
+    },
+    {
+      id: "browser.newtabpage.activity-stream.topSitesRows",
+      type: "int",
+    },
+    {
+      id: "browser.newtabpage.activity-stream.feeds.section.topstories",
+      type: "bool",
+    },
+    {
+      id: "browser.newtabpage.activity-stream.feeds.section.highlights",
+      type: "bool",
+    },
+    {
+      id: "browser.newtabpage.activity-stream.section.highlights.rows",
+      type: "int",
+    },
+    {
+      id: "browser.newtabpage.activity-stream.section.highlights.includeVisited",
+      type: "bool",
+    },
+    {
+      id: "browser.newtabpage.activity-stream.section.highlights.includeBookmarks",
+      type: "bool",
+    },
+    {
+      id: "browser.newtabpage.activity-stream.section.highlights.includeDownloads",
       type: "bool",
     },
   ]);
@@ -82,6 +122,18 @@ if (Services.prefs.getBoolPref("browser.settings-redesign.enabled")) {
     pref: "browser.newtabpage.activity-stream.showWeather",
     deps: ["showWeather"],
     visible: ({ showWeather }) => showWeather.value,
+  });
+
+  // Widgets: general
+  Preferences.addSetting({
+    id: "widgetsEnabled",
+    pref: "browser.newtabpage.activity-stream.widgets.system.enabled",
+  });
+  Preferences.addSetting({
+    id: "widgets",
+    pref: "browser.newtabpage.activity-stream.widgets.enabled",
+    deps: ["widgetsEnabled"],
+    visible: ({ widgetsEnabled }) => widgetsEnabled.value,
   });
 
   // Widgets: lists
@@ -106,6 +158,44 @@ if (Services.prefs.getBoolPref("browser.settings-redesign.enabled")) {
     pref: "browser.newtabpage.activity-stream.widgets.focusTimer.enabled",
     deps: ["timerEnabled"],
     visible: ({ timerEnabled }) => timerEnabled.value,
+  });
+
+  // Shortcuts
+  Preferences.addSetting({
+    id: "shortcuts",
+    pref: "browser.newtabpage.activity-stream.feeds.topsites",
+  });
+  Preferences.addSetting({
+    id: "shortcutsRows",
+    pref: "browser.newtabpage.activity-stream.topSitesRows",
+  });
+
+  // Stories
+  Preferences.addSetting({
+    id: "stories",
+    pref: "browser.newtabpage.activity-stream.feeds.section.topstories",
+  });
+
+  // Recent activity
+  Preferences.addSetting({
+    id: "recentActivity",
+    pref: "browser.newtabpage.activity-stream.feeds.section.highlights",
+  });
+  Preferences.addSetting({
+    id: "recentActivityRows",
+    pref: "browser.newtabpage.activity-stream.section.highlights.rows",
+  });
+  Preferences.addSetting({
+    id: "recentActivityVisited",
+    pref: "browser.newtabpage.activity-stream.section.highlights.includeVisited",
+  });
+  Preferences.addSetting({
+    id: "recentActivityBookmarks",
+    pref: "browser.newtabpage.activity-stream.section.highlights.includeBookmarks",
+  });
+  Preferences.addSetting({
+    id: "recentActivityDownloads",
+    pref: "browser.newtabpage.activity-stream.section.highlights.includeDownloads",
   });
 }
 

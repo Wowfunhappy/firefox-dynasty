@@ -100,7 +100,6 @@
 #include "nsStyleConsts.h"
 #include "nsStyleTransformMatrix.h"
 #include "nsSubDocumentFrame.h"
-#include "nsView.h"
 #include "nsViewportInfo.h"
 
 static mozilla::LazyLogModule sApzPaintSkipLog("apz.paintskip");
@@ -2620,7 +2619,7 @@ void ScrollContainerFrame::RemoveDisplayPortCallback(nsITimer* aTimer,
 
   nsIContent* content = sf->GetContent();
 
-  if (ScrollContainerFrame::ShouldActivateAllScrollFrames()) {
+  if (ScrollContainerFrame::ShouldActivateAllScrollFrames(nullptr, sf)) {
     // If we are activating all scroll frames then we only want to remove the
     // regular display port and downgrade to a minimal display port.
     MOZ_ASSERT(!content->GetProperty(nsGkAtoms::MinimalDisplayPort));
@@ -2706,7 +2705,7 @@ bool ScrollContainerFrame::AllowDisplayPortExpiration() {
     return false;
   }
 
-  if (ShouldActivateAllScrollFrames() &&
+  if (ShouldActivateAllScrollFrames(nullptr, this) &&
       GetContent()->GetProperty(nsGkAtoms::MinimalDisplayPort)) {
     return false;
   }
@@ -3861,8 +3860,7 @@ void ScrollContainerFrame::BuildDisplayList(nsDisplayListBuilder* aBuilder,
     if (mWillBuildScrollableLayer) {
       return true;
     }
-    return StyleVisibility()->IsVisible() &&
-           nsLayoutUtils::AsyncPanZoomEnabled(this) && WantAsyncScroll();
+    return nsLayoutUtils::AsyncPanZoomEnabled(this) && WantAsyncScroll();
   }();
 
   // Now display the scrollbars and scrollcorner. These parts are drawn
@@ -4013,13 +4011,15 @@ void ScrollContainerFrame::BuildDisplayList(nsDisplayListBuilder* aBuilder,
         scrolledRectClip = scrolledRectClip.Intersect(visibleRect);
         clippedToDisplayPort = scrolledRectClip.IsEqualEdges(visibleRect);
       }
-      scrolledRectClipState.ClipContainingBlockDescendants(
-          scrolledRectClip + aBuilder->ToReferenceFrame(this));
       if (clippedToDisplayPort) {
+        scrolledRectClipState.ClipToDisplayPort(
+            scrolledRectClip + aBuilder->ToReferenceFrame(this));
+      } else {
         // We have to do this after the ClipContainingBlockDescendants call
         // above, otherwise that call will clobber the flag set by this call
         // to SetClippedToDisplayPort.
-        scrolledRectClipState.SetClippedToDisplayPort();
+        scrolledRectClipState.ClipContainingBlockDescendants(
+            scrolledRectClip + aBuilder->ToReferenceFrame(this));
       }
 
       nsRect visibleRectForChildren = visibleRect;
@@ -4061,7 +4061,7 @@ void ScrollContainerFrame::BuildDisplayList(nsDisplayListBuilder* aBuilder,
 
     if (aBuilder->IsPaintingToWindow()) {
       mIsParentToActiveScrollFrames =
-          ShouldActivateAllScrollFrames()
+          ShouldActivateAllScrollFrames(aBuilder, this)
               ? asrSetter.GetContainsNonMinimalDisplayPort()
               : asrSetter.ShouldForceLayerForScrollParent();
     }
@@ -4095,6 +4095,7 @@ void ScrollContainerFrame::BuildDisplayList(nsDisplayListBuilder* aBuilder,
 #ifndef MOZ_WIDGET_ANDROID
           gfxCriticalNoteOnce << "inserted scroll frame";
 #endif
+          MOZ_ASSERT(!ShouldActivateAllScrollFrames(aBuilder, this));
           asrSetter.InsertScrollFrame(this);
           aBuilder->SetDisablePartialUpdates(true);
         }
@@ -4124,7 +4125,7 @@ void ScrollContainerFrame::BuildDisplayList(nsDisplayListBuilder* aBuilder,
     }
   }
 
-  if (couldBuildLayer) {
+  if (couldBuildLayer & StyleVisibility()->IsVisible()) {
     CompositorHitTestInfo info(CompositorHitTestFlags::eVisibleToHitTest,
                                CompositorHitTestFlags::eInactiveScrollframe);
     // If the scroll frame has non-default overscroll-behavior, instruct
@@ -4326,10 +4327,20 @@ nsRect ScrollContainerFrame::RestrictToRootDisplayPort(
   return aDisplayportBase.Intersect(rootDisplayPort);
 }
 
-/* static */ bool ScrollContainerFrame::ShouldActivateAllScrollFrames() {
-  return (StaticPrefs::apz_wr_activate_all_scroll_frames() ||
-          (StaticPrefs::apz_wr_activate_all_scroll_frames_when_fission() &&
-           FissionAutostart()));
+/* static */ bool ScrollContainerFrame::ShouldActivateAllScrollFrames(
+    nsDisplayListBuilder* aBuilder, nsIFrame* aFrame) {
+  if (aBuilder) {
+    return aBuilder->ShouldActivateAllScrollFrames();
+  }
+  MOZ_ASSERT(aFrame);
+  if (StaticPrefs::apz_wr_activate_all_scroll_frames()) {
+    return true;
+  }
+  if (StaticPrefs::apz_wr_activate_all_scroll_frames_when_fission() &&
+      FissionAutostart()) {
+    return true;
+  }
+  return aFrame->PresShell()->GetRootPresShell()->HasSeenAnchorPos();
 }
 
 bool ScrollContainerFrame::DecideScrollableLayer(
@@ -4349,7 +4360,7 @@ bool ScrollContainerFrame::DecideScrollableLayer(
   // do this when aSetBase is true because we only want to do this the first
   // time this function is called for the same scroll frame.)
   if (aSetBase && !hasDisplayPort && aBuilder->IsPaintingToWindow() &&
-      ShouldActivateAllScrollFrames() &&
+      ShouldActivateAllScrollFrames(aBuilder, this) &&
       nsLayoutUtils::AsyncPanZoomEnabled(this) && WantAsyncScroll()) {
     // SetDisplayPortMargins calls TriggerDisplayPortExpiration which starts a
     // display port expiry timer for display ports that do expire. However

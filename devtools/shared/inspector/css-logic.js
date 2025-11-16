@@ -29,6 +29,12 @@ loader.lazyRequireGetter(
   "resource://devtools/shared/indentation.js",
   true
 );
+loader.lazyRequireGetter(
+  this,
+  "getNodeDisplayName",
+  "resource://devtools/server/actors/inspector/utils.js",
+  true
+);
 const { LocalizationHelper } = require("resource://devtools/shared/l10n.js");
 const styleInspectorL10N = new LocalizationHelper(
   "devtools/shared/locales/styleinspector.properties"
@@ -549,22 +555,35 @@ exports.prettifyCSS = prettifyCSS;
  * it was.  Otherwise, return the node itself.
  *
  * @returns {Object}
- *            - {DOMNode} node The non-anonymous node
- *            - {string} pseudo One of '::marker', '::before', '::after', or null.
+ *            - {DOMNode} node: The non-anonymous node
+ *            - {string|null} pseudo: The label representing the anonymous node
+ *                                    (e.g. '::marker',  '::before', '::after', '::view-transition',
+ *                                    '::view-transition-group(root)', …).
+ *                                    null if node isn't an anonymous node or isn't handled
+ *                                    yet.
  */
 function getBindingElementAndPseudo(node) {
   let bindingElement = node;
   let pseudo = null;
-  if (node.nodeName == "_moz_generated_content_marker") {
-    bindingElement = node.parentNode;
-    pseudo = "::marker";
-  } else if (node.nodeName == "_moz_generated_content_before") {
-    bindingElement = node.parentNode;
-    pseudo = "::before";
-  } else if (node.nodeName == "_moz_generated_content_after") {
-    bindingElement = node.parentNode;
-    pseudo = "::after";
+  const { implementedPseudoElement } = node;
+  if (implementedPseudoElement) {
+    // we only want to explicitly handle the elements we're displaying in the markup view
+    if (
+      implementedPseudoElement === "::marker" ||
+      implementedPseudoElement === "::before" ||
+      implementedPseudoElement === "::after"
+    ) {
+      pseudo = getNodeDisplayName(node);
+      bindingElement = node.parentNode;
+    } else if (implementedPseudoElement.startsWith("::view-transition")) {
+      pseudo = getNodeDisplayName(node);
+      // The binding for all view transition pseudo element is the <html> element, i.e. we
+      // can't use `node.parentNode` as for`::view-transition-old` element, we'd get the
+      // `::view-transition-group`, which is not the binding element.
+      bindingElement = node.getRootNode().documentElement;
+    }
   }
+
   return {
     bindingElement,
     pseudo,

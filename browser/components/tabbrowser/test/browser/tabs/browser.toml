@@ -579,6 +579,8 @@ tags = "vertical-tabs"
 ["browser_tab_move_to_new_window_reload.js"]
 tags = "vertical-tabs"
 
+["browser_tab_notes.js"]
+
 ["browser_tab_play.js"]
 tags = "vertical-tabs"
 
@@ -591,6 +593,8 @@ tags = "vertical-tabs"
 skip-if = [
   "os == 'mac' && os_version == '10.15' && processor == 'x86_64'", # Bug 1994508
 ]
+
+["browser_tab_splitview_footer.js"]
 
 ["browser_tab_splitview_keyboard_focus.js"]
 
