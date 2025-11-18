@@ -214,7 +214,8 @@ class HistoryInView extends ViewPage {
     return (
       this.profileAge < 8 &&
       !this.hasImportedHistoryPref &&
-      !this.importHistoryDismissedPref
+      !this.importHistoryDismissedPref &&
+      Services.policies.isAllowed("profileImport")
     );
   }
 
