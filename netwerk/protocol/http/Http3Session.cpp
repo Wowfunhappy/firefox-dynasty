@@ -439,6 +439,11 @@ nsresult Http3Session::ProcessInput(nsIUDPSocket* socket) {
   LOG(("Http3Session::ProcessInput writer=%p [this=%p state=%d]",
        mUdpConn.get(), this, mState));
 
+  if (!socket || socket->IsSocketClosed()) {
+    MOZ_DIAGNOSTIC_ASSERT(false, "UDP socket should still be open");
+    return NS_ERROR_UNEXPECTED;
+  }
+
   if (mUseNSPRForIO) {
     while (true) {
       nsTArray<uint8_t> data;
@@ -1091,6 +1096,11 @@ nsresult Http3Session::ProcessOutput(nsIUDPSocket* socket) {
   LOG(("Http3Session::ProcessOutput reader=%p, [this=%p]", mUdpConn.get(),
        this));
 
+  if (!socket || socket->IsSocketClosed()) {
+    MOZ_DIAGNOSTIC_ASSERT(false, "UDP socket should still be open");
+    return NS_ERROR_UNEXPECTED;
+  }
+
   if (mUseNSPRForIO) {
     mSocket = socket;
     nsresult rv = mHttp3Connection->ProcessOutputAndSendUseNSPRForIO(
@@ -1503,9 +1513,15 @@ nsresult Http3Session::TryActivating(
       QueueStream(aStream);
       return rv;
     }
-    // Ignore this error. This may happen if some events are not handled yet.
-    // TODO we may try to add an assertion here.
-    return NS_OK;
+
+    // Previously we always returned NS_OK here, which caused the
+    // transaction to wait until the quic connection timed out
+    // after which it was retried without quic.
+    if (StaticPrefs::network_http_http3_fallback_to_h2_on_error()) {
+      return NS_ERROR_HTTP2_FALLBACK_TO_HTTP1;
+    }
+
+    return rv;
   }
 
   LOG(("Http3Session::TryActivating streamId=0x%" PRIx64

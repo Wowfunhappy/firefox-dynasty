@@ -76,6 +76,7 @@
 #include "mozilla/PresShell.h"
 #include "mozilla/ProfilerMarkers.h"
 #include "mozilla/ScrollContainerFrame.h"
+#include "mozilla/StaticPrefs_accessibility.h"
 #include "mozilla/StaticPrefs_dom.h"
 #include "mozilla/StaticPrefs_ui.h"
 #include "mozilla/dom/Element.h"
@@ -124,38 +125,30 @@ LocalAccessible::~LocalAccessible() {
   NS_ASSERTION(!mDoc, "LastRelease was never called!?!");
 }
 
-ENameValueFlag LocalAccessible::Name(nsString& aName) const {
-  aName.Truncate();
-
+ENameValueFlag LocalAccessible::DirectName(nsString& aName) const {
   if (!HasOwnContent()) return eNameOK;
 
   ENameValueFlag nameFlag = ARIAName(aName);
   if (!aName.IsEmpty()) return nameFlag;
 
   nameFlag = NativeName(aName);
+  aName.CompressWhitespace();
+
+  return nameFlag;
+}
+
+ENameValueFlag LocalAccessible::Name(nsString& aName) const {
+  aName.Truncate();
+
+  ENameValueFlag nameFlag = DirectName(aName);
   if (!aName.IsEmpty()) return nameFlag;
 
+  nsTextEquivUtils::GetNameFromSubtree(this, aName);
+  if (!aName.IsEmpty()) return eNameFromSubtree;
+
   // In the end get the name from tooltip.
-  if (mContent->IsHTMLElement()) {
-    if (mContent->AsElement()->GetAttr(nsGkAtoms::title, aName)) {
-      aName.CompressWhitespace();
-      return eNameFromTooltip;
-    }
-  } else if (mContent->IsXULElement()) {
-    if (mContent->AsElement()->GetAttr(nsGkAtoms::tooltiptext, aName)) {
-      aName.CompressWhitespace();
-      return eNameFromTooltip;
-    }
-  } else if (mContent->IsSVGElement()) {
-    // If user agents need to choose among multiple 'desc' or 'title'
-    // elements for processing, the user agent shall choose the first one.
-    for (nsIContent* childElm = mContent->GetFirstChild(); childElm;
-         childElm = childElm->GetNextSibling()) {
-      if (childElm->IsSVGElement(nsGkAtoms::desc)) {
-        nsTextEquivUtils::AppendTextEquivFromContent(this, childElm, &aName);
-        return eNameFromTooltip;
-      }
-    }
+  if (Tooltip(aName)) {
+    return eNameFromTooltip;
   }
 
   if (auto cssAlt = CssAltContent(mContent)) {
@@ -165,7 +158,7 @@ ENameValueFlag LocalAccessible::Name(nsString& aName) const {
 
   aName.SetIsVoid(true);
 
-  return nameFlag;
+  return eNameOK;
 }
 
 EDescriptionValueFlag LocalAccessible::Description(
@@ -189,28 +182,14 @@ EDescriptionValueFlag LocalAccessible::Description(
 
   if (aDescription.IsEmpty()) {
     NativeDescription(aDescription);
+    aDescription.CompressWhitespace();
+  }
 
-    if (aDescription.IsEmpty()) {
-      // Keep the Name() method logic.
-      if (mContent->IsHTMLElement()) {
-        mContent->AsElement()->GetAttr(nsGkAtoms::title, aDescription);
-      } else if (mContent->IsXULElement()) {
-        mContent->AsElement()->GetAttr(nsGkAtoms::tooltiptext, aDescription);
-      } else if (mContent->IsSVGElement()) {
-        for (nsIContent* childElm = mContent->GetFirstChild(); childElm;
-             childElm = childElm->GetNextSibling()) {
-          if (childElm->IsSVGElement(nsGkAtoms::desc)) {
-            nsTextEquivUtils::AppendTextEquivFromContent(this, childElm,
-                                                         &aDescription);
-            break;
-          }
-        }
-      }
-    }
+  if (aDescription.IsEmpty()) {
+    Tooltip(aDescription);
   }
 
   if (!aDescription.IsEmpty()) {
-    aDescription.CompressWhitespace();
     nsAutoString name;
     Name(name);
     // Don't expose a description if it is the same as the name.
@@ -1562,13 +1541,9 @@ void LocalAccessible::DOMAttributeChanged(int32_t aNameSpaceID,
 
   if (aAttribute == nsGkAtoms::title) {
     nsAutoString name;
-    ARIAName(name);
-    if (name.IsEmpty()) {
-      NativeName(name);
-      if (name.IsEmpty()) {
-        mDoc->FireDelayedEvent(nsIAccessibleEvent::EVENT_NAME_CHANGE, this);
-        return;
-      }
+    if (Name(name) == eNameFromTooltip || name.IsVoid()) {
+      mDoc->FireDelayedEvent(nsIAccessibleEvent::EVENT_NAME_CHANGE, this);
+      return;
     }
 
     if (!elm->HasAttr(nsGkAtoms::aria_describedby)) {
@@ -2021,6 +1996,9 @@ LocalAccessible* LocalAccessible::GetPopoverTargetDetailsRelation() const {
 
 LocalAccessible* LocalAccessible::GetAnchorPositionTargetDetailsRelation()
     const {
+  if (!StaticPrefs::accessibility_anchorPositionedAsDetails_enabled()) {
+    return nullptr;
+  }
   nsIFrame* positionedFrame = nsCoreUtils::GetPositionedFrameForAnchor(
       mDoc->PresShellPtr(), GetFrame());
   if (!positionedFrame) {
@@ -2436,7 +2414,8 @@ Relation LocalAccessible::RelationByType(RelationType aType) const {
 
       // Check early if the accessible is a tooltip. If so, it can never be a
       // valid target for an anchor's details relation.
-      if (Role() != roles::TOOLTIP) {
+      if (StaticPrefs::accessibility_anchorPositionedAsDetails_enabled() &&
+          Role() != roles::TOOLTIP) {
         if (const nsIFrame* anchorFrame =
                 nsCoreUtils::GetAnchorForPositionedFrame(mDoc->PresShellPtr(),
                                                          GetFrame())) {
@@ -2622,14 +2601,12 @@ ENameValueFlag LocalAccessible::ARIAName(nsString& aName) const {
     return eNameOK;
   }
   // aria-labelledby now takes precedence over aria-label
-  nsresult rv = nsTextEquivUtils::GetTextEquivFromIDRefs(
+  bool notSimpleRelation = nsTextEquivUtils::GetTextEquivFromIDRefs(
       this, nsGkAtoms::aria_labelledby, aName);
-  if (NS_SUCCEEDED(rv)) {
-    aName.CompressWhitespace();
-  }
+  aName.CompressWhitespace();
 
   if (!aName.IsEmpty()) {
-    return eNameFromRelations;
+    return notSimpleRelation ? eNameOK : eNameFromRelations;
   }
 
   if (mContent->IsElement() &&
@@ -2644,11 +2621,9 @@ ENameValueFlag LocalAccessible::ARIAName(nsString& aName) const {
 // LocalAccessible protected
 bool LocalAccessible::ARIADescription(nsString& aDescription) const {
   // aria-describedby takes precedence over aria-description
-  nsresult rv = nsTextEquivUtils::GetTextEquivFromIDRefs(
-      this, nsGkAtoms::aria_describedby, aDescription);
-  if (NS_SUCCEEDED(rv)) {
-    aDescription.CompressWhitespace();
-  }
+  nsTextEquivUtils::GetTextEquivFromIDRefs(this, nsGkAtoms::aria_describedby,
+                                           aDescription);
+  aDescription.CompressWhitespace();
 
   if (aDescription.IsEmpty() && mContent->IsElement() &&
       nsAccUtils::GetARIAAttr(mContent->AsElement(),
@@ -2660,18 +2635,48 @@ bool LocalAccessible::ARIADescription(nsString& aDescription) const {
 }
 
 // LocalAccessible protected
+bool LocalAccessible::Tooltip(nsString& aTooltip) const {
+  if (!HasOwnContent()) {
+    return false;
+  }
+
+  if (mContent->IsHTMLElement()) {
+    mContent->AsElement()->GetAttr(nsGkAtoms::title, aTooltip);
+    aTooltip.CompressWhitespace();
+    return !aTooltip.IsEmpty();
+  } else if (mContent->IsXULElement()) {
+    mContent->AsElement()->GetAttr(nsGkAtoms::tooltiptext, aTooltip);
+    aTooltip.CompressWhitespace();
+    return !aTooltip.IsEmpty();
+  } else if (mContent->IsSVGElement()) {
+    // If user agents need to choose among multiple 'desc' or 'title'
+    // elements for processing, the user agent shall choose the first one.
+    for (nsIContent* childElm = mContent->GetFirstChild(); childElm;
+         childElm = childElm->GetNextSibling()) {
+      if (childElm->IsSVGElement(nsGkAtoms::desc)) {
+        nsTextEquivUtils::AppendTextEquivFromContent(this, childElm, &aTooltip);
+        aTooltip.CompressWhitespace();
+        return !aTooltip.IsEmpty();
+      }
+    }
+  }
+  return false;
+}
+
+// LocalAccessible protected
 ENameValueFlag LocalAccessible::NativeName(nsString& aName) const {
   if (mContent->IsHTMLElement()) {
     LocalAccessible* label = nullptr;
     HTMLLabelIterator iter(Document(), this);
+    bool notSimpleRelation = false;
     while ((label = iter.Next())) {
-      nsTextEquivUtils::AppendTextEquivFromContent(this, label->GetContent(),
-                                                   &aName);
+      notSimpleRelation |= nsTextEquivUtils::AppendTextEquivFromContent(
+          this, label->GetContent(), &aName);
       aName.CompressWhitespace();
     }
 
     if (!aName.IsEmpty()) {
-      return eNameFromRelations;
+      return notSimpleRelation ? eNameOK : eNameFromRelations;
     }
 
     NameFromAssociatedXULLabel(mDoc, mContent, aName);
@@ -2679,16 +2684,20 @@ ENameValueFlag LocalAccessible::NativeName(nsString& aName) const {
       return eNameOK;
     }
 
-    nsTextEquivUtils::GetNameFromSubtree(this, aName);
-    return aName.IsEmpty() ? eNameOK : eNameFromSubtree;
+    // We return eNameFromSubtree here to indicate that if there is no native
+    // name we will calculate the name from the subtree next. This is useful for
+    // noting where the name will come from in cases like name change
+    // notifications.
+    return eNameFromSubtree;
   }
 
   if (mContent->IsXULElement()) {
     XULElmName(mDoc, mContent, aName);
     if (!aName.IsEmpty()) return eNameOK;
 
-    nsTextEquivUtils::GetNameFromSubtree(this, aName);
-    return aName.IsEmpty() ? eNameOK : eNameFromSubtree;
+    // We return eNameFromSubtree here to indicate that if there is no native
+    // name we will calculate the name from the subtree next. See above.
+    return eNameFromSubtree;
   }
 
   if (mContent->IsSVGElement()) {
@@ -3385,12 +3394,7 @@ already_AddRefed<AccAttributes> LocalAccessible::BundleFieldsForCache(
   // always their text. Text gets handled below.
   if (aCacheDomain & CacheDomain::NameAndDescription && !IsText()) {
     nsString name;
-    int32_t nameFlag = Name(name);
-    if (nameFlag != eNameOK) {
-      fields->SetAttribute(CacheKey::NameValueFlag, nameFlag);
-    } else if (IsUpdatePush(CacheDomain::NameAndDescription)) {
-      fields->SetAttribute(CacheKey::NameValueFlag, DeleteEntry());
-    }
+    ENameValueFlag nameFlag = DirectName(name);
 
     if (IsTextField()) {
       MOZ_ASSERT(mContent);
@@ -3404,10 +3408,25 @@ already_AddRefed<AccAttributes> LocalAccessible::BundleFieldsForCache(
       }
     }
 
-    if (!name.IsEmpty()) {
+    if (nameFlag != eNameFromRelations && !name.IsEmpty()) {
       fields->SetAttribute(CacheKey::Name, std::move(name));
     } else if (IsUpdatePush(CacheDomain::NameAndDescription)) {
       fields->SetAttribute(CacheKey::Name, DeleteEntry());
+    }
+
+    nsString tooltip;
+    if (Tooltip(tooltip)) {
+      fields->SetAttribute(CacheKey::Tooltip, std::move(tooltip));
+    } else if (IsUpdatePush(CacheDomain::NameAndDescription)) {
+      fields->SetAttribute(CacheKey::Tooltip, DeleteEntry());
+    }
+
+    nsString cssAltContent;
+    if (auto cssAlt = CssAltContent(mContent)) {
+      cssAlt.AppendToString(cssAltContent);
+      fields->SetAttribute(CacheKey::CssAltContent, std::move(cssAltContent));
+    } else if (IsUpdatePush(CacheDomain::NameAndDescription)) {
+      fields->SetAttribute(CacheKey::CssAltContent, DeleteEntry());
     }
 
     nsString description;

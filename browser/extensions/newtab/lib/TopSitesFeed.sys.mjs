@@ -95,8 +95,6 @@ const NIMBUS_VARIABLE_MAX_SPONSORED = "topSitesMaxSponsored";
 //considered for Top Sites.
 const NIMBUS_VARIABLE_ADDITIONAL_TILES =
   "topSitesUseAdditionalTilesFromContile";
-// Nimbus variable to enable the SOV feature for sponsored tiles.
-const NIMBUS_VARIABLE_CONTILE_SOV_ENABLED = "topSitesContileSovEnabled";
 // Nimbu variable for the total number of sponsor topsite that come from Contile
 // The default will be `CONTILE_MAX_NUM_SPONSORED` if variable is unspecified.
 const NIMBUS_VARIABLE_CONTILE_MAX_NUM_SPONSORED = "topSitesContileMaxSponsored";
@@ -403,7 +401,7 @@ export class ContileIntegration {
   /**
    * Filter the tiles whose sponsor is on the Top Sites sponsor blocklist.
    *
-   * @param {array} tiles
+   * @param {Array} tiles
    *   An array of the tile objects
    */
   _filterBlockedSponsors(tiles) {
@@ -1158,7 +1156,7 @@ export class TopSitesFeed {
    * needed.
    *
    * @param {Array} plainPinnedSites (from the pinnedSitesCache)
-   * @returns {Boolean} Did we insert any search shortcuts?
+   * @returns {boolean} Did we insert any search shortcuts?
    */
   async _maybeInsertSearchShortcuts(plainPinnedSites) {
     // Only insert shortcuts if the experiment is running
@@ -1588,19 +1586,13 @@ export class TopSitesFeed {
    * If the chosen partner doesn't have a tile to serve, another tile from a different
    * partner is used as the replacement.
    *
-   * @param {Object} sponsoredLinks An object with sponsored links from all the partners.
+   * @param {object} sponsoredLinks An object with sponsored links from all the partners.
    * @returns {Array} An array of merged sponsored links.
    */
   _mergeSponsoredLinks(sponsoredLinks) {
     const { positions: allocatedPositions, ready: sovReady } =
       this.store.getState().TopSites.sov || {};
-    if (
-      !this._contile.sov ||
-      !sovReady ||
-      !lazy.NimbusFeatures.pocketNewtab.getVariable(
-        NIMBUS_VARIABLE_CONTILE_SOV_ENABLED
-      )
-    ) {
+    if (!this._contile.sov || !sovReady) {
       return Object.values(sponsoredLinks).flat();
     }
 

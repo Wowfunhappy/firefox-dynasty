@@ -590,9 +590,9 @@ static void ReleaseValue(T* aPropertyValue) {
     return nsQueryFrame::class##_id;                                           \
   }
 
-#define NS_IMPL_FRAMEARENA_HELPERS(class)                              \
-  void* class ::operator new(size_t sz, mozilla::PresShell * aShell) { \
-    return aShell->AllocateFrame(nsQueryFrame::class##_id, sz);        \
+#define NS_IMPL_FRAMEARENA_HELPERS(class)                             \
+  void* class ::operator new(size_t sz, mozilla::PresShell* aShell) { \
+    return aShell->AllocateFrame(nsQueryFrame::class##_id, sz);       \
   }
 
 #define NS_DECL_ABSTRACT_FRAME(class)                                         \
@@ -4040,6 +4040,9 @@ class nsIFrame : public nsQueryFrame {
   /**
    * Called to discover where this frame, or a parent frame has user-select
    * style applied, which affects that way that it is selected.
+   * NOTE: Even if this returns true it does NOT mean the `user-select` style
+   * is not `none`.  If the content is editable or a text control element, this
+   * returns true.
    *
    * @param aSelectStyle out param. Returns the type of selection style found
    * (using values defined in nsStyleConsts.h).
@@ -4047,7 +4050,8 @@ class nsIFrame : public nsQueryFrame {
    * @return Whether the frame can be selected (i.e. is not affected by
    * user-select: none)
    */
-  bool IsSelectable(mozilla::StyleUserSelect* aSelectStyle) const;
+  [[nodiscard]] bool IsSelectable(
+      mozilla::StyleUserSelect* aSelectStyle = nullptr) const;
 
   /**
    * Returns whether this frame should have the content-block-size of a line,
@@ -4720,10 +4724,12 @@ class nsIFrame : public nsQueryFrame {
   inline bool IsLegacyWebkitBox() const;
 
   /**
-   * Return true if this frame has masonry layout in aAxis.
+   * Return true if this frame has masonry layout in aAxis (in the writing
+   * mode aWM).
    * @note only valid to call on nsGridContainerFrames
    */
-  inline bool IsMasonry(mozilla::LogicalAxis aAxis) const;
+  inline bool IsMasonry(mozilla::WritingMode aWM,
+                        mozilla::LogicalAxis aAxis) const;
 
   /**
    * @return true if this frame is used as a table caption.

@@ -91,69 +91,6 @@ void nsView::Destroy() {
   nsView::operator delete(this);
 }
 
-struct WidgetViewBounds {
-  nsRect mBounds;
-  int32_t mRoundTo = 1;
-};
-
-static WidgetViewBounds CalcWidgetViewBounds(const nsRect& aBounds,
-                                             int32_t aAppUnitsPerDevPixel,
-                                             nsIFrame* aParentFrame,
-                                             nsIWidget* aThisWidget,
-                                             WindowType aType) {
-  nsRect viewBounds(aBounds);
-  nsIWidget* parentWidget = nullptr;
-  if (aParentFrame) {
-    nsPoint offset;
-    parentWidget = aParentFrame->GetNearestWidget(offset);
-    // make viewBounds be relative to the parent widget, in appunits
-    viewBounds += offset;
-
-    if (parentWidget && aType == WindowType::Popup) {
-      // put offset into screen coordinates. (based on client area origin)
-      LayoutDeviceIntPoint screenPoint = parentWidget->WidgetToScreenOffset();
-      viewBounds +=
-          nsPoint(NSIntPixelsToAppUnits(screenPoint.x, aAppUnitsPerDevPixel),
-                  NSIntPixelsToAppUnits(screenPoint.y, aAppUnitsPerDevPixel));
-    }
-  }
-
-  nsIWidget* widget = parentWidget ? parentWidget : aThisWidget;
-  int32_t roundTo = widget ? widget->RoundsWidgetCoordinatesTo() : 1;
-  return {viewBounds, roundTo};
-}
-
-static LayoutDeviceIntRect WidgetViewBoundsToDevicePixels(
-    const WidgetViewBounds& aViewBounds, int32_t aAppUnitsPerDevPixel,
-    WindowType aType, TransparencyMode aTransparency) {
-  // Compute widget bounds in device pixels
-  // TODO(emilio): We should probably use outside pixels for transparent
-  // windows (not just popups) as well.
-  if (aType != WindowType::Popup) {
-    return LayoutDeviceIntRect::FromUnknownRect(
-        aViewBounds.mBounds.ToNearestPixels(aAppUnitsPerDevPixel));
-  }
-  // We use outside pixels for transparent windows if possible, so that we
-  // don't truncate the contents. For opaque popups, we use nearest pixels
-  // which prevents having pixels not drawn by the frame.
-  const bool opaque = aTransparency == TransparencyMode::Opaque;
-  const auto idealBounds = LayoutDeviceIntRect::FromUnknownRect(
-      opaque ? aViewBounds.mBounds.ToNearestPixels(aAppUnitsPerDevPixel)
-             : aViewBounds.mBounds.ToOutsidePixels(aAppUnitsPerDevPixel));
-
-  return nsIWidget::MaybeRoundToDisplayPixels(idealBounds, aTransparency,
-                                              aViewBounds.mRoundTo);
-}
-
-LayoutDeviceIntRect nsView::CalcWidgetBounds(
-    const nsRect& aBounds, int32_t aAppUnitsPerDevPixel, nsIFrame* aParentFrame,
-    nsIWidget* aThisWidget, WindowType aType, TransparencyMode aTransparency) {
-  auto viewBounds = CalcWidgetViewBounds(aBounds, aAppUnitsPerDevPixel,
-                                         aParentFrame, aThisWidget, aType);
-  return WidgetViewBoundsToDevicePixels(viewBounds, aAppUnitsPerDevPixel, aType,
-                                        aTransparency);
-}
-
 // Attach to a top level widget and start receiving mirrored events.
 void nsView::AttachToTopLevelWidget(nsIWidget* aWidget) {
   MOZ_ASSERT(aWidget, "null widget ptr");
@@ -172,10 +109,6 @@ void nsView::AttachToTopLevelWidget(nsIWidget* aWidget) {
       oldView->DetachFromTopLevelWidget();
     }
   }
-
-  // Note, the previous device context will be released. Detaching
-  // will not restore the old one.
-  aWidget->AttachViewToTopLevel(!nsIWidget::UsePuppetWidgets());
 
   mWindow = aWidget;
 
@@ -222,12 +155,6 @@ void nsView::List(FILE* out, int32_t aIndent) const {
   fputs(">\n", out);
 }
 #endif  // DEBUG
-
-bool nsView::IsRoot() const {
-  NS_ASSERTION(mViewManager != nullptr,
-               " View manager is null in nsView::IsRoot()");
-  return mViewManager->GetRootView() == this;
-}
 
 PresShell* nsView::GetPresShell() { return GetViewManager()->GetPresShell(); }
 
@@ -367,24 +294,12 @@ void nsView::DidCompositeWindow(mozilla::layers::TransactionId aTransactionId,
                                        aCompositeEnd);
 }
 
-nsEventStatus nsView::HandleEvent(WidgetGUIEvent* aEvent,
-                                  bool aUseAttachedEvents) {
+nsEventStatus nsView::HandleEvent(WidgetGUIEvent* aEvent) {
   MOZ_ASSERT(aEvent->mWidget, "null widget ptr");
 
   nsEventStatus result = nsEventStatus_eIgnore;
-  auto* listener = [&]() -> nsIWidgetListener* {
-    if (!aUseAttachedEvents) {
-      if (auto* l = aEvent->mWidget->GetWidgetListener()) {
-        return l;
-      }
-    }
-    return aEvent->mWidget->GetAttachedWidgetListener();
-  }();
-  if (NS_WARN_IF(!listener)) {
-    return result;
-  }
   nsViewManager::MaybeUpdateLastUserEventTime(aEvent);
-  if (RefPtr<PresShell> ps = listener->GetPresShell()) {
+  if (RefPtr<PresShell> ps = GetPresShell()) {
     if (nsIFrame* root = ps->GetRootFrame()) {
       ps->HandleEvent(root, aEvent, false, &result);
     }
@@ -394,10 +309,6 @@ nsEventStatus nsView::HandleEvent(WidgetGUIEvent* aEvent,
 
 void nsView::SafeAreaInsetsChanged(
     const LayoutDeviceIntMargin& aSafeAreaInsets) {
-  if (!IsRoot()) {
-    return;
-  }
-
   PresShell* presShell = mViewManager->GetPresShell();
   if (!presShell) {
     return;

@@ -201,7 +201,9 @@ Preferences.addAll([
 
   // Firefox VPN
   { id: "browser.ipProtection.variant", type: "string" },
+  { id: "browser.ipProtection.features.siteExceptions", type: "bool" },
   { id: "browser.ipProtection.exceptionsMode", type: "string" },
+  { id: "browser.ipProtection.features.autoStart", type: "bool" },
   { id: "browser.ipProtection.autoStartEnabled", type: "bool" },
   { id: "browser.ipProtection.autoStartPrivateEnabled", type: "bool" },
 
@@ -210,6 +212,7 @@ Preferences.addAll([
 
   // Popups
   { id: "dom.disable_open_during_load", type: "bool" },
+
   // Passwords
   { id: "signon.rememberSignons", type: "bool" },
   { id: "signon.generation.enabled", type: "bool" },
@@ -568,58 +571,211 @@ if (Services.prefs.getBoolPref("privacy.ui.status_card", false)) {
     pref: "browser.contentblocking.category",
     get: prefValue => prefValue == "strict",
   });
-  Preferences.addSetting({
-    id: "trackerCount",
-    cachedValue: null,
-    async setup(emitChange) {
-      const now = Date.now();
-      const aMonthAgo = new Date(now - 30 * 24 * 60 * 60 * 1000);
-      const events = await lazy.TrackingDBService.getEventsByDateRange(
-        now,
-        aMonthAgo
-      );
-      const total = events.reduce((acc, day) => {
-        return acc + day.getResultByName("count");
-      }, 0);
-      this.cachedValue = total;
-      emitChange();
-    },
-    get() {
-      return this.cachedValue;
-    },
-  });
-  Preferences.addSetting({
-    id: "appUpdateStatus",
-    cachedValue: AppUpdater.STATUS.NO_UPDATER,
-    async setup(emitChange) {
-      if (AppConstants.MOZ_UPDATER && !gIsPackagedApp) {
-        let appUpdater = new AppUpdater();
-        let listener = (status, ..._args) => {
-          this.cachedValue = status;
-          emitChange();
-        };
-        appUpdater.addListener(listener);
-        await appUpdater.check();
-        return () => {
-          appUpdater.removeListener(listener);
-          appUpdater.stop();
-        };
-      }
-      return () => {};
-    },
-    get() {
-      return this.cachedValue;
-    },
-    set(value) {
-      this.cachedValue = value;
-    },
-  });
+  Preferences.addSetting(
+    /** @type {{ cachedValue: number, loadTrackerCount: (emitChange: SettingEmitChange) => Promise<void> } & SettingConfig} */ ({
+      id: "trackerCount",
+      cachedValue: null,
+      async loadTrackerCount(emitChange) {
+        const now = Date.now();
+        const aMonthAgo = new Date(now - 30 * 24 * 60 * 60 * 1000);
+        /** @type {{ getResultByName: (_: string) => number }[]} */
+        const events = await lazy.TrackingDBService.getEventsByDateRange(
+          now,
+          aMonthAgo
+        );
+
+        const total = events.reduce((acc, day) => {
+          return acc + day.getResultByName("count");
+        }, 0);
+        this.cachedValue = total;
+        emitChange();
+      },
+      setup(emitChange) {
+        this.loadTrackerCount(emitChange);
+      },
+      get() {
+        return this.cachedValue;
+      },
+    })
+  );
+  Preferences.addSetting(
+    /** @type {{ cachedValue: any } & SettingConfig} */ ({
+      id: "appUpdateStatus",
+      cachedValue: AppUpdater.STATUS.NO_UPDATER,
+      setup(emitChange) {
+        if (AppConstants.MOZ_UPDATER && !gIsPackagedApp) {
+          let appUpdater = new AppUpdater();
+          /**
+           * @param {number} status
+           * @param {any[]} _args
+           */
+          let listener = (status, ..._args) => {
+            this.cachedValue = status;
+            emitChange();
+          };
+          appUpdater.addListener(listener);
+          appUpdater.check();
+          return () => {
+            appUpdater.removeListener(listener);
+            appUpdater.stop();
+          };
+        }
+        return () => {};
+      },
+      get() {
+        return this.cachedValue;
+      },
+      set(value) {
+        this.cachedValue = value;
+      },
+    })
+  );
 }
+
+Preferences.addSetting({
+  id: "savePasswords",
+  pref: "signon.rememberSignons",
+  controllingExtensionInfo: {
+    storeId: "services.passwordSavingEnabled",
+    l10nId: "extension-controlling-password-saving",
+  },
+});
+
+Preferences.addSetting({
+  id: "managePasswordExceptions",
+  onUserClick: () => {
+    gPrivacyPane.showPasswordExceptions();
+  },
+});
+
+Preferences.addSetting({
+  id: "fillUsernameAndPasswords",
+  pref: "signon.autofillForms",
+});
+
+Preferences.addSetting({
+  id: "suggestStrongPasswords",
+  pref: "signon.generation.enabled",
+  visible: () => Services.prefs.getBoolPref("signon.generation.available"),
+});
+
+Preferences.addSetting({
+  id: "requireOSAuthForPasswords",
+  visible: () => OSKeyStore.canReauth(),
+  get: () => LoginHelper.getOSAuthEnabled(),
+  async set(checked) {
+    const [messageText, captionText] = await Promise.all([
+      lazy.AboutLoginsL10n.formatValue("about-logins-os-auth-dialog-message"),
+      lazy.AboutLoginsL10n.formatValue("about-logins-os-auth-dialog-caption"),
+    ]);
+
+    await LoginHelper.trySetOSAuthEnabled(
+      window,
+      checked,
+      messageText,
+      captionText
+    );
+
+    // Trigger change event to keep checkbox UI in sync with pref value
+    Services.obs.notifyObservers(null, "PasswordsOSAuthEnabledChange");
+  },
+  setup: emitChange => {
+    Services.obs.addObserver(emitChange, "PasswordsOSAuthEnabledChange");
+    return () =>
+      Services.obs.removeObserver(emitChange, "PasswordsOSAuthEnabledChange");
+  },
+});
+
+Preferences.addSetting({
+  id: "manageSavedPasswords",
+  onUserClick: ({ target }) => {
+    target.ownerGlobal.gPrivacyPane.showPasswords();
+  },
+});
+
+Preferences.addSetting({
+  id: "additionalProtectionsGroup",
+});
+
+Preferences.addSetting({
+  id: "primaryPasswordNotSet",
+  setup(emitChange) {
+    const topic = "passwordmgr-primary-pw-changed";
+    Services.obs.addObserver(emitChange, topic);
+    return () => Services.obs.removeObserver(emitChange, topic);
+  },
+  visible: () => {
+    return !LoginHelper.isPrimaryPasswordSet();
+  },
+});
+
+Preferences.addSetting({
+  id: "usePrimaryPassword",
+  deps: ["primaryPasswordNotSet"],
+});
+
+Preferences.addSetting({
+  id: "addPrimaryPassword",
+  deps: ["primaryPasswordNotSet"],
+  onUserClick: ({ target }) => {
+    target.ownerGlobal.gPrivacyPane.changeMasterPassword();
+  },
+  disabled: () => {
+    return !Services.policies.isAllowed("createMasterPassword");
+  },
+});
+
+Preferences.addSetting({
+  id: "primaryPasswordSet",
+  setup(emitChange) {
+    const topic = "passwordmgr-primary-pw-changed";
+    Services.obs.addObserver(emitChange, topic);
+    return () => Services.obs.removeObserver(emitChange, topic);
+  },
+  visible: () => {
+    return LoginHelper.isPrimaryPasswordSet();
+  },
+});
+
+Preferences.addSetting({
+  id: "statusPrimaryPassword",
+  deps: ["primaryPasswordSet"],
+  onUserClick: e => {
+    if (e.target.localName == "moz-button") {
+      e.target.ownerGlobal.gPrivacyPane._removeMasterPassword();
+    }
+  },
+  getControlConfig(config) {
+    config.options[0].controlAttrs = {
+      ...config.options[0].controlAttrs,
+      ...(!Services.policies.isAllowed("removeMasterPassword")
+        ? { disabled: "" }
+        : {}),
+    };
+    return config;
+  },
+});
+
+Preferences.addSetting({
+  id: "changePrimaryPassword",
+  deps: ["primaryPasswordSet"],
+  onUserClick: ({ target }) => {
+    target.ownerGlobal.gPrivacyPane.changeMasterPassword();
+  },
+});
+
+Preferences.addSetting({
+  id: "breachAlerts",
+  pref: "signon.management.page.breach-alerts.enabled",
+});
+
 /**
  * This class is used to create Settings that are used to warn the user about
  * potential misconfigurations. It should be passed into Preferences.addSetting
  * to create the Preference for a <moz-box-item> because it creates
  * separate members on pref.config
+ *
+ * @implements {SettingConfig}
  */
 class WarningSettingConfig {
   /**
@@ -635,7 +791,7 @@ class WarningSettingConfig {
   /**
    *
    * @param {string} id - The unique setting ID for the setting created by this config
-   * @param {Object.<string,string>} prefMapping - A map from member name (to be used in the
+   * @param {{[key: string]: string}} prefMapping - A map from member name (to be used in the
    * `problematic` arg's arg) to pref string, containing all of the preferences this Setting
    * relies upon. On setup, this object will create properties for each entry here, where the
    * value is the result of Preferences.get(key).
@@ -689,9 +845,9 @@ class WarningSettingConfig {
    * This initializes the Setting created with this config, starting listeners for all dependent
    * Preferences and providing a cleanup callback to remove them
    *
-   * @param {Function} emitChange - a callback to be invoked any time that the Setting created
+   * @param {() => any} emitChange - a callback to be invoked any time that the Setting created
    * with this config is changed
-   * @returns {Function} a function that cleans up the state from this Setting, namely pref change listeners.
+   * @returns {() => any} a function that cleans up the state from this Setting, namely pref change listeners.
    */
   setup(emitChange) {
     for (let [getter, prefId] of Object.entries(this.prefMapping)) {
@@ -710,7 +866,7 @@ class WarningSettingConfig {
    * "dismiss" action depending on the target, and those callbacks are defined
    * in this class.
    *
-   * @param {Event} event - The event for the user click
+   * @param {PointerEvent} event - The event for the user click
    */
   onUserClick(event) {
     switch (event.target.id) {
@@ -1112,6 +1268,7 @@ if (Services.prefs.getBoolPref("privacy.ui.status_card", false)) {
   );
 }
 
+/** @type {SettingControlConfig[]} */
 const SECURITY_WARNINGS = [
   {
     l10nId: "security-privacy-issue-warning-test",
@@ -1207,39 +1364,41 @@ const SECURITY_WARNINGS = [
   },
 ];
 
-Preferences.addSetting({
-  id: "securityWarningsGroup",
-  makeSecurityWarningItems() {
-    return SECURITY_WARNINGS.map(({ id, l10nId }) => ({
-      id,
-      l10nId,
-      control: "moz-box-item",
-      options: [
-        {
-          control: "moz-button",
-          l10nId: "issue-card-reset-button",
-          controlAttrs: { slot: "actions", size: "small", id: "reset" },
-        },
-        {
-          control: "moz-button",
-          l10nId: "issue-card-dismiss-button",
-          controlAttrs: {
-            slot: "actions",
-            size: "small",
-            iconsrc: "chrome://global/skin/icons/close.svg",
-            id: "dismiss",
+Preferences.addSetting(
+  /** @type {{ makeSecurityWarningItems: () => SettingControlConfig[] } & SettingConfig} */ ({
+    id: "securityWarningsGroup",
+    makeSecurityWarningItems() {
+      return SECURITY_WARNINGS.map(({ id, l10nId }) => ({
+        id,
+        l10nId,
+        control: "moz-box-item",
+        options: [
+          {
+            control: "moz-button",
+            l10nId: "issue-card-reset-button",
+            controlAttrs: { slot: "actions", size: "small", id: "reset" },
           },
-        },
-      ],
-    }));
-  },
-  getControlConfig(config) {
-    if (!config.items) {
-      return { ...config, items: this.makeSecurityWarningItems() };
-    }
-    return config;
-  },
-});
+          {
+            control: "moz-button",
+            l10nId: "issue-card-dismiss-button",
+            controlAttrs: {
+              slot: "actions",
+              size: "small",
+              iconsrc: "chrome://global/skin/icons/close.svg",
+              id: "dismiss",
+            },
+          },
+        ],
+      }));
+    },
+    getControlConfig(config) {
+      if (!config.items) {
+        return { ...config, items: this.makeSecurityWarningItems() };
+      }
+      return config;
+    },
+  })
+);
 
 Preferences.addSetting({
   id: "privacyCard",
@@ -1256,12 +1415,20 @@ Preferences.addSetting({
   pref: "browser.ipProtection.variant",
   get: prefVal => prefVal == "beta",
 });
+Preferences.addSetting({
+  id: "ipProtectionSiteExceptionsFeatureEnabled",
+  pref: "browser.ipProtection.features.siteExceptions",
+});
 // This setting also affects the radio group for site exceptions
 Preferences.addSetting({
   id: "ipProtectionExceptionsMode",
   pref: "browser.ipProtection.exceptionsMode",
-  deps: ["ipProtectionVisible"],
-  visible: ({ ipProtectionVisible }) => ipProtectionVisible.value,
+  deps: ["ipProtectionVisible", "ipProtectionSiteExceptionsFeatureEnabled"],
+  visible: ({
+    ipProtectionVisible,
+    ipProtectionSiteExceptionsFeatureEnabled,
+  }) =>
+    ipProtectionVisible.value && ipProtectionSiteExceptionsFeatureEnabled.value,
 });
 Preferences.addSetting({
   id: "ipProtectionExceptionAllListButton",
@@ -1306,9 +1473,15 @@ Preferences.addSetting({
   },
 });
 Preferences.addSetting({
+  id: "ipProtectionAutoStartFeatureEnabled",
+  pref: "browser.ipProtection.features.autoStart",
+  get: prefVal => prefVal,
+});
+Preferences.addSetting({
   id: "ipProtectionAutoStart",
-  deps: ["ipProtectionVisible"],
-  visible: ({ ipProtectionVisible }) => ipProtectionVisible.value,
+  deps: ["ipProtectionVisible", "ipProtectionAutoStartFeatureEnabled"],
+  visible: ({ ipProtectionVisible, ipProtectionAutoStartFeatureEnabled }) =>
+    ipProtectionVisible.value && ipProtectionAutoStartFeatureEnabled.value,
 });
 Preferences.addSetting({
   id: "ipProtectionAutoStartCheckbox",
@@ -1508,7 +1681,7 @@ Preferences.addSetting({
     deps.blockUnwantedDownloads.value = value;
 
     let malwareTable = Preferences.get("urlclassifier.malwareTable");
-    let malware = malwareTable.value
+    let malware = /** @type {string} */ (malwareTable.value)
       .split(",")
       .filter(
         x =>
@@ -1545,61 +1718,68 @@ Preferences.addSetting({
 Preferences.addSetting({
   id: "manageDataSettingsGroup",
 });
-Preferences.addSetting({
-  id: "siteDataSize",
-  setup(emitChange) {
-    let onUsageChanged = async () => {
-      let [siteDataUsage, cacheUsage] = await Promise.all([
-        SiteDataManager.getTotalUsage(),
-        SiteDataManager.getCacheSize(),
-      ]);
-      let totalUsage = siteDataUsage + cacheUsage;
-      let [value, unit] = DownloadUtils.convertByteUnits(totalUsage);
-      this.usage = { value, unit };
+Preferences.addSetting(
+  /** @type {{ isUpdatingSites: boolean, usage: { value: number, unit: string } | void } & SettingConfig} */ ({
+    id: "siteDataSize",
+    usage: null,
+    isUpdatingSites: false,
+    setup(emitChange) {
+      let onUsageChanged = async () => {
+        let [siteDataUsage, cacheUsage] = await Promise.all([
+          SiteDataManager.getTotalUsage(),
+          SiteDataManager.getCacheSize(),
+        ]);
+        let totalUsage = siteDataUsage + cacheUsage;
+        let [value, unit] = DownloadUtils.convertByteUnits(totalUsage);
+        this.usage = { value, unit };
 
-      this.isUpdatingSites = false;
-      emitChange();
-    };
+        this.isUpdatingSites = false;
+        emitChange();
+      };
 
-    let onUpdatingSites = () => {
-      this.isUpdatingSites = true;
-      emitChange();
-    };
+      let onUpdatingSites = () => {
+        this.isUpdatingSites = true;
+        emitChange();
+      };
 
-    Services.obs.addObserver(onUsageChanged, "sitedatamanager:sites-updated");
-    Services.obs.addObserver(onUpdatingSites, "sitedatamanager:updating-sites");
-
-    return () => {
-      Services.obs.removeObserver(
-        onUsageChanged,
-        "sitedatamanager:sites-updated"
-      );
-      Services.obs.removeObserver(
+      Services.obs.addObserver(onUsageChanged, "sitedatamanager:sites-updated");
+      Services.obs.addObserver(
         onUpdatingSites,
         "sitedatamanager:updating-sites"
       );
-    };
-  },
-  getControlConfig(config) {
-    if (this.isUpdatingSites || !this.usage) {
-      // Data not retrieved yet, show a loading state.
+
+      return () => {
+        Services.obs.removeObserver(
+          onUsageChanged,
+          "sitedatamanager:sites-updated"
+        );
+        Services.obs.removeObserver(
+          onUpdatingSites,
+          "sitedatamanager:updating-sites"
+        );
+      };
+    },
+    getControlConfig(config) {
+      if (this.isUpdatingSites || !this.usage) {
+        // Data not retrieved yet, show a loading state.
+        return {
+          ...config,
+          l10nId: "sitedata-total-size-calculating",
+        };
+      }
+
+      let { value, unit } = this.usage;
       return {
         ...config,
-        l10nId: "sitedata-total-size-calculating",
+        l10nId: "sitedata-total-size2",
+        l10nArgs: {
+          value,
+          unit,
+        },
       };
-    }
-
-    let { value, unit } = this.usage;
-    return {
-      ...config,
-      l10nId: "sitedata-total-size2",
-      l10nArgs: {
-        value,
-        unit,
-      },
-    };
-  },
-});
+    },
+  })
+);
 
 Preferences.addSetting({
   id: "deleteOnCloseInfo",
@@ -1609,91 +1789,104 @@ Preferences.addSetting({
   },
 });
 
-Preferences.addSetting({
-  id: "clearSiteDataButton",
-  setup(emitChange) {
-    let onSitesUpdated = async () => {
-      this.isUpdatingSites = false;
-      emitChange();
-    };
+Preferences.addSetting(
+  /** @type {{ isUpdatingSites: boolean } & SettingConfig} */ ({
+    id: "clearSiteDataButton",
+    isUpdatingSites: false,
+    setup(emitChange) {
+      let onSitesUpdated = async () => {
+        this.isUpdatingSites = false;
+        emitChange();
+      };
 
-    let onUpdatingSites = () => {
-      this.isUpdatingSites = true;
-      emitChange();
-    };
+      let onUpdatingSites = () => {
+        this.isUpdatingSites = true;
+        emitChange();
+      };
 
-    Services.obs.addObserver(onSitesUpdated, "sitedatamanager:sites-updated");
-    Services.obs.addObserver(onUpdatingSites, "sitedatamanager:updating-sites");
-
-    return () => {
-      Services.obs.removeObserver(
-        onSitesUpdated,
-        "sitedatamanager:sites-updated"
-      );
-      Services.obs.removeObserver(
+      Services.obs.addObserver(onSitesUpdated, "sitedatamanager:sites-updated");
+      Services.obs.addObserver(
         onUpdatingSites,
         "sitedatamanager:updating-sites"
       );
-    };
-  },
-  onUserClick() {
-    let uri;
-    if (useOldClearHistoryDialog) {
-      uri = "chrome://browser/content/preferences/dialogs/clearSiteData.xhtml";
-    } else {
-      uri = "chrome://browser/content/sanitize_v2.xhtml";
-    }
 
-    gSubDialog.open(
-      uri,
-      {
-        features: "resizable=no",
-      },
-      {
-        mode: "clearSiteData",
+      return () => {
+        Services.obs.removeObserver(
+          onSitesUpdated,
+          "sitedatamanager:sites-updated"
+        );
+        Services.obs.removeObserver(
+          onUpdatingSites,
+          "sitedatamanager:updating-sites"
+        );
+      };
+    },
+    onUserClick() {
+      let uri;
+      if (useOldClearHistoryDialog) {
+        uri =
+          "chrome://browser/content/preferences/dialogs/clearSiteData.xhtml";
+      } else {
+        uri = "chrome://browser/content/sanitize_v2.xhtml";
       }
-    );
-  },
-  disabled() {
-    return this.isUpdatingSites;
-  },
-});
-Preferences.addSetting({
-  id: "siteDataSettings",
-  setup(emitChange) {
-    let onSitesUpdated = async () => {
-      this.isUpdatingSites = false;
-      emitChange();
-    };
 
-    let onUpdatingSites = () => {
-      this.isUpdatingSites = true;
-      emitChange();
-    };
-
-    Services.obs.addObserver(onSitesUpdated, "sitedatamanager:sites-updated");
-    Services.obs.addObserver(onUpdatingSites, "sitedatamanager:updating-sites");
-
-    return () => {
-      Services.obs.removeObserver(
-        onSitesUpdated,
-        "sitedatamanager:sites-updated"
+      gSubDialog.open(
+        uri,
+        {
+          features: "resizable=no",
+        },
+        {
+          mode: "clearSiteData",
+        }
       );
-      Services.obs.removeObserver(
+    },
+    disabled() {
+      return this.isUpdatingSites;
+    },
+  })
+);
+Preferences.addSetting(
+  /** @type {{ isUpdatingSites: boolean } & SettingConfig} */ ({
+    id: "siteDataSettings",
+    isUpdatingSites: false,
+    setup(emitChange) {
+      let onSitesUpdated = async () => {
+        this.isUpdatingSites = false;
+        emitChange();
+      };
+
+      let onUpdatingSites = () => {
+        this.isUpdatingSites = true;
+        emitChange();
+      };
+
+      Services.obs.addObserver(onSitesUpdated, "sitedatamanager:sites-updated");
+      Services.obs.addObserver(
         onUpdatingSites,
         "sitedatamanager:updating-sites"
       );
-    };
-  },
-  onUserClick() {
-    gSubDialog.open(
-      "chrome://browser/content/preferences/dialogs/siteDataSettings.xhtml"
-    );
-  },
-  disabled() {
-    return this.isUpdatingSites;
-  },
-});
+
+      return () => {
+        Services.obs.removeObserver(
+          onSitesUpdated,
+          "sitedatamanager:sites-updated"
+        );
+        Services.obs.removeObserver(
+          onUpdatingSites,
+          "sitedatamanager:updating-sites"
+        );
+      };
+    },
+    onUserClick() {
+      gSubDialog.open(
+        "chrome://browser/content/preferences/dialogs/siteDataSettings.xhtml"
+      );
+    },
+    disabled() {
+      return this.isUpdatingSites;
+    },
+  })
+);
 Preferences.addSetting({
   id: "cookieExceptions",
   onUserClick() {
@@ -3247,6 +3440,9 @@ var gPrivacyPane = {
     this._initMasterPasswordUI();
     this._initOSAuthentication();
 
+    // Init passwords settings group
+    initSettingGroup("passwords");
+
     this.initListenersForExtensionControllingPasswordManager();
 
     setSyncFromPrefListener("contentBlockingBlockCookiesCheckbox", () =>
@@ -4552,7 +4748,10 @@ var gPrivacyPane = {
       this._initMasterPasswordUI();
     } else {
       gSubDialog.open("chrome://mozapps/content/preferences/removemp.xhtml", {
-        closingCallback: this._initMasterPasswordUI.bind(this),
+        closingCallback: () => {
+          Services.obs.notifyObservers(null, "passwordmgr-primary-pw-changed");
+          this._initMasterPasswordUI();
+        },
       });
     }
   },
@@ -4601,7 +4800,10 @@ var gPrivacyPane = {
 
     gSubDialog.open("chrome://mozapps/content/preferences/changemp.xhtml", {
       features: "resizable=no",
-      closingCallback: this._initMasterPasswordUI.bind(this),
+      closingCallback: () => {
+        Services.obs.notifyObservers(null, "passwordmgr-primary-pw-changed");
+        this._initMasterPasswordUI();
+      },
     });
   },
 

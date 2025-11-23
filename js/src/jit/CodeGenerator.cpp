@@ -19,6 +19,7 @@
 #include "mozilla/ScopeExit.h"
 #include "mozilla/SIMD.h"
 
+#include <algorithm>
 #include <cmath>
 #include <limits>
 #include <type_traits>
@@ -2825,7 +2826,7 @@ void CreateDependentString::generateFallback(MacroAssembler& masm) {
 
     masm.PushRegsInMask(regsToSave);
 
-    using Fn = void* (*)(JSContext* cx);
+    using Fn = void* (*)(JSContext * cx);
     masm.setupUnalignedABICall(string_);
     masm.loadJSContext(string_);
     masm.passABIArg(string_);
@@ -4497,6 +4498,44 @@ void CodeGenerator::visitGuardMultipleShapes(LGuardMultipleShapes* guard) {
   masm.loadPtr(Address(shapeList, NativeObject::offsetOfElements()), temp);
   masm.branchTestObjShapeList(Assembler::NotEqual, obj, temp, temp2, temp3,
                               spectre, &bail);
+  bailoutFrom(&bail, guard->snapshot());
+}
+
+void CodeGenerator::visitGuardShapeList(LGuardShapeList* guard) {
+  Register obj = ToRegister(guard->object());
+  Register temp = ToRegister(guard->temp0());
+  Register spectre = ToTempRegisterOrInvalid(guard->temp1());
+
+  Label done, bail;
+  masm.loadObjShapeUnsafe(obj, temp);
+
+  // Count the number of branches to emit.
+  const auto& shapes = guard->mir()->shapeList()->shapes();
+  size_t branchesLeft = std::count_if(shapes.begin(), shapes.end(),
+                                      [](Shape* s) { return s != nullptr; });
+  MOZ_RELEASE_ASSERT(branchesLeft > 0);
+
+  for (Shape* shape : shapes) {
+    if (!shape) {
+      continue;
+    }
+    if (branchesLeft > 1) {
+      masm.branchPtr(Assembler::Equal, temp, ImmGCPtr(shape), &done);
+      if (spectre != InvalidReg) {
+        masm.spectreMovePtr(Assembler::Equal, spectre, obj);
+      }
+    } else {
+      // This is the last branch so invert the condition and jump to |bail|.
+      masm.branchPtr(Assembler::NotEqual, temp, ImmGCPtr(shape), &bail);
+      if (spectre != InvalidReg) {
+        masm.spectreMovePtr(Assembler::NotEqual, spectre, obj);
+      }
+    }
+    branchesLeft--;
+  }
+  MOZ_ASSERT(branchesLeft == 0);
+
+  masm.bind(&done);
   bailoutFrom(&bail, guard->snapshot());
 }
 
@@ -7918,7 +7957,7 @@ void CodeGenerator::visitUnreachableResultT(LUnreachableResultT* lir) {
 
 void CodeGenerator::visitCheckOverRecursed(LCheckOverRecursed* lir) {
   // If we don't push anything on the stack, skip the check.
-  if (omitOverRecursedCheck()) {
+  if (omitOverRecursedStackCheck()) {
     return;
   }
 
@@ -9371,8 +9410,9 @@ void CodeGenerator::visitCreateArgumentsObject(LCreateArgumentsObject* lir) {
     masm.moveStackPtrTo(temp0);
     masm.addPtr(Imm32(masm.framePushed()), temp0);
 
-    using Fn = ArgumentsObject* (*)(JSContext* cx, jit::JitFrameLayout* frame,
-                                    JSObject* scopeChain, ArgumentsObject* obj);
+    using Fn =
+        ArgumentsObject* (*)(JSContext * cx, jit::JitFrameLayout * frame,
+                             JSObject * scopeChain, ArgumentsObject * obj);
     masm.setupAlignedABICall();
     masm.loadJSContext(cxTemp);
     masm.passABIArg(cxTemp);
@@ -14048,7 +14088,7 @@ void CodeGenerator::visitSubstr(LSubstr* lir) {
   // newGCFatInlineString. To squeeze out even more performance those failures
   // can be handled by allocate in ool code and returning to jit code to fill
   // in all data.
-  using Fn = JSString* (*)(JSContext* cx, HandleString str, int32_t begin,
+  using Fn = JSString* (*)(JSContext * cx, HandleString str, int32_t begin,
                            int32_t len);
   OutOfLineCode* ool = oolCallVM<Fn, SubstringKernel>(
       lir, ArgList(string, begin, length), StoreRegisterTo(output));
@@ -14387,7 +14427,7 @@ void JitRuntime::generateLazyLinkStub(MacroAssembler& masm) {
   masm.enterFakeExitFrame(temp0, temp2, ExitFrameType::LazyLink);
   masm.moveStackPtrTo(temp1);
 
-  using Fn = uint8_t* (*)(JSContext* cx, LazyLinkExitFrameLayout* frame);
+  using Fn = uint8_t* (*)(JSContext * cx, LazyLinkExitFrameLayout * frame);
   masm.setupUnalignedABICall(temp2);
   masm.passABIArg(temp0);
   masm.passABIArg(temp1);
@@ -16612,6 +16652,24 @@ void CodeGenerator::visitIteratorMore(LIteratorMore* lir) {
   masm.iteratorMore(obj, output, temp);
 }
 
+void CodeGenerator::visitIteratorLength(LIteratorLength* lir) {
+  Register obj = ToRegister(lir->iter());
+  Register output = ToRegister(lir->output());
+  masm.iteratorLength(obj, output);
+}
+
+void CodeGenerator::visitLoadIteratorElement(LLoadIteratorElement* lir) {
+  Register obj = ToRegister(lir->iter());
+  Register output = ToRegister(lir->output());
+  if (lir->index()->isConstant()) {
+    int32_t index = ToInt32(lir->index());
+    masm.iteratorLoadElement(obj, index, output);
+  } else {
+    Register index = ToRegister(lir->index());
+    masm.iteratorLoadElement(obj, index, output);
+  }
+}
+
 void CodeGenerator::visitIsNoIterAndBranch(LIsNoIterAndBranch* lir) {
   ValueOperand input = ToValue(lir->input());
   Label* ifTrue = getJumpLabelForBranch(lir->ifTrue());
@@ -17099,29 +17157,52 @@ bool CodeGenerator::generateWasm(wasm::CallIndirectId callIndirectId,
     return decoder->fail(decoder->beginOffset(), "stack frame is too large");
   }
 
-  if (omitOverRecursedCheck()) {
+  if (omitOverRecursedStackCheck()) {
     masm.reserveStack(frameSize());
+
+    // If we don't need to check the stack for recursion, we definitely don't
+    // need to check for interrupts.
+    MOZ_ASSERT(omitOverRecursedInterruptCheck());
   } else {
-    std::pair<CodeOffset, uint32_t> pair =
-        masm.wasmReserveStackChecked(frameSize(), entryTrapSiteDesc);
-    CodeOffset trapInsnOffset = pair.first;
-    size_t nBytesReservedBeforeTrap = pair.second;
+    auto* ool = new (alloc())
+        LambdaOutOfLineCode([this, entryTrapSiteDesc](OutOfLineCode& ool) {
+          masm.wasmTrap(wasm::Trap::StackOverflow, entryTrapSiteDesc);
+          return true;
+        });
+    addOutOfLineCode(ool, (const BytecodeSite*)nullptr);
+    masm.wasmReserveStackChecked(frameSize(), ool->entry());
 
-    wasm::StackMap* functionEntryStackMap = nullptr;
-    if (!CreateStackMapForFunctionEntryTrap(
-            argTypes, trapExitLayout, trapExitLayoutNumWords,
-            nBytesReservedBeforeTrap, nInboundStackArgBytes, *stackMaps,
-            &functionEntryStackMap)) {
-      return false;
-    }
+    if (!omitOverRecursedInterruptCheck()) {
+      wasm::StackMap* functionEntryStackMap = nullptr;
+      if (!CreateStackMapForFunctionEntryTrap(
+              argTypes, trapExitLayout, trapExitLayoutNumWords, frameSize(),
+              nInboundStackArgBytes, *stackMaps, &functionEntryStackMap)) {
+        return false;
+      }
 
-    // In debug builds, we'll always have a stack map, even if there are no
-    // refs to track.
-    MOZ_ASSERT(functionEntryStackMap);
+      // In debug builds, we'll always have a stack map, even if there are no
+      // refs to track.
+      MOZ_ASSERT(functionEntryStackMap);
 
-    if (functionEntryStackMap &&
-        !stackMaps->finalize(trapInsnOffset.offset(), functionEntryStackMap)) {
-      return false;
+      auto* ool = new (alloc()) LambdaOutOfLineCode(
+          [this, stackMaps, functionEntryStackMap](OutOfLineCode& ool) {
+            masm.wasmTrap(wasm::Trap::CheckInterrupt, wasm::TrapSiteDesc());
+            CodeOffset trapInsnOffset = CodeOffset(masm.currentOffset());
+
+            if (functionEntryStackMap &&
+                !stackMaps->add(trapInsnOffset.offset(),
+                                functionEntryStackMap)) {
+              return false;
+            }
+            masm.jump(ool.rejoin());
+            return true;
+          });
+
+      addOutOfLineCode(ool, (const BytecodeSite*)nullptr);
+      masm.branch32(Assembler::NotEqual,
+                    Address(InstanceReg, wasm::Instance::offsetOfInterrupt()),
+                    Imm32(0), ool->entry());
+      masm.bind(ool->rejoin());
     }
   }
 
@@ -18407,58 +18488,86 @@ void CodeGenerator::visitObjectToIterator(LObjectToIterator* lir) {
   Register temp3 = ToRegister(lir->temp2());
 
   using Fn = PropertyIteratorObject* (*)(JSContext*, HandleObject);
-  OutOfLineCode* ool = (lir->mir()->wantsIndices())
-                           ? oolCallVM<Fn, GetIteratorWithIndices>(
-                                 lir, ArgList(obj), StoreRegisterTo(iterObj))
-                           : oolCallVM<Fn, GetIterator>(
-                                 lir, ArgList(obj), StoreRegisterTo(iterObj));
+  OutOfLineCode* ool = nullptr;
+
+  if (lir->mir()->skipRegistration()) {
+    if (lir->mir()->wantsIndices()) {
+      ool = oolCallVM<Fn, GetIteratorWithIndicesUnregistered>(
+          lir, ArgList(obj), StoreRegisterTo(iterObj));
+    } else {
+      ool = oolCallVM<Fn, GetIteratorUnregistered>(lir, ArgList(obj),
+                                                   StoreRegisterTo(iterObj));
+    }
+  } else {
+    if (lir->mir()->wantsIndices()) {
+      ool = oolCallVM<Fn, GetIteratorWithIndices>(lir, ArgList(obj),
+                                                  StoreRegisterTo(iterObj));
+    } else {
+      ool = oolCallVM<Fn, GetIterator>(lir, ArgList(obj),
+                                       StoreRegisterTo(iterObj));
+    }
+  }
+
+#ifdef DEBUG
+  if (!lir->mir()->getAliasSet().isStore()) {
+    MOZ_ASSERT(lir->mir()->skipRegistration());
+    Label done;
+    masm.branchTestObjectIsProxy(false, obj, temp, &done);
+    masm.assumeUnreachable("ObjectToIterator on a proxy must be a store.");
+    masm.bind(&done);
+  }
+#endif
 
   masm.maybeLoadIteratorFromShape(obj, iterObj, temp, temp2, temp3,
-                                  ool->entry());
+                                  ool->entry(),
+                                  !lir->mir()->skipRegistration());
 
   Register nativeIter = temp;
   masm.loadPrivate(
       Address(iterObj, PropertyIteratorObject::offsetOfIteratorSlot()),
       nativeIter);
 
+  Address iterFlagsAddr(nativeIter, NativeIterator::offsetOfFlags());
   if (lir->mir()->wantsIndices()) {
     // At least one consumer of the output of this iterator has been optimized
     // to use iterator indices. If the cached iterator doesn't include indices,
     // but it was marked to indicate that we can create them if needed, then we
     // do a VM call to replace the cached iterator with a fresh iterator
     // including indices.
-    masm.branchNativeIteratorIndices(Assembler::Equal, nativeIter, temp2,
-                                     NativeIteratorIndices::AvailableOnRequest,
-                                     ool->entry());
+    masm.branchTest32(Assembler::NonZero, iterFlagsAddr,
+                      Imm32(NativeIterator::Flags::IndicesSupported),
+                      ool->entry());
   }
 
-  Address iterFlagsAddr(nativeIter, NativeIterator::offsetOfFlagsAndCount());
-  masm.storePtr(
-      obj, Address(nativeIter, NativeIterator::offsetOfObjectBeingIterated()));
-  masm.or32(Imm32(NativeIterator::Flags::Active), iterFlagsAddr);
+  if (!lir->mir()->skipRegistration()) {
+    masm.storePtr(obj, Address(nativeIter,
+                               NativeIterator::offsetOfObjectBeingIterated()));
+    masm.or32(Imm32(NativeIterator::Flags::Active), iterFlagsAddr);
 
-  Register enumeratorsAddr = temp2;
-  masm.movePtr(ImmPtr(lir->mir()->enumeratorsAddr()), enumeratorsAddr);
-  masm.registerIterator(enumeratorsAddr, nativeIter, temp3);
+    Register enumeratorsAddr = temp2;
+    masm.movePtr(ImmPtr(lir->mir()->enumeratorsAddr()), enumeratorsAddr);
+    masm.registerIterator(enumeratorsAddr, nativeIter, temp3);
 
-  // Generate post-write barrier for storing to |iterObj->objectBeingIterated_|.
-  // We already know that |iterObj| is tenured, so we only have to check |obj|.
-  Label skipBarrier;
-  masm.branchPtrInNurseryChunk(Assembler::NotEqual, obj, temp2, &skipBarrier);
-  {
-    LiveRegisterSet save = liveVolatileRegs(lir);
-    save.takeUnchecked(temp);
-    save.takeUnchecked(temp2);
-    save.takeUnchecked(temp3);
-    if (iterObj.volatile_()) {
-      save.addUnchecked(iterObj);
+    // Generate post-write barrier for storing to
+    // |iterObj->objectBeingIterated_|. We already know that |iterObj| is
+    // tenured, so we only have to check |obj|.
+    Label skipBarrier;
+    masm.branchPtrInNurseryChunk(Assembler::NotEqual, obj, temp2, &skipBarrier);
+    {
+      LiveRegisterSet save = liveVolatileRegs(lir);
+      save.takeUnchecked(temp);
+      save.takeUnchecked(temp2);
+      save.takeUnchecked(temp3);
+      if (iterObj.volatile_()) {
+        save.addUnchecked(iterObj);
+      }
+
+      masm.PushRegsInMask(save);
+      emitPostWriteBarrier(iterObj);
+      masm.PopRegsInMask(save);
     }
-
-    masm.PushRegsInMask(save);
-    emitPostWriteBarrier(iterObj);
-    masm.PopRegsInMask(save);
+    masm.bind(&skipBarrier);
   }
-  masm.bind(&skipBarrier);
 
   masm.bind(ool->rejoin());
 }
@@ -18483,13 +18592,14 @@ void CodeGenerator::visitIteratorHasIndicesAndBranch(
   Address nativeIterAddr(iterator,
                          PropertyIteratorObject::offsetOfIteratorSlot());
   masm.loadPrivate(nativeIterAddr, temp);
-  masm.branchNativeIteratorIndices(Assembler::NotEqual, temp, temp2,
-                                   NativeIteratorIndices::Valid, ifFalse);
+  masm.branchTest32(Assembler::Zero,
+                    Address(temp, NativeIterator::offsetOfFlags()),
+                    Imm32(NativeIterator::Flags::IndicesAvailable), ifFalse);
 
   // Guard that the first shape stored in the iterator matches the current
   // shape of the iterated object.
-  Address firstShapeAddr(temp, NativeIterator::offsetOfFirstShape());
-  masm.loadPtr(firstShapeAddr, temp);
+  Address objShapeAddr(temp, NativeIterator::offsetOfObjectShape());
+  masm.loadPtr(objShapeAddr, temp);
   masm.branchTestObjShape(Assembler::NotEqual, object, temp, temp2, object,
                           ifFalse);
 
@@ -18498,49 +18608,131 @@ void CodeGenerator::visitIteratorHasIndicesAndBranch(
   }
 }
 
-void CodeGenerator::visitLoadSlotByIteratorIndex(
-    LLoadSlotByIteratorIndex* lir) {
-  Register object = ToRegister(lir->object());
-  Register iterator = ToRegister(lir->iterator());
-  Register temp = ToRegister(lir->temp0());
-  Register temp2 = ToRegister(lir->temp1());
-  ValueOperand result = ToOutValue(lir);
-
-  masm.extractCurrentIndexAndKindFromIterator(iterator, temp, temp2);
-
+void CodeGenerator::visitLoadSlotByIteratorIndexCommon(Register object,
+                                                       Register indexScratch,
+                                                       Register kindScratch,
+                                                       ValueOperand result) {
   Label notDynamicSlot, notFixedSlot, done;
-  masm.branch32(Assembler::NotEqual, temp2,
+  masm.branch32(Assembler::NotEqual, kindScratch,
                 Imm32(uint32_t(PropertyIndex::Kind::DynamicSlot)),
                 &notDynamicSlot);
-  masm.loadPtr(Address(object, NativeObject::offsetOfSlots()), temp2);
-  masm.loadValue(BaseValueIndex(temp2, temp), result);
+  masm.loadPtr(Address(object, NativeObject::offsetOfSlots()), kindScratch);
+  masm.loadValue(BaseValueIndex(kindScratch, indexScratch), result);
   masm.jump(&done);
 
   masm.bind(&notDynamicSlot);
-  masm.branch32(Assembler::NotEqual, temp2,
+  masm.branch32(Assembler::NotEqual, kindScratch,
                 Imm32(uint32_t(PropertyIndex::Kind::FixedSlot)), &notFixedSlot);
   // Fixed slot
-  masm.loadValue(BaseValueIndex(object, temp, sizeof(NativeObject)), result);
+  masm.loadValue(BaseValueIndex(object, indexScratch, sizeof(NativeObject)),
+                 result);
   masm.jump(&done);
   masm.bind(&notFixedSlot);
 
 #ifdef DEBUG
   Label kindOkay;
-  masm.branch32(Assembler::Equal, temp2,
+  masm.branch32(Assembler::Equal, kindScratch,
                 Imm32(uint32_t(PropertyIndex::Kind::Element)), &kindOkay);
   masm.assumeUnreachable("Invalid PropertyIndex::Kind");
   masm.bind(&kindOkay);
 #endif
 
   // Dense element
-  masm.loadPtr(Address(object, NativeObject::offsetOfElements()), temp2);
+  masm.loadPtr(Address(object, NativeObject::offsetOfElements()), kindScratch);
   Label indexOkay;
-  Address initLength(temp2, ObjectElements::offsetOfInitializedLength());
-  masm.branch32(Assembler::Above, initLength, temp, &indexOkay);
+  Address initLength(kindScratch, ObjectElements::offsetOfInitializedLength());
+  masm.branch32(Assembler::Above, initLength, indexScratch, &indexOkay);
   masm.assumeUnreachable("Dense element out of bounds");
   masm.bind(&indexOkay);
 
-  masm.loadValue(BaseObjectElementIndex(temp2, temp), result);
+  masm.loadValue(BaseObjectElementIndex(kindScratch, indexScratch), result);
+  masm.bind(&done);
+}
+
+void CodeGenerator::visitLoadSlotByIteratorIndex(
+    LLoadSlotByIteratorIndex* lir) {
+  Register object = ToRegister(lir->object());
+  Register iterator = ToRegister(lir->iterator());
+  Register indexScratch = ToRegister(lir->temp0());
+  Register kindScratch = ToRegister(lir->temp1());
+  ValueOperand result = ToOutValue(lir);
+
+  masm.extractCurrentIndexAndKindFromIterator(iterator, indexScratch,
+                                              kindScratch);
+
+  visitLoadSlotByIteratorIndexCommon(object, indexScratch, kindScratch, result);
+}
+
+#ifndef JS_CODEGEN_X86
+void CodeGenerator::visitLoadSlotByIteratorIndexIndexed(
+    LLoadSlotByIteratorIndexIndexed* lir) {
+  Register object = ToRegister(lir->object());
+  Register iterator = ToRegister(lir->iterator());
+  Register index = ToRegister(lir->index());
+  Register indexScratch = ToRegister(lir->temp0());
+  Register kindScratch = ToRegister(lir->temp1());
+  ValueOperand result = ToOutValue(lir);
+
+  masm.extractIndexAndKindFromIteratorByIterIndex(iterator, index, kindScratch,
+                                                  indexScratch);
+
+  visitLoadSlotByIteratorIndexCommon(object, indexScratch, kindScratch, result);
+}
+#endif
+
+void CodeGenerator::visitStoreSlotByIteratorIndexCommon(Register object,
+                                                        Register indexScratch,
+                                                        Register kindScratch,
+                                                        ValueOperand value) {
+  Label notDynamicSlot, notFixedSlot, done, doStore;
+  masm.branch32(Assembler::NotEqual, kindScratch,
+                Imm32(uint32_t(PropertyIndex::Kind::DynamicSlot)),
+                &notDynamicSlot);
+  masm.loadPtr(Address(object, NativeObject::offsetOfSlots()), kindScratch);
+  masm.computeEffectiveAddress(BaseValueIndex(kindScratch, indexScratch),
+                               indexScratch);
+  masm.jump(&doStore);
+
+  masm.bind(&notDynamicSlot);
+  masm.branch32(Assembler::NotEqual, kindScratch,
+                Imm32(uint32_t(PropertyIndex::Kind::FixedSlot)), &notFixedSlot);
+  // Fixed slot
+  masm.computeEffectiveAddress(
+      BaseValueIndex(object, indexScratch, sizeof(NativeObject)), indexScratch);
+  masm.jump(&doStore);
+  masm.bind(&notFixedSlot);
+
+#ifdef DEBUG
+  Label kindOkay;
+  masm.branch32(Assembler::Equal, kindScratch,
+                Imm32(uint32_t(PropertyIndex::Kind::Element)), &kindOkay);
+  masm.assumeUnreachable("Invalid PropertyIndex::Kind");
+  masm.bind(&kindOkay);
+#endif
+
+  // Dense element
+  masm.loadPtr(Address(object, NativeObject::offsetOfElements()), kindScratch);
+  Label indexOkay;
+  Address initLength(kindScratch, ObjectElements::offsetOfInitializedLength());
+  masm.branch32(Assembler::Above, initLength, indexScratch, &indexOkay);
+  masm.assumeUnreachable("Dense element out of bounds");
+  masm.bind(&indexOkay);
+
+  BaseObjectElementIndex elementAddress(kindScratch, indexScratch);
+  masm.computeEffectiveAddress(elementAddress, indexScratch);
+
+  masm.bind(&doStore);
+  Address storeAddress(indexScratch, 0);
+  emitPreBarrier(storeAddress);
+  masm.storeValue(value, storeAddress);
+
+  masm.branchPtrInNurseryChunk(Assembler::Equal, object, kindScratch, &done);
+  masm.branchValueIsNurseryCell(Assembler::NotEqual, value, kindScratch, &done);
+
+  saveVolatile(kindScratch);
+  emitPostWriteBarrier(object);
+  restoreVolatile(kindScratch);
+
   masm.bind(&done);
 }
 
@@ -18549,61 +18741,31 @@ void CodeGenerator::visitStoreSlotByIteratorIndex(
   Register object = ToRegister(lir->object());
   Register iterator = ToRegister(lir->iterator());
   ValueOperand value = ToValue(lir->value());
-  Register temp = ToRegister(lir->temp0());
-  Register temp2 = ToRegister(lir->temp1());
+  Register indexScratch = ToRegister(lir->temp0());
+  Register kindScratch = ToRegister(lir->temp1());
 
-  masm.extractCurrentIndexAndKindFromIterator(iterator, temp, temp2);
+  masm.extractCurrentIndexAndKindFromIterator(iterator, indexScratch,
+                                              kindScratch);
 
-  Label notDynamicSlot, notFixedSlot, done, doStore;
-  masm.branch32(Assembler::NotEqual, temp2,
-                Imm32(uint32_t(PropertyIndex::Kind::DynamicSlot)),
-                &notDynamicSlot);
-  masm.loadPtr(Address(object, NativeObject::offsetOfSlots()), temp2);
-  masm.computeEffectiveAddress(BaseValueIndex(temp2, temp), temp);
-  masm.jump(&doStore);
-
-  masm.bind(&notDynamicSlot);
-  masm.branch32(Assembler::NotEqual, temp2,
-                Imm32(uint32_t(PropertyIndex::Kind::FixedSlot)), &notFixedSlot);
-  // Fixed slot
-  masm.computeEffectiveAddress(
-      BaseValueIndex(object, temp, sizeof(NativeObject)), temp);
-  masm.jump(&doStore);
-  masm.bind(&notFixedSlot);
-
-#ifdef DEBUG
-  Label kindOkay;
-  masm.branch32(Assembler::Equal, temp2,
-                Imm32(uint32_t(PropertyIndex::Kind::Element)), &kindOkay);
-  masm.assumeUnreachable("Invalid PropertyIndex::Kind");
-  masm.bind(&kindOkay);
-#endif
-
-  // Dense element
-  masm.loadPtr(Address(object, NativeObject::offsetOfElements()), temp2);
-  Label indexOkay;
-  Address initLength(temp2, ObjectElements::offsetOfInitializedLength());
-  masm.branch32(Assembler::Above, initLength, temp, &indexOkay);
-  masm.assumeUnreachable("Dense element out of bounds");
-  masm.bind(&indexOkay);
-
-  BaseObjectElementIndex elementAddress(temp2, temp);
-  masm.computeEffectiveAddress(elementAddress, temp);
-
-  masm.bind(&doStore);
-  Address storeAddress(temp, 0);
-  emitPreBarrier(storeAddress);
-  masm.storeValue(value, storeAddress);
-
-  masm.branchPtrInNurseryChunk(Assembler::Equal, object, temp2, &done);
-  masm.branchValueIsNurseryCell(Assembler::NotEqual, value, temp2, &done);
-
-  saveVolatile(temp2);
-  emitPostWriteBarrier(object);
-  restoreVolatile(temp2);
-
-  masm.bind(&done);
+  visitStoreSlotByIteratorIndexCommon(object, indexScratch, kindScratch, value);
 }
+
+#ifndef JS_CODEGEN_X86
+void CodeGenerator::visitStoreSlotByIteratorIndexIndexed(
+    LStoreSlotByIteratorIndexIndexed* lir) {
+  Register object = ToRegister(lir->object());
+  Register iterator = ToRegister(lir->iterator());
+  Register index = ToRegister(lir->index());
+  ValueOperand value = ToValue(lir->value());
+  Register indexScratch = ToRegister(lir->temp0());
+  Register kindScratch = ToRegister(lir->temp1());
+
+  masm.extractIndexAndKindFromIteratorByIterIndex(iterator, index, kindScratch,
+                                                  indexScratch);
+
+  visitStoreSlotByIteratorIndexCommon(object, indexScratch, kindScratch, value);
+}
+#endif
 
 void CodeGenerator::visitSetPropertyCache(LSetPropertyCache* ins) {
   LiveRegisterSet liveRegs = ins->safepoint()->liveRegs();
@@ -21477,7 +21639,7 @@ void CodeGenerator::visitGenerator(LGenerator* lir) {
   pushArg(ImmGCPtr(current->mir()->info().script()));
   pushArg(callee);
 
-  using Fn = JSObject* (*)(JSContext* cx, HandleFunction, HandleScript,
+  using Fn = JSObject* (*)(JSContext * cx, HandleFunction, HandleScript,
                            HandleObject, HandleObject);
   callVM<Fn, CreateGenerator>(lir);
 }
@@ -21515,9 +21677,9 @@ void CodeGenerator::visitAsyncAwait(LAsyncAwait* lir) {
   pushArg(value);
   pushArg(generator);
 
-  using Fn =
-      JSObject* (*)(JSContext* cx, Handle<AsyncFunctionGeneratorObject*> genObj,
-                    HandleValue value);
+  using Fn = JSObject* (*)(JSContext * cx,
+                           Handle<AsyncFunctionGeneratorObject*> genObj,
+                           HandleValue value);
   callVM<Fn, js::AsyncFunctionAwait>(lir);
 }
 
@@ -22711,7 +22873,7 @@ void CodeGenerator::visitWasmAnyRefFromJSValue(LWasmAnyRefFromJSValue* lir) {
   Register output = ToRegister(lir->output());
   FloatRegister tempFloat = ToFloatRegister(lir->temp0());
 
-  using Fn = JSObject* (*)(JSContext* cx, HandleValue value);
+  using Fn = JSObject* (*)(JSContext * cx, HandleValue value);
   OutOfLineCode* oolBoxValue = oolCallVM<Fn, wasm::AnyRef::boxValue>(
       lir, ArgList(input), StoreRegisterTo(output));
   masm.convertValueToWasmAnyRef(input, output, tempFloat, oolBoxValue->entry());

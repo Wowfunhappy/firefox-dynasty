@@ -28,6 +28,7 @@ import mozilla.components.support.remotesettings.RemoteSettingsService
 import mozilla.components.support.remotesettings.into
 import mozilla.components.support.utils.BuildManufacturerChecker
 import mozilla.components.support.utils.ClipboardHandler
+import mozilla.components.support.utils.ext.packageManagerWrapper
 import org.mozilla.fenix.BuildConfig
 import org.mozilla.fenix.Config
 import org.mozilla.fenix.FeatureFlags
@@ -73,6 +74,7 @@ import org.mozilla.fenix.perf.lazyMonitored
 import org.mozilla.fenix.reviewprompt.ReviewPromptMiddleware
 import org.mozilla.fenix.settings.settingssearch.DefaultFenixSettingsIndexer
 import org.mozilla.fenix.termsofuse.TermsOfUseManager
+import org.mozilla.fenix.termsofuse.store.DefaultTermsOfUsePromptRepository
 import org.mozilla.fenix.utils.Settings
 import org.mozilla.fenix.utils.isLargeScreenSize
 import org.mozilla.fenix.wifi.WifiConnectionMonitor
@@ -344,7 +346,7 @@ class Components(private val context: Context) {
 
     val distributionIdManager by lazyMonitored {
         DistributionIdManager(
-            context = context,
+            packageManager = context.packageManagerWrapper,
             browserStoreProvider = DefaultDistributionBrowserStoreProvider(core.store),
             distributionProviderChecker = DefaultDistributionProviderChecker(context),
             legacyDistributionProviderChecker = LegacyDistributionProviderChecker(context),
@@ -353,7 +355,7 @@ class Components(private val context: Context) {
     }
 
     val termsOfUseManager by lazyMonitored {
-        TermsOfUseManager(settings)
+        TermsOfUseManager(DefaultTermsOfUsePromptRepository(settings))
     }
 
     val settingsIndexer by lazyMonitored {

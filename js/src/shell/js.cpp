@@ -1418,20 +1418,6 @@ static bool MaybeRunShellTasks(JSContext* cx) {
   return ranTasks;
 }
 
-static bool EnqueueJob(JSContext* cx, unsigned argc, Value* vp) {
-  CallArgs args = CallArgsFromVp(argc, vp);
-
-  if (!IsFunctionObject(args.get(0))) {
-    JS_ReportErrorASCII(cx, "EnqueueJob's first argument must be a function");
-    return false;
-  }
-
-  args.rval().setUndefined();
-
-  RootedObject job(cx, &args[0].toObject());
-  return js::EnqueueJob(cx, job);
-}
-
 static void RunShellJobs(JSContext* cx) {
   ShellContext* sc = GetShellContext(cx);
   if (sc->quitting) {
@@ -1492,6 +1478,11 @@ static bool GlobalOfFirstJobInQueue(JSContext* cx, unsigned argc, Value* vp) {
     JS::JSMicroTask* job = JS::ToUnwrappedJSMicroTask(genericJob);
     MOZ_ASSERT(job);
     RootedObject global(cx, JS::GetExecutionGlobalFromJSMicroTask(job));
+    if (!global) {
+      JS_ReportErrorNumberASCII(cx, GetErrorMessage, nullptr,
+                                JSMSG_DEAD_OBJECT);
+      return false;
+    }
     MOZ_ASSERT(global);
     if (!cx->compartment()->wrap(cx, &global)) {
       return false;
@@ -5721,14 +5712,6 @@ static bool ParseModule(JSContext* cx, unsigned argc, Value* vp) {
     return false;
   }
 
-  if (!args[0].isString()) {
-    const char* typeName = InformalValueTypeName(args[0]);
-    JS_ReportErrorASCII(cx, "expected string to compile, got %s", typeName);
-    return false;
-  }
-
-  JSString* scriptContents = args[0].toString();
-
   UniqueChars filename;
   CompileOptions options(cx);
   JS::ModuleType moduleType = JS::ModuleType::JavaScript;
@@ -5747,7 +5730,8 @@ static bool ParseModule(JSContext* cx, unsigned argc, Value* vp) {
 
     options.setFileAndLine(filename.get(), 1);
 
-    // The 2nd argument is the module type string. "js" or "json" is expected.
+    // The 2nd argument is the module type string. "js", "json" or "bytes" is
+    // expected.
     if (args.length() == 3) {
       if (!args[2].isString()) {
         const char* typeName = InformalValueTypeName(args[2]);
@@ -5762,8 +5746,11 @@ static bool ParseModule(JSContext* cx, unsigned argc, Value* vp) {
       }
       if (JS_LinearStringEqualsLiteral(linearStr, "json")) {
         moduleType = JS::ModuleType::JSON;
+      } else if (JS_LinearStringEqualsLiteral(linearStr, "bytes")) {
+        moduleType = JS::ModuleType::Bytes;
       } else if (!JS_LinearStringEqualsLiteral(linearStr, "js")) {
-        JS_ReportErrorASCII(cx, "moduleType string ('js' or 'json') expected");
+        JS_ReportErrorASCII(
+            cx, "moduleType string ('js' or 'json' or 'bytes') expected");
         return false;
       }
     }
@@ -5771,23 +5758,62 @@ static bool ParseModule(JSContext* cx, unsigned argc, Value* vp) {
     options.setFileAndLine("<string>", 1);
   }
 
-  AutoStableStringChars linearChars(cx);
-  if (!linearChars.initTwoByte(cx, scriptContents)) {
-    return false;
-  }
-
-  JS::SourceText<char16_t> srcBuf;
-  if (!srcBuf.initMaybeBorrowed(cx, linearChars)) {
-    return false;
-  }
-
   RootedObject module(cx);
-  if (moduleType == JS::ModuleType::JSON) {
-    module = JS::CompileJsonModule(cx, options, srcBuf);
-  } else {
-    options.setModule();
-    module = JS::CompileModule(cx, options, srcBuf);
+  switch (moduleType) {
+    case JS::ModuleType::JavaScript:
+    case JS::ModuleType::JSON: {
+      if (!args[0].isString()) {
+        const char* typeName = InformalValueTypeName(args[0]);
+        JS_ReportErrorASCII(cx, "expected string to compile, got %s", typeName);
+        return false;
+      }
+
+      JSString* scriptContents = args[0].toString();
+
+      AutoStableStringChars linearChars(cx);
+      if (!linearChars.initTwoByte(cx, scriptContents)) {
+        return false;
+      }
+
+      JS::SourceText<char16_t> srcBuf;
+      if (!srcBuf.initMaybeBorrowed(cx, linearChars)) {
+        return false;
+      }
+
+      if (moduleType == JS::ModuleType::JSON) {
+        module = JS::CompileJsonModule(cx, options, srcBuf);
+      } else {
+        options.setModule();
+        module = JS::CompileModule(cx, options, srcBuf);
+      }
+
+      break;
+    }
+
+    case JS::ModuleType::Bytes: {
+      if (!args[0].isObject() ||
+          !JS::IsArrayBufferObject(&args[0].toObject())) {
+        const char* typeName = InformalValueTypeName(args[0]);
+        JS_ReportErrorASCII(cx, "expected ArrayBuffer for bytes module, got %s",
+                            typeName);
+        return false;
+      }
+
+      /*
+       * NOTE: The spec requires checking that the ArrayBuffer is immutable.
+       * Immutable ArrayBuffers (see bug 1952253) are still only a Stage 2.7
+       * proposal. This check will be added in a future update.
+       */
+      module = JS::CreateDefaultExportSyntheticModule(cx, args[0]);
+      break;
+    }
+
+    case JS::ModuleType::CSS:
+    case JS::ModuleType::Unknown:
+      JS_ReportErrorASCII(cx, "Unsupported module type in parseModule");
+      return false;
   }
+
   if (!module) {
     return false;
   }
@@ -10209,9 +10235,9 @@ static const JSFunctionSpecWithHelp shell_functions[] = {
 "  Sleep for dt seconds."),
 
     JS_FN_HELP("parseModule", ParseModule, 3, 0,
-"parseModule(code, 'filename', 'js' | 'json')",
+"parseModule(code, 'filename', 'js' | 'json' | 'bytes')",
 "  Parses source text as a JS module ('js', this is the default) or a JSON"
-" module ('json') and returns a ModuleObject wrapper object."),
+" module ('json') or bytes module ('bytes') and returns a ModuleObject wrapper object."),
 
     JS_FN_HELP("instantiateModuleStencil", InstantiateModuleStencil, 1, 0,
 "instantiateModuleStencil(stencil, [options])",
@@ -10528,10 +10554,6 @@ JS_FN_HELP("createUserArrayBuffer", CreateUserArrayBuffer, 1, 0,
 "stackPointerInfo()",
 "  Return an int32 value which corresponds to the offset of the latest stack\n"
 "  pointer, such that one can take the differences of 2 to estimate a frame-size."),
-
-    JS_FN_HELP("enqueueJob", EnqueueJob, 1, 0,
-"enqueueJob(fn)",
-"  Enqueue 'fn' on the shell's job queue."),
 
     JS_FN_HELP("globalOfFirstJobInQueue", GlobalOfFirstJobInQueue, 0, 0,
 "globalOfFirstJobInQueue()",
@@ -12976,7 +12998,7 @@ bool InitOptionParser(OptionParser& op) {
           "Don't compile very large scripts (default: on, off to disable)") ||
       !op.addIntOption('\0', "ion-warmup-threshold", "COUNT",
                        "Wait for COUNT calls or iterations before compiling "
-                       "at the normal optimization level (default: 1000)",
+                       "at the normal optimization level (default: 1500)",
                        -1) ||
       !op.addStringOption(
           '\0', "ion-regalloc", "[mode]",
@@ -13003,6 +13025,9 @@ bool InitOptionParser(OptionParser& op) {
       !op.addBoolOption('\0', "disable-main-thread-denormals",
                         "Disable Denormals on the main thread only, to "
                         "emulate WebAudio worklets.") ||
+      !op.addStringOption('\0', "object-keys-scalar-replacement", "on/off",
+                          "Replace Object.keys with a NativeIterators "
+                          "(default: on)") ||
       !op.addBoolOption('\0', "baseline",
                         "Enable baseline compiler (default)") ||
       !op.addBoolOption('\0', "no-baseline", "Disable baseline compiler") ||
@@ -13965,6 +13990,16 @@ bool SetContextJITOptions(JSContext* cx, const OptionParser& op) {
 #else
     // Do nothing on other architecture.
 #endif
+  }
+
+  if (const char* str = op.getStringOption("object-keys-scalar-replacement")) {
+    if (strcmp(str, "on") == 0) {
+      jit::JitOptions.disableObjectKeysScalarReplacement = false;
+    } else if (strcmp(str, "off") == 0) {
+      jit::JitOptions.disableObjectKeysScalarReplacement = true;
+    } else {
+      return OptionFailure("object-keys-scalar-replacement", str);
+    }
   }
 
   int32_t warmUpThreshold = op.getIntOption("ion-warmup-threshold");

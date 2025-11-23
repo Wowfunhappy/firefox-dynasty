@@ -238,7 +238,7 @@ export const SpecialMessageActions = {
   /**
    * Set prefs with special message actions
    *
-   * @param {Object} pref - A pref to be updated.
+   * @param {object} pref - A pref to be updated.
    * @param {string} pref.name - The name of the pref to be updated
    * @param {string} [pref.value] - The value of the pref to be updated. If not included, the pref will be reset.
    * @param {boolean} onImpression - Whether the setPref action was triggered on
@@ -291,7 +291,10 @@ export const SpecialMessageActions = {
     // only prefs created on the fly are allowed. This is to ensure that adding
     // the abililty to set any in-tree prefs with this feature undergoes code
     // review.
-    const allowedSetOnImpressionPrefs = [];
+    const allowedSetOnImpressionPrefs = [
+      "termsofuse.firstAcceptedDate",
+      "termsofuse.acceptedDate",
+    ];
 
     const allowedPrefsList = onImpression
       ? allowedSetOnImpressionPrefs

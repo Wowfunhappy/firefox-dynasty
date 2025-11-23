@@ -556,10 +556,7 @@ static nscoord OffsetToAlignedStaticPos(
 
   // Find what axis aAbsPosCBAxis corresponds to, in placeholder's parent's
   // writing-mode.
-  LogicalAxis pcAxis =
-      (pcWM.IsOrthogonalTo(aAbsPosCBWM) ? GetOrthogonalAxis(aAbsPosCBAxis)
-                                        : aAbsPosCBAxis);
-
+  const LogicalAxis pcAxis = aAbsPosCBWM.ConvertAxisTo(aAbsPosCBAxis, pcWM);
   const LogicalSize alignAreaSize = [&]() {
     if (!aNonAutoAlignParams) {
       const bool placeholderContainerIsContainingBlock =
@@ -666,10 +663,7 @@ static nscoord OffsetToAlignedStaticPos(
   // represent the child's size and the desired axis in that writing mode:
   LogicalSize kidSizeInOwnWM =
       aKidSizeInAbsPosCBWM.ConvertTo(kidWM, aAbsPosCBWM);
-  LogicalAxis kidAxis =
-      (kidWM.IsOrthogonalTo(aAbsPosCBWM) ? GetOrthogonalAxis(aAbsPosCBAxis)
-                                         : aAbsPosCBAxis);
-
+  const LogicalAxis kidAxis = aAbsPosCBWM.ConvertAxisTo(aAbsPosCBAxis, kidWM);
   nscoord offset = CSSAlignUtils::AlignJustifySelf(
       alignConst, kidAxis, flags, baselineAdjust, alignAreaSizeInAxis,
       aKidReflowInput, kidSizeInOwnWM);
@@ -1009,7 +1003,7 @@ static nsRect GrowOverflowCheckRect(const nsRect& aOverflowCheckRect,
 // positioned child has the exact same size and position and skip the
 // reflow...
 void AbsoluteContainingBlock::ReflowAbsoluteFrame(
-    nsIFrame* aDelegatingFrame, nsPresContext* aPresContext,
+    nsContainerFrame* aDelegatingFrame, nsPresContext* aPresContext,
     const ReflowInput& aReflowInput, const nsRect& aOriginalContainingBlockRect,
     AbsPosReflowFlags aFlags, nsIFrame* aKidFrame, nsReflowStatus& aStatus,
     OverflowAreas* aOverflowAreas,

@@ -47,7 +47,9 @@ class ProfilerStartDialogFragment : AppCompatDialogFragment() {
         container: ViewGroup?,
         savedInstanceState: Bundle?,
     ) = content {
-        StartProfilerScreen(viewModel = profilerViewModel)
+        FirefoxTheme {
+            StartProfilerScreen(viewModel = profilerViewModel)
+        }
     }
 
     override fun onDismiss(dialog: DialogInterface) {
@@ -130,10 +132,11 @@ class ProfilerStartDialogFragment : AppCompatDialogFragment() {
                 text = stringResource(R.string.profiler_settings_title),
                 fontWeight = FontWeight.Bold,
                 fontSize = 16.sp,
-                color = FirefoxTheme.colors.textPrimary,
                 modifier = Modifier.padding(bottom = 8.dp),
             )
+
             Spacer(modifier = Modifier.height(8.dp))
+
             ProfilerSettings.entries.forEach { setting ->
                 val settingName = when (setting) {
                     ProfilerSettings.Firefox -> stringResource(R.string.profiler_filter_firefox)
@@ -141,6 +144,7 @@ class ProfilerStartDialogFragment : AppCompatDialogFragment() {
                     ProfilerSettings.Media -> stringResource(R.string.profiler_filter_media)
                     ProfilerSettings.Networking -> stringResource(R.string.profiler_filter_networking)
                     ProfilerSettings.Debug -> stringResource(R.string.profiler_filter_debug)
+                    ProfilerSettings.WebCompat -> stringResource(R.string.profiler_filter_web_compat)
                 }
                 val settingDesc = when (setting) {
                     ProfilerSettings.Firefox -> stringResource(R.string.profiler_filter_firefox_explain)
@@ -148,6 +152,7 @@ class ProfilerStartDialogFragment : AppCompatDialogFragment() {
                     ProfilerSettings.Media -> stringResource(R.string.profiler_filter_media_explain)
                     ProfilerSettings.Networking -> stringResource(R.string.profiler_filter_networking_explain)
                     ProfilerSettings.Debug -> stringResource(R.string.profiler_filter_debug_explain)
+                    ProfilerSettings.WebCompat -> stringResource(R.string.profiler_filter_web_compat_explain)
                 }
 
                 ProfilerLabeledRadioButton(
@@ -156,6 +161,7 @@ class ProfilerStartDialogFragment : AppCompatDialogFragment() {
                     selected = selectedSetting == setting,
                     onClick = { selectedSetting = setting },
                 )
+
                 Spacer(modifier = Modifier.height(8.dp))
             }
         }

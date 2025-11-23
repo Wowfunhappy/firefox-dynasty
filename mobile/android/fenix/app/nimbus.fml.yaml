@@ -654,6 +654,10 @@ features:
         description: The maximum number of times to show the prompt.
         type: Int
         default: 2
+      enable-drag-to-dismiss:
+        description: Whether to show a drag handle on the prompt and allows users to use it to dismiss the prompt.
+        type: Boolean
+        default: true
 
   tab-strip:
     description: Enables tab strip.
@@ -732,14 +736,6 @@ features:
         description: The current collection version of the user characteristics.
         type: Int
         default: 0
-
-  bookmarks:
-    description: Feature for Bookmarks
-    variables:
-      new-compose-ui:
-        description: if true, enable new compose based UI
-        type: Boolean
-        default: false
 
   networking:
     description: Enables networking features
@@ -957,6 +953,16 @@ features:
   lna-blocking:
     description: Feature that allows blocking local network or device access.
     variables:
+      blocking:
+        description: >
+          Whether or not to block LNA requests
+        type: Boolean
+        default: false
+      block-trackers:
+        description: >
+          Whether or not to block trackers
+        type: Boolean
+        default: false
       enabled:
         description: >
           Whether or not to turn on local network / device access blocking

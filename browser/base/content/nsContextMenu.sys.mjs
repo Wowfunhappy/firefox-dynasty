@@ -1087,19 +1087,10 @@ export class nsContextMenu {
     let disabledAttr = this.#canStripParams() ? null : true;
     this.setItemAttr("context-stripOnShareLink", "disabled", disabledAttr);
 
-    let copyLinkSeparator = this.document.getElementById(
-      "context-sep-copylink"
+    let sendLinkSeparator = this.document.getElementById(
+      "context-sep-sendlinktodevice"
     );
-    // Show "Copy Link", "Copy" and "Copy Clean Link" with no divider, and "copy link" and "Send link to Device" with no divider between.
-    // Other cases will show a divider.
-    copyLinkSeparator.toggleAttribute(
-      "ensureHidden",
-      this.onLink &&
-        !this.onMailtoLink &&
-        !this.onTelLink &&
-        !this.onImage &&
-        this.syncItemsShown
-    );
+    sendLinkSeparator.toggleAttribute("ensureHidden", !this.syncItemsShown);
 
     this.showItem("context-copyvideourl", this.onVideo);
     this.showItem("context-copyaudiourl", this.onAudio);
@@ -2343,9 +2334,9 @@ export class nsContextMenu {
    * Show/hide one item (specified via name or the item element itself).
    * If the element is not found, then this function finishes silently.
    *
-   * @param {Element|String} aItemOrId The item element or the name of the element
+   * @param {Element | string} aItemOrId The item element or the name of the element
    *                                   to show.
-   * @param {Boolean} aShow Set to true to show the item, false to hide it.
+   * @param {boolean} aShow Set to true to show the item, false to hide it.
    */
   showItem(aItemOrId, aShow) {
     var item =
@@ -2425,7 +2416,7 @@ export class nsContextMenu {
   /**
    * Checks if there is a query parameter that can be stripped
    *
-   * @returns {Boolean}
+   * @returns {boolean}
    */
   #canStripParams(uri = this.linkURI) {
     if (!uri) {
@@ -2442,7 +2433,7 @@ export class nsContextMenu {
   /**
    * Checks if a webpage is a secure interal webpage
    *
-   * @returns {Boolean}
+   * @returns {boolean}
    */
   isSecureAboutPage() {
     let { currentURI } = this.browser;
@@ -2830,6 +2821,11 @@ export class nsContextMenu {
       return;
     }
     if (!Services.search.hasSuccessfullyInitialized) {
+      menuitem.hidden = true;
+      return;
+    }
+
+    if (isPrivateSearchMenuitem && !lazy.PrivateBrowsingUtils.enabled) {
       menuitem.hidden = true;
       return;
     }

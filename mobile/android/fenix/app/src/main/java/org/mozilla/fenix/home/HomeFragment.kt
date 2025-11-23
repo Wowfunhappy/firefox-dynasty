@@ -100,9 +100,7 @@ import org.mozilla.fenix.ext.components
 import org.mozilla.fenix.ext.getBottomToolbarHeight
 import org.mozilla.fenix.ext.getTopToolbarHeight
 import org.mozilla.fenix.ext.hideToolbar
-import org.mozilla.fenix.ext.isTallWindow
 import org.mozilla.fenix.ext.isToolbarAtBottom
-import org.mozilla.fenix.ext.isWideWindow
 import org.mozilla.fenix.ext.nav
 import org.mozilla.fenix.ext.recordEventInNimbus
 import org.mozilla.fenix.ext.requireComponents
@@ -601,7 +599,7 @@ class HomeFragment : Fragment() {
     private fun buildToolbar(activity: HomeActivity): FenixHomeToolbar =
         when (activity.settings().shouldUseComposableToolbar) {
             true -> {
-                val toolbarStore = buildToolbarStore(activity)
+                val toolbarStore by buildToolbarStore(activity)
 
                 homeNavigationBar = HomeNavigationBar(
                     context = activity,
@@ -1072,9 +1070,9 @@ class HomeFragment : Fragment() {
         FirefoxTheme {
             TabStrip(
                 isSelectDisabled = isSelectDisabled,
-                // Show action buttons only if the navigation bar (which has the same buttons) is not showing.
+                // Show action buttons only if composable toolbar is not enabled.
                 showActionButtons =
-                    context?.settings()?.shouldUseExpandedToolbar == false || !isTallWindow() || isWideWindow(),
+                    context?.settings()?.shouldUseComposableToolbar == false,
                 onAddTabClick = {
                     if (requireContext().settings().enableHomepageAsNewTab) {
                         requireComponents.useCases.fenixBrowserUseCases.addNewHomepageTab(
@@ -1205,7 +1203,9 @@ class HomeFragment : Fragment() {
     override fun onResume() {
         super.onResume()
         if (browsingModeManager.mode == BrowsingMode.Private) {
-            activity?.window?.setBackgroundDrawableResource(R.drawable.private_home_background_gradient)
+            activity?.window?.setBackgroundDrawable(
+                getColor(requireContext(), R.color.fx_mobile_private_surface).toDrawable(),
+            )
         }
 
         hideToolbar()
@@ -1251,11 +1251,6 @@ class HomeFragment : Fragment() {
 
     override fun onPause() {
         super.onPause()
-        if (browsingModeManager.mode == BrowsingMode.Private) {
-            activity?.window?.setBackgroundDrawable(
-                getColor(requireContext(), R.color.fx_mobile_private_layer_color_1).toDrawable(),
-            )
-        }
 
         // Counterpart to the update in onResume to keep the last access timestamp of the selected
         // tab up-to-date.
@@ -1387,13 +1382,13 @@ class HomeFragment : Fragment() {
     ) = context?.let {
         AwesomeBarComposable(
             activity = requireActivity() as HomeActivity,
+            fragment = this,
             modifier = modifier,
             components = requireComponents,
             appStore = requireComponents.appStore,
             browserStore = requireComponents.core.store,
             toolbarStore = toolbarStore,
             navController = findNavController(),
-            lifecycleOwner = this,
             tabId = args.sessionToStartSearchFor,
             searchAccessPoint = args.searchAccessPoint,
         ).also {

@@ -226,31 +226,79 @@ void RemoteAccessible::ApplyCache(CacheUpdateType aUpdateType,
 
 ENameValueFlag RemoteAccessible::Name(nsString& aName) const {
   if (RequestDomainsIfInactive(CacheDomain::NameAndDescription |
-                               CacheDomain::Text)) {
+                               CacheDomain::Text | CacheDomain::Relations) ||
+      !mCachedFields) {
     aName.SetIsVoid(true);
     return eNameOK;
   }
 
-  ENameValueFlag nameFlag = eNameOK;
-  if (mCachedFields) {
-    if (IsText()) {
-      mCachedFields->GetAttribute(CacheKey::Text, aName);
-      return eNameOK;
+  if (IsText()) {
+    mCachedFields->GetAttribute(CacheKey::Text, aName);
+    return eNameOK;
+  }
+
+  if (mCachedFields->GetAttribute(CacheKey::Name, aName)) {
+    VERIFY_CACHE(CacheDomain::NameAndDescription);
+    return eNameOK;
+  }
+
+  if (auto maybeAriaLabelIds = mCachedFields->GetAttribute<nsTArray<uint64_t>>(
+          nsGkAtoms::aria_labelledby)) {
+    RemoteAccIterator iter(*maybeAriaLabelIds, Document());
+    nsTextEquivUtils::GetTextEquivFromAccIterable(this, &iter, aName);
+    aName.CompressWhitespace();
+  }
+
+  if (!aName.IsEmpty()) {
+    return eNameFromRelations;
+  }
+
+  if (auto accRelMapEntry = mDoc->mReverseRelations.Lookup(ID())) {
+    nsTArray<uint64_t> relationCandidateIds;
+    for (const auto& data : kRelationTypeAtoms) {
+      if (data.mAtom != nsGkAtoms::_for || data.mValidTag != nsGkAtoms::label) {
+        continue;
+      }
+
+      if (auto labelIds = accRelMapEntry.Data().Lookup(&data)) {
+        RemoteAccIterator iter(*labelIds, Document());
+        nsTextEquivUtils::GetTextEquivFromAccIterable(this, &iter, aName);
+        aName.CompressWhitespace();
+      }
     }
-    auto cachedNameFlag =
-        mCachedFields->GetAttribute<int32_t>(CacheKey::NameValueFlag);
-    if (cachedNameFlag) {
-      nameFlag = static_cast<ENameValueFlag>(*cachedNameFlag);
-    }
-    if (mCachedFields->GetAttribute(CacheKey::Name, aName)) {
-      VERIFY_CACHE(CacheDomain::NameAndDescription);
-      return nameFlag;
-    }
+    aName.CompressWhitespace();
+  }
+
+  if (!aName.IsEmpty()) {
+    return eNameFromRelations;
+  }
+
+  ArrayAccIterator iter(LegendsOrCaptions());
+  nsTextEquivUtils::GetTextEquivFromAccIterable(this, &iter, aName);
+  aName.CompressWhitespace();
+
+  if (!aName.IsEmpty()) {
+    return eNameFromRelations;
+  }
+
+  nsTextEquivUtils::GetNameFromSubtree(this, aName);
+  if (!aName.IsEmpty()) {
+    return eNameFromSubtree;
+  }
+
+  if (mCachedFields->GetAttribute(CacheKey::Tooltip, aName)) {
+    VERIFY_CACHE(CacheDomain::NameAndDescription);
+    return eNameFromTooltip;
+  }
+
+  if (mCachedFields->GetAttribute(CacheKey::CssAltContent, aName)) {
+    VERIFY_CACHE(CacheDomain::NameAndDescription);
+    return eNameOK;
   }
 
   MOZ_ASSERT(aName.IsEmpty());
   aName.SetIsVoid(true);
-  return nameFlag;
+  return eNameOK;
 }
 
 EDescriptionValueFlag RemoteAccessible::Description(
@@ -1279,9 +1327,7 @@ Relation RemoteAccessible::RelationByType(RelationType aType) const {
   // both aria-labelledby and a <figcaption> must return two LABELLED_BY
   // targets: the aria-labelledby and then the <figcaption>.
   if (aType == RelationType::LABELLED_BY) {
-    for (RemoteAccessible* label : LegendsOrCaptions()) {
-      rel.AppendTarget(label);
-    }
+    rel.AppendIter(new ArrayAccIterator(LegendsOrCaptions()));
   } else if (aType == RelationType::LABEL_FOR) {
     if (RemoteAccessible* labelTarget = LegendOrCaptionFor()) {
       rel.AppendTarget(labelTarget);
@@ -1291,12 +1337,12 @@ Relation RemoteAccessible::RelationByType(RelationType aType) const {
   return rel;
 }
 
-nsTArray<RemoteAccessible*> RemoteAccessible::LegendsOrCaptions() const {
-  nsTArray<RemoteAccessible*> children;
+nsTArray<Accessible*> RemoteAccessible::LegendsOrCaptions() const {
+  nsTArray<Accessible*> children;
   auto AddChildWithTag = [this, &children](nsAtom* aTarget) {
     uint32_t count = ChildCount();
     for (uint32_t c = 0; c < count; ++c) {
-      RemoteAccessible* child = RemoteChildAt(c);
+      Accessible* child = ChildAt(c);
       MOZ_ASSERT(child);
       if (child->TagName() == aTarget) {
         children.AppendElement(child);

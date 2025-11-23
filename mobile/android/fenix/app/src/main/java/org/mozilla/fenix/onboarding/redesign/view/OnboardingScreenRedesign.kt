@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PageSize
 import androidx.compose.foundation.pager.PagerState
@@ -34,12 +35,8 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
-import androidx.compose.ui.input.nestedscroll.NestedScrollSource
-import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -292,8 +289,6 @@ private fun OnboardingContent(
     onMarketingDataLearnMoreClick: () -> Unit,
     onMarketingDataContinueClick: (allowMarketingDataCollection: Boolean) -> Unit,
 ) {
-    val nestedScrollConnection = remember { DisableForwardSwipeNestedScrollConnection(pagerState) }
-
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val boxWithConstraintsScope = this
         val isSmallPhoneScreen = boxWithConstraintsScope.maxHeight <= SMALL_SCREEN_MAX_HEIGHT
@@ -311,15 +306,18 @@ private fun OnboardingContent(
             GradientBackground()
         }
 
-        Column(verticalArrangement = Arrangement.Center) {
+        Column(
+            modifier = Modifier.systemBarsPadding(),
+            verticalArrangement = Arrangement.Center,
+        ) {
             Spacer(Modifier.weight(1f))
 
             HorizontalPager(
                 state = pagerState,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(pagerHeight)
-                    .nestedScroll(nestedScrollConnection),
+                    .height(pagerHeight),
+                userScrollEnabled = pagerState.currentPage != 0, // Disable scroll for the Terms of Use card.
                 contentPadding = PaddingValues(horizontal = paddingValue),
                 pageSize = PageSize.Fill,
                 beyondViewportPageCount = 2,
@@ -529,27 +527,6 @@ private fun isNonLargeScreenLandscape(isLargeScreen: Boolean, isLandscape: Boole
 
 private fun pageSpacing(isLargeScreen: Boolean, isSmallScreen: Boolean, pagePeekWidth: Dp) =
     if (isLargeScreen || isSmallScreen) pagePeekWidth else 8.dp
-
-private class DisableForwardSwipeNestedScrollConnection(
-    private val pagerState: PagerState,
-) : NestedScrollConnection {
-
-    override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset =
-        if (available.x > 0) {
-            // Allow going back on swipe
-            Offset.Zero
-        } else {
-            // For forward swipe, only allow if the visible item offset is less than 0,
-            // this would be a result of a slow back fling, and we should allow snapper to
-            // snap to the appropriate item.
-            // Else consume the whole offset and disable going forward.
-            if (pagerState.currentPageOffsetFraction < 0) {
-                Offset.Zero
-            } else {
-                Offset(available.x, 0f)
-            }
-        }
-}
 
 // *** Code below used for previews only *** //
 

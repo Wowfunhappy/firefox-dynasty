@@ -283,21 +283,6 @@ role HTMLTableHeaderCellAccessible::NativeRole() const {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// HTMLTableRowAccessible
-////////////////////////////////////////////////////////////////////////////////
-
-// LocalAccessible protected
-ENameValueFlag HTMLTableRowAccessible::NativeName(nsString& aName) const {
-  // For table row accessibles, we only want to calculate the name from the
-  // sub tree if an ARIA role is present.
-  if (HasStrongARIARole()) {
-    return AccessibleWrap::NativeName(aName);
-  }
-
-  return eNameOK;
-}
-
-////////////////////////////////////////////////////////////////////////////////
 // HTMLTableAccessible
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -329,10 +314,11 @@ ENameValueFlag HTMLTableAccessible::NativeName(nsString& aName) const {
   if (caption) {
     nsIContent* captionContent = caption->GetContent();
     if (captionContent) {
-      nsTextEquivUtils::AppendTextEquivFromContent(this, captionContent,
-                                                   &aName);
+      bool usedHiddenContent = nsTextEquivUtils::AppendTextEquivFromContent(
+          this, captionContent, &aName);
+      aName.CompressWhitespace();
       if (!aName.IsEmpty()) {
-        return eNameFromRelations;
+        return usedHiddenContent ? eNameOK : eNameFromRelations;
       }
     }
   }

@@ -274,7 +274,7 @@ async function waitForAndAssertPrefState(pref, expectedValue, message) {
  */
 async function mockDefaultFxAInstance() {
   /**
-   * @typedef {Object} MockFxAUtilityFunctions
+   * @typedef {object} MockFxAUtilityFunctions
    * @property {function():void} mock - Makes the dummy values default, creating
    *                             the illusion of a production FxA instance.
    * @property {function():void} unmock - Restores the true defaults, creating
@@ -717,4 +717,18 @@ function waitForSettingChange(setting) {
 async function waitForSettingControlChange(control) {
   await waitForSettingChange(control.setting);
   await new Promise(resolve => requestAnimationFrame(resolve));
+}
+
+/**
+ * Wait for the current setting pane to change.
+ *
+ * @param {string} paneId
+ */
+async function waitForPaneChange(paneId) {
+  let doc = gBrowser.selectedBrowser.contentDocument;
+  let event = await BrowserTestUtils.waitForEvent(doc, "paneshown");
+  let expectId = paneId.startsWith("pane")
+    ? paneId
+    : `pane${paneId[0].toUpperCase()}${paneId.substring(1)}`;
+  is(event.detail.category, expectId, "Loaded the correct pane");
 }

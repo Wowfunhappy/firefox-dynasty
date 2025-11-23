@@ -56,9 +56,7 @@
 #include "util/NativeStack.h"
 #include "util/Text.h"
 #include "util/WindowsWrapper.h"
-#include "js/friend/DumpFunctions.h"  // for stack trace utilities
-#include "js/Printer.h"               // for FixedBufferPrinter
-#include "vm/BytecodeUtil.h"          // JSDVG_IGNORE_STACK
+#include "vm/BytecodeUtil.h"  // JSDVG_IGNORE_STACK
 #include "vm/ErrorObject.h"
 #include "vm/ErrorReporting.h"
 #include "vm/FrameIter.h"
@@ -268,12 +266,6 @@ static void MaybeReportOutOfMemoryForDifferentialTesting() {
   }
 }
 
-bool JSContext::safeToCaptureStackTrace() const {
-  // If we're in an unsafe ABI context, we don't need to capture a stack trace
-  // because the function will explicitly recover from OOM.
-  return !inUnsafeCallWithABI && !unsafeToCaptureStackTrace;
-}
-
 /*
  * Since memory has been exhausted, avoid the normal error-handling path which
  * allocates an error object, report and callstack. Instead simply throw the
@@ -285,9 +277,6 @@ bool JSContext::safeToCaptureStackTrace() const {
 void JSContext::onOutOfMemory() {
   runtime()->hadOutOfMemory = true;
   gc::AutoSuppressGC suppressGC(this);
-
-  // Capture stack trace before doing anything else that might use memory.
-  maybeCaptureOOMStackTrace();
 
   /* Report the oom. */
   if (JS::OutOfMemoryCallback oomCallback = runtime()->oomCallback) {
@@ -797,6 +786,11 @@ JSObject* InternalJobQueue::copyJobs(JSContext* cx) {
         if (task) {
           // All any test cares about is the global of the job so let's do it.
           RootedObject global(cx, JS::GetExecutionGlobalFromJSMicroTask(task));
+          if (!global) {
+            JS_ReportErrorNumberASCII(cx, GetErrorMessage, nullptr,
+                                      JSMSG_DEAD_OBJECT);
+            return false;
+          }
           if (!cx->compartment()->wrap(cx, &global)) {
             return false;
           }
@@ -836,11 +830,6 @@ JS_PUBLIC_API JSObject* js::GetJobsInInternalJobQueue(JSContext* cx) {
   return cx->internalJobQueue->copyJobs(cx);
 }
 #endif
-
-JS_PUBLIC_API bool js::EnqueueJob(JSContext* cx, JS::HandleObject job) {
-  MOZ_ASSERT(cx->jobQueue);
-  return cx->jobQueue->enqueuePromiseJob(cx, nullptr, job, nullptr, nullptr);
-}
 
 JS_PUBLIC_API void js::StopDrainingJobQueue(JSContext* cx) {
   MOZ_ASSERT(cx->internalJobQueue.ref());
@@ -924,7 +913,9 @@ void InternalJobQueue::runJobs(JSContext* cx) {
           JS::JobQueueIsEmpty(cx);
         }
 
-        MOZ_ASSERT(JS::GetExecutionGlobalFromJSMicroTask(job) != nullptr);
+        if (!JS::GetExecutionGlobalFromJSMicroTask(job)) {
+          continue;
+        }
         AutoRealm ar(cx, JS::GetExecutionGlobalFromJSMicroTask(job));
         {
           if (!JS::RunJSMicroTask(cx, job)) {
@@ -1236,9 +1227,10 @@ JSContext::JSContext(JSRuntime* runtime, const JS::ContextOptions& options)
       activation_(this, nullptr),
       profilingActivation_(nullptr),
       noExecuteDebuggerTop(this, nullptr),
-      unsafeToCaptureStackTrace(this, false),
+#ifdef JS_CHECK_UNSAFE_CALL_WITH_ABI
       inUnsafeCallWithABI(this, false),
       hasAutoUnsafeCallWithABI(this, false),
+#endif
 #ifdef DEBUG
       liveArraySortDataInstances(this, 0),
 #endif
@@ -1300,28 +1292,10 @@ JSContext::JSContext(JSRuntime* runtime, const JS::ContextOptions& options)
       canSkipEnqueuingJobs(this, false),
       promiseRejectionTrackerCallback(this, nullptr),
       promiseRejectionTrackerCallbackData(this, nullptr),
-      oomStackTraceBuffer_(this, nullptr),
-      oomStackTraceBufferValid_(this, false),
       insideExclusiveDebuggerOnEval(this, nullptr) {
   MOZ_ASSERT(static_cast<JS::RootingContext*>(this) ==
              JS::RootingContext::get(this));
-
-  if (JS::Prefs::experimental_capture_oom_stack_trace()) {
-    // Allocate pre-allocated buffer for OOM stack traces
-    oomStackTraceBuffer_ =
-        static_cast<char*>(js_calloc(OOMStackTraceBufferSize));
-  }
 }
-
-#ifdef ENABLE_WASM_JSPI
-bool js::IsSuspendableStackActive(JSContext* cx) {
-  return cx->wasm().suspendableStackLimit != JS::NativeStackLimitMin;
-}
-
-JS::NativeStackLimit js::GetSuspendableStackLimit(JSContext* cx) {
-  return cx->wasm().suspendableStackLimit;
-}
-#endif
 
 JSContext::~JSContext() {
 #ifdef DEBUG
@@ -1350,43 +1324,7 @@ JSContext::~JSContext() {
     irregexp::DestroyIsolate(isolate.ref());
   }
 
-  // Free the pre-allocated OOM stack trace buffer
-  if (oomStackTraceBuffer_) {
-    js_free(oomStackTraceBuffer_);
-  }
-
   TlsContext.set(nullptr);
-}
-
-void JSContext::unsetOOMStackTrace() { oomStackTraceBufferValid_ = false; }
-
-const char* JSContext::getOOMStackTrace() const {
-  if (!oomStackTraceBufferValid_ || !oomStackTraceBuffer_) {
-    return nullptr;
-  }
-  return oomStackTraceBuffer_;
-}
-
-bool JSContext::hasOOMStackTrace() const { return oomStackTraceBufferValid_; }
-
-void JSContext::maybeCaptureOOMStackTrace() {
-  // Clear any existing stack trace
-  oomStackTraceBufferValid_ = false;
-
-  if (!oomStackTraceBuffer_) {
-    return;  // Buffer not available
-  }
-
-  // Write directly to pre-allocated buffer to avoid any memory allocation
-  FixedBufferPrinter fbp(oomStackTraceBuffer_, OOMStackTraceBufferSize);
-  if (safeToCaptureStackTrace()) {
-    js::DumpBacktrace(this, fbp);
-  } else {
-    fbp.put("Unsafe to capture stack trace");
-  }
-
-  MOZ_ASSERT(strlen(oomStackTraceBuffer_) < OOMStackTraceBufferSize);
-  oomStackTraceBufferValid_ = true;
 }
 
 void JSContext::setRuntime(JSRuntime* rt) {
@@ -1628,7 +1566,10 @@ void JSContext::resetJitStackLimit() {
   jitStackLimitNoInterrupt = jitStackLimit;
 }
 
-void JSContext::initJitStackLimit() { resetJitStackLimit(); }
+void JSContext::initJitStackLimit() {
+  resetJitStackLimit();
+  wasm_.initStackLimit(this);
+}
 
 JSScript* JSContext::currentScript(jsbytecode** ppc,
                                    AllowCrossRealm allowCrossRealm) {
@@ -1764,16 +1705,7 @@ void JSContext::suspendExecutionTracing() {
 
 #endif
 
-AutoUnsafeStackTrace::AutoUnsafeStackTrace(JSContext* cx)
-    : cx_(cx), nested_(cx_->unsafeToCaptureStackTrace) {
-  cx_->unsafeToCaptureStackTrace = true;
-}
-
-AutoUnsafeStackTrace::~AutoUnsafeStackTrace() {
-  if (!nested_) {
-    cx_->unsafeToCaptureStackTrace = false;
-  }
-}
+#ifdef JS_CHECK_UNSAFE_CALL_WITH_ABI
 
 AutoUnsafeCallWithABI::AutoUnsafeCallWithABI(UnsafeABIStrictness strictness)
     : cx_(TlsContext.get()),
@@ -1783,7 +1715,6 @@ AutoUnsafeCallWithABI::AutoUnsafeCallWithABI(UnsafeABIStrictness strictness)
     // This is a helper thread doing Ion or Wasm compilation - nothing to do.
     return;
   }
-#ifdef JS_CHECK_UNSAFE_CALL_WITH_ABI
   switch (strictness) {
     case UnsafeABIStrictness::NoExceptions:
       MOZ_ASSERT(!JS_IsExceptionPending(cx_));
@@ -1792,8 +1723,10 @@ AutoUnsafeCallWithABI::AutoUnsafeCallWithABI(UnsafeABIStrictness strictness)
     case UnsafeABIStrictness::AllowPendingExceptions:
       checkForPendingException_ = !JS_IsExceptionPending(cx_);
       break;
+    case UnsafeABIStrictness::AllowThrownExceptions:
+      checkForPendingException_ = false;
+      break;
   }
-#endif
 
   cx_->hasAutoUnsafeCallWithABI = true;
 }
@@ -1802,15 +1735,15 @@ AutoUnsafeCallWithABI::~AutoUnsafeCallWithABI() {
   if (!cx_) {
     return;
   }
-#ifdef JS_CHECK_UNSAFE_CALL_WITH_ABI
   MOZ_ASSERT(cx_->hasAutoUnsafeCallWithABI);
-  MOZ_ASSERT_IF(checkForPendingException_, !JS_IsExceptionPending(cx_));
-#endif
   if (!nested_) {
     cx_->hasAutoUnsafeCallWithABI = false;
     cx_->inUnsafeCallWithABI = false;
   }
+  MOZ_ASSERT_IF(checkForPendingException_, !JS_IsExceptionPending(cx_));
 }
+
+#endif  // JS_CHECK_UNSAFE_CALL_WITH_ABI
 
 #ifdef __wasi__
 JS_PUBLIC_API void js::IncWasiRecursionDepth(JSContext* cx) {

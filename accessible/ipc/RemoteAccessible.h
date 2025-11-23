@@ -181,7 +181,7 @@ class RemoteAccessible : public Accessible, public HyperTextAccessibleBase {
 
   // Methods that potentially access a cache.
 
-  virtual ENameValueFlag Name(nsString& aName) const override;
+  virtual ENameValueFlag Name(nsString& aName) const override final;
   virtual EDescriptionValueFlag Description(
       nsString& aDescription) const override;
   virtual void Value(nsString& aValue) const override;
@@ -500,7 +500,7 @@ class RemoteAccessible : public Accessible, public HyperTextAccessibleBase {
 
   virtual nsTArray<int32_t>& GetCachedHyperTextOffsets() override;
 
-  nsTArray<RemoteAccessible*> LegendsOrCaptions() const;
+  nsTArray<Accessible*> LegendsOrCaptions() const;
 
   RemoteAccessible* LegendOrCaptionFor() const;
 

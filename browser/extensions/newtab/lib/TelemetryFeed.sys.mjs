@@ -299,7 +299,7 @@ export class TelemetryFeed {
   /**
    * Retrieves most recently followed sections (maximum 2 sections)
    *
-   * @returns {String[]} comma separated string of section UUID's
+   * @returns {string[]} comma separated string of section UUID's
    */
   getFollowedSections() {
     const sections =
@@ -1408,16 +1408,6 @@ export class TelemetryFeed {
       case at.REPORT_CONTENT_SUBMIT:
         this.handleReportContentUserEvent(action);
         break;
-      case at.TRENDING_SEARCH_IMPRESSION:
-      case at.TRENDING_SEARCH_SUGGESTION_OPEN:
-        this.handleTrendingSearchUserEvent(action);
-        break;
-      case at.TRENDING_SEARCH_TOGGLE_COLLAPSE:
-        // only send telemetry if a user is collapsing the widget
-        if (!action.data.collapsed) {
-          this.handleTrendingSearchUserEvent(action);
-        }
-        break;
       case at.WIDGETS_LISTS_USER_EVENT:
       case at.WIDGETS_LISTS_USER_IMPRESSION:
       case at.WIDGETS_TIMER_USER_EVENT:
@@ -1477,27 +1467,6 @@ export class TelemetryFeed {
           break;
         case "WIDGETS_TIMER_USER_IMPRESSION":
           Glean.newtab.widgetsTimerImpression.record(payload);
-          break;
-      }
-    }
-  }
-
-  handleTrendingSearchUserEvent(action) {
-    const session = this.sessions.get(au.getPortIdOfSender(action));
-    if (session) {
-      const payload = {
-        newtab_visit_id: session.visit_id,
-        variant: action.data.variant || "",
-      };
-      switch (action.type) {
-        case "TRENDING_SEARCH_IMPRESSION":
-          Glean.newtab.trendingSearchImpression.record(payload);
-          break;
-        case "TRENDING_SEARCH_TOGGLE_COLLAPSE":
-          Glean.newtab.trendingSearchDismiss.record(payload);
-          break;
-        case "TRENDING_SEARCH_SUGGESTION_OPEN":
-          Glean.newtab.trendingSearchSuggestionOpen.record(payload);
           break;
       }
     }
@@ -1738,7 +1707,6 @@ export class TelemetryFeed {
   }
 
   handleSetPref(action) {
-    const prefs = this.store.getState()?.Prefs.values;
     const session = this.sessions.get(au.getPortIdOfSender(action));
     if (!session) {
       return;
@@ -1749,15 +1717,6 @@ export class TelemetryFeed {
           newtab_visit_id: session.session_id,
           weather_display_mode: action.data.value,
         });
-        break;
-      case "trendingSearch.enabled":
-        if (!action.data.value) {
-          const variant = prefs["trendingSearch.variant"] || "";
-          Glean.newtab.trendingSearchDismiss.record({
-            newtab_visit_id: session.session_id,
-            variant,
-          });
-        }
         break;
       case "widgets.lists.enabled":
         Glean.newtab.widgetsListsChangeDisplay.record({
@@ -1966,8 +1925,8 @@ export class TelemetryFeed {
   /**
    * Handle impression stats actions from Discovery Stream.
    *
-   * @param {String} port  The session port with which this is associated
-   * @param {Object} data  The impression data structured as {source: "SOURCE", tiles: [{id: 123}]}
+   * @param {string} port  The session port with which this is associated
+   * @param {object} data  The impression data structured as {source: "SOURCE", tiles: [{id: 123}]}
    */
   handleDiscoveryStreamImpressionStats(port, data) {
     let session = this.sessions.get(port);
@@ -2055,8 +2014,8 @@ export class TelemetryFeed {
    * @note Any existing keys with the same names already in the
    * session perf object will be overwritten by values passed in here.
    *
-   * @param {String} port  The session with which this is associated
-   * @param {Object} data  The perf data to be
+   * @param {string} port  The session with which this is associated
+   * @param {object} data  The perf data to be
    */
   saveSessionPerfData(port, data) {
     // XXX should use try/catch and send a bad state indicator if this

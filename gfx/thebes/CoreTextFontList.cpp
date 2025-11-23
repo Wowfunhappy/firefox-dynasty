@@ -1201,6 +1201,8 @@ static void ReleaseData(void* info, const void* data, size_t size) {
   free((void*)data);
 }
 
+MOZ_DEFINE_MALLOC_SIZE_OF_ON_ALLOC(UserFontMallocSizeOfOnAlloc)
+
 gfxFontEntry* CoreTextFontList::MakePlatformFont(const nsACString& aFontName,
                                                  WeightRange aWeightForEntry,
                                                  StretchRange aStretchForEntry,
@@ -1230,6 +1232,13 @@ gfxFontEntry* CoreTextFontList::MakePlatformFont(const nsACString& aFontName,
   auto newFontEntry = MakeUnique<CTFontEntry>(
       NS_ConvertUTF16toUTF8(uniqueName), fontRef, aWeightForEntry,
       aStretchForEntry, aStyleForEntry, true, false);
+
+  // Record size for memory reporting purposes.
+  // The *OnAlloc function will also tell DMD about this block, as the
+  // OS font code may hold on to it for an extended period.
+  newFontEntry->mComputedSizeOfUserFont =
+      UserFontMallocSizeOfOnAlloc(aFontData);
+
   return newFontEntry.release();
 }
 

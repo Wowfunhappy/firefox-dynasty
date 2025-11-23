@@ -617,6 +617,15 @@ class Settings(
     )
 
     /**
+     * Returns true if the nimbus flag for showing the terms of use drag handle is true.
+     */
+    var shouldShowTermsOfUsePromptDragHandle by lazyFeatureFlagPreference(
+        key = appContext.getPreferenceKey(R.string.pref_key_terms_prompt_drag_handle_enabled),
+        default = { FxNimbus.features.termsOfUsePrompt.value().enableDragToDismiss },
+        featureFlag = true,
+    )
+
+    /**
      * The maximum number of times the Terms of Use prompt should be displayed.
      *
      * Use a function to ensure the most up-to-date Nimbus value is retrieved.
@@ -840,13 +849,32 @@ class Settings(
     )
 
     /**
-     * Indicates if the LNA (Local Network Access / Local Device Access) blocking is enabled
-     *
-     * This refers to whether or not we are blocking or allowing requests that originate from
-     * remote origins targeting either localhost addresses or local network addresses.
+     * Indicates if the request blocking feature for Local Network / Local Device Access blocking is enabled.
      */
     var isLnaBlockingEnabled by lazyFeatureFlagPreference(
         key = appContext.getPreferenceKey(R.string.pref_key_enable_lna_blocking_enabled),
+        featureFlag = true,
+        default = { FxNimbus.features.lnaBlocking.value().blocking },
+    )
+
+    /**
+     * Indicates if the Local Network / Local Device Access tracker blocking feature is enabled.
+     */
+    var isLnaTrackerBlockingEnabled by lazyFeatureFlagPreference(
+        key = appContext.getPreferenceKey(R.string.pref_key_enable_lna_tracker_blocking_enabled),
+        featureFlag = true,
+        default = { FxNimbus.features.lnaBlocking.value().blockTrackers },
+    )
+
+    /**
+     * Indicates if the overall Local Network / Local Device Access feature is enabled.
+     *
+     * Local Network / Local Device Access blocking refers to whether or not we are blocking or
+     * allowing requests that originate from remote origins targeting either localhost addresses or
+     * local network addresses.
+     */
+    var isLnaFeatureEnabled by lazyFeatureFlagPreference(
+        key = appContext.getPreferenceKey(R.string.pref_key_enable_lna_feature_enabled),
         featureFlag = true,
         default = { FxNimbus.features.lnaBlocking.value().enabled },
     )
@@ -2269,14 +2297,6 @@ class Settings(
     var enableDiscoverMoreStories by booleanPreference(
         key = appContext.getPreferenceKey(R.string.pref_key_enable_discover_more_stories),
         default = FeatureFlags.DISCOVER_MORE_STORIES,
-    )
-
-    /**
-     * Indicates if the private browsing mode redesign is enabled.
-     */
-    var enablePrivateBrowsingModeRedesign by booleanPreference(
-        key = appContext.getPreferenceKey(R.string.pref_key_enable_private_browsing_mode_redesign),
-        default = FeatureFlags.PRIVATE_BROWSING_MODE_REDESIGN,
     )
 
     /**

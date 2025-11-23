@@ -249,6 +249,12 @@ class nsLayoutUtils {
   static void NotifyPaintSkipTransaction(ViewID aScrollId);
 
   /**
+   * Similar to above NotifyPaintSkipTransaction, but scroll offset is being
+   * sent to APZ in a full transaction.
+   */
+  static void NotifyApzTransaction(ViewID aScrollId);
+
+  /**
    * Use heuristics to figure out the child list that
    * aChildFrame is currently in.
    */
@@ -466,6 +472,17 @@ class nsLayoutUtils {
   static bool IsProperAncestorFrame(const nsIFrame* aAncestorFrame,
                                     const nsIFrame* aFrame,
                                     const nsIFrame* aCommonAncestor = nullptr);
+
+  /**
+   * IsProperAncestorFrameConsideringContinuations checks whether aAncestorFrame
+   * or a continuation of it is an ancestor of aFrame and not equal to aFrame.
+   * @param aCommonAncestor nullptr, or a common ancestor of aFrame and
+   * aAncestorFrame. If non-null, this can bound the search and speed up
+   * the function
+   */
+  static bool IsProperAncestorFrameConsideringContinuations(
+      const nsIFrame* aAncestorFrame, const nsIFrame* aFrame,
+      const nsIFrame* aCommonAncestor = nullptr);
 
   /**
    * Like IsProperAncestorFrame, but looks across document boundaries.
