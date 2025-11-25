@@ -1992,16 +1992,6 @@ struct MOZ_STACK_CLASS WebRenderCommandBuilder::AutoOpaqueRegionStateTracker {
   }
 };
 
-struct MOZ_STACK_CLASS AutoEnterStickyItem {
-  ClipManager& mClipManager;
-
-  AutoEnterStickyItem(ClipManager& aClipManager, nsDisplayStickyPosition* aItem)
-      : mClipManager(aClipManager) {
-    mClipManager.PushStickyItem(aItem);
-  }
-  ~AutoEnterStickyItem() { mClipManager.PopStickyItem(); }
-};
-
 void WebRenderCommandBuilder::CreateWebRenderCommandsFromDisplayList(
     nsDisplayList* aDisplayList, nsDisplayItem* aWrappingItem,
     nsDisplayListBuilder* aDisplayListBuilder, const StackingContextHelper& aSc,
@@ -2048,12 +2038,6 @@ void WebRenderCommandBuilder::CreateWebRenderCommandsFromDisplayList(
     // them got cached with a flattened opacity values., which may no longer be
     // applied.
     Maybe<AutoDisplayItemCacheSuppressor> cacheSuppressor;
-
-    Maybe<AutoEnterStickyItem> autoStickyItem;
-    if (itemType == DisplayItemType::TYPE_STICKY_POSITION) {
-      autoStickyItem.emplace(mClipManager,
-                             static_cast<nsDisplayStickyPosition*>(item));
-    }
 
     if (itemType == DisplayItemType::TYPE_OPACITY) {
       nsDisplayOpacity* opacity = static_cast<nsDisplayOpacity*>(item);
@@ -2154,13 +2138,16 @@ void WebRenderCommandBuilder::CreateWebRenderCommandsFromDisplayList(
         newLayerData->mLayerCountBeforeRecursing = mLayerScrollData.size();
         newLayerData->mStopAtAsr =
             mAsrStack.empty() ? nullptr : mAsrStack.back();
+        newLayerData->mStopAtAsr = ActiveScrolledRoot::LowestCommonAncestor(
+            asr, newLayerData->mStopAtAsr);
         newLayerData->ComputeDeferredTransformInfo(aSc, item);
 
-        // Ensure our children's |stopAtAsr| is not be an ancestor of our
+        // Our children's |stopAtAsr| must not be an ancestor of our
         // |stopAtAsr|, otherwise we could get cyclic scroll metadata
         // annotations.
-        const ActiveScrolledRoot* stopAtAsrForChildren =
-            ActiveScrolledRoot::PickDescendant(asr, newLayerData->mStopAtAsr);
+        MOZ_ASSERT(
+            ActiveScrolledRoot::IsAncestor(newLayerData->mStopAtAsr, asr));
+        const ActiveScrolledRoot* stopAtAsrForChildren = asr;
         // Additionally, while unusual and probably indicative of a poorly
         // behaved display list, it's possible to have a deferred transform item
         // which we will emit as its own layer on the way out of the recursion,
