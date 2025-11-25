@@ -1952,13 +1952,6 @@
   value: 2
   mirror: always
 
-# If set, use DocumentChannel to directly initiate loads entirely
-# from parent-process BrowsingContexts
-- name: browser.tabs.documentchannel.parent-controlled
-  type: bool
-  value: false
-  mirror: always
-
 # If set, middle clicking on a link opens the link in a new tab.
 - name: browser.tabs.opentabfor.middleclick
   type: bool
@@ -3407,7 +3400,12 @@
 # Only used in fission; in e10s we use 1 always
 - name: dom.ipc.processPrelaunch.fission.number
   type: uint32_t
+#ifdef ANDROID
+  # Bug 1999950: Prelaunch 1 process on Android due to a performance regression.
+  value: 1
+#else
   value: 3
+#endif
   mirror: always
 
 # Limit preallocated processes below this memory size (in MB)
@@ -3695,6 +3693,13 @@
 # Known issues can be guarded using this pref
 # to avoid crashing users while investigating the issue.
 - name: dom.navigation.api.strict.enabled
+  type: bool
+  value: false
+  mirror: always
+
+# For non-Navigation API navigations, create an internal method tracker
+# so that it's possible to await navigations being committed.
+- name: dom.navigation.api.internal_method_tracker
   type: bool
   value: false
   mirror: always
@@ -9848,6 +9853,16 @@
 - name: layout.css.anchor-positioning.enabled
   type: RelaxedAtomicBool
   value: @IS_NIGHTLY_BUILD@
+  mirror: always
+  rust: true
+
+# Whether to enable generalized CSS Attr Support. If this pref is set to false
+# we treat attr as a regular function with support only for the `content` css
+# property. If it is set to true, attr is parsed as a subtitution function.
+# https://drafts.csswg.org/css-values-5/#attr-notation
+- name: layout.css.attr.enabled
+  type: RelaxedAtomicBool
+  value: false
   mirror: always
   rust: true
 
@@ -16206,6 +16221,14 @@
   value: 2
   mirror: always
 
+#ifdef MOZ_ENABLE_SKIA_PDF
+# Whether we should try to use skpdf for pdf output.
+- name: print.experimental.skpdf
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
+#endif
+
 #---------------------------------------------------------------------------
 # Prefs starting with "privacy."
 #---------------------------------------------------------------------------
@@ -19645,13 +19668,13 @@
   mirror: always
 #endif
 
+#ifdef ANDROID
 # Whether to render in to a child SurfaceControl rather than directly into the SurfaceView
 - name: widget.android.use-surfacecontrol
   type: bool
   value: false
   mirror: once
 
-#ifdef ANDROID
 # A threshold value for double click by mouse.
 - name: widget.double-click.threshold
   type: RelaxedAtomicInt32

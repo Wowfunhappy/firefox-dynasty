@@ -807,7 +807,12 @@ class PageStyleActor extends Actor {
   }
 
   _nodeIsListItem(node) {
-    const display = CssLogic.getComputedStyle(node).getPropertyValue("display");
+    const computed = CssLogic.getComputedStyle(node);
+    if (!computed) {
+      return false;
+    }
+
+    const display = computed.getPropertyValue("display");
     // This is written this way to handle `inline list-item` and such.
     return display.split(" ").includes("list-item");
   }
@@ -1048,6 +1053,7 @@ class PageStyleActor extends Actor {
         if (entry.rule.type === ELEMENT_STYLE) {
           continue;
         }
+        entry.matchedSelectorIndexes = [];
 
         const domRule = entry.rule.rawRule;
         const element = entry.inherited
@@ -1057,6 +1063,13 @@ class PageStyleActor extends Actor {
         const pseudos = [];
         const { bindingElement, pseudo } =
           CssLogic.getBindingElementAndPseudo(element);
+
+        // if we couldn't find a binding element, we can't call domRule.selectorMatchesElement,
+        // so bail out
+        if (!bindingElement) {
+          continue;
+        }
+
         if (pseudo) {
           pseudos.push(pseudo);
         } else if (entry.rule.pseudoElements.size) {
@@ -1070,7 +1083,6 @@ class PageStyleActor extends Actor {
         }
 
         const relevantLinkVisited = CssLogic.hasVisitedState(bindingElement);
-        entry.matchedSelectorIndexes = [];
         const len = domRule.selectorCount;
         for (let i = 0; i < len; i++) {
           for (const pseudoElementName of pseudos) {
@@ -1269,18 +1281,32 @@ class PageStyleActor extends Actor {
     }
 
     const cssRules = sheet.cssRules;
-    const rawNode = node.rawNode;
-    const classes = [...rawNode.classList];
+
+    // Get the binding element in case node is a pseudo element, so we can properly
+    // build the selector
+    const { bindingElement, pseudo } = CssLogic.getBindingElementAndPseudo(
+      node.rawNode
+    );
+    const classes = [...bindingElement.classList];
 
     let selector;
-    if (rawNode.id) {
-      selector = "#" + CSS.escape(rawNode.id);
+    if (bindingElement.id) {
+      selector = "#" + CSS.escape(bindingElement.id);
     } else if (classes.length) {
       selector = "." + classes.map(c => CSS.escape(c)).join(".");
     } else {
-      selector = rawNode.localName;
+      selector = bindingElement.localName;
     }
 
+    if (pseudo && pseudoClasses?.length) {
+      throw new Error(
+        `Can't set pseudo classes (${JSON.stringify(pseudoClasses)}) onto a pseudo element (${pseudo})`
+      );
+    }
+
+    if (pseudo) {
+      selector += pseudo;
+    }
     if (pseudoClasses && pseudoClasses.length) {
       selector += pseudoClasses.join("");
     }

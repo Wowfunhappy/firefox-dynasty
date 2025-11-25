@@ -72,6 +72,7 @@ import org.mozilla.fenix.automotive.isAndroidAutomotiveAvailable
 import org.mozilla.fenix.components.appstate.SupportedMenuNotifications
 import org.mozilla.fenix.components.components
 import org.mozilla.fenix.components.menu.compose.Addons
+import org.mozilla.fenix.components.menu.compose.CustomTabAddons
 import org.mozilla.fenix.components.menu.compose.CustomTabMenu
 import org.mozilla.fenix.components.menu.compose.MainMenu
 import org.mozilla.fenix.components.menu.compose.MenuCFRState
@@ -352,7 +353,8 @@ class MenuDialogFragment : BottomSheetDialogFragment() {
                     handlebarContentDescription = handlebarContentDescription,
                     isMenuDragBarDark = !settings.shouldUseBottomToolbar &&
                             !settings.shouldUseExpandedToolbar &&
-                            (isExtensionsExpanded || isMoreMenuExpanded),
+                            (isExtensionsExpanded || isMoreMenuExpanded) &&
+                            args.accesspoint == MenuAccessPoint.Browser,
                     cornerShape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
                     handleColor = FirefoxTheme.colors.borderInverted.copy(0.4f),
                     handleCornerRadius = CornerRadius(100f, 100f),
@@ -400,6 +402,7 @@ class MenuDialogFragment : BottomSheetDialogFragment() {
                     webExtensionsMenuBinding.set(
                         feature = WebExtensionsMenuBinding(
                             browserStore = browserStore,
+                            customTabId = args.customTabSessionId,
                             menuStore = store,
                             iconSize = 24.dpToPx(requireContext().resources.displayMetrics),
                             onDismiss = { this@MenuDialogFragment.dismiss() },
@@ -438,7 +441,7 @@ class MenuDialogFragment : BottomSheetDialogFragment() {
                         state.extensionMenuState.webExtensionsCount
                     }
 
-                    val allWebExtensionsDisabled by store.observeAsState(initialValue = false) { state ->
+                    val isAllWebExtensionsDisabled by store.observeAsState(initialValue = false) { state ->
                         state.extensionMenuState.allWebExtensionsDisabled
                     }
 
@@ -477,6 +480,19 @@ class MenuDialogFragment : BottomSheetDialogFragment() {
 
                     var shouldShowMenuBanner by
                     remember { mutableStateOf(settings.shouldShowMenuBanner) }
+
+                    val extensionsMenuItemDescription = getExtensionsMenuItemDescription(
+                        isExtensionsProcessDisabled = isExtensionsProcessDisabled,
+                        isAllWebExtensionsDisabled = isAllWebExtensionsDisabled,
+                        availableAddons = availableAddons,
+                        browserWebExtensionMenuItems = browserWebExtensionMenuItem,
+                    )
+
+                    val webExtensionMenuItems = remember(availableAddons, browserWebExtensionMenuItem) {
+                        browserWebExtensionMenuItem.associateWith { menuItem ->
+                            availableAddons.find { addon -> addon.id == menuItem.id }
+                        }
+                    }
 
                     BackHandler {
                         this@MenuDialogFragment.dismissAllowingStateLoss()
@@ -536,13 +552,6 @@ class MenuDialogFragment : BottomSheetDialogFragment() {
                                     null
                                 }
 
-                                val extensionsMenuItemDescription = getExtensionsMenuItemDescription(
-                                    isExtensionsProcessDisabled = isExtensionsProcessDisabled,
-                                    allWebExtensionsDisabled = allWebExtensionsDisabled,
-                                    availableAddons = availableAddons,
-                                    browserWebExtensionMenuItems = browserWebExtensionMenuItem,
-                                )
-
                                 val isDownloadHighlighted by appStore.observeAsState(
                                     initialValue = false,
                                 ) { state ->
@@ -579,7 +588,7 @@ class MenuDialogFragment : BottomSheetDialogFragment() {
                                     showBanner = shouldShowMenuBanner && !defaultBrowser,
                                     isDownloadHighlighted = isDownloadHighlighted,
                                     webExtensionMenuCount = webExtensionsCount,
-                                    allWebExtensionsDisabled = allWebExtensionsDisabled,
+                                    isAllWebExtensionsDisabled = isAllWebExtensionsDisabled,
                                     onMozillaAccountButtonClick = {
                                         store.dispatch(
                                             MenuAction.Navigate.MozillaAccount(
@@ -617,7 +626,7 @@ class MenuDialogFragment : BottomSheetDialogFragment() {
                                     },
                                     onExtensionsMenuClick = {
                                         if (
-                                            allWebExtensionsDisabled ||
+                                            isAllWebExtensionsDisabled ||
                                             isExtensionsProcessDisabled ||
                                             extensionsMenuItemDescription == null
                                         ) {
@@ -717,7 +726,7 @@ class MenuDialogFragment : BottomSheetDialogFragment() {
                                         Addons(
                                             accessPoint = args.accesspoint,
                                             availableAddons = availableAddons,
-                                            webExtensionMenuItems = browserWebExtensionMenuItem,
+                                            webExtensionMenuItems = webExtensionMenuItems,
                                             addonInstallationInProgress = addonInstallationInProgress,
                                             recommendedAddons = recommendedAddons,
                                             onAddonClick = { addon ->
@@ -772,6 +781,13 @@ class MenuDialogFragment : BottomSheetDialogFragment() {
                                     isPdf = customTab?.content?.isPdf == true,
                                     isDesktopMode = isDesktopMode,
                                     isSandboxCustomTab = args.isSandboxCustomTab,
+                                    isPrivate = isPrivate,
+                                    isExtensionsExpanded = isExtensionsExpanded,
+                                    isExtensionsProcessDisabled = isExtensionsProcessDisabled,
+                                    isAllWebExtensionsDisabled = isAllWebExtensionsDisabled,
+                                    shouldShowExtensionsMenu = settings.shouldShowCustomTabExtensions,
+                                    webExtensionMenuCount = webExtensionsCount,
+                                    extensionsMenuDescription = extensionsMenuItemDescription,
                                     customTabMenuItems = customTab?.config?.menuItems,
                                     onCustomMenuItemClick = { intent: PendingIntent ->
                                         store.dispatch(
@@ -809,6 +825,23 @@ class MenuDialogFragment : BottomSheetDialogFragment() {
                                     onShareButtonClick = {
                                         store.dispatch(MenuAction.Navigate.Share)
                                     },
+                                    onExtensionsMenuClick = {
+                                        if (!isAllWebExtensionsDisabled && !isExtensionsProcessDisabled) {
+                                            isExtensionsExpanded = !isExtensionsExpanded
+                                        }
+                                    },
+                                    extensionSubmenu = {
+                                        CustomTabAddons(
+                                            webExtensionMenuItems = webExtensionMenuItems,
+                                            onWebExtensionMenuItemClick = {
+                                                Events.browserMenuAction.record(
+                                                    Events.BrowserMenuActionExtra(
+                                                        item = "web_extension_browser_action_clicked",
+                                                    ),
+                                                )
+                                            },
+                                        )
+                                    },
                                 )
                             }
                         }
@@ -820,10 +853,13 @@ class MenuDialogFragment : BottomSheetDialogFragment() {
 
     private fun getExtensionsMenuItemDescription(
         isExtensionsProcessDisabled: Boolean,
-        allWebExtensionsDisabled: Boolean,
+        isAllWebExtensionsDisabled: Boolean,
         availableAddons: List<Addon>,
         browserWebExtensionMenuItems: List<WebExtensionMenuItem>,
     ): String? {
+        val isBrowserOrExternal = args.accesspoint == MenuAccessPoint.Browser ||
+                args.accesspoint == MenuAccessPoint.External
+
         return when {
             args.accesspoint == MenuAccessPoint.Home -> null
 
@@ -831,19 +867,15 @@ class MenuDialogFragment : BottomSheetDialogFragment() {
                 requireContext().getString(R.string.browser_menu_extensions_disabled_description)
             }
 
-            args.accesspoint == MenuAccessPoint.Browser && browserWebExtensionMenuItems.isNotEmpty() -> {
-                browserWebExtensionMenuItems.joinToString(
-                    separator = ", ",
-                ) {
-                    it.label
-                }
+             isBrowserOrExternal && browserWebExtensionMenuItems.isNotEmpty() -> {
+                browserWebExtensionMenuItems.joinToString(separator = ", ") { it.label }
             }
 
-            allWebExtensionsDisabled -> {
+            isAllWebExtensionsDisabled -> {
                 requireContext().getString(R.string.browser_menu_no_extensions_installed_description)
             }
 
-            args.accesspoint == MenuAccessPoint.Browser && availableAddons.isEmpty() -> {
+             isBrowserOrExternal && availableAddons.isEmpty() -> {
                 requireContext().getString(R.string.browser_menu_try_a_recommended_extension_description)
             }
 

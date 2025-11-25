@@ -2588,6 +2588,7 @@
         // of those notifications can cause code to run that inspects our
         // state, so it is important that the tab element is fully
         // initialized by this point.
+        // AppendChild will cause a synchronous about:blank load.
         this.tabpanels.appendChild(panel);
       }
 
@@ -3117,7 +3118,7 @@
           fromExternal,
           forceAllowDataURI,
           isCaptivePortalTab,
-          skipLoad,
+          skipLoad: skipLoad || uriIsAboutBlank,
           referrerInfo,
           charset,
           postData,
@@ -3175,10 +3176,10 @@
       if (elementIndex < 0) {
         return -1;
       }
-      if (elementIndex >= this.tabContainer.ariaFocusableItems.length) {
+      if (elementIndex >= this.tabContainer.dragAndDropElements.length) {
         return this.tabs.length;
       }
-      let element = this.tabContainer.ariaFocusableItems[elementIndex];
+      let element = this.tabContainer.dragAndDropElements[elementIndex];
       if (this.isTabGroupLabel(element)) {
         element = element.group.tabs[0];
       }
@@ -3234,6 +3235,11 @@
         return null;
       }
 
+      this.dispatchEvent(
+        new CustomEvent("SplitViewCreated", {
+          bubbles: true,
+        })
+      );
       return splitview;
     }
 
@@ -3718,6 +3724,16 @@
       return t;
     }
 
+    /**
+     *
+     * @param {object} options
+     * @param {nsIPrincipal} [options.originPrincipal]
+     *   If uriString is given, uri might inherit principals, and no preloaded browser is used,
+     *   this is the origin principal to be inherited by the initial about:blank.
+     * @param {nsIPrincipal} [options.originStoragePrincipal]
+     *   If uriString is given, uri might inherit principals, and no preloaded browser is used,
+     *   this is the origin storage principal to be inherited by the initial about:blank.
+     */
     _createBrowserForTab(
       tab,
       {
@@ -3849,21 +3865,28 @@
         textDirectiveUserActivation,
       }
     ) {
-      if (
-        !usingPreloadedContent &&
-        originPrincipal &&
-        originStoragePrincipal &&
-        uriString
-      ) {
-        let { URI_INHERITS_SECURITY_CONTEXT } = Ci.nsIProtocolHandler;
-        // Unless we know for sure we're not inheriting principals,
-        // force the about:blank viewer to have the right principal:
-        if (!uri || doGetProtocolFlags(uri) & URI_INHERITS_SECURITY_CONTEXT) {
-          browser.createAboutBlankDocumentViewer(
-            originPrincipal,
-            originStoragePrincipal
-          );
+      const shouldInheritSecurityContext = (() => {
+        if (
+          !usingPreloadedContent &&
+          originPrincipal &&
+          originStoragePrincipal &&
+          uriString
+        ) {
+          let { URI_INHERITS_SECURITY_CONTEXT } = Ci.nsIProtocolHandler;
+          // Unless we know for sure we're not inheriting principals,
+          // force the about:blank viewer to have the right principal:
+          if (!uri || doGetProtocolFlags(uri) & URI_INHERITS_SECURITY_CONTEXT) {
+            return true;
+          }
         }
+        return false;
+      })();
+
+      if (shouldInheritSecurityContext) {
+        browser.createAboutBlankDocumentViewer(
+          originPrincipal,
+          originStoragePrincipal
+        );
       }
 
       // If we didn't swap docShells with a preloaded browser
@@ -3889,6 +3912,8 @@
         } else if (!triggeringPrincipal.isSystemPrincipal) {
           // XXX this code must be reviewed and changed when bug 1616353
           // lands.
+          // The purpose of LOAD_FLAGS_FIRST_LOAD is to close a new
+          // tab if it turns out to be a download.
           loadFlags |= LOAD_FLAGS_FIRST_LOAD;
         }
         if (!allowInheritPrincipal) {
@@ -4318,6 +4343,11 @@
             previousTab.pinned
           ) {
             elementIndex = Infinity;
+          } else if (previousTab.visible && previousTab.splitview) {
+            elementIndex =
+              this.tabContainer.dragAndDropElements.indexOf(
+                previousTab.splitview
+              ) + 1;
           } else if (previousTab.visible) {
             elementIndex = previousTab.elementIndex + 1;
           } else if (previousTab == FirefoxViewHandler.tab) {
@@ -4339,7 +4369,7 @@
       let allItems;
       let index;
       if (typeof elementIndex == "number") {
-        allItems = this.tabContainer.ariaFocusableItems;
+        allItems = this.tabContainer.dragAndDropElements;
         index = elementIndex;
       } else {
         allItems = this.tabs;
@@ -4358,6 +4388,8 @@
 
       if (pinned && !itemAfter?.pinned) {
         itemAfter = null;
+      } else if (itemAfter?.splitview) {
+        itemAfter = itemAfter.splitview?.nextElementSibling || null;
       }
       // Prevent a flash of unstyled content by setting up the tab content
       // and inherited attributes before appending it (see Bug 1592054):
@@ -4366,7 +4398,10 @@
       this.tabContainer._invalidateCachedTabs();
 
       if (tabGroup) {
-        if (this.isTab(itemAfter) && itemAfter.group == tabGroup) {
+        if (
+          (this.isTab(itemAfter) && itemAfter.group == tabGroup) ||
+          this.isSplitViewWrapper(itemAfter)
+        ) {
           // Place at the front of, or between tabs in, the same tab group
           this.tabContainer.insertBefore(tab, itemAfter);
         } else {
@@ -6412,7 +6447,7 @@
      *   The desired position, expressed as the index within the `tabs` array.
      * @param {number} [options.elementIndex]
      *   The desired position, expressed as the index within the
-     *   `MozTabbrowserTabs::ariaFocusableItems` array.
+     *   `MozTabbrowserTabs::dragAndDropElements` array.
      * @param {boolean} [options.forceUngrouped=false]
      *   Force `element` to move into position as a standalone tab, overriding
      *   any possibility of entering a tab group. For example, setting `true`
@@ -6850,7 +6885,7 @@
       let nextElement;
       if (typeof elementIndex == "number") {
         index = elementIndex;
-        nextElement = this.tabContainer.ariaFocusableItems.at(elementIndex);
+        nextElement = this.tabContainer.dragAndDropElements.at(elementIndex);
       } else {
         index = tabIndex;
         nextElement = this.tabs.at(tabIndex);
@@ -6879,15 +6914,10 @@
         // new tab must have the same usercontextid as the old one
         params.userContextId = aTab.getAttribute("usercontextid");
       }
+      params.skipLoad = true;
       let newTab = this.addWebTab("about:blank", params);
-      let newBrowser = this.getBrowserForTab(newTab);
 
       aTab.container.tabDragAndDrop.finishAnimateTabMove();
-
-      if (!createLazyBrowser) {
-        // Stop the about:blank load.
-        newBrowser.stop();
-      }
 
       if (!this.swapBrowsersAndCloseOther(newTab, aTab)) {
         // Swapping wasn't permitted. Bail out.
@@ -8718,16 +8748,15 @@
             // before the location changed.
 
             this.mBrowser.userTypedValue = null;
-            // When browser.tabs.documentchannel.parent-controlled pref and SHIP
-            // are enabled and a load gets cancelled due to another one
+            // When SHIP is enabled and a load gets cancelled due to another one
             // starting, the error is NS_BINDING_CANCELLED_OLD_LOAD.
             // When these prefs are not enabled, the error is different and
             // that's why we still want to look at the isNavigating flag.
             // We could add a workaround and make sure that in the alternative
             // codepaths we would also omit the same error, but considering
             // how we will be enabling fission by default soon, we can keep
-            // using isNavigating for now, and remove it when the
-            // parent-controlled pref and SHIP are enabled by default.
+            // using isNavigating for now, and remove it when SHIP is enabled
+            // by default.
             // Bug 1725716 has been filed to consider removing isNavigating
             // field alltogether.
             let isNavigating = this.mBrowser.isNavigating;

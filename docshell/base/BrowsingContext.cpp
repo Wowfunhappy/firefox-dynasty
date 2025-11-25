@@ -385,6 +385,8 @@ already_AddRefed<BrowsingContext> BrowsingContext::CreateDetached(
     MOZ_DIAGNOSTIC_ASSERT(aOpener->mType == aType);
     fields.Get<IDX_OpenerId>() = aOpener->Id();
     fields.Get<IDX_HadOriginalOpener>() = true;
+    fields.Get<IDX_MessageManagerGroup>() =
+        aOpener->Top()->GetMessageManagerGroup();
 
     if (aType == Type::Chrome && !aParent) {
       // See SetOpener for why we do this inheritance.
@@ -2182,10 +2184,6 @@ nsresult BrowsingContext::LoadURI(nsDocShellLoadState* aLoadState,
       wgc->SendLoadURI(this, mozilla::WrapNotNull(aLoadState), aSetNavigating);
     }
   } else if (XRE_IsParentProcess()) {
-    if (Canonical()->LoadInParent(aLoadState, aSetNavigating)) {
-      return NS_OK;
-    }
-
     if (ContentParent* cp = Canonical()->GetContentParent()) {
       // Attempt to initiate this load immediately in the parent, if it succeeds
       // it'll return a unique identifier so that we can find it later.

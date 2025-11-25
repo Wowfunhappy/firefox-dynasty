@@ -35,7 +35,7 @@ class WaylandSurface final {
 
   NS_INLINE_DECL_THREADSAFE_REFCOUNTING(WaylandSurface);
 
-  WaylandSurface(RefPtr<WaylandSurface> aParent, gfx::IntSize aSize);
+  explicit WaylandSurface(RefPtr<WaylandSurface> aParent);
 
 #ifdef MOZ_LOGGING
   nsAutoCString GetDebugTag() const;
@@ -68,11 +68,11 @@ class WaylandSurface final {
       const WaylandSurfaceLock& aProofOfLock,
       const std::function<void(bool)>& aFrameCallbackStateHandler);
 
-  // Create and resize EGL window (Gdk coordinates).
   wl_egl_window* GetEGLWindow(DesktopIntSize aSize);
-  // Resize EGL window (pixel coordinates).
-  bool SetEGLWindowSize(LayoutDeviceIntSize aSize);
   bool HasEGLWindow() const { return !!mEGLWindow; }
+
+  // Set WaylandSurface target size (viewport & ELG surface if it's present).
+  void SetSize(DesktopIntSize aSize);
 
   // Mapped means we have all internals created.
   bool IsMapped() const { return mIsMapped; }
@@ -96,11 +96,11 @@ class WaylandSurface final {
   // Mapped as direct surface of MozContainer
   bool MapLocked(const WaylandSurfaceLock& aProofOfLock,
                  wl_surface* aParentWLSurface,
-                 gfx::IntPoint aSubsurfacePosition);
+                 DesktopIntPoint aSubsurfacePosition);
   // Mapped as child of WaylandSurface (used by layers)
   bool MapLocked(const WaylandSurfaceLock& aProofOfLock,
                  WaylandSurfaceLock* aParentWaylandSurfaceLock,
-                 gfx::IntPoint aSubsurfacePosition);
+                 DesktopIntPoint aSubsurfacePosition);
   // Unmap surface which hides it
   void UnmapLocked(WaylandSurfaceLock& aSurfaceLock);
 
@@ -159,11 +159,11 @@ class WaylandSurface final {
   void PlaceAboveLocked(const WaylandSurfaceLock& aProofOfLock,
                         WaylandSurfaceLock& aLowerSurfaceLock);
   void MoveLocked(const WaylandSurfaceLock& aProofOfLock,
-                  gfx::IntPoint aPosition);
+                  DesktopIntPoint aPosition);
   void SetViewPortSourceRectLocked(const WaylandSurfaceLock& aProofOfLock,
                                    gfx::Rect aRect);
   void SetViewPortDestLocked(const WaylandSurfaceLock& aProofOfLock,
-                             gfx::IntSize aDestSize);
+                             DesktopIntSize aDestSize);
   void SetTransformFlippedLocked(const WaylandSurfaceLock& aProofOfLock,
                                  bool aFlippedX, bool aFlippedY);
 
@@ -277,10 +277,10 @@ class WaylandSurface final {
   bool MapLocked(const WaylandSurfaceLock& aProofOfLock,
                  wl_surface* aParentWLSurface,
                  WaylandSurfaceLock* aParentWaylandSurfaceLock,
-                 gfx::IntPoint aSubsurfacePosition, bool aSubsurfaceDesync);
+                 DesktopIntPoint aSubsurfacePosition, bool aSubsurfaceDesync);
 
-  void SetSizeLocked(const WaylandSurfaceLock& aProofOfLock,
-                     gfx::IntSize aSizeScaled, gfx::IntSize aUnscaledSize);
+  void SetRenderingSizeLocked(const WaylandSurfaceLock& aProofOfLock,
+                              DesktopIntSize aSize);
 
   wl_surface* Lock(WaylandSurfaceLock* aWaylandSurfaceLock);
   void Unlock(struct wl_surface** aSurface,
@@ -318,9 +318,7 @@ class WaylandSurface final {
   std::function<void(void)> mGdkCommitCallback;
   std::function<void(void)> mUnmapCallback;
 
-  // Scaled surface size, ceiled or fractional.
-  // This reflects real surface size which we paint.
-  gfx::IntSize mSizeScaled;
+  DesktopIntSize mSize;
 
   // Parent GdkWindow where we paint to, directly or via subsurface.
   RefPtr<GdkWindow> mGdkWindow;
@@ -349,7 +347,7 @@ class WaylandSurface final {
   bool mSubsurfaceDesync = true;
 
   wl_subsurface* mSubsurface = nullptr;
-  gfx::IntPoint mSubsurfacePosition{-1, -1};
+  DesktopIntPoint mSubsurfacePosition{-1, -1};
 
   // Wayland buffers recently attached to this surface or held by
   // Wayland compositor.
@@ -371,7 +369,7 @@ class WaylandSurface final {
   bool mViewportFollowsSizeChanges = true;
   wp_viewport* mViewport = nullptr;
   gfx::Rect mViewportSourceRect{-1, -1, -1, -1};
-  gfx::IntSize mViewportDestinationSize{-1, -1};
+  DesktopIntSize mViewportDestinationSize{-1, -1};
 
   // Surface flip state on X/Y asix
   bool mBufferTransformFlippedX = false;
