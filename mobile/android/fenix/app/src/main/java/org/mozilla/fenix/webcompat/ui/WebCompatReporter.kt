@@ -114,7 +114,9 @@ fun WebCompatReporter(
                 .verticalScroll(scrollState)
                 .padding(paddingValues)
                 .imePadding()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
+                .padding(horizontal = 16.dp, vertical = 12.dp)
+                .width(FirefoxTheme.layout.size.containerMaxWidth),
+            horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             LinkText(
                 text = stringResource(
@@ -287,7 +289,7 @@ fun WebCompatReporter(
                         text = stringResource(id = R.string.webcompat_reporter_add_more_info),
                         modifier = Modifier
                             .clickable {
-                                store.dispatch(WebCompatReporterAction.SendMoreInfoClicked)
+                                store.dispatch(WebCompatReporterAction.AddMoreInfoClicked)
                             },
                         style = FirefoxTheme.typography.body2,
                         color = MaterialTheme.colorScheme.tertiary,

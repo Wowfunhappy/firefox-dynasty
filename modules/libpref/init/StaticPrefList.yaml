@@ -9879,7 +9879,7 @@
 # https://html.spec.whatwg.org/#creating-a-css-module-script
 - name: layout.css.module-scripts.enabled
   type: RelaxedAtomicBool
-  value: false
+  value: true
   mirror: always
 
 # Override DPI. A value of -1 means use the maximum of 96 and the system DPI.
@@ -14593,6 +14593,16 @@
   type: RelaxedAtomicBool
   value: true
   mirror: always
+
+# When true, benchmarking IP addresses 198.18.X.X is treated as local
+# Depending on how this ends up being treated in the LNA spec, we might
+# change it to be in the private space, but for now it's disabled to
+# match Chrome LNA behaviour.
+- name: network.lna.benchmarking-is-local
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
+
 
 # The proxy type. See nsIProtocolProxyService.idl
 #     PROXYCONFIG_DIRECT   = 0

@@ -52,7 +52,7 @@
 #include "mozilla/Maybe.h"
 #include "mozilla/UniquePtr.h"
 
-class nsIDTD;
+class nsExpatDriver;
 class nsIRunnable;
 
 #ifdef _MSC_VER
@@ -244,8 +244,6 @@ class nsParser final : public nsIParser,
   void HandleParserContinueEvent(class nsParserContinueEvent*);
 
   void Reset() {
-    MOZ_ASSERT(!mIsAboutBlank,
-               "Only the XML fragment parsing case is supposed to call this.");
     Cleanup();
     mUnusedInput.Truncate();
     Initialize();
@@ -298,7 +296,9 @@ class nsParser final : public nsIParser,
   //*********************************************
 
   mozilla::UniquePtr<CParserContext> mParserContext;
-  nsCOMPtr<nsIDTD> mDTD;
+  // mExpatDriver probably should be UniquePtr, but not changing
+  // for now due to cycle collection.
+  RefPtr<nsExpatDriver> mExpatDriver;
   nsCOMPtr<nsIContentSink> mSink;
   nsIRunnable* mContinueEvent;  // weak ref
 
@@ -316,7 +316,6 @@ class nsParser final : public nsIParser,
 
   bool mProcessingNetworkData;
   bool mOnStopPending;
-  bool mIsAboutBlank;
 };
 
 #endif

@@ -937,7 +937,7 @@
     },
     "interventions": [
       {
-        "platforms": ["android"],
+        "platforms": ["all"],
         "ua_string": ["Chrome"]
       }
     ]
@@ -4315,6 +4315,22 @@
       }
     ]
   },
+  "1944219": {
+    "label": "zoom.us",
+    "bugs": {
+      "1911423": {
+        "issue": "firefox-blocked-completely",
+        "matches": ["*://*.zoom.us/*"]
+      }
+    },
+    "interventions": [
+      {
+        "platforms": ["android"],
+        "only_channels": ["nightly"],
+        "ua_string": ["add_Chrome"]
+      }
+    ]
+  },
   "1944518": {
     "label": "app.powerbi.com",
     "bugs": {
@@ -4782,6 +4798,21 @@
       }
     ]
   },
+  "1957887": {
+    "label": "midi.city",
+    "bugs": {
+      "1957887": {
+        "issue": "unsupported-warning",
+        "matches": ["*://midi.city/*"]
+      }
+    },
+    "interventions": [
+      {
+        "platforms": ["all"],
+        "ua_string": ["add_Chrome"]
+      }
+    ]
+  },
   "1959046": {
     "label": "angeljackets.com",
     "bugs": {
@@ -5077,6 +5108,10 @@
       "1969245": {
         "issue": "broken-images",
         "matches": ["*://www.wills-vegan-store.com/*"]
+      },
+      "1998101": {
+        "issue": "broken-images",
+        "matches": ["*://*.wills-vegan-shop.de/*", "*://*.vegan-store.eu/*"]
       }
     },
     "interventions": [
@@ -5223,6 +5258,23 @@
       }
     ]
   },
+  "1978572": {
+    "label": "store.renishaw.com",
+    "bugs": {
+      "1978572": {
+        "issue": "broken-interactive-elements",
+        "matches": ["*://store.renishaw.com/*"]
+      }
+    },
+    "interventions": [
+      {
+        "platforms": ["all"],
+        "content_scripts": {
+          "css": ["bug1978572-store.renishaw.com-fix-range-sliders.css"]
+        }
+      }
+    ]
+  },
   "1934908": {
     "label": "www.cbsnews.com",
     "bugs": {
@@ -5358,6 +5410,53 @@
           "all_frames": true,
           "js": ["bug1913599-shim-createencodedstreams.js"]
         }
+      }
+    ]
+  },
+  "1898638": {
+    "label": "gmbinder.com",
+    "bugs": {
+      "1898638": {
+        "issue": "unsupported-warning",
+        "matches": ["*://*.gmbinder.com/*"]
+      }
+    },
+    "interventions": [
+      {
+        "platforms": ["all"],
+        "ua_string": ["add_Chrome"]
+      }
+    ]
+  },
+  "1898983": {
+    "label": "elibrary.ferc.gov",
+    "bugs": {
+      "1898983": {
+        "issue": "unsupported-warning",
+        "matches": ["*://elibrary.ferc.gov/*"]
+      }
+    },
+    "interventions": [
+      {
+        "platforms": ["all"],
+        "content_scripts": {
+          "js": ["bug1898983-elibrary.ferc.gov-window-chrome-shim.js"]
+        }
+      }
+    ]
+  },
+  "1902496": {
+    "label": "be.bim.mx",
+    "bugs": {
+      "1902496": {
+        "issue": "firefox-blocked-completely",
+        "matches": ["*://be.bim.mx/*"]
+      }
+    },
+    "interventions": [
+      {
+        "platforms": ["all"],
+        "ua_string": ["Chrome_with_FxQuantum"]
       }
     ]
   },
@@ -5573,6 +5672,21 @@
       {
         "platforms": ["android"],
         "ua_string": ["Chrome_with_FxQuantum"]
+      }
+    ]
+  },
+  "1982880": {
+    "label": "yoshinoya-mini-web.starboss.biz",
+    "bugs": {
+      "1982880": {
+        "issue": "firefox-blocked-completely",
+        "matches": ["*://yoshinoya-mini-web.starboss.biz/*"]
+      }
+    },
+    "interventions": [
+      {
+        "platforms": ["android"],
+        "ua_string": ["add_Chrome"]
       }
     ]
   },
@@ -6064,6 +6178,21 @@
       }
     ]
   },
+  "2000529": {
+    "label": "top.cafe.daum.net",
+    "bugs": {
+      "2000529": {
+        "issue": "desktop-layout-not-mobile",
+        "matches": ["*://top.cafe.daum.net/*"]
+      }
+    },
+    "interventions": [
+      {
+        "platforms": ["android"],
+        "ua_string": ["Chrome_with_FxQuantum"]
+      }
+    ]
+  },
   "2000558": {
     "label": "www.jal.co.jp",
     "bugs": {
@@ -6078,6 +6207,21 @@
         "content_scripts": {
           "css": ["2000558-www.jal.co.jp-hide-app-recommendation.css"]
         }
+      }
+    ]
+  },
+  "2002012": {
+    "label": "bbs.colg.cn",
+    "bugs": {
+      "2002012": {
+        "issue": "broken-layout",
+        "matches": ["*://bbs.colg.cn/*"]
+      }
+    },
+    "interventions": [
+      {
+        "platforms": ["desktop"],
+        "ua_string": ["Chrome_with_FxQuantum"]
       }
     ]
   }
