@@ -3459,8 +3459,7 @@ void nsCycleCollector::CheckThreadSafety() {
 // The cycle collector uses the mark bitmap to discover what JS objects are
 // reachable only from XPConnect roots that might participate in cycles. We ask
 // the JS runtime whether we need to force a GC before this CC. It should only
-// be true when UnmarkGray has run out of stack or aborting GC
-// part way through marking. We also force GCs on shutdown
+// be true when UnmarkGray has run out of stack. We also force GCs on shutdown
 // to collect cycles involving both DOM and JS, and in WantAllTraces CCs to
 // prevent hijinks from ForgetSkippable and compartmental GCs.
 void nsCycleCollector::FixGrayBits(bool aIsShutdown, TimeLog& aTimeLog) {
