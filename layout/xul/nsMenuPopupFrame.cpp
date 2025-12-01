@@ -63,7 +63,6 @@
 #include "nsStyleStructInlines.h"
 #include "nsTransitionManager.h"
 #include "nsUnicharUtils.h"
-#include "nsViewManager.h"
 #include "nsWidgetsCID.h"
 #include "nsXULPopupManager.h"
 
@@ -2593,7 +2592,7 @@ nsEventStatus nsMenuPopupFrame::HandleEvent(mozilla::WidgetGUIEvent* aEvent) {
   return status;
 }
 
-bool nsMenuPopupFrame::PaintWindow(nsIWidget* aWidget, LayoutDeviceIntRegion) {
+void nsMenuPopupFrame::PaintWindow(nsIWidget* aWidget) {
   MOZ_ASSERT(aWidget == mWidget);
   nsAutoScriptBlocker scriptBlocker;
   RefPtr ps = PresShell();
@@ -2603,7 +2602,6 @@ bool nsMenuPopupFrame::PaintWindow(nsIWidget* aWidget, LayoutDeviceIntRegion) {
   } else {
     ps->SyncPaintFallback(this, renderer);
   }
-  return true;
 }
 
 void nsMenuPopupFrame::DidCompositeWindow(

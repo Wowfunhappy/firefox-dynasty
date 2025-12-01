@@ -1333,6 +1333,14 @@
     <string name="tab_tray_menu_tab_settings">Tab settings</string>
     <!-- Text shown in the menu for closing all tabs -->
     <string name="tab_tray_menu_item_close">Close all tabs</string>
+    <!-- Text shown as the title of the Close all tabs confirmation dialog in Tab Manager -->
+    <string name="tab_manager_close_all_tabs_dialog_title">Close all tabs?</string>Í
+    <!-- Text shown in the body of the Close all tabs confirmation dialog in Tab Manager -->
+    <string name="tab_manager_close_all_tabs_dialog_body">This will close all open tabs.</string>
+    <!-- Text shown on the confirm button in the Close all tabs confirmation dialog -->
+    <string name="tab_manager_close_all_tabs_dialog_confirm">Close tabs</string>
+    <!-- Text shown on the cancel button in the Close all tabs confirmation dialog -->
+    <string name="tab_manager_close_all_tabs_dialog_cancel">Cancel</string>
     <!-- Text shown in the multiselect menu for bookmarking selected tabs. -->
     <string name="tab_tray_multiselect_menu_item_bookmark">Bookmark</string>
     <!-- Content description (not visible, for screen readers etc.): Bookmarks selected tabs. -->
@@ -2533,12 +2541,12 @@
 
     <!-- Title of the "Add card" screen -->
     <string name="credit_cards_add_card">Add card</string>
+    <!-- Content description for the "credit card feature" top bar back button -->
+    <string name="credit_cards_navigate_back_button_content_description">Navigate back</string>
     <!-- Title of the "Edit card" screen -->
     <string name="credit_cards_edit_card">Edit card</string>
     <!-- The header for the card number of a credit card -->
     <string name="credit_cards_card_number">Card Number</string>
-    <!-- The header for the expiration date of a credit card -->
-    <string name="credit_cards_expiration_date">Expiration Date</string>
     <!-- The label for the expiration date month of a credit card to be used by a11y services-->
     <string name="credit_cards_expiration_date_month">Expiration Date Month</string>
     <!-- The label for the expiration date year of a credit card to be used by a11y services-->

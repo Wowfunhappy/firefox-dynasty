@@ -59,7 +59,6 @@
 #include "nsPresContext.h"
 #include "nsIFrame.h"
 #include "nsTextFrame.h"
-#include "nsView.h"
 #include "nsIDocShellTreeItem.h"
 #include "nsStyleStructInlines.h"
 #include "nsFocusManager.h"
@@ -2153,15 +2152,11 @@ Relation LocalAccessible::RelationByType(RelationType aType) const {
       // ROLE_WINDOW accessible which will prevent us from going up further
       // (because it is system generated and has no idea about the hierarchy
       // above it).
-      nsIFrame* frame = GetFrame();
-      if (frame) {
-        nsView* view = frame->GetView();
-        if (view) {
-          ScrollContainerFrame* scrollContainerFrame = do_QueryFrame(frame);
-          if (scrollContainerFrame || view->GetWidget() ||
-              !frame->GetParent()) {
-            rel.AppendTarget(LocalParent());
-          }
+      if (nsIFrame* frame = GetFrame()) {
+        ScrollContainerFrame* scrollContainerFrame = do_QueryFrame(frame);
+        if (scrollContainerFrame || frame->GetOwnWidget() ||
+            !frame->GetParent()) {
+          rel.AppendTarget(LocalParent());
         }
       }
 

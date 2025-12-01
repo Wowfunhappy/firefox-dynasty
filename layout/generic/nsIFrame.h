@@ -140,6 +140,7 @@ enum class TableSelectionMode : uint32_t;
 
 class AbsoluteContainingBlock;
 class AnchorPosReferenceData;
+struct LastSuccessfulPositionData;
 class EffectSet;
 class LazyLogModule;
 class nsDisplayItem;
@@ -153,6 +154,7 @@ class WidgetGUIEvent;
 class WidgetMouseEvent;
 
 void DeleteAnchorPosReferenceData(AnchorPosReferenceData*);
+void DeleteLastSuccessfulPositionData(LastSuccessfulPositionData*);
 
 struct PeekOffsetStruct;
 
@@ -1446,8 +1448,9 @@ class nsIFrame : public nsQueryFrame {
                                       mozilla::DeleteAnchorPosReferenceData);
 
   // The last successful position-try-fallbacks index, if present.
-  NS_DECLARE_FRAME_PROPERTY_SMALL_VALUE(LastSuccessfulPositionFallback,
-                                        uint32_t);
+  NS_DECLARE_FRAME_PROPERTY_WITH_DTOR(
+      LastSuccessfulPositionFallback, mozilla::LastSuccessfulPositionData,
+      mozilla::DeleteLastSuccessfulPositionData);
 
   mozilla::PhysicalAxes GetAnchorPosCompensatingForScroll() const;
 
@@ -3313,19 +3316,9 @@ class nsIFrame : public nsQueryFrame {
     return IsIntrinsicKeyword(*bSize);
   }
 
- protected:
-  nsView* DoGetView() const;
-
  public:
   // Gets the widget owned by this frame.
   nsIWidget* GetOwnWidget() const;
-
-  nsView* GetView() const {
-    if (MOZ_LIKELY(!IsViewportFrame())) {
-      return nullptr;
-    }
-    return DoGetView();
-  }
 
   /**
    * Get the offset between the coordinate systems of |this| and aOther.

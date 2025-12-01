@@ -13,6 +13,7 @@
 #include <stdint.h>   // uint8_t, uint32_t
 
 #include "gc/Tracer.h"  // js::TraceRoot
+#include "jit/InlineScriptTree.h"
 #include "jit/JitcodeMap.h"
 #include "jit/JitRuntime.h"
 #include "js/friend/ErrorMessages.h"  // JSMSG_*
@@ -761,20 +762,19 @@ uint32_t JS::ProfilingFrameIterator::extractStack(Frame* frames,
     return 1;
   }
 
-  // Extract the stack for the entry.  Assume maximum inlining depth is <64
-  const char* labels[64];
-  uint32_t sourceIds[64];
+  // Extract the stack for the entry.
+  jit::CallStackFrameInfo frameInfos[jit::InlineScriptTree::MaxDepth];
   uint32_t depth = entry->callStackAtAddr(cx_->runtime(),
                                           jsJitIter().resumePCinCurrentFrame(),
-                                          labels, sourceIds, std::size(labels));
-  MOZ_ASSERT(depth < std::size(labels));
+                                          frameInfos, std::size(frameInfos));
+  MOZ_ASSERT(depth < std::size(frameInfos));
   for (uint32_t i = 0; i < depth; i++) {
     if (offset + i >= end) {
       return i;
     }
     frames[offset + i] = physicalFrame.value();
-    frames[offset + i].label = labels[i];
-    frames[offset + i].sourceId = sourceIds[i];
+    frames[offset + i].label = frameInfos[i].label;
+    frames[offset + i].sourceId = frameInfos[i].sourceId;
   }
 
   return depth;

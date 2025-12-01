@@ -1005,7 +1005,19 @@ struct MOZ_STACK_CLASS MOZ_RAII AutoFallbackStyleSetter {
             });
   }
 
-  void CommitCurrentFallback() { mOldCacheState = OldCacheState{None{}}; }
+  void CommitCurrentFallback() {
+    mOldCacheState = OldCacheState{None{}};
+    // If we have a non-layout dependent margin / paddings, which are different
+    // from our original style, we need to make sure to commit it into the frame
+    // property so that it doesn't get lost after returning from reflow.
+    nsMargin margin;
+    if (mOldStyle &&
+        !mOldStyle->StyleMargin()->MarginEquals(*mFrame->StyleMargin()) &&
+        mFrame->StyleMargin()->GetMargin(margin)) {
+      mFrame->SetOrUpdateDeletableProperty(nsIFrame::UsedMarginProperty(),
+                                           margin);
+    }
+  }
 
  private:
   nsIFrame* const mFrame;
@@ -1170,14 +1182,13 @@ void AbsoluteContainingBlock::ReflowAbsoluteFrame(
   // TODO(emilio): Right now fallback only applies to position-area, which only
   // makes a difference with a default anchor... Generalize it?
   if (aAnchorPosResolutionCache) {
-    bool found = false;
-    uint32_t index = aKidFrame->GetProperty(
-        nsIFrame::LastSuccessfulPositionFallback(), &found);
-    if (found) {
-      if (!SeekFallbackTo(index)) {
+    const auto* lastSuccessfulPosition =
+        aKidFrame->GetProperty(nsIFrame::LastSuccessfulPositionFallback());
+    if (lastSuccessfulPosition) {
+      if (!SeekFallbackTo(lastSuccessfulPosition->mIndex)) {
         aKidFrame->RemoveProperty(nsIFrame::LastSuccessfulPositionFallback());
       } else {
-        firstTryIndex = Some(index);
+        firstTryIndex = Some(lastSuccessfulPosition->mIndex);
       }
     }
   }
@@ -1602,8 +1613,9 @@ void AbsoluteContainingBlock::ReflowAbsoluteFrame(
                              StylePositionVisibility::NO_OVERFLOW);
 
   if (currentFallbackIndex) {
-    aKidFrame->SetProperty(nsIFrame::LastSuccessfulPositionFallback(),
-                           *currentFallbackIndex);
+    aKidFrame->SetOrUpdateDeletableProperty(
+        nsIFrame::LastSuccessfulPositionFallback(), *currentFallbackIndex,
+        isOverflowingCB);
   }
 
 #ifdef DEBUG

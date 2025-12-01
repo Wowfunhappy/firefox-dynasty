@@ -1,4 +1,4 @@
-// |reftest| shell-option(--enable-temporal) skip-if(!this.hasOwnProperty("Temporal")||!this.hasOwnProperty("Intl"))
+// |reftest| skip-if(!this.hasOwnProperty("Temporal")||!this.hasOwnProperty("Intl"))
 
 // Ensure Intl.DateTimeFormat and Temporal return consistent year-month-day values
 // for reasonable dates.
@@ -227,15 +227,6 @@ const tests = {
       start: {iso: "2292-11-11", year: 6053, monthCode: "M03", day: 1},
       end:   {iso: "2293-11-30", year: 6054, monthCode: "M02", day: 30},
     },
-  ],
-  "islamic": [
-    // TODO: Not yet supported.
-
-    // Date ranges in 2000..2030 where ICU4C and ICU4X compute different results.
-    // {
-    //   start: {iso: "2000-01-01", year: 1420, monthCode: "M09", day: 23},
-    //   end:   {iso: "2029-12-31", year: 1451, monthCode: "M08", day: 25},
-    // },
   ],
   "islamic-umalqura": [
     // TODO: Not yet supported.

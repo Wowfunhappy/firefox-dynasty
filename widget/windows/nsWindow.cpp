@@ -817,7 +817,6 @@ static bool IsCloaked(HWND hwnd) {
 nsWindow::nsWindow()
     : nsIWidget(BorderStyle::Default),
       mFrameState(std::in_place, this),
-      mPIPWindow(false),
       mMicaBackdrop(false),
       mLastPaintEndTime(TimeStamp::Now()),
       mCachedHitTestTime(TimeStamp::Now()),
@@ -1028,7 +1027,6 @@ nsresult nsWindow::Create(nsIWidget* aParent, const LayoutDeviceIntRect& aRect,
       aParent ? (HWND)aParent->GetNativeData(NS_NATIVE_WINDOW) : nullptr;
 
   mIsRTL = aInitData.mRTL;
-  mPIPWindow = aInitData.mPIPWindow;
   mOpeningAnimationSuppressed = aInitData.mIsAnimationSuppressed;
   mAlwaysOnTop = aInitData.mAlwaysOnTop;
   mIsAlert = aInitData.mIsAlert;
@@ -1081,7 +1079,7 @@ nsresult nsWindow::Create(nsIWidget* aParent, const LayoutDeviceIntRect& aRect,
       mBounds = mLastPaintBounds = GetBounds();
 
       // Reset the WNDPROC for this window and its whole class, as we had
-      // to use our own WNDPROC when creating the the skeleton UI window.
+      // to use our own WNDPROC when creating the skeleton UI window.
       ::SetWindowLongPtrW(mWnd, GWLP_WNDPROC,
                           reinterpret_cast<LONG_PTR>(
                               WinUtils::NonClientDpiScalingDefWindowProcW));
@@ -1520,10 +1518,29 @@ DWORD nsWindow::WindowExStyle() {
  *
  **************************************************************/
 
+bool nsWindow::ShouldAssociateWithWinAppSDK() const {
+  // We currently don't need any SDK functionality for for PiP windows,
+  // and using the SDK on these windows causes them to go under the
+  // taskbar (bug 1995838).
+  //
+  // TODO(emilio): That might not be true anymore after bug 1993474,
+  // consider re-testing and removing that special-case.
+  return IsTopLevelWidget() && !mIsPIPWindow;
+}
+
 bool nsWindow::AssociateWithNativeWindow() {
   if (!mWnd || !IsWindow(mWnd)) {
     NS_ERROR("Invalid window handle");
     return false;
+  }
+
+  if (ShouldAssociateWithWinAppSDK()) {
+    // Make sure to call this here to associate our window with the
+    // Windows App SDK _before_ setting our WNDPROC, if needed.
+    // This is important because the SDKs WNDPROC might handle messages like
+    // WM_NCCALCSIZE without calling into us, and that can cause sizing issues,
+    // see bug 1993474.
+    WindowsUIUtils::AssociateWithWinAppSDK(mWnd);
   }
 
   // Connect the this pointer to the native window handle.
@@ -1552,12 +1569,7 @@ void nsWindow::DissociateFromNativeWindow() {
   DebugOnly<WNDPROC> wndProcBeforeDissociate =
       reinterpret_cast<WNDPROC>(::SetWindowLongPtrW(
           mWnd, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(*mPrevWndProc)));
-  // If we've used the Windows App SDK to remove the minimize/maximize/close
-  // entries from the titlebar, then the Windows App SDK sets its own WNDPROC
-  // own the window, so this assertion would fail. But we only do this if
-  // Mica is available.
-  NS_ASSERTION(WinUtils::MicaAvailable() ||
-                   wndProcBeforeDissociate == nsWindow::WindowProc,
+  NS_ASSERTION(wndProcBeforeDissociate == nsWindow::WindowProc,
                "Unstacked an unexpected native window procedure");
 
   WinUtils::SetNSWindowPtr(mWnd, nullptr);
@@ -2793,7 +2805,7 @@ bool nsWindow::UpdateNonClientMargins(bool aReflowWindow) {
     // frame sizes for left, right and bottom since Windows will automagically
     // position the edges "offscreen" for maximized windows.
     metrics.mOffset.top = metrics.mCaptionHeight;
-  } else if (mPIPWindow &&
+  } else if (mIsPIPWindow &&
              !StaticPrefs::widget_windows_pip_decorations_enabled()) {
     metrics.mOffset = metrics.DefaultMargins();
   } else {
@@ -2835,9 +2847,7 @@ void nsWindow::SetCustomTitlebar(bool aCustomTitlebar) {
     mCustomNonClientMetrics = {};
     ResetLayout();
   }
-  // Not needed for PiP windows, and using the Windows App SDK on
-  // these windows causes them to go under the taskbar (bug 1995838)
-  if (!mPIPWindow) {
+  if (ShouldAssociateWithWinAppSDK()) {
     WindowsUIUtils::SetIsTitlebarCollapsed(mWnd, mCustomNonClient);
   }
 }
@@ -4745,17 +4755,6 @@ bool nsWindow::ProcessMessageInternal(UINT msg, WPARAM& wParam, LPARAM& lParam,
     return true;
   }
 
-  // Glass hit testing w/custom transparent margins.
-  //
-  // FIXME(emilio): is this needed? We deal with titlebar buttons non-natively
-  // now.
-  LRESULT dwmHitResult;
-  if (mCustomNonClient &&
-      DwmDefWindowProc(mWnd, msg, wParam, lParam, &dwmHitResult)) {
-    *aRetValue = dwmHitResult;
-    return true;
-  }
-
   // The preference whether to use a different keyboard layout for each
   // window is cached, and updating it will not take effect until the
   // next restart. We read the preference here and not upon WM_ACTIVATE to make
@@ -4967,14 +4966,9 @@ bool nsWindow::ProcessMessageInternal(UINT msg, WPARAM& wParam, LPARAM& lParam,
         }
       }
 
-      /*
-       * If an nc client area margin has been moved, we are responsible
+      /* If an nc client area margin has been moved, we are responsible
        * for calculating where the resize margins are and returning the
-       * appropriate set of hit test constants. DwmDefWindowProc (above)
-       * will handle hit testing on it's command buttons if we are on a
-       * composited desktop.
-       */
-
+       * appropriate set of hit test constants. */
       if (!mCustomNonClient) {
         break;
       }

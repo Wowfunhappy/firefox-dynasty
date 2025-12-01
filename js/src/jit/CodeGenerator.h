@@ -239,6 +239,12 @@ class CodeGenerator final : public CodeGeneratorSpecific {
   void emitMaybeAtomizeSlot(LInstruction* ins, Register stringReg,
                             Address slotAddr, TypedOrValueRegister dest);
 
+  void emitWeakMapLookupObject(Register weakMap, Register obj,
+                               Register hashTable, Register hashCode,
+                               Register scratch, Register scratch2,
+                               Register scratch3, Register scratch4,
+                               Register scratch5, Label* found, Label* missing);
+
   using RegisterOrInt32 = mozilla::Variant<Register, int32_t>;
 
   static RegisterOrInt32 ToRegisterOrInt32(const LAllocation* allocation);
@@ -272,6 +278,10 @@ class CodeGenerator final : public CodeGeneratorSpecific {
                   Register output);
 
   void emitInstanceOf(LInstruction* ins, Register protoReg);
+
+  void emitIteratorHasIndicesAndBranch(Register iterator, Register object,
+                                       Register temp, Register temp2,
+                                       Label* ifFalse);
 
 #ifdef DEBUG
   void emitAssertResultV(const ValueOperand output, const MDefinition* mir);

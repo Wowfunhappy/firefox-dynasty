@@ -234,8 +234,6 @@
 #include "nsSubDocumentFrame.h"
 #include "nsURILoader.h"
 #include "nsURLHelper.h"
-#include "nsView.h"
-#include "nsViewManager.h"
 #include "nsViewSourceHandler.h"
 #include "nsWebBrowserFind.h"
 #include "nsWhitespaceTokenizer.h"
@@ -7735,9 +7733,6 @@ nsresult nsDocShell::RestoreFromHistory() {
     pc->RecomputeBrowsingContextDependentData();
   }
 
-  nsViewManager* newVM = presShell ? presShell->GetViewManager() : nullptr;
-  nsView* newRootView = newVM ? newVM->GetRootView() : nullptr;
-
   nsCOMPtr<nsPIDOMWindowInner> privWinInner = privWin->GetCurrentInnerWindow();
 
   // If parent is suspended, increase suspension count.
@@ -7774,7 +7769,7 @@ nsresult nsDocShell::RestoreFromHistory() {
   // presentation.  If this is not the same size we showed it at last time,
   // then we need to resize the widget.
 
-  if (newRootView) {
+  if (presShell) {
     if (!newBounds.IsEmpty() &&
         !newBounds.ToUnknownRect().IsEqualEdges(oldBounds)) {
       MOZ_LOG(gPageCacheLog, LogLevel::Debug,
@@ -7786,11 +7781,6 @@ nsresult nsDocShell::RestoreFromHistory() {
       sf->PostScrolledAreaEventForCurrentArea();
     }
   }
-
-  // The FinishRestore call below can kill these, null them out so we don't
-  // have invalid pointer lying around.
-  newRootView = nullptr;
-  newVM = nullptr;
 
   // If the IsUnderHiddenEmbedderElement() state has been changed, we need to
   // update it.
@@ -9318,10 +9308,31 @@ nsresult nsDocShell::HandleSameDocumentNavigation(
   nsCOMPtr<nsPIDOMWindowInner> win =
       scriptGlobal ? scriptGlobal->GetCurrentInnerWindow() : nullptr;
 
+  // https://html.spec.whatwg.org/#scroll-to-fragid
+  // 14. Update document for history step application given navigable's
+  //     active document, historyEntry, true, scriptHistoryIndex,
+  //     scriptHistoryLength, and historyHandling.
+  if (RefPtr navigation = win ? win->Navigation() : nullptr) {
+    MOZ_LOG(gNavigationAPILog, LogLevel::Debug,
+            ("nsDocShell %p triggering a navigation event from "
+             "HandleSameDocumentNavigation",
+             this));
+    // https://html.spec.whatwg.org/#update-document-for-history-step-application
+    // 6.4.2. Update the navigation API entries for a same-document
+    //        navigation given navigation, entry, and navigationType.
+    navigation->UpdateEntriesForSameDocumentNavigation(
+        mActiveEntry.get(),
+        NavigationUtils::NavigationTypeFromLoadType(mLoadType).valueOr(
+            NavigationType::Push));
+  }
+
   // The check for uninvoked directives must come before ScrollToAnchor() is
   // called.
   const bool hasTextDirectives =
       doc->FragmentDirective()->HasUninvokedDirectives();
+
+  // https://html.spec.whatwg.org/#scroll-to-fragid
+  // 15. Scroll to the fragment given navigable's active document.
 
   // ScrollToAnchor doesn't necessarily cause us to scroll the window;
   // the function decides whether a scroll is appropriate based on the
@@ -9356,19 +9367,6 @@ nsresult nsDocShell::HandleSameDocumentNavigation(
   // destroy the docshell, nulling out mScriptGlobal. Hold a stack
   // reference to avoid null derefs. See bug 914521.
   if (win) {
-    if (RefPtr navigation = win->Navigation()) {
-      MOZ_LOG(gNavigationAPILog, LogLevel::Debug,
-              ("nsDocShell %p triggering a navigation event from "
-               "HandleSameDocumentNavigation",
-               this));
-      // Corresponds to step 6.4.2 from the Updating the document algorithm:
-      // https://html.spec.whatwg.org/multipage/browsing-the-web.html#updating-the-document
-      navigation->UpdateEntriesForSameDocumentNavigation(
-          mActiveEntry.get(),
-          NavigationUtils::NavigationTypeFromLoadType(mLoadType).valueOr(
-              NavigationType::Push));
-    }
-
     // Fire a hashchange event URIs differ, and only in their hashes.
     // If the fragment contains a directive, compare hasRef.
     bool doHashchange = aState.mSameExceptHashes &&

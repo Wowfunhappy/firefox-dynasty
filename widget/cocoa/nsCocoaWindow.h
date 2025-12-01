@@ -383,9 +383,8 @@ class nsCocoaWindow final : public nsIWidget {
   double GetDefaultScaleInternal() override;
   int32_t RoundsWidgetCoordinatesTo() override;
   // Mac specific methods
-  void WillPaintWindow();
-  bool PaintWindow(LayoutDeviceIntRegion aRegion);
-  bool PaintWindowInDrawTarget(mozilla::gfx::DrawTarget* aDT,
+  void PaintWindow();
+  void PaintWindowInDrawTarget(mozilla::gfx::DrawTarget* aDT,
                                const LayoutDeviceIntRegion& aRegion,
                                const mozilla::gfx::IntSize& aSurfaceSize);
 
@@ -474,7 +473,7 @@ class nsCocoaWindow final : public nsIWidget {
   bool HasModalDescendants() const { return mNumModalDescendants > 0; }
   bool IsModal() const { return mModal; }
 
-  NSWindow* GetCocoaWindow() { return mWindow; }
+  NSWindow* GetCocoaWindow() { return [[mWindow retain] autorelease]; }
 
   void SetMenuBar(RefPtr<nsMenuBarX>&& aMenuBar);
   nsMenuBarX* GetMenuBar();
@@ -533,8 +532,7 @@ class nsCocoaWindow final : public nsIWidget {
   void UpdateFullscreenState(bool aFullScreen, bool aNativeMode);
   nsresult DoMakeFullScreen(bool aFullScreen, bool aUseSystemTransition);
 
-  BaseWindow* mWindow;                // our cocoa window [STRONG]
-  BaseWindow* mClosedRetainedWindow;  // a second strong reference to our
+  BaseWindow* mWindow;  // our cocoa window [STRONG]
   // window upon closing it, held through our destructor. This is useful
   // to ensure that macOS run loops which reference the window will still
   // have something to point to even if they don't use proper retain and

@@ -18585,15 +18585,11 @@ void CodeGenerator::visitValueToIterator(LValueToIterator* lir) {
   callVM<Fn, ValueToIterator>(lir);
 }
 
-void CodeGenerator::visitIteratorHasIndicesAndBranch(
-    LIteratorHasIndicesAndBranch* lir) {
-  Register iterator = ToRegister(lir->iterator());
-  Register object = ToRegister(lir->object());
-  Register temp = ToRegister(lir->temp0());
-  Register temp2 = ToRegister(lir->temp1());
-  Label* ifTrue = getJumpLabelForBranch(lir->ifTrue());
-  Label* ifFalse = getJumpLabelForBranch(lir->ifFalse());
-
+void CodeGenerator::emitIteratorHasIndicesAndBranch(Register iterator,
+                                                    Register object,
+                                                    Register temp,
+                                                    Register temp2,
+                                                    Label* ifFalse) {
   // Check that the iterator has indices available.
   Address nativeIterAddr(iterator,
                          PropertyIteratorObject::offsetOfIteratorSlot());
@@ -18608,6 +18604,39 @@ void CodeGenerator::visitIteratorHasIndicesAndBranch(
   masm.loadPtr(objShapeAddr, temp);
   masm.branchTestObjShape(Assembler::NotEqual, object, temp, temp2, object,
                           ifFalse);
+}
+
+void CodeGenerator::visitIteratorHasIndicesAndBranch(
+    LIteratorHasIndicesAndBranch* lir) {
+  Register iterator = ToRegister(lir->iterator());
+  Register object = ToRegister(lir->object());
+  Register temp = ToRegister(lir->temp0());
+  Register temp2 = ToRegister(lir->temp1());
+  Label* ifTrue = getJumpLabelForBranch(lir->ifTrue());
+  Label* ifFalse = getJumpLabelForBranch(lir->ifFalse());
+
+  emitIteratorHasIndicesAndBranch(iterator, object, temp, temp2, ifFalse);
+
+  if (!isNextBlock(lir->ifTrue()->lir())) {
+    masm.jump(ifTrue);
+  }
+}
+
+void CodeGenerator::visitIteratorsMatchAndHaveIndicesAndBranch(
+    LIteratorsMatchAndHaveIndicesAndBranch* lir) {
+  Register iterator = ToRegister(lir->iterator());
+  Register otherIterator = ToRegister(lir->otherIterator());
+  Register object = ToRegister(lir->object());
+  Register temp = ToRegister(lir->temp0());
+  Register temp2 = ToRegister(lir->temp1());
+  Label* ifTrue = getJumpLabelForBranch(lir->ifTrue());
+  Label* ifFalse = getJumpLabelForBranch(lir->ifFalse());
+
+  // Check that the iterators match, and then we can use either iterator
+  // as a basis as if this were visitIteratorHasIndicesAndBranch
+  masm.branchPtr(Assembler::NotEqual, iterator, otherIterator, ifFalse);
+
+  emitIteratorHasIndicesAndBranch(iterator, object, temp, temp2, ifFalse);
 
   if (!isNextBlock(lir->ifTrue()->lir())) {
     masm.jump(ifTrue);
@@ -18669,7 +18698,6 @@ void CodeGenerator::visitLoadSlotByIteratorIndex(
   visitLoadSlotByIteratorIndexCommon(object, indexScratch, kindScratch, result);
 }
 
-#ifndef JS_CODEGEN_X86
 void CodeGenerator::visitLoadSlotByIteratorIndexIndexed(
     LLoadSlotByIteratorIndexIndexed* lir) {
   Register object = ToRegister(lir->object());
@@ -18684,7 +18712,6 @@ void CodeGenerator::visitLoadSlotByIteratorIndexIndexed(
 
   visitLoadSlotByIteratorIndexCommon(object, indexScratch, kindScratch, result);
 }
-#endif
 
 void CodeGenerator::visitStoreSlotByIteratorIndexCommon(Register object,
                                                         Register indexScratch,
@@ -18756,7 +18783,6 @@ void CodeGenerator::visitStoreSlotByIteratorIndex(
   visitStoreSlotByIteratorIndexCommon(object, indexScratch, kindScratch, value);
 }
 
-#ifndef JS_CODEGEN_X86
 void CodeGenerator::visitStoreSlotByIteratorIndexIndexed(
     LStoreSlotByIteratorIndexIndexed* lir) {
   Register object = ToRegister(lir->object());
@@ -18771,7 +18797,6 @@ void CodeGenerator::visitStoreSlotByIteratorIndexIndexed(
 
   visitStoreSlotByIteratorIndexCommon(object, indexScratch, kindScratch, value);
 }
-#endif
 
 void CodeGenerator::visitSetPropertyCache(LSetPropertyCache* ins) {
   LiveRegisterSet liveRegs = ins->safepoint()->liveRegs();
@@ -22648,7 +22673,97 @@ void CodeGenerator::visitMapObjectSize(LMapObjectSize* ins) {
   masm.loadMapObjectSize(mapObj, output);
 }
 
+void CodeGenerator::emitWeakMapLookupObject(
+    Register weakMap, Register obj, Register hashTable, Register hashCode,
+    Register scratch, Register scratch2, Register scratch3, Register scratch4,
+    Register scratch5, Label* found, Label* missing) {
+  // Load hash map if it exists. If not, jump to missing.
+  Address mapAddr(weakMap,
+                  NativeObject::getFixedSlotOffset(WeakMapObject::DataSlot));
+  masm.branchTestUndefined(Assembler::Equal, mapAddr, missing);
+  masm.loadPrivate(mapAddr, hashTable);
+
+  // Hash and scramble address of object.
+#ifdef JS_PUNBOX64
+  ValueOperand boxedObj(scratch);
+#else
+  ValueOperand boxedObj(scratch, obj);
+#endif
+  masm.tagValue(JSVAL_TYPE_OBJECT, obj, boxedObj);
+  masm.hashAndScrambleValue(boxedObj, hashCode, scratch2);
+  masm.prepareHashMFBT(hashCode, /*alreadyScrambled*/ true);
+
+  using Entry = WeakMapObject::Map::Entry;
+  auto matchEntry = [&]() {
+    Register entry = scratch;
+    Label noMatch;
+    masm.fallibleUnboxObject(Address(entry, Entry::offsetOfKey()), scratch2,
+                             &noMatch);
+    masm.branchPtr(Assembler::Equal, obj, scratch2, found);
+    masm.bind(&noMatch);
+  };
+  masm.lookupMFBT<WeakMapObject::Map>(hashTable, hashCode, scratch, scratch2,
+                                      scratch3, scratch4, scratch5, missing,
+                                      matchEntry);
+}
+
 void CodeGenerator::visitWeakMapGetObject(LWeakMapGetObject* ins) {
+#ifndef JS_CODEGEN_X86
+  Register weakMap = ToRegister(ins->weakMap());
+  Register obj = ToRegister(ins->object());
+  Register hashTable = ToRegister(ins->temp0());
+  Register hashCode = ToRegister(ins->temp1());
+  Register scratch = ToRegister(ins->temp2());
+  Register scratch2 = ToRegister(ins->temp3());
+  Register scratch3 = ToRegister(ins->temp4());
+  Register scratch4 = ToRegister(ins->temp5());
+  Register scratch5 = ToRegister(ins->temp6());
+  ValueOperand output = ToOutValue(ins);
+
+  Label found, missing;
+
+  emitWeakMapLookupObject(weakMap, obj, hashTable, hashCode, scratch, scratch2,
+                          scratch3, scratch4, scratch5, &found, &missing);
+
+  masm.bind(&found);
+
+  using Entry = WeakMapObject::Map::Entry;
+  masm.loadValue(Address(scratch, Entry::offsetOfValue()), output);
+
+  auto* ool = new (alloc()) LambdaOutOfLineCode([=](OutOfLineCode& ool) {
+    // Unboxed, tenured GC cell that needs to be barriered is in scratch.
+
+    LiveRegisterSet regsToSave(RegisterSet::Volatile());
+    regsToSave.takeUnchecked(hashTable);
+    regsToSave.takeUnchecked(hashCode);
+    regsToSave.takeUnchecked(scratch);
+    regsToSave.takeUnchecked(scratch2);
+    regsToSave.takeUnchecked(scratch3);
+    regsToSave.takeUnchecked(scratch4);
+    regsToSave.takeUnchecked(scratch5);
+    masm.PushRegsInMask(regsToSave);
+
+    using Fn = void (*)(js::gc::Cell* cell);
+    masm.setupAlignedABICall();
+    masm.passABIArg(scratch);
+    masm.callWithABI<Fn, js::jit::ReadBarrier>();
+
+    masm.PopRegsInMask(regsToSave);
+
+    masm.jump(ool.rejoin());
+  });
+  addOutOfLineCode(ool, ins->mir());
+
+  masm.emitValueReadBarrierFastPath(output, scratch, scratch2, scratch3,
+                                    scratch4, scratch5, ool->entry());
+  masm.jump(ool->rejoin());
+
+  masm.bind(&missing);
+  masm.moveValue(UndefinedValue(), output);
+
+  masm.bind(ool->rejoin());
+#else
+  // x86 doesn't have enough registers, so we call into the VM.
   Register weakMap = ToRegister(ins->weakMap());
   Register obj = ToRegister(ins->object());
   Register temp = ToRegister(ins->temp0());
@@ -22666,9 +22781,36 @@ void CodeGenerator::visitWeakMapGetObject(LWeakMapGetObject* ins) {
   masm.callWithABI<Fn, js::WeakMapObject::getObject>();
 
   masm.Pop(output);
+#endif
 }
 
 void CodeGenerator::visitWeakMapHasObject(LWeakMapHasObject* ins) {
+#ifndef JS_CODEGEN_X86
+  Register weakMap = ToRegister(ins->weakMap());
+  Register obj = ToRegister(ins->object());
+  Register hashTable = ToRegister(ins->temp0());
+  Register hashCode = ToRegister(ins->temp1());
+  Register scratch = ToRegister(ins->temp2());
+  Register scratch2 = ToRegister(ins->temp3());
+  Register scratch3 = ToRegister(ins->temp4());
+  Register scratch4 = ToRegister(ins->temp5());
+  Register scratch5 = ToRegister(ins->temp6());
+  Register output = ToRegister(ins->output());
+
+  Label found, missing, done;
+
+  emitWeakMapLookupObject(weakMap, obj, hashTable, hashCode, scratch, scratch2,
+                          scratch3, scratch4, scratch5, &found, &missing);
+
+  masm.bind(&found);
+  masm.move32(Imm32(1), output);
+  masm.jump(&done);
+
+  masm.bind(&missing);
+  masm.move32(Imm32(0), output);
+  masm.bind(&done);
+#else
+  // x86 doesn't have enough registers, so we call into the VM.
   Register weakMap = ToRegister(ins->weakMap());
   Register obj = ToRegister(ins->object());
   Register output = ToRegister(ins->output());
@@ -22679,6 +22821,7 @@ void CodeGenerator::visitWeakMapHasObject(LWeakMapHasObject* ins) {
   masm.passABIArg(obj);
   masm.callWithABI<Fn, js::WeakMapObject::hasObject>();
   masm.storeCallBoolResult(output);
+#endif
 }
 
 void CodeGenerator::visitWeakSetHasObject(LWeakSetHasObject* ins) {

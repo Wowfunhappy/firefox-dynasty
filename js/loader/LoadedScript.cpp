@@ -52,7 +52,7 @@ LoadedScript::LoadedScript(ScriptKind aKind,
     : mDataType(DataType::eUnknown),
       mKind(aKind),
       mReferrerPolicy(aReferrerPolicy),
-      mBytecodeOffset(0),
+      mSerializedStencilOffset(0),
       mCacheEntryId(InvalidCacheEntryId),
       mIsDirty(false),
       mFetchOptions(aFetchOptions),
@@ -66,7 +66,7 @@ LoadedScript::LoadedScript(const LoadedScript& aOther)
     : mDataType(DataType::eCachedStencil),
       mKind(aOther.mKind),
       mReferrerPolicy(aOther.mReferrerPolicy),
-      mBytecodeOffset(0),
+      mSerializedStencilOffset(0),
       mCacheEntryId(aOther.mCacheEntryId),
       mIsDirty(aOther.mIsDirty),
       mFetchOptions(aOther.mFetchOptions),
@@ -76,12 +76,12 @@ LoadedScript::LoadedScript(const LoadedScript& aOther)
       mStencil(aOther.mStencil) {
   MOZ_ASSERT(mFetchOptions);
   MOZ_ASSERT(mURI);
-  // NOTE: This is only for the stencil case.
-  //       The script text and the bytecode are not reflected.
+  // NOTE: This is only for the cached stencil case.
+  //       The script text and the serialized stencil are not reflected.
   MOZ_DIAGNOSTIC_ASSERT(aOther.mDataType == DataType::eCachedStencil);
   MOZ_DIAGNOSTIC_ASSERT(mStencil);
   MOZ_ASSERT(!mScriptData);
-  MOZ_ASSERT(mSRIAndBytecode.empty());
+  MOZ_ASSERT(mSRIAndSerializedStencil.empty());
 }
 
 LoadedScript::~LoadedScript() {
@@ -134,7 +134,7 @@ size_t LoadedScript::SizeOfIncludingThis(
     }
   }
 
-  bytes += mSRIAndBytecode.sizeOfExcludingThis(aMallocSizeOf);
+  bytes += mSRIAndSerializedStencil.sizeOfExcludingThis(aMallocSizeOf);
 
   // NOTE: Stencil is reported by SpiderMonkey.
   return bytes;

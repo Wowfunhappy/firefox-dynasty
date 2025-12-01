@@ -1283,6 +1283,21 @@ void LIRGenerator::visitTest(MTest* test) {
     return;
   }
 
+  if (opd->isIteratorsMatchAndHaveIndices()) {
+    MOZ_ASSERT(opd->isEmittedAtUses());
+
+    MDefinition* object = opd->toIteratorsMatchAndHaveIndices()->object();
+    MDefinition* iterator = opd->toIteratorsMatchAndHaveIndices()->iterator();
+    MDefinition* otherIterator =
+        opd->toIteratorsMatchAndHaveIndices()->otherIterator();
+    LIteratorsMatchAndHaveIndicesAndBranch* lir =
+        new (alloc()) LIteratorsMatchAndHaveIndicesAndBranch(
+            ifTrue, ifFalse, useRegister(object), useRegister(iterator),
+            useRegister(otherIterator), temp(), temp());
+    add(lir, test);
+    return;
+  }
+
   switch (opd->type()) {
     case MIRType::Double:
       add(new (alloc()) LTestDAndBranch(ifTrue, ifFalse, useRegister(opd)));
@@ -6271,7 +6286,6 @@ void LIRGenerator::visitStoreSlotByIteratorIndex(
   add(lir, ins);
 }
 
-#ifndef JS_CODEGEN_X86
 void LIRGenerator::visitLoadSlotByIteratorIndexIndexed(
     MLoadSlotByIteratorIndexIndexed* ins) {
   auto* lir = new (alloc()) LLoadSlotByIteratorIndexIndexed(
@@ -6287,9 +6301,14 @@ void LIRGenerator::visitStoreSlotByIteratorIndexIndexed(
       useRegister(ins->index()), useBox(ins->value()), temp(), temp());
   add(lir, ins);
 }
-#endif
 
 void LIRGenerator::visitIteratorHasIndices(MIteratorHasIndices* ins) {
+  MOZ_ASSERT(ins->hasOneUse());
+  emitAtUses(ins);
+}
+
+void LIRGenerator::visitIteratorsMatchAndHaveIndices(
+    MIteratorsMatchAndHaveIndices* ins) {
   MOZ_ASSERT(ins->hasOneUse());
   emitAtUses(ins);
 }
@@ -8152,16 +8171,30 @@ void LIRGenerator::visitMapObjectSize(MMapObjectSize* ins) {
 }
 
 void LIRGenerator::visitWeakMapGetObject(MWeakMapGetObject* ins) {
+#ifdef JS_CODEGEN_X86
   auto* lir = new (alloc()) LWeakMapGetObject(
       useFixedAtStart(ins->weakMap(), CallTempReg0),
       useFixedAtStart(ins->object(), CallTempReg1), tempFixed(CallTempReg2));
   defineReturn(lir, ins);
+#else
+  auto* lir = new (alloc()) LWeakMapGetObject(
+      useRegisterAtStart(ins->weakMap()), useRegisterAtStart(ins->object()),
+      temp(), temp(), temp(), temp(), temp(), temp(), temp());
+  defineBox(lir, ins);
+#endif
 }
 
 void LIRGenerator::visitWeakMapHasObject(MWeakMapHasObject* ins) {
+#ifdef JS_CODEGEN_X86
   auto* lir = new (alloc()) LWeakMapHasObject(
       useRegisterAtStart(ins->weakMap()), useRegisterAtStart(ins->object()));
   defineReturn(lir, ins);
+#else
+  auto* lir = new (alloc()) LWeakMapHasObject(
+      useRegisterAtStart(ins->weakMap()), useRegisterAtStart(ins->object()),
+      temp(), temp(), temp(), temp(), temp(), temp(), temp());
+  define(lir, ins);
+#endif
 }
 
 void LIRGenerator::visitWeakSetHasObject(MWeakSetHasObject* ins) {

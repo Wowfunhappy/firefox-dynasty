@@ -9,6 +9,7 @@
 #include "ScrollContainerFrame.h"
 #include "mozilla/Maybe.h"
 #include "mozilla/PresShell.h"
+#include "mozilla/StaticPrefs_apz.h"
 #include "mozilla/dom/Document.h"
 #include "mozilla/dom/Element.h"
 #include "nsCanvasFrame.h"
@@ -765,6 +766,10 @@ void DeleteAnchorPosReferenceData(AnchorPosReferenceData* aData) {
   delete aData;
 }
 
+void DeleteLastSuccessfulPositionData(LastSuccessfulPositionData* aData) {
+  delete aData;
+}
+
 const nsAtom* AnchorPositioningUtils::GetUsedAnchorName(
     const nsIFrame* aPositioned, const nsAtom* aAnchorName) {
   if (aAnchorName && !aAnchorName->IsEmpty()) {
@@ -872,6 +877,81 @@ bool AnchorPositioningUtils::FitsInContainingBlock(
   return overflowCheckRect.Intersect(originalContainingBlockRect)
       .Union(originalContainingBlockRect)
       .Contains(rect);
+}
+
+nsIFrame* AnchorPositioningUtils::GetAnchorThatFrameScrollsWith(
+    nsIFrame* aFrame) {
+  if (!StaticPrefs::apz_async_scroll_css_anchor_pos_AtStartup()) {
+    return nullptr;
+  }
+  mozilla::PhysicalAxes axes = aFrame->GetAnchorPosCompensatingForScroll();
+  // TODO for now we return the anchor if we are compensating in either axis.
+  // This is not fully spec compliant, bug 1988034 tracks this.
+  if (axes.isEmpty()) {
+    return nullptr;
+  }
+
+  const auto* pos = aFrame->StylePosition();
+  if (!pos->mPositionAnchor.IsIdent()) {
+    return nullptr;
+  }
+
+  const nsAtom* defaultAnchorName = pos->mPositionAnchor.AsIdent().AsAtom();
+  nsIFrame* anchor = const_cast<nsIFrame*>(
+      aFrame->PresShell()->GetAnchorPosAnchor(defaultAnchorName, aFrame));
+  // TODO Bug 1997026 We need to update the anchor finding code so this can't
+  // happen. For now we just detect it and reject it.
+  if (anchor && !nsLayoutUtils::IsProperAncestorFrameConsideringContinuations(
+                    aFrame->GetParent(), anchor)) {
+    return nullptr;
+  }
+  return anchor;
+}
+
+bool AnchorPositioningUtils::TriggerLayoutOnOverflow(
+    PresShell* aPresShell, bool aEvaluateAllFallbacksIfNeeded) {
+  bool didLayoutPositionedItems = false;
+
+  for (auto* positioned : aPresShell->GetAnchorPosPositioned()) {
+    AnchorPosReferenceData* referencedAnchors =
+        positioned->GetProperty(nsIFrame::AnchorPosReferences());
+    if (NS_WARN_IF(!referencedAnchors)) {
+      continue;
+    }
+
+    auto totalFallbacks =
+        positioned->StylePosition()->mPositionTryFallbacks._0.Length();
+    if (!totalFallbacks) {
+      // No fallbacks specified.
+      continue;
+    }
+
+    const bool positionedFitsInCB =
+        AnchorPositioningUtils::FitsInContainingBlock(
+            AnchorPositioningUtils::ContainingBlockInfo::UseCBFrameSize(
+                positioned),
+            positioned, referencedAnchors);
+    if (positionedFitsInCB) {
+      continue;
+    }
+
+    // TODO(bug 1987964): Try to only do this when the scroll offset changes?
+    auto* lastSuccessfulPosition =
+        positioned->GetProperty(nsIFrame::LastSuccessfulPositionFallback());
+    const bool needsRetry =
+        aEvaluateAllFallbacksIfNeeded ||
+        (lastSuccessfulPosition && !lastSuccessfulPosition->mTriedAllFallbacks);
+    if (needsRetry) {
+      // We want to retry from the first position; remove the last position
+      // property so all potential positions are re-evaluated.
+      positioned->RemoveProperty(nsIFrame::LastSuccessfulPositionFallback());
+      aPresShell->FrameNeedsReflow(positioned, mozilla::IntrinsicDirty::None,
+                                   NS_FRAME_IS_DIRTY);
+      didLayoutPositionedItems = true;
+    }
+  }
+
+  return didLayoutPositionedItems;
 }
 
 }  // namespace mozilla

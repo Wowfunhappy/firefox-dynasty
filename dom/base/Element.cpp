@@ -201,7 +201,6 @@
 #include "nsTArray.h"
 #include "nsTextNode.h"
 #include "nsThreadUtils.h"
-#include "nsViewManager.h"
 #include "nsWindowSizes.h"
 #include "nsXULElement.h"
 
@@ -1062,12 +1061,8 @@ nsRect Element::GetClientAreaRect() {
   if (presContext && presContext->UseOverlayScrollbars() &&
       !doc->StyleOrLayoutObservablyDependsOnParentDocumentLayout() &&
       doc->IsScrollingElement(this)) {
-    if (PresShell* presShell = doc->GetPresShell()) {
-      // Ensure up to date dimensions, but don't reflow
-      if (RefPtr<nsViewManager> viewManager = presShell->GetViewManager()) {
-        viewManager->FlushDelayedResize();
-      }
-      return nsRect(nsPoint(), presContext->GetVisibleArea().Size());
+    if (RefPtr ps = doc->GetPresShell()) {
+      return nsRect(nsPoint(), ps->MaybePendingLayoutViewportSize());
     }
   }
 

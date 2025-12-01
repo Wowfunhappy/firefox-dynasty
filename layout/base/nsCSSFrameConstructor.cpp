@@ -106,7 +106,6 @@
 #include "nsTextNode.h"
 #include "nsTransitionManager.h"
 #include "nsUnicharUtils.h"
-#include "nsViewManager.h"
 #include "nsXULElement.h"
 
 #ifdef XP_MACOSX
@@ -2673,11 +2672,7 @@ ViewportFrame* nsCSSFrameConstructor::ConstructRootFrame() {
 
   viewportFrame->AddStateBits(NS_FRAME_OWNS_ANON_BOXES);
 
-  // Bind the viewport frame to the root view
-  if (nsView* rootView = mPresShell->GetViewManager()->GetRootView()) {
-    viewportFrame->SetView(rootView);
-    mPresShell->SetNeedsWindowPropertiesSync();
-  }
+  mPresShell->SetNeedsWindowPropertiesSync();
 
   // Make it an absolute container for fixed-pos elements
   viewportFrame->AddStateBits(NS_FRAME_CAN_HAVE_ABSPOS_CHILDREN);

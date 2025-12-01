@@ -1991,6 +1991,7 @@ nsLocalFile::IsExecutable(bool* aResult) {
       *aResult = true;
       return NS_OK;
     }
+  }
 #endif
 
   // Then check the execute bit.

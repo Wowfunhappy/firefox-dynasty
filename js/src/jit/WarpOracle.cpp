@@ -23,6 +23,7 @@
 #include "jit/JitZone.h"
 #include "jit/MIRGenerator.h"
 #include "jit/ShapeList.h"
+#include "jit/StubFolding.h"
 #include "jit/TrialInlining.h"
 #include "jit/TypeData.h"
 #include "jit/WarpBuilder.h"
@@ -133,7 +134,8 @@ void WarpOracle::addScriptSnapshot(WarpScriptSnapshot* scriptSnapshot,
   scriptSnapshots_.insertBack(scriptSnapshot);
   accumulatedBytecodeSize_ += bytecodeLength;
 #ifdef DEBUG
-  runningScriptHash_ = mozilla::AddToHash(runningScriptHash_, icScript->hash());
+  runningScriptHash_ =
+      mozilla::AddToHash(runningScriptHash_, icScript->hash(cx_));
 #endif
 }
 
@@ -206,7 +208,7 @@ AbortReasonOr<WarpSnapshot*> WarpOracle::createSnapshot() {
   // Failing this assertion is not a correctness/security problem.
   // We therefore ignore cases involving resource exhaustion (OOM,
   // stack overflow, etc), or stubs purged by GC.
-  HashNumber hash = mozilla::AddToHash(icScript->hash(), runningScriptHash_);
+  HashNumber hash = mozilla::AddToHash(icScript->hash(cx_), runningScriptHash_);
   if (outerScript_->jitScript()->hasFailedICHash()) {
     HashNumber oldHash = outerScript_->jitScript()->getFailedICHash();
     MOZ_ASSERT_IF(hash == oldHash && !js::SupportDifferentialTesting(),
@@ -1007,7 +1009,6 @@ AbortReasonOr<Ok> WarpScriptOracle::maybeInlineIC(WarpOpSnapshotList& snapshots,
 
   ICFallbackStub* fallbackStub;
   const ICEntry& entry = getICEntryAndFallback(loc, &fallbackStub);
-  ICStub* firstStub = entry.firstStub();
 
   uint32_t offset = loc.bytecodeToOffset(script_);
 
@@ -1020,7 +1021,7 @@ AbortReasonOr<Ok> WarpScriptOracle::maybeInlineIC(WarpOpSnapshotList& snapshots,
   // invalidating.
   fallbackStub->clearUsedByTranspiler();
 
-  if (firstStub == fallbackStub) {
+  if (entry.firstStub() == fallbackStub) {
     [[maybe_unused]] unsigned line;
     [[maybe_unused]] JS::LimitedColumnNumberOneOrigin column;
     LineNumberAndColumn(script_, loc, &line, &column);
@@ -1044,7 +1045,10 @@ AbortReasonOr<Ok> WarpScriptOracle::maybeInlineIC(WarpOpSnapshotList& snapshots,
     return Ok();
   }
 
-  ICCacheIRStub* stub = firstStub->toCacheIRStub();
+  // Try to fold stubs, in case new stubs were added after trial inlining.
+  if (!TryFoldingStubs(cx_, fallbackStub, script_, icScript_)) {
+    return abort(AbortReason::Error);
+  }
 
   // Don't transpile if this IC ever encountered a case where it had
   // no stub to attach.
@@ -1058,6 +1062,8 @@ AbortReasonOr<Ok> WarpScriptOracle::maybeInlineIC(WarpOpSnapshotList& snapshots,
             column.oneOriginValue());
     return Ok();
   }
+
+  ICCacheIRStub* stub = entry.firstStub()->toCacheIRStub();
 
   // Don't transpile if there are other stubs with entered-count > 0. Counters
   // are reset when a new stub is attached so this means the stub that was added
@@ -1326,9 +1332,8 @@ AbortReasonOr<bool> WarpScriptOracle::maybeInlineCall(
 
   // This is just a cheap check to limit the damage we can do to ourselves if
   // we try to monomorphically inline an indirectly recursive call.
-  const uint32_t maxInliningDepth = 8;
   if (!isTrialInlined &&
-      info_->inlineScriptTree()->depth() > maxInliningDepth) {
+      info_->inlineScriptTree()->depth() > InlineScriptTree::MaxDepth) {
     return false;
   }
 
@@ -1403,6 +1408,7 @@ AbortReasonOr<bool> WarpScriptOracle::maybeInlineCall(
           icScript_->removeInlinedChild(loc.bytecodeToOffset(script_));
         }
         fallbackStub->setTrialInliningState(TrialInliningState::Failure);
+        oracle_->ignoreFailedICHash();
         return false;
       }
       case AbortReason::Error:

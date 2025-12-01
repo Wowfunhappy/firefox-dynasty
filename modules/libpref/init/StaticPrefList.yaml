@@ -305,6 +305,7 @@
   mirror: always
   do_not_use_directly: true
 
+#ifdef XP_WIN
 # Whether to avoid accessibility activation on Windows shortly after clipboard
 # copy.
 #
@@ -328,6 +329,7 @@
   type: uint32_t
   value: 2
   mirror: always
+#endif
 
 #---------------------------------------------------------------------------
 # Prefs starting with "alerts."
@@ -952,6 +954,12 @@
   type: bool
   value: false
   mirror: always
+
+# Whether to async scroll CSS anchor pos.
+- name: apz.async_scroll_css_anchor_pos
+  type: bool
+  value: true
+  mirror: once
 
 #---------------------------------------------------------------------------
 # Prefs starting with "beacon."
@@ -3535,7 +3543,7 @@
 # disabled.
 - name: dom.keyboardevent.init_key_event.enabled_in_addons
   type: bool
-  value: @IS_NOT_NIGHTLY_BUILD@
+  value: @IS_EARLY_BETA_OR_EARLIER@
   mirror: always
 
 # If this is true, keypress events for non-printable keys are dispatched only
@@ -3999,6 +4007,24 @@
   value: -1
   mirror: always
 
+# Controls the time offset (in seconds) applied when initializing the access
+# time for a newly created origin in temporary storage. When set to a positive
+# value, the stored access time is artificially adjusted by subtracting the
+# specified number of seconds from the current time. This can be used to
+# simulate older origins for testing eviction and recency-based cleanup
+# behavior.
+#
+# If the offset value is too large and would cause integer underflow, the
+# current time is used as it would have been used normally.
+#
+# A value of 0 disables this behavior (default).
+#
+# This setting is for testing only and must not be enabled in production.
+- name: dom.quotaManager.temporaryStorage.initialOriginAccessTimeOffsetSec
+  type: RelaxedAtomicUint32
+  value: 0
+  mirror: always
+
 # Controls whether the quota manager updates the last access time for origins
 # in temporary storage. When enabled, the access time is updated only when an
 # origin is accessed by a quota client for the first time during a session or
@@ -4075,11 +4101,13 @@
 # temporary storage initialization?
 # When enabled, the QuotaManager will automatically clear non-persisted
 # origins that have zero quota-charged usage during final steps of temporary
-# storage initialization. This removes directories and files belonging to
-# origins that do not store any real data but still consume resources through
-# bookkeeping structures on disk. The feature helps reduce storage bloat and
-# improve initialization performance, especially on long-lived profiles with a
-# large number of unused origins.
+# storage initialization. Recently used origins (within the last week) are
+# excluded, and clearing is performed in batches to avoid large I/O spikes
+# when many origins need to be removed. This removes directories and files
+# belonging to origins that do not store any real data but still consume
+# resources through bookkeeping structures on disk. The feature helps reduce
+# storage bloat and improve initialization performance, especially on
+# long-lived profiles with a large number of unused origins.
 - name: dom.quotaManager.temporaryStorage.clearNonPersistedZeroUsageOrigins
   type: RelaxedAtomicBool
   value: false
@@ -6734,6 +6762,11 @@
   value: 128
   mirror: always
 
+- name: gfx.canvas.accelerated.max-data-shmems
+  type: RelaxedAtomicUint32
+  value: 400
+  mirror: always
+
 - name: gfx.canvas.accelerated.max-export-surfaces
   type: RelaxedAtomicUint32
   value: 100
@@ -6860,10 +6893,12 @@
   value: true
   mirror: always
 
+#ifdef XP_WIN
 - name: gfx.canvas.remote.use-draw-image-fast-path-d3d
   type: RelaxedAtomicBool
   value: true
   mirror: always
+#endif
 
 - name: gfx.canvas.remote.recycle-used-data-surface
   type: RelaxedAtomicBool
@@ -8181,15 +8216,19 @@
 # Prefs starting with "gl." (OpenGL)
 #---------------------------------------------------------------------------
 
+#ifdef XP_MACOSX
 - name: gl.allow-high-power
   type: RelaxedAtomicBool
   value: true
   mirror: always
+#endif
 
+#ifdef XP_WIN
 - name: gl.ignore-dx-interop2-blacklist
   type: RelaxedAtomicBool
   value: false
   mirror: always
+#endif
 
 - name: gl.use-tls-is-current
   type: RelaxedAtomicInt32
@@ -9509,6 +9548,7 @@
   mirror: once
   do_not_use_directly: true
 
+#ifdef XP_WIN
 - name: layers.d3d11.force-warp
   type: bool
   value: false
@@ -9518,6 +9558,7 @@
   type: bool
   value: true
   mirror: once
+#endif
 
 # Enable DEAA antialiasing for transformed layers in the compositor.
 - name: layers.deaa.enabled
@@ -9853,6 +9894,13 @@
 - name: layout.css.anchor-positioning.enabled
   type: RelaxedAtomicBool
   value: @IS_NIGHTLY_BUILD@
+  mirror: always
+  rust: true
+
+# Whether to enable position-try-order
+- name: layout.css.anchor-positioning.position-try-order.enabled
+  type: RelaxedAtomicBool
+  value: false
   mirror: always
   rust: true
 
@@ -13292,13 +13340,6 @@
   value: false
   mirror: always
 
-# Whether to show anti-spoof confirmation prompts when navigating to a url
-# with userinfo
-- name: network.auth.confirmAuth.enabled
-  type: bool
-  value: false
-  mirror: always
-
 # Whether to display auth prompts if X-Frame-Options header will block loading
 # page
 - name: network.auth.supress_auth_prompt_for_XFO_failures
@@ -15502,7 +15543,7 @@
 # Whether to enable Packetization Layer Path MTU Discovery.
 - name: network.http.http3.pmtud
   type: RelaxedAtomicBool
-  value: true
+  value: @IS_NIGHTLY_BUILD@
   mirror: always
   rust: true
 
@@ -16922,12 +16963,6 @@
 
 # Insecure form submit warning.
 - name: prompts.modalType.insecureFormSubmit
-  type: int32_t
-  value: 2
-  mirror: always
-
-# nsHttpChannelAuthProvider#ConfirmAuth anti-phishing prompts.
-- name: prompts.modalType.confirmAuth
   type: int32_t
   value: 2
   mirror: always
@@ -18665,19 +18700,17 @@
   value: false
   mirror: always
 
+#ifdef XP_WIN
 - name: webgl.dxgl.enabled
   type: RelaxedAtomicBool
-#ifdef XP_WIN
   value: true
-#else
-  value: false
-#endif
   mirror: always
 
 - name: webgl.dxgl.needs-finish
   type: RelaxedAtomicBool
   value: false
   mirror: always
+#endif
 
 - name: webgl.disable-fail-if-major-performance-caveat
   type: RelaxedAtomicBool
@@ -18898,11 +18931,6 @@
 - name: webgl.power-preference-override
   type: RelaxedAtomicInt32
   value: 0
-  mirror: always
-
-- name: webgl.prefer-16bpp
-  type: RelaxedAtomicBool
-  value: false
   mirror: always
 
 - name: webgl.sanitize-unmasked-renderer

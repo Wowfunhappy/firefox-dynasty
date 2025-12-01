@@ -500,9 +500,6 @@ skip-if = [
 
 ["browser_tabContextMenu_keyboard.js"]
 tags = "vertical-tabs"
-skip-if = [
-  "os == 'linux' && os_version == '24.04' && arch == 'x86_64'", # Bug 1974090
-]
 
 ["browser_tabDrop.js"]
 https_first_disabled = true
@@ -641,6 +638,7 @@ skip-if = [
 ]
 
 ["browser_tab_splitview_footer.js"]
+support-files = ["file_withicon.html"]
 
 ["browser_tab_splitview_keyboard_focus.js"]
 

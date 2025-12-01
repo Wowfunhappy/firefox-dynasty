@@ -67,6 +67,7 @@ import org.mozilla.fenix.nimbus.QueryParameterStrippingSection.QUERY_PARAMETER_S
 import org.mozilla.fenix.nimbus.QueryParameterStrippingSection.QUERY_PARAMETER_STRIPPING_PMB
 import org.mozilla.fenix.nimbus.QueryParameterStrippingSection.QUERY_PARAMETER_STRIPPING_STRIP_LIST
 import org.mozilla.fenix.settings.PhoneFeature
+import org.mozilla.fenix.settings.ShortcutType
 import org.mozilla.fenix.settings.deletebrowsingdata.DeleteBrowsingDataOnQuitType
 import org.mozilla.fenix.settings.logins.SavedLoginsSortingStrategyMenu
 import org.mozilla.fenix.settings.logins.SortingStrategy
@@ -214,18 +215,30 @@ class Settings(
      */
     var toolbarSimpleShortcutKey: String by stringPreference(
         key = appContext.getPreferenceKey(R.string.pref_key_toolbar_simple_shortcut),
-        default = { "new_tab" },
+        default = { ShortcutType.NEW_TAB.value },
         persistDefaultIfNotExists = true,
     )
+
+    val toolbarSimpleShortcut: String
+        get() = when (shouldShowToolbarCustomization) {
+            true -> toolbarSimpleShortcutKey
+            false -> ShortcutType.NEW_TAB.value
+        }
 
     /**
      * Indicates what expanded toolbar shortcut key is currently selected.
      */
     var toolbarExpandedShortcutKey: String by stringPreference(
         key = appContext.getPreferenceKey(R.string.pref_key_toolbar_expanded_shortcut),
-        default = { "bookmark" },
+        default = { ShortcutType.BOOKMARK.value },
         persistDefaultIfNotExists = true,
     )
+
+    val toolbarExpandedShortcut: String
+        get() = when (shouldShowToolbarCustomization) {
+            true -> toolbarExpandedShortcutKey
+            false -> ShortcutType.BOOKMARK.value
+        }
 
     /**
      * Indicates if the Pocket recommendations homescreen section should also show sponsored stories.
@@ -418,7 +431,7 @@ class Settings(
 
     var contileContextId by stringPreference(
         appContext.getPreferenceKey(R.string.pref_key_contile_context_id),
-        default = TopSites.contextId.generateAndSet().toString(),
+        default = { TopSites.contextId.generateAndSet().toString() },
         persistDefaultIfNotExists = true,
     )
 
@@ -1429,13 +1442,41 @@ class Settings(
             return touchExplorationIsEnabled || switchServiceIsEnabled
         }
 
+    /**
+     * Checks if a specific type of browsing data is configured to be deleted on quit.
+     *
+     * @param type The [DeleteBrowsingDataOnQuitType] to check.
+     * @return `true` if the data type is set to be deleted on quit, `false` otherwise.
+     */
     fun getDeleteDataOnQuit(type: DeleteBrowsingDataOnQuitType): Boolean =
         preferences.getBoolean(type.getPreferenceKey(appContext), false)
 
+    /**
+     * Sets whether a specific type of browsing data should be deleted on quit.
+     *
+     * This function is used to configure the "Delete browsing data on quit" feature.
+     * It writes the user's choice to `SharedPreferences` for the given data type.
+     * The value is later retrieved by `getDeleteDataOnQuit`.
+     *
+     * @param type The [DeleteBrowsingDataOnQuitType] to configure.
+     * @param value `true` to enable deletion for this type on quit, `false` to disable it.
+     */
     fun setDeleteDataOnQuit(type: DeleteBrowsingDataOnQuitType, value: Boolean) {
         preferences.edit { putBoolean(type.getPreferenceKey(appContext), value) }
     }
 
+    /**
+     * Checks if any browsing data type is configured to be deleted on quit.
+     *
+     * This function provides a quick way to determine if the "Delete browsing data on quit"
+     * feature is active in any capacity. It iterates through all possible data types
+     * and returns `true` if at least one of them is set for deletion.
+     *
+     * This is useful for UI components that need to know whether to display a general
+     * indicator that the feature is enabled, without needing to know the specific details.
+     *
+     * @return `true` if one or more data types are set to be deleted on quit, `false` otherwise.
+     */
     fun shouldDeleteAnyDataOnQuit() =
         DeleteBrowsingDataOnQuitType.entries.any { getDeleteDataOnQuit(it) }
 
@@ -2059,7 +2100,7 @@ class Settings(
      */
     val pocketSponsoredStoriesProfileId by stringPreference(
         appContext.getPreferenceKey(R.string.pref_key_pocket_sponsored_stories_profile),
-        default = UUID.randomUUID().toString(),
+        default = { UUID.randomUUID().toString() },
         persistDefaultIfNotExists = true,
     )
 
@@ -2635,7 +2676,7 @@ class Settings(
      * Indicates whether or not we should use the new compose autofill settings UI
      */
     var enableComposeAutofillSettings by booleanPreference(
-        key = appContext.getPreferenceKey(R.string.pref_key_enable_compose_logins),
+        key = appContext.getPreferenceKey(R.string.pref_key_enable_compose_autofill_settings),
         default = false,
     )
 

@@ -211,6 +211,10 @@ bool Navigation::IsAPIEnabled(JSContext* /* unused */, JSObject* /* unused */) {
 
 void Navigation::Entries(
     nsTArray<RefPtr<NavigationHistoryEntry>>& aResult) const {
+  if (HasEntriesAndEventsDisabled()) {
+    aResult.Clear();
+    return;
+  }
   aResult = mEntries.Clone();
 }
 
@@ -364,9 +368,9 @@ void Navigation::UpdateEntriesForSameDocumentNavigation(
       MOZ_LOG(gNavigationAPILog, LogLevel::Debug, ("Push navigation"));
       mCurrentEntryIndex =
           Some(mCurrentEntryIndex ? *mCurrentEntryIndex + 1 : 0);
-      while (*mCurrentEntryIndex < mEntries.Length()) {
-        disposedEntries.AppendElement(mEntries.PopLastElement());
-      }
+      disposedEntries.AppendElements(Span(mEntries).From(*mCurrentEntryIndex));
+      mEntries.RemoveElementsAt(*mCurrentEntryIndex,
+                                mEntries.Length() - *mCurrentEntryIndex);
       mEntries.AppendElement(MakeRefPtr<NavigationHistoryEntry>(
           GetOwnerGlobal(), aDestinationSHE, *mCurrentEntryIndex));
       break;
@@ -596,7 +600,7 @@ void Navigation::Navigate(JSContext* aCx, const nsAString& aUrl,
 
   RefPtr bc = document->GetBrowsingContext();
   MOZ_DIAGNOSTIC_ASSERT(bc);
-  bc->Navigate(urlRecord, *document->NodePrincipal(),
+  bc->Navigate(urlRecord, document, *document->NodePrincipal(),
                /* per spec, error handling defaults to false */ IgnoreErrors(),
                aOptions.mHistory, /* aNeedsCompletelyLoadedDocument */ false,
                serializedState, apiMethodTracker);
@@ -682,44 +686,55 @@ void Navigation::PerformNavigationTraversal(JSContext* aCx, const nsID& aKey,
 
   // 12. Append the following session history traversal steps to traversable:
   auto* childSHistory = traversable->GetChildSessionHistory();
-  auto performNavigationTraversalSteps =
-      [finished =
-           RefPtr(apiMethodTracker->FinishedPromise())](nsresult aResult) {
-        switch (aResult) {
-          case NS_ERROR_DOM_INVALID_STATE_ERR:
-            // 12.2 Let targetSHE be the session history entry in navigableSHEs
-            //      whose navigation API key is key. If no such entry exists,
-            //      then:
-            finished->MaybeRejectWithInvalidStateError(
-                "No such entry with key found");
-            break;
-          case NS_ERROR_DOM_ABORT_ERR:
-            // 12.5 If result is "canceled-by-beforeunload", then queue a global
-            // task on the navigation and traversal task source given
-            // navigation's relevant global object to reject the finished
-            // promise for apiMethodTracker with a new "AbortError" DOMException
-            // created in navigation's relevant realm.
-            finished->MaybeRejectWithAbortError("Navigation was canceled");
-            break;
-          case NS_ERROR_DOM_SECURITY_ERR:
-            // 12.6 If result is "initiator-disallowed", then queue a global
-            // task on the
-            //      navigation and traversal task source given navigation's
-            //      relevant global object to reject the finished promise for
-            //      apiMethodTracker with a new "SecurityError" DOMException
-            //      created in navigation's relevant realm.
-            finished->MaybeRejectWithSecurityError(
-                "Navigation was not allowed");
-            break;
-          case NS_OK:
-            // 12.3 If targetSHE is navigable's active session history entry,
-            // then abort these steps.
-            break;
-          default:
-            MOZ_DIAGNOSTIC_ASSERT(false, "Unexpected result");
-            break;
-        }
-      };
+  auto performNavigationTraversalSteps = [apiMethodTracker](nsresult aResult) {
+    // 12.3 If targetSHE is navigable's active session history entry,
+    //      then abort these steps.
+    if (NS_SUCCEEDED(aResult)) {
+      return;
+    }
+
+    AutoJSAPI jsapi;
+    if (NS_WARN_IF(!jsapi.Init(
+            apiMethodTracker->mNavigationObject->GetParentObject()))) {
+      return;
+    }
+
+    ErrorResult rv;
+
+    switch (aResult) {
+      case NS_ERROR_DOM_INVALID_STATE_ERR:
+        // 12.2 Let targetSHE be the session history entry in navigableSHEs
+        //      whose navigation API key is key. If no such entry exists,
+        //      then:
+        rv.ThrowInvalidStateError("No such entry with key found");
+        break;
+      case NS_ERROR_DOM_ABORT_ERR:
+        // 12.5 If result is "canceled-by-beforeunload", then queue a global
+        //      task on the navigation and traversal task source given
+        //      navigation's relevant global object to reject the finished
+        //      promise for apiMethodTracker with a new "AbortError"
+        //      DOMException
+        // created in navigation's relevant realm.
+        rv.ThrowAbortError("Navigation was canceled");
+        break;
+      case NS_ERROR_DOM_SECURITY_ERR:
+        // 12.6 If result is "initiator-disallowed", then queue a global task on
+        //      the navigation and traversal task source given navigation's
+        //      relevant global object to reject the finished promise for
+        //      apiMethodTracker with a new "SecurityError" DOMException
+        //      created in navigation's relevant realm.
+        rv.ThrowSecurityError("Navigation was not allowed");
+        break;
+      default:
+        MOZ_DIAGNOSTIC_ASSERT(false, "Unexpected result");
+        rv.ThrowInvalidStateError("Unexpected result");
+        break;
+    }
+    JS::Rooted<JS::Value> rootedExceptionValue(jsapi.cx());
+    MOZ_ALWAYS_TRUE(
+        ToJSValue(jsapi.cx(), std::move(rv), &rootedExceptionValue));
+    apiMethodTracker->RejectFinishedPromise(rootedExceptionValue);
+  };
 
   // 12.4 Let result be the result of applying the traverse history step given
   //      by targetSHE's step to traversable, given sourceSnapshotParams,
@@ -1415,6 +1430,13 @@ struct NavigationWaitForAllScope final : public nsISupports,
               };
       if (mAPIMethodTracker &&
           !StaticPrefs::dom_navigation_api_internal_method_tracker()) {
+        // Promise::WaitForAll marks all promises as handled, but since we're
+        // delaying wait for all one microtask, we need to manually mark them
+        // here.
+        for (auto& promise : promiseList) {
+          (void)promise->SetAnyPromiseIsHandled();
+        }
+
         LOG_FMTD("Waiting for committed");
         mAPIMethodTracker->CommittedPromise()
             ->AddCallbacksWithCycleCollectedArgs(

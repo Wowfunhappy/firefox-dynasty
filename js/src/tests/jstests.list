@@ -676,68 +676,6 @@ skip script test262/intl402/PluralRules/notation.js
 # See https://bugzilla.mozilla.org/show_bug.cgi?id=1983837
 skip script test262/staging/top-level-await/tla-hang-entry.js
 
-# See https://bugzilla.mozilla.org/show_bug.cgi?id=2000201
-skip script test262/intl402/Temporal/PlainDateTime/prototype/subtract/leap-months-chinese.js
-skip script test262/intl402/Temporal/PlainDateTime/prototype/subtract/basic-hebrew.js
-skip script test262/intl402/Temporal/PlainDateTime/prototype/subtract/era-boundary-ethiopic.js
-skip script test262/intl402/Temporal/PlainDateTime/prototype/subtract/leap-months-dangi.js
-skip script test262/intl402/Temporal/PlainDateTime/prototype/subtract/leap-months-hebrew.js
-skip script test262/intl402/Temporal/PlainDateTime/prototype/since/leap-months-chinese.js
-skip script test262/intl402/Temporal/PlainDateTime/prototype/since/leap-months-dangi.js
-skip script test262/intl402/Temporal/PlainDateTime/prototype/since/leap-months-hebrew.js
-skip script test262/intl402/Temporal/PlainDateTime/prototype/until/leap-months-chinese.js
-skip script test262/intl402/Temporal/PlainDateTime/prototype/until/leap-months-dangi.js
-skip script test262/intl402/Temporal/PlainDateTime/prototype/until/leap-months-hebrew.js
-skip script test262/intl402/Temporal/PlainDateTime/prototype/add/leap-months-chinese.js
-skip script test262/intl402/Temporal/PlainDateTime/prototype/add/leap-months-dangi.js
-skip script test262/intl402/Temporal/PlainDateTime/prototype/add/basic-hebrew.js
-skip script test262/intl402/Temporal/PlainDateTime/prototype/add/era-boundary-ethiopic.js
-skip script test262/intl402/Temporal/PlainDateTime/prototype/add/leap-months-hebrew.js
-skip script test262/intl402/Temporal/PlainDateTime/prototype/add/basic-islamic-umalqura.js
-skip script test262/intl402/Temporal/ZonedDateTime/prototype/subtract/leap-months-chinese.js
-skip script test262/intl402/Temporal/ZonedDateTime/prototype/subtract/leap-months-dangi.js
-skip script test262/intl402/Temporal/ZonedDateTime/prototype/subtract/basic-hebrew.js
-skip script test262/intl402/Temporal/ZonedDateTime/prototype/subtract/era-boundary-ethiopic.js
-skip script test262/intl402/Temporal/ZonedDateTime/prototype/subtract/leap-months-hebrew.js
-skip script test262/intl402/Temporal/ZonedDateTime/prototype/since/leap-months-chinese.js
-skip script test262/intl402/Temporal/ZonedDateTime/prototype/since/leap-months-dangi.js
-skip script test262/intl402/Temporal/ZonedDateTime/prototype/since/leap-months-hebrew.js
-skip script test262/intl402/Temporal/ZonedDateTime/prototype/until/leap-months-chinese.js
-skip script test262/intl402/Temporal/ZonedDateTime/prototype/until/leap-months-dangi.js
-skip script test262/intl402/Temporal/ZonedDateTime/prototype/until/leap-months-hebrew.js
-skip script test262/intl402/Temporal/ZonedDateTime/prototype/add/leap-months-chinese.js
-skip script test262/intl402/Temporal/ZonedDateTime/prototype/add/leap-months-dangi.js
-skip script test262/intl402/Temporal/ZonedDateTime/prototype/add/era-boundary-ethiopic.js
-skip script test262/intl402/Temporal/ZonedDateTime/prototype/add/basic-hebrew.js
-skip script test262/intl402/Temporal/ZonedDateTime/prototype/add/leap-months-hebrew.js
-skip script test262/intl402/Temporal/PlainDate/prototype/subtract/leap-months-chinese.js
-skip script test262/intl402/Temporal/PlainDate/prototype/subtract/leap-months-dangi.js
-skip script test262/intl402/Temporal/PlainDate/prototype/subtract/basic-hebrew.js
-skip script test262/intl402/Temporal/PlainDate/prototype/subtract/era-boundary-ethiopic.js
-skip script test262/intl402/Temporal/PlainDate/prototype/subtract/leap-months-hebrew.js
-skip script test262/intl402/Temporal/PlainDate/prototype/since/leap-months-chinese.js
-skip script test262/intl402/Temporal/PlainDate/prototype/since/leap-months-dangi.js
-skip script test262/intl402/Temporal/PlainDate/prototype/since/leap-months-hebrew.js
-skip script test262/intl402/Temporal/PlainDate/prototype/until/leap-months-chinese.js
-skip script test262/intl402/Temporal/PlainDate/prototype/until/leap-months-dangi.js
-skip script test262/intl402/Temporal/PlainDate/prototype/until/leap-months-hebrew.js
-skip script test262/intl402/Temporal/PlainDate/prototype/add/leap-months-chinese.js
-skip script test262/intl402/Temporal/PlainDate/prototype/add/leap-months-dangi.js
-skip script test262/intl402/Temporal/PlainDate/prototype/add/era-boundary-ethiopic.js
-skip script test262/intl402/Temporal/PlainDate/prototype/add/basic-hebrew.js
-skip script test262/intl402/Temporal/PlainDate/prototype/add/leap-months-hebrew.js
-skip script test262/intl402/DateTimeFormat/prototype/formatToParts/era.js
-skip script test262/intl402/Temporal/ZonedDateTime/prototype/subtract/constrain-day-islamic-umalqura.js
-skip script test262/intl402/Temporal/ZonedDateTime/prototype/subtract/basic-islamic-umalqura.js
-skip script test262/intl402/Temporal/ZonedDateTime/prototype/add/constrain-day-islamic-umalqura.js
-skip script test262/intl402/Temporal/ZonedDateTime/prototype/add/basic-islamic-umalqura.js
-skip script test262/intl402/Temporal/PlainDate/prototype/subtract/constrain-day-islamic-umalqura.js
-skip script test262/intl402/Temporal/PlainDate/prototype/subtract/basic-islamic-umalqura.js
-skip script test262/intl402/Temporal/PlainDate/prototype/add/basic-islamic-umalqura.js
-skip script test262/intl402/Temporal/PlainDate/prototype/add/constrain-day-islamic-umalqura.js
-skip script test262/intl402/Temporal/PlainDateTime/prototype/subtract/constrain-day-islamic-umalqura.js
-skip script test262/intl402/Temporal/PlainDateTime/prototype/subtract/basic-islamic-umalqura.js
-skip script test262/intl402/Temporal/PlainDateTime/prototype/add/constrain-day-islamic-umalqura.js
 
 ###########################################################
 # Tests disabled due to issues in test262 importer script #
@@ -863,6 +801,39 @@ skip script test262/built-ins/RegExp/property-escapes/generated/Script_-_Arabic.
 
 # https://github.com/tc39/test262/pull/4659
 skip script test262/staging/Intl402/Temporal/old/indian-calendar.js
+
+# "Intl era and monthCode" proposal should clarify if "islamic" and "islamic-rgsa" are still allowed
+# for Intl.DisplayNames.
+skip script test262/intl402/Intl/supportedValuesOf/calendars-accepted-by-DisplayNames.js
+
+# https://github.com/tc39/test262/pull/4721
+skip script test262/staging/Intl402/Temporal/old/non-iso-calendars-ethioaa.js
+skip script test262/staging/Intl402/Temporal/old/non-iso-calendars-ethiopic.js
+skip script test262/staging/Intl402/Temporal/old/non-iso-calendars-indian.js
+skip script test262/staging/Intl402/Temporal/old/non-iso-calendars-coptic.js
+
+# https://github.com/tc39/proposal-intl-era-monthcode/issues/96
+skip script test262/intl402/Temporal/PlainDateTime/prototype/since/leap-months-chinese.js
+skip script test262/intl402/Temporal/PlainDateTime/prototype/since/leap-months-dangi.js
+skip script test262/intl402/Temporal/PlainDateTime/prototype/since/leap-months-hebrew.js
+skip script test262/intl402/Temporal/PlainDateTime/prototype/until/leap-months-chinese.js
+skip script test262/intl402/Temporal/PlainDateTime/prototype/until/leap-months-dangi.js
+skip script test262/intl402/Temporal/PlainDateTime/prototype/until/leap-months-hebrew.js
+skip script test262/intl402/Temporal/ZonedDateTime/prototype/since/leap-months-chinese.js
+skip script test262/intl402/Temporal/ZonedDateTime/prototype/since/leap-months-dangi.js
+skip script test262/intl402/Temporal/ZonedDateTime/prototype/since/leap-months-hebrew.js
+skip script test262/intl402/Temporal/ZonedDateTime/prototype/until/leap-months-chinese.js
+skip script test262/intl402/Temporal/ZonedDateTime/prototype/until/leap-months-dangi.js
+skip script test262/intl402/Temporal/ZonedDateTime/prototype/until/leap-months-hebrew.js
+skip script test262/intl402/Temporal/PlainDate/prototype/since/leap-months-chinese.js
+skip script test262/intl402/Temporal/PlainDate/prototype/since/leap-months-dangi.js
+skip script test262/intl402/Temporal/PlainDate/prototype/since/leap-months-hebrew.js
+skip script test262/intl402/Temporal/PlainDate/prototype/until/leap-months-chinese.js
+skip script test262/intl402/Temporal/PlainDate/prototype/until/leap-months-dangi.js
+skip script test262/intl402/Temporal/PlainDate/prototype/until/leap-months-hebrew.js
+
+# https://github.com/tc39/test262/pull/4676
+skip script test262/intl402/DateTimeFormat/prototype/formatToParts/era.js
 
 
 ##############################################
@@ -1055,59 +1026,26 @@ skip script test262/built-ins/Temporal/ZonedDateTime/prototype/until/argument-st
 # See Bug 1950425, skip tests for calendars disabled in release or beta
 skip-if(release_or_beta) script non262/Temporal/Intl/defaults.js
 skip-if(release_or_beta) script test262/staging/Intl402/Temporal/old/non-iso-calendars-islamic-umalqura.js
-skip-if(release_or_beta) script test262/staging/Intl402/Temporal/old/islamic-calendars-islamic.js
-skip-if(release_or_beta) script test262/staging/Intl402/Temporal/old/islamic-calendars-islamic-rgsa.js
 skip-if(release_or_beta) script test262/staging/Intl402/Temporal/old/islamic-calendars-islamic-umalqura.js
 skip-if(release_or_beta) script test262/intl402/Temporal/PlainMonthDay/from/constrain-to-leap-day.js
+skip-if(release_or_beta) script test262/intl402/Temporal/ZonedDateTime/prototype/subtract/constrain-day-islamic-umalqura.js
+skip-if(release_or_beta) script test262/intl402/Temporal/ZonedDateTime/prototype/subtract/basic-islamic-umalqura.js
+skip-if(release_or_beta) script test262/intl402/Temporal/ZonedDateTime/prototype/add/constrain-day-islamic-umalqura.js
+skip-if(release_or_beta) script test262/intl402/Temporal/ZonedDateTime/prototype/add/basic-islamic-umalqura.js
+skip-if(release_or_beta) script test262/intl402/Temporal/PlainDate/prototype/subtract/constrain-day-islamic-umalqura.js
+skip-if(release_or_beta) script test262/intl402/Temporal/PlainDate/prototype/subtract/basic-islamic-umalqura.js
+skip-if(release_or_beta) script test262/intl402/Temporal/PlainDate/prototype/add/basic-islamic-umalqura.js
+skip-if(release_or_beta) script test262/intl402/Temporal/PlainDate/prototype/add/constrain-day-islamic-umalqura.js
+skip-if(release_or_beta) script test262/intl402/Temporal/PlainDateTime/prototype/subtract/constrain-day-islamic-umalqura.js
+skip-if(release_or_beta) script test262/intl402/Temporal/PlainDateTime/prototype/subtract/basic-islamic-umalqura.js
+skip-if(release_or_beta) script test262/intl402/Temporal/PlainDateTime/prototype/add/constrain-day-islamic-umalqura.js
+skip-if(release_or_beta) script test262/intl402/Temporal/PlainDateTime/prototype/add/basic-islamic-umalqura.js
 
-# Try re-enabling when Bug 1954138 or Bug 1955545 are fixed.
-skip script test262/staging/Intl402/Temporal/old/non-iso-calendars-islamic.js
-skip script test262/staging/Intl402/Temporal/old/non-iso-calendars-islamic-rgsa.js
-skip script test262/intl402/DateTimeFormat/constructor-options-calendar-islamic-fallback.js
-skip script test262/staging/Intl402/Temporal/old/islamic-calendars-islamic-rgsa.js
-
-# https://github.com/tc39/proposal-intl-era-monthcode/issues/23. ICU4X 2.0 doesn't have inverse type
-skip script test262/staging/Intl402/Temporal/old/non-iso-calendars-coptic.js
-
-# https://github.com/tc39/proposal-intl-era-monthcode/issues/4. ICU4X 2.0 doesn't have inverse type
-skip script test262/staging/Intl402/Temporal/old/non-iso-calendars-ethiopic.js
-
-# https://github.com/tc39/proposal-intl-era-monthcode/issues/23 and https://github.com/tc39/proposal-intl-era-monthcode/issues/4
+# Fails for "ethiopic", see <https://unicode-org.atlassian.net/browse/CLDR-18739>.
 skip script test262/staging/sm/Temporal/PlainDate/non-positive-era-year.js
-
-# Canonical era names have changed.
-skip script test262/intl402/Temporal/ZonedDateTime/from/canonicalize-era-codes.js
-skip script test262/staging/Intl402/Temporal/old/japanese-before-era.js
-skip script test262/staging/Intl402/Temporal/old/non-iso-calendars-gregory.js
-skip script test262/staging/Intl402/Temporal/old/non-iso-calendars-islamicc.js
-skip script test262/staging/Intl402/Temporal/old/non-iso-calendars-islamic-civil.js
-skip script test262/staging/Intl402/Temporal/old/non-iso-calendars-islamic-tbla.js
-skip script test262/staging/Intl402/Temporal/old/non-iso-calendars-islamic-umalqura.js
-skip script test262/staging/Intl402/Temporal/old/islamic-calendars-islamic.js
-skip script test262/staging/Intl402/Temporal/old/non-iso-calendars-ethioaa.js
-skip script test262/staging/Intl402/Temporal/old/non-iso-calendars-hebrew.js
-skip script test262/staging/Intl402/Temporal/old/non-iso-calendars-buddhist.js
-skip script test262/staging/Intl402/Temporal/old/non-iso-calendars-indian.js
-skip script test262/staging/Intl402/Temporal/old/non-iso-calendars-persian.js
-skip script test262/intl402/Temporal/PlainYearMonth/from/calendar-not-supporting-eras.js
-skip script test262/intl402/Temporal/PlainYearMonth/from/reference-day-chinese.js
-skip script test262/intl402/Temporal/PlainYearMonth/from/reference-day-hebrew.js
-skip script test262/intl402/Temporal/PlainDate/from/calendar-not-supporting-eras.js
-skip script test262/intl402/Temporal/PlainDateTime/from/calendar-not-supporting-eras.js
-
-# https://bugzilla.mozilla.org/show_bug.cgi?id=1971346
-skip script test262/built-ins/Temporal/PlainDateTime/prototype/until/bubble-time-unit.js
-skip script test262/built-ins/Temporal/PlainDateTime/prototype/since/bubble-time-unit.js
-skip script test262/built-ins/Temporal/Duration/prototype/round/bubble-time-unit.js
-
-# https://bugzilla.mozilla.org/show_bug.cgi?id=1998672
-skip script test262/built-ins/Temporal/ZonedDateTime/prototype/toString/options-read-before-algorithmic-validation.js
-skip script test262/built-ins/Temporal/PlainDate/prototype/since/options-read-before-algorithmic-validation.js
-skip script test262/built-ins/Temporal/PlainDate/prototype/until/options-read-before-algorithmic-validation.js
-skip script test262/built-ins/Temporal/PlainTime/prototype/since/options-read-before-algorithmic-validation.js
-skip script test262/built-ins/Temporal/PlainTime/prototype/until/options-read-before-algorithmic-validation.js
-skip script test262/built-ins/Temporal/Instant/prototype/since/options-read-before-algorithmic-validation.js
-skip script test262/built-ins/Temporal/Instant/prototype/until/options-read-before-algorithmic-validation.js
-skip script test262/built-ins/Temporal/Instant/prototype/toString/options-read-before-algorithmic-validation.js
-skip script test262/built-ins/Temporal/PlainYearMonth/prototype/since/options-read-before-algorithmic-validation.js
-skip script test262/built-ins/Temporal/PlainYearMonth/prototype/until/options-read-before-algorithmic-validation.js
+skip script test262/intl402/Temporal/PlainDateTime/prototype/add/era-boundary-ethiopic.js
+skip script test262/intl402/Temporal/PlainDateTime/prototype/subtract/era-boundary-ethiopic.js
+skip script test262/intl402/Temporal/ZonedDateTime/prototype/add/era-boundary-ethiopic.js
+skip script test262/intl402/Temporal/ZonedDateTime/prototype/subtract/era-boundary-ethiopic.js
+skip script test262/intl402/Temporal/PlainDate/prototype/add/era-boundary-ethiopic.js
+skip script test262/intl402/Temporal/PlainDate/prototype/subtract/era-boundary-ethiopic.js

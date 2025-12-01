@@ -880,10 +880,6 @@
       "1818818": {
         "issue": "broken-interactive-elements",
         "matches": ["*://*.wellcare.com/*"]
-      },
-      "1953730": {
-        "issue": "broken-interactive-elements",
-        "matches": ["*://jobs.jobvite.com/*"]
       }
     },
     "interventions": [
@@ -1118,7 +1114,8 @@
         "issue": "firefox-blocked-completely",
         "matches": [
           "*://cdk.fairgocasinowins.com/*",
-          "*://cdk.fairgo-pokies.com/*"
+          "*://cdk.fairgo-pokies.com/*",
+          "*://cdk.play-fg.com/*"
         ]
       },
       "1902493": {
@@ -1759,6 +1756,15 @@
     "interventions": [
       {
         "platforms": ["all"],
+        "max_version": 145,
+        "content_scripts": {
+          "css": ["bug1886566-quezoncity.gov.ph-iframe-height.css"]
+        }
+      },
+      {
+        "platforms": ["all"],
+        "min_version": 146,
+        "pref_check": { "layout.css.webkit-fill-available.enabled": false },
         "content_scripts": {
           "css": ["bug1886566-quezoncity.gov.ph-iframe-height.css"]
         }
@@ -1900,15 +1906,13 @@
     "bugs": {
       "1895997": {
         "issue": "unsupported-warning",
-        "matches": ["*://e.seb.lt/ib/login*"]
+        "matches": ["*://login.seb.lt/ui/*"]
       }
     },
     "interventions": [
       {
         "platforms": ["all"],
-        "content_scripts": {
-          "js": ["bug1895997-e.seb.lt-prevent-unsupported-warning.js"]
-        }
+        "ua_string": ["add_Chrome"]
       }
     ]
   },
@@ -2236,21 +2240,6 @@
       {
         "platforms": ["all"],
         "ua_string": ["add_Chrome"]
-      }
-    ]
-  },
-  "1898937": {
-    "label": "goodyearfiaetrc.com",
-    "bugs": {
-      "1898937": {
-        "issue": "firefox-blocked-completely",
-        "matches": ["*://www.goodyearfiaetrc.com/standings*"]
-      }
-    },
-    "interventions": [
-      {
-        "platforms": ["all"],
-        "ua_string": ["Chrome_with_FxQuantum"]
       }
     ]
   },
@@ -2703,24 +2692,6 @@
       {
         "platforms": ["android"],
         "ua_string": ["add_Chrome"]
-      }
-    ]
-  },
-  "1901000": {
-    "label": "eyebuydirect.ca",
-    "bugs": {
-      "1901000": {
-        "issue": "broken-interactive-elements",
-        "matches": ["*://*.eyebuydirect.ca/*"]
-      }
-    },
-    "interventions": [
-      {
-        "platforms": ["desktop"],
-        "max_version": 134,
-        "content_scripts": {
-          "css": ["bug1901000-eyebuydirect.ca-fix-paypal-button.css"]
-        }
       }
     ]
   },
@@ -3978,24 +3949,6 @@
           "js": ["bug1928941-oasis.decart.ai-window-chrome-shim.js"]
         },
         "ua_string": ["Chrome", "add_Firefox_as_Gecko"]
-      }
-    ]
-  },
-  "1928954": {
-    "label": "publix.com",
-    "bugs": {
-      "1928954": {
-        "issue": "broken-interactive-elements",
-        "matches": ["*://*.publix.com/*"]
-      }
-    },
-    "interventions": [
-      {
-        "platforms": ["all"],
-        "max_version": 139,
-        "content_scripts": {
-          "js": ["bug1928954-publix.com-prevent-nav-on-javascript-url-click.js"]
-        }
       }
     ]
   },
@@ -5819,21 +5772,6 @@
       }
     ]
   },
-  "1991941": {
-    "label": "brawlstats.com",
-    "bugs": {
-      "1991941": {
-        "issue": "desktop-layout-not-mobile",
-        "matches": ["*://brawlstats.com/*"]
-      }
-    },
-    "interventions": [
-      {
-        "platforms": ["android"],
-        "ua_string": ["Chrome_with_FxQuantum"]
-      }
-    ]
-  },
   "1992121": {
     "label": "tutor-uksouth.classroom.cloud",
     "bugs": {
@@ -5981,23 +5919,6 @@
       }
     ]
   },
-  "1994571": {
-    "label": "chick-fil-a.com",
-    "bugs": {
-      "1994571": {
-        "issue": "broken-images",
-        "matches": ["*://www.chick-fil-a.com/*"]
-      }
-    },
-    "interventions": [
-      {
-        "platforms": ["desktop"],
-        "content_scripts": {
-          "css": ["1994571-chick-fil-a.com-fix-icon-heights.css"]
-        }
-      }
-    ]
-  },
   "1994704": {
     "label": "avlguest.justice.nsw.gov.au",
     "bugs": {
@@ -6087,24 +6008,6 @@
       {
         "platforms": ["all"],
         "ua_string": ["add_Chrome"]
-      }
-    ]
-  },
-  "1997687": {
-    "label": "sakti.kemenkeu.go.id",
-    "bugs": {
-      "1997687": {
-        "issue": "page-fails-to-load",
-        "matches": ["*://sakti.kemenkeu.go.id/*"]
-      }
-    },
-    "interventions": [
-      {
-        "platforms": ["all"],
-        "content_scripts": {
-          "all_frames": true,
-          "js": ["bug1997687-sakti.kemenkeu.go.id-ZoneAwarePromise-fix.js"]
-        }
       }
     ]
   },
@@ -6222,6 +6125,24 @@
       {
         "platforms": ["desktop"],
         "ua_string": ["Chrome_with_FxQuantum"]
+      }
+    ]
+  },
+  "2000906": {
+    "label": "teams.microsoft.com",
+    "bugs": {
+      "2000906": {
+        "issue": "broken-meetings",
+        "matches": ["*://teams.microsoft.com/*", "*://teams.live.com/*"]
+      }
+    },
+    "interventions": [
+      {
+        "platforms": ["desktop"],
+        "content_scripts": {
+          "all_frames": true,
+          "js": ["bug2000906-teams.microsoft.com-disable-resizeMode-in-gDM.js"]
+        }
       }
     ]
   }

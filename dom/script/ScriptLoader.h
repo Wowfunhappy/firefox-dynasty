@@ -58,8 +58,6 @@ class ModuleLoadRequest;
 class ModuleScript;
 class ScriptLoadRequest;
 
-enum class ParserMetadata;
-
 }  // namespace loader
 }  // namespace JS
 
@@ -681,7 +679,7 @@ class ScriptLoader final : public JS::loader::ScriptLoaderInterface {
 
   // Instantiate classic script from one of the following data:
   //   * text source
-  //   * encoded bytecode
+  //   * serialized stencil
   //   * cached stencil
   void InstantiateClassicScriptFromAny(
       JSContext* aCx, JS::CompileOptions& aCompileOptions,
@@ -691,7 +689,7 @@ class ScriptLoader final : public JS::loader::ScriptLoaderInterface {
 
   // Instantiate classic script from one of the following data:
   //   * text source
-  //   * encoded bytecode
+  //   * serialized stencil
   //
   // aStencilOut is set to the compiled stencil.
   void InstantiateClassicScriptFromMaybeEncodedSource(
@@ -768,7 +766,7 @@ class ScriptLoader final : public JS::loader::ScriptLoaderInterface {
                                 Vector<uint8_t>& aCompressed);
 
   /**
-   * Save the bytecode to the necko cache.
+   * Save the serialized and maybe-compressed stencil to the necko cache.
    */
   static bool SaveToDiskCache(const JS::loader::LoadedScript* aLoadedScript,
                               const Vector<uint8_t>& aCompressed);

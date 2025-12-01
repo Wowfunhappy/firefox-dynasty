@@ -77,8 +77,6 @@ class nsRefreshDriver;
 class nsRegion;
 class nsTextFrame;
 class nsSubDocumentFrame;
-class nsView;
-class nsViewManager;
 class nsWindowSizes;
 class WeakFrame;
 class ZoomConstraintsClient;
@@ -96,6 +94,7 @@ class GeckoMVMContext;
 class nsDisplayList;
 class nsDisplayListBuilder;
 class OverflowChangedTracker;
+class PresShellWidgetListener;
 class ProfileChunkedBuffer;
 class ScrollContainerFrame;
 class StyleSheet;
@@ -243,7 +242,7 @@ class PresShell final : public nsStubDocumentObserver,
     return mLastOverWindowPointerLocation;
   }
 
-  MOZ_CAN_RUN_SCRIPT void Init(nsPresContext*, nsViewManager*);
+  MOZ_CAN_RUN_SCRIPT void Init(nsPresContext*);
 
   /**
    * All callers are responsible for calling |Destroy| after calling
@@ -312,7 +311,9 @@ class PresShell final : public nsStubDocumentObserver,
    */
   PresShell* GetRootPresShell() const;
 
-  nsViewManager* GetViewManager() const { return mViewManager; }
+  PresShellWidgetListener* GetWidgetListener() const {
+    return mWidgetListener.get();
+  }
 
   nsRefreshDriver* GetRefreshDriver() const;
 
@@ -366,6 +367,13 @@ class PresShell final : public nsStubDocumentObserver,
   MOZ_CAN_RUN_SCRIPT bool ResizeReflowIgnoreOverride(
       const nsSize&, ResizeReflowOptions = ResizeReflowOptions::NoOption);
   MOZ_CAN_RUN_SCRIPT void ForceResizeReflowWithCurrentDimensions();
+  MOZ_CAN_RUN_SCRIPT void FlushDelayedResize();
+  nsSize MaybePendingLayoutViewportSize() const;
+  bool ShouldDelayResize() const;
+  // FIXME: MOZ_CAN_RUN_SCRIPT_BOUNDARY because the aDelay parameter forces us
+  // to effectively not run script.
+  MOZ_CAN_RUN_SCRIPT_BOUNDARY void SetLayoutViewportSize(const nsSize&,
+                                                         bool aDelay);
 
   /** Schedule a resize event if applicable. */
   enum class ResizeEventKind : uint8_t { Regular, Visual };
@@ -1086,12 +1094,9 @@ class PresShell final : public nsStubDocumentObserver,
   nsresult HandleEvent(nsIFrame* aFrame, WidgetGUIEvent* aEvent,
                        bool aDontRetargetEvents, nsEventStatus* aEventStatus);
   bool ShouldIgnoreInvalidation();
-  /**
-   * Notify that we called Paint with PaintFlags::PaintComposite.
-   * Fires on the presshell for the painted widget.
-   * This is issued at a time when it's safe to modify widget geometry.
-   */
-  MOZ_CAN_RUN_SCRIPT void DidPaintWindow();
+  // Notify that we called PaintWindow() from widget.
+  MOZ_CAN_RUN_SCRIPT
+  void DidPaintWindow();
 
   bool IsVisible() const;
   bool IsUnderHiddenEmbedderElement() const {
@@ -3200,7 +3205,8 @@ class PresShell final : public nsStubDocumentObserver,
   MOZ_KNOWN_LIVE RefPtr<Document> const mDocument;
   MOZ_KNOWN_LIVE RefPtr<nsPresContext> const mPresContext;
   UniquePtr<nsCSSFrameConstructor> mFrameConstructor;
-  nsViewManager* mViewManager;  // [WEAK] docViewer owns it so I don't have to
+  // The object responsible for listening to widget events.
+  UniquePtr<PresShellWidgetListener> mWidgetListener;
   RefPtr<nsFrameSelection> mSelection;
   // The frame selection that last took focus on this shell, which we need to
   // hide if we focus another selection. May or may not be the same as
@@ -3337,6 +3343,9 @@ class PresShell final : public nsStubDocumentObserver,
 
   // Only populated on root content documents.
   nsSize mVisualViewportSize;
+
+  // Layout viewport size that we still haven't committed to the layout tree.
+  Maybe<nsSize> mPendingLayoutViewportSize;
 
   using Arena = nsPresArena<8192, ArenaObjectID, eArenaObjectID_COUNT>;
   Arena mFrameArena;

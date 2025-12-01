@@ -19,6 +19,7 @@
 #include <cstdint>
 #include <limits>
 
+#include "AnchorPositioningUtils.h"
 #include "Attr.h"
 #include "ErrorList.h"
 #include "ExpandedPrincipal.h"
@@ -285,6 +286,7 @@
 #include "mozilla/net/NeckoChannelParams.h"
 #include "mozilla/net/RequestContextService.h"
 #include "nsAboutProtocolUtils.h"
+#include "nsAtom.h"
 #include "nsAttrValue.h"
 #include "nsAttrValueInlines.h"
 #include "nsBaseHashtable.h"
@@ -451,6 +453,7 @@
 #include "nsXPCOMCID.h"
 #include "nsXULAppAPI.h"
 #include "nsXULCommandDispatcher.h"
+#include "nsXULElement.h"
 #include "nsXULPopupManager.h"
 #include "nsXULPrototypeDocument.h"
 #include "prthread.h"
@@ -5986,13 +5989,16 @@ bool Document::QueryCommandEnabled(const nsAString& aHTMLCommandName,
       break;
   }
 
-  // cut & copy are always allowed
+  // Report false for restricted commands
   if (commandData.IsCutOrCopyCommand()) {
+    // XXX: should we report "disabled" when the target is not editable for cut
+    // command?
     return nsContentUtils::IsCutCopyAllowed(this, aSubjectPrincipal);
   }
 
-  // Report false for restricted commands
-  if (commandData.IsPasteCommand() && !aSubjectPrincipal.IsSystemPrincipal()) {
+  if (commandData.IsPasteCommand() &&
+      !nsContentUtils::PrincipalHasPermission(aSubjectPrincipal,
+                                              nsGkAtoms::clipboardRead)) {
     return false;
   }
 
@@ -6180,7 +6186,8 @@ bool Document::QueryCommandState(const nsAString& aHTMLCommandName,
 }
 
 bool Document::QueryCommandSupported(const nsAString& aHTMLCommandName,
-                                     CallerType aCallerType, ErrorResult& aRv) {
+                                     nsIPrincipal& aSubjectPrincipal,
+                                     ErrorResult& aRv) {
   // Only allow on HTML documents.
   if (!IsHTMLOrXHTML()) {
     aRv.ThrowInvalidStateError(
@@ -6211,17 +6218,15 @@ bool Document::QueryCommandSupported(const nsAString& aHTMLCommandName,
   // may also be disallowed to be called from non-privileged content.
   // For that reason, we report the support status of corresponding
   // command accordingly.
-  if (aCallerType != CallerType::System) {
-    if (commandData.IsPasteCommand()) {
-      return false;
-    }
-    if (commandData.IsCutOrCopyCommand() &&
-        !StaticPrefs::dom_allow_cut_copy()) {
-      // XXXbz should we worry about correctly reporting "true" in the
-      // "restricted, but we're an addon with clipboardWrite permissions" case?
-      // See also nsContentUtils::IsCutCopyAllowed.
-      return false;
-    }
+  if (commandData.IsPasteCommand() &&
+      !nsContentUtils::PrincipalHasPermission(aSubjectPrincipal,
+                                              nsGkAtoms::clipboardRead)) {
+    return false;
+  }
+  if (commandData.IsCutOrCopyCommand() && !StaticPrefs::dom_allow_cut_copy() &&
+      !nsContentUtils::PrincipalHasPermission(aSubjectPrincipal,
+                                              nsGkAtoms::clipboardWrite)) {
+    return false;
   }
 
   // aHTMLCommandName is supported if it can be converted to a Midas command
@@ -7510,8 +7515,7 @@ static inline void AssertNoStaleServoDataIn(nsINode& aSubtreeRoot) {
 }
 
 already_AddRefed<PresShell> Document::CreatePresShell(
-    nsPresContext* aContext, nsViewManager* aViewManager,
-    nsSubDocumentFrame* aEmbedderFrame) {
+    nsPresContext* aContext, nsSubDocumentFrame* aEmbedderFrame) {
   MOZ_DIAGNOSTIC_ASSERT(!mPresShell, "We have a presshell already!");
 
   NS_ENSURE_FALSE(GetBFCacheEntry(), nullptr);
@@ -7532,7 +7536,7 @@ already_AddRefed<PresShell> Document::CreatePresShell(
     FillStyleSet();
   }
 
-  presShell->Init(aContext, aViewManager);
+  presShell->Init(aContext);
   if (RefPtr<class HighlightRegistry> highlightRegistry = mHighlightRegistry) {
     highlightRegistry->AddHighlightSelectionsToFrameSelection();
   }
@@ -17493,7 +17497,7 @@ void Document::MaybeRecomputePartitionKey() {
   // Set the partition key to the document's node principal. So we will use the
   // right partition key afterward.
   mozilla::net::CookieJarSettings::Cast(mCookieJarSettings)
-      ->SetPartitionKey(originURI, false);
+      ->SetPartitionKey(originURI);
 }
 
 bool Document::RecomputeResistFingerprinting(bool aForceRefreshRTPCallerType) {
@@ -18618,6 +18622,8 @@ void Document::DetermineProximityToViewportAndNotifyResizeObservers() {
       interruptible ? FlushType::InterruptibleLayout : FlushType::Layout,
       /* aFlushAnimations = */ false, /* aUpdateRelevancy = */ false);
 
+  bool initialAnchorOverflowDone = false;
+
   // 2. While true:
   while (true) {
     // 2.1. Recalculate styles and update layout for doc.
@@ -18645,6 +18651,16 @@ void Document::DetermineProximityToViewportAndNotifyResizeObservers() {
     //
     // https://github.com/whatwg/html/issues/11210 for the timing of this.
     UpdateLastRememberedSizes();
+
+    const bool evaluateAllFallbacksIfNeeded = !initialAnchorOverflowDone;
+    initialAnchorOverflowDone = true;
+    if (AnchorPositioningUtils::TriggerLayoutOnOverflow(
+            ps, evaluateAllFallbacksIfNeeded)) {
+      // If any of the anchor positioned items overflow its cb, then we trigger
+      // a layout for them. If we triggered for any item, we have to restart the
+      // loop to flush all layouts.
+      continue;
+    }
 
     // 2.2. Let hadInitialVisibleContentVisibilityDetermination be false.
     //      (this is part of "result").
@@ -18791,10 +18807,27 @@ void Document::ClearStaleServoData() {
 
 // https://drafts.csswg.org/css-view-transitions-1/#dom-document-startviewtransition
 already_AddRefed<ViewTransition> Document::StartViewTransition(
-    const Optional<OwningNonNull<ViewTransitionUpdateCallback>>& aCallback) {
+    const ViewTransitionUpdateCallbackOrStartViewTransitionOptions& aOptions) {
   // Steps 1-3
-  RefPtr transition = new ViewTransition(
-      *this, aCallback.WasPassed() ? &aCallback.Value() : nullptr);
+
+  nsTArray<RefPtr<nsAtom>> types;
+  ViewTransitionUpdateCallback* cb = nullptr;
+  if (aOptions.IsViewTransitionUpdateCallback()) {
+    cb = &aOptions.GetAsViewTransitionUpdateCallback();
+  } else {
+    MOZ_ASSERT(aOptions.IsStartViewTransitionOptions());
+    const auto& options = aOptions.GetAsStartViewTransitionOptions();
+    cb = options.mUpdate.get();
+    if (!options.mTypes.IsNull()) {
+      const auto& optionsTypes = options.mTypes.Value();
+      types.SetCapacity(optionsTypes.Length());
+      for (const auto& type : optionsTypes) {
+        // TODO(emilio): should probably de-duplicate here.
+        types.AppendElement(NS_AtomizeMainThread(type));
+      }
+    }
+  }
+  RefPtr transition = new ViewTransition(*this, cb, std::move(types));
   if (Hidden()) {
     // Step 4:
     //

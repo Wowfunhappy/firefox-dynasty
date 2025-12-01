@@ -206,6 +206,13 @@ XPCOMUtils.defineLazyPreferenceGetter(
   }
 );
 
+XPCOMUtils.defineLazyPreferenceGetter(
+  lazy,
+  "lastBackupFileName",
+  LAST_BACKUP_FILE_NAME_PREF_NAME,
+  ""
+);
+
 XPCOMUtils.defineLazyServiceGetter(
   lazy,
   "idleService",
@@ -719,13 +726,10 @@ export class BackupService extends EventTarget {
       BACKUP_RESTORE_ENABLED_OVERRIDE_PREF_NAME,
       false
     );
-    // This is explicitly checking for restoreKillswitchTriggered !== false because
-    // we now also (potentially) want to use this nimbus setting for doing staged rollout
-    // of the feature. What this means is that if the value is:
-    //     - true: feature is turned off ("killed")
-    //     - undefined: feature is turned off (not launched yet)
-    //     - false: feature is turned on
-    if (restoreKillswitchTriggered !== false && !restoreOverrideEnabled) {
+
+    // restoreKillswitch is a "normal" killswitch, in contrast
+    // to archiveKillswitch
+    if (restoreKillswitchTriggered && !restoreOverrideEnabled) {
       return {
         enabled: false,
         reason: "Restore from backup disabled remotely.",
@@ -4746,7 +4750,6 @@ export class BackupService extends EventTarget {
     validateFile = false,
     multipleFiles = false,
   } = {}) {
-    this.#_state.lastBackupFileName = "";
     this.#_state.backupFileToRestore = null;
 
     let { multipleBackupsFound } = await this.findIfABackupFileExists({
@@ -4833,11 +4836,11 @@ export class BackupService extends EventTarget {
       BackupService.WRITE_BACKUP_LOCK_NAME,
       { signal: this.#backupWriteAbortController.signal },
       async () => {
-        if (this.#_state.lastBackupFileName) {
+        if (lazy.lastBackupFileName) {
           if (await this.#infalliblePathExists(lazy.backupDirPref)) {
             let backupFilePath = PathUtils.join(
               lazy.backupDirPref,
-              this.#_state.lastBackupFileName
+              lazy.lastBackupFileName
             );
 
             lazy.logConsole.log(

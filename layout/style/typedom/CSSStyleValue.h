@@ -31,7 +31,7 @@ class CSSUnsupportedValue;
 
 class CSSStyleValue : public nsISupports, public nsWrapperCache {
  public:
-  enum class ValueType { Uninitialized, Unsupported, Keyword };
+  enum class ValueType { Uninitialized, UnsupportedValue, KeywordValue };
 
   explicit CSSStyleValue(nsCOMPtr<nsISupports> aParent);
 
@@ -59,6 +59,8 @@ class CSSStyleValue : public nsISupports, public nsWrapperCache {
   void Stringify(nsAString& aRetVal) const;
 
   // end of CSSStyleValue Web IDL declarations
+
+  ValueType GetValueType() const { return mValueType; }
 
   bool IsCSSUnsupportedValue() const;
 
