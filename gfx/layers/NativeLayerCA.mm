@@ -602,7 +602,7 @@ VideoLowPowerType NativeLayerRootCA::CheckVideoLowPower(
     // Only layers with extent are contributing to our sublayers.
     CALayer* caLayer = layer->UnderlyingCALayer(WhichRepresentation::ONSCREEN);
     if (caLayer) {
-      bool isVideo = layer->IsVideo(aProofOfLock); 
+      bool isVideo = layer->IsVideo(aProofOfLock);
       if (isVideo) {
         ++videoLayerCount;
       }
@@ -747,7 +747,7 @@ void NativeLayerRootSnapshotterCA::UpdateSnapshot(const IntSize& aSize) {
   }
 
   mDelegate->UpdateSnapshotterLayers(mRenderer.layer);
-  
+
   mGL->MakeCurrent();
 
   bool needToRedrawEverything = false;
@@ -993,7 +993,7 @@ void NativeLayerCA::AttachExternalImage(wr::RenderTextureHost* aExternalImage) {
       r.mMutatedDisplayRect |= changedSizeAndDisplayRect;
       r.mMutatedSize |= changedSizeAndDisplayRect;
       r.mMutatedSpecializeVideo |= changedSpecializeVideo;
-    }); 
+    });
   }
 }
 
@@ -1399,7 +1399,7 @@ void NativeLayerCA::SetSurfaceToPresent(CFTypeRefPtr<IOSurfaceRef> aSurfaceRef,
   } else {
     mTextureHostIsVideo = false;
   }
-  
+
   mIsHDR = aIsHDR;
 
   bool specializeVideo = ShouldSpecializeVideo(lock);
@@ -1877,7 +1877,7 @@ bool NativeLayerCARepresentation::ApplyChanges(
       // Color layers set a color on the clip layer and don't get a content
       // layer.
       mRoundedClipCALayer.backgroundColor =
-          CGColorCreateForDeviceColor(*aColor); 
+          CGColorCreateForDeviceColor(*aColor);
     } else {
       if (aSpecializeVideo) {
 #ifdef NIGHTLY_BUILD
