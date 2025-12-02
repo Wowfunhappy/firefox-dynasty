@@ -148,7 +148,6 @@ class LoadedScript : public nsIMemoryReporter {
 
   bool IsUnknownDataType() const { return mDataType == DataType::eUnknown; }
   bool IsTextSource() const { return mDataType == DataType::eTextSource; }
-  bool IsSource() const { return IsTextSource(); }
   bool IsSerializedStencil() const {
     return mDataType == DataType::eSerializedStencil;
   }
@@ -209,12 +208,6 @@ class LoadedScript : public nsIMemoryReporter {
   nsresult GetScriptSource(JSContext* aCx, MaybeSourceText* aMaybeSource,
                            LoadContextBase* aMaybeLoadContext);
 
-  void ClearScriptSource() {
-    if (IsTextSource()) {
-      ClearScriptText();
-    }
-  }
-
   void ClearScriptText() {
     MOZ_ASSERT(IsTextSource());
     return IsUTF16Text() ? ScriptText<char16_t>().clearAndFree()
@@ -233,7 +226,7 @@ class LoadedScript : public nsIMemoryReporter {
 
   // ---- For SRI-only consumers ----
 
-  bool CanHaveSRIOnly() const { return IsSource() || IsCachedStencil(); }
+  bool CanHaveSRIOnly() const { return IsTextSource() || IsCachedStencil(); }
 
   bool HasSRI() {
     MOZ_ASSERT(CanHaveSRIOnly());
@@ -315,7 +308,7 @@ class LoadedScript : public nsIMemoryReporter {
 
   void DropDiskCacheReferenceAndSRI() {
     DropDiskCacheReference();
-    if (IsSource()) {
+    if (IsTextSource()) {
       DropSRI();
     }
   }
@@ -469,12 +462,6 @@ class LoadedScriptDelegate {
   using ScriptTextBuffer = LoadedScript::ScriptTextBuffer<Unit>;
   using MaybeSourceText = LoadedScript::MaybeSourceText;
 
-  bool IsModuleScript() const { return GetLoadedScript()->IsModuleScript(); }
-  bool IsEventScript() const { return GetLoadedScript()->IsEventScript(); }
-  bool IsImportMapScript() const {
-    return GetLoadedScript()->IsImportMapScript();
-  }
-
   mozilla::dom::ReferrerPolicy ReferrerPolicy() const {
     return GetLoadedScript()->ReferrerPolicy();
   }
@@ -500,7 +487,6 @@ class LoadedScriptDelegate {
     return GetLoadedScript()->IsUnknownDataType();
   }
   bool IsTextSource() const { return GetLoadedScript()->IsTextSource(); }
-  bool IsSource() const { return GetLoadedScript()->IsSource(); }
   bool IsSerializedStencil() const {
     return GetLoadedScript()->IsSerializedStencil();
   }
@@ -513,8 +499,6 @@ class LoadedScriptDelegate {
   }
 
   void SetSerializedStencil() { GetLoadedScript()->SetSerializedStencil(); }
-
-  void ConvertToCachedStencil() { GetLoadedScript()->ConvertToCachedStencil(); }
 
   bool IsUTF16Text() const { return GetLoadedScript()->IsUTF16Text(); }
   bool IsUTF8Text() const { return GetLoadedScript()->IsUTF8Text(); }
@@ -548,8 +532,6 @@ class LoadedScriptDelegate {
                            LoadContextBase* aLoadContext) {
     return GetLoadedScript()->GetScriptSource(aCx, aMaybeSource, aLoadContext);
   }
-
-  void ClearScriptSource() { GetLoadedScript()->ClearScriptSource(); }
 
   void ClearScriptText() { GetLoadedScript()->ClearScriptText(); }
 

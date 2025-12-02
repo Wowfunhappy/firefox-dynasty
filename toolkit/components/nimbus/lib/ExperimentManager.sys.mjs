@@ -42,6 +42,11 @@ const CannotEnrollFeatureReason = Object.freeze({
    * feature does not support co-enrollment.
    */
   ENROLLED_IN_FEATURE: "enrolled-in-feature",
+
+  /**
+   * The enrollment is paused.
+   */
+  ENROLLMENT_PAUSED: "enrollment-paused",
 });
 
 /**
@@ -159,6 +164,13 @@ export const UnenrollmentCause = {
       reason: lazy.NimbusTelemetry.UnenrollReason.PREF_FLIPS_FAILED,
       prefName,
       prefType,
+    };
+  },
+
+  Migration(migration) {
+    return {
+      reason: lazy.NimbusTelemetry.UnenrollReason.MIGRATION,
+      migration,
     };
   },
 
@@ -290,6 +302,8 @@ export class ExperimentManager {
         "ExperimentManager.onStartup() can only be called from the main process"
       );
     }
+
+    lazy.log.debug("onStartup");
 
     this._prefs = new Map();
     this._prefsBySlug = new Map();
@@ -553,22 +567,25 @@ export class ExperimentManager {
   }
 
   /**
-   * Determine if enrollment in the given recipe is possible based on its
-   * features.
+   * Determine if enrollment in the given recipe is possible.
    *
    * @param {object} recipe The recipe in question.
-   * @param {string[]} recipe.featureIds The list of featureIds that the recipe
-   * uses.
-   * @param {boolean} recipe.isRollout Whether or not the recipe is a rollout.
    *
    * @returns {CanEnrollResult} Whether or not we can enroll into a given recipe.
    */
-  canEnroll({ featureIds, isRollout }) {
-    const storeLookupByFeature = isRollout
+  canEnroll(recipe) {
+    const storeLookupByFeature = recipe.isRollout
       ? this.store.getRolloutForFeature.bind(this.store)
       : this.store.getExperimentForFeature.bind(this.store);
 
-    for (const featureId of featureIds) {
+    if (recipe.isEnrollmentPaused) {
+      return {
+        ok: false,
+        reason: CannotEnrollFeatureReason.ENROLLMENT_PAUSED,
+      };
+    }
+
+    for (const featureId of recipe.featureIds) {
       const feature = lazy.NimbusFeatures[featureId];
 
       if (!feature) {
@@ -1011,8 +1028,15 @@ export class ExperimentManager {
    * @param {boolean} options.duringRestore
    *        If true, this indicates that this was during the call to
    *        `_restoreEnrollmentPrefs`.
+   *
+   * @param {boolean} options.unsetEnrollmentPrefs
+   *        Whether or not to unset the prefs set by enrollment.
    */
-  _unenroll(enrollment, cause, { duringRestore = false } = {}) {
+  _unenroll(
+    enrollment,
+    cause,
+    { duringRestore = false, unsetEnrollmentPrefs = true } = {}
+  ) {
     const { slug } = enrollment;
 
     if (!enrollment.active) {
@@ -1029,7 +1053,14 @@ export class ExperimentManager {
 
     lazy.NimbusTelemetry.recordUnenrollment(enrollment, cause);
 
-    this._unsetEnrollmentPrefs(enrollment, cause, { duringRestore });
+    if (unsetEnrollmentPrefs) {
+      this._unsetEnrollmentPrefs(enrollment, cause, { duringRestore });
+    } else if (enrollment.prefs) {
+      // If we're not unsetting enrollment prefs, we must remove our listeners.
+      for (const pref of enrollment.prefs) {
+        this._removePrefObserver(pref.name, enrollment.slug);
+      }
+    }
 
     lazy.log.debug(`Recipe unenrolled: ${slug} (${cause.reason})`);
   }
@@ -1592,6 +1623,11 @@ export class ExperimentManager {
    * @param {string} slug The slug of the enrollment that is being unenrolled.
    */
   _removePrefObserver(name, slug) {
+    /// This may be called before the ExperimentManager has finished initializing.
+    if (!this._prefs) {
+      return;
+    }
+
     // Update the pref observer that the current enrollment is no longer
     // involved in the pref.
     //

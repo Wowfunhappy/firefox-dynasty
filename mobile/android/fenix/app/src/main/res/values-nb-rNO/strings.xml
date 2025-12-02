@@ -1065,6 +1065,8 @@
   <string name="restart_warning_dialog_title">Endre appikon?</string>
   <!-- Message to warn users that applying an alternative app icon may require an app restart. Whether or not the app closes depends on what version of Android it is, so we use the word "may" instead of "will". %1$s is replaced by the brand name (e.g. Firefox). -->
   <string name="restart_warning_dialog_body_2">Appen kan lukkes. Bare trykk på det nye ikonet for å åpne %1$s på nytt.</string>
+  <!-- Message to warn users that applying an alternative app icon may require an app restart and will remove existing shortcuts because of the OS limitations. Whether or not the app closes depends on what version of Android it is, so we use the word "may" instead of "will". %1$s is replaced by the brand name (e.g. Firefox). -->
+  <string name="restart_and_shortcuts_removal_warning_dialog_body">Å endre ikonet vil fjerne alle nettsteder og snarveier du har lagret på startskjermen. \n\n%1$s kan lukkes. Trykk på det nye ikonet for å åpne det igjen.</string>
   <!-- Dialog button text for confirming the possible app restart and new icon selection -->
   <string name="restart_warning_dialog_button_positive_2">Endre ikon</string>
   <!-- Dialog button text for cancelling app icon change -->
@@ -1479,6 +1481,14 @@
   <string name="tab_tray_menu_tab_settings">Fane-innstillinger</string>
   <!-- Text shown in the menu for closing all tabs -->
   <string name="tab_tray_menu_item_close">Lukk alle faner</string>
+  <!-- Text shown as the title of the Close all tabs confirmation dialog in Tab Manager -->
+  <string name="tab_manager_close_all_tabs_dialog_title">Lukk alle faner?</string>
+  <!-- Text shown in the body of the Close all tabs confirmation dialog in Tab Manager -->
+  <string name="tab_manager_close_all_tabs_dialog_body">Dette vil lukke alle åpne faner.</string>
+  <!-- Text shown on the confirm button in the Close all tabs confirmation dialog -->
+  <string name="tab_manager_close_all_tabs_dialog_confirm">Lukk faner</string>
+  <!-- Text shown on the cancel button in the Close all tabs confirmation dialog -->
+  <string name="tab_manager_close_all_tabs_dialog_cancel">Avbryt</string>
   <!-- Text shown in the multiselect menu for bookmarking selected tabs. -->
   <string name="tab_tray_multiselect_menu_item_bookmark">Legg til som bokmerke</string>
   <!-- Content description (not visible, for screen readers etc.): Bookmarks selected tabs. -->
@@ -2755,8 +2765,12 @@
   <string name="preferences_addresses_sync_addresses_across_devices">Synkroniser adresser på tvers av enheter</string>
   <!-- Preference option for syncing addresses across devices. This is displayed when the user is signed into sync -->
   <string name="preferences_addresses_sync_addresses">Synkroniser adresser</string>
+  <!-- Content description navigating back from autofill settings screen. -->
+  <string name="autofill_settings_navigate_back_button_content_description">Tilbake</string>
   <!-- Title of the "Add card" screen -->
   <string name="credit_cards_add_card">Legg til kort</string>
+  <!-- Content description for the "credit card feature" top bar back button -->
+  <string name="credit_cards_navigate_back_button_content_description">Naviger tilbake</string>
   <!-- Title of the "Edit card" screen -->
   <string name="credit_cards_edit_card">Rediger kort</string>
   <!-- The header for the card number of a credit card -->

@@ -8,7 +8,6 @@ import androidx.annotation.DrawableRes
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -23,6 +22,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -35,7 +35,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.tooling.preview.PreviewLightDark
 import androidx.compose.ui.tooling.preview.PreviewParameter
 import androidx.compose.ui.tooling.preview.PreviewParameterProvider
 import androidx.compose.ui.unit.dp
@@ -45,6 +45,7 @@ import mozilla.components.compose.base.menu.DropdownMenu
 import mozilla.components.compose.base.menu.MenuItem
 import mozilla.components.compose.base.modifier.animateRotation
 import mozilla.components.compose.base.text.Text
+import mozilla.components.compose.base.theme.surfaceDimVariant
 import mozilla.components.lib.state.ext.observeAsState
 import org.mozilla.fenix.R
 import org.mozilla.fenix.tabstray.Page
@@ -168,7 +169,7 @@ private fun FloatingToolbarActions(
         modifier = Modifier.size(56.dp),
         shape = CircleShape,
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainer,
+            containerColor = MaterialTheme.colorScheme.surfaceDimVariant,
             contentColor = MaterialTheme.colorScheme.onSurface,
         ),
         elevation = CardDefaults.elevatedCardElevation(defaultElevation = 6.dp),
@@ -299,7 +300,7 @@ private fun CloseAllTabsConfirmationDialog(
         title = {
             Text(
                 text = stringResource(R.string.tab_manager_close_all_tabs_dialog_title),
-                style = FirefoxTheme.typography.headline6,
+                style = FirefoxTheme.typography.headline5,
             )
         },
         text = {
@@ -442,28 +443,28 @@ private class TabManagerFloatingToolbarParameterProvider :
         )
 }
 
-@Preview
+@PreviewLightDark
 @Composable
 private fun TabManagerFloatingToolbarPreview(
     @PreviewParameter(TabManagerFloatingToolbarParameterProvider::class)
     previewDataModel: TabManagerFloatingToolbarPreviewModel,
 ) {
     FirefoxTheme {
-        TabManagerFloatingToolbar(
-            tabsTrayStore = remember { TabsTrayStore(initialState = previewDataModel.state) },
-            expanded = previewDataModel.expanded,
-            isSignedIn = previewDataModel.isSignedIn,
-            pbmLocked = false,
-            modifier = Modifier
-                .background(color = MaterialTheme.colorScheme.surface)
-                .padding(all = 16.dp),
-            onOpenNewNormalTabClicked = {},
-            onOpenNewPrivateTabClicked = {},
-            onSyncedTabsFabClicked = {},
-            onTabSettingsClick = {},
-            onAccountSettingsClick = {},
-            onDeleteAllTabsClick = {},
-            onRecentlyClosedClick = {},
-        )
+        Surface {
+            TabManagerFloatingToolbar(
+                tabsTrayStore = remember { TabsTrayStore(initialState = previewDataModel.state) },
+                expanded = previewDataModel.expanded,
+                isSignedIn = previewDataModel.isSignedIn,
+                pbmLocked = false,
+                modifier = Modifier.padding(all = 16.dp),
+                onOpenNewNormalTabClicked = {},
+                onOpenNewPrivateTabClicked = {},
+                onSyncedTabsFabClicked = {},
+                onTabSettingsClick = {},
+                onAccountSettingsClick = {},
+                onDeleteAllTabsClick = {},
+                onRecentlyClosedClick = {},
+            )
+        }
     }
 }

@@ -191,6 +191,10 @@ Preferences.addAll([
     id: "media.videocontrols.picture-in-picture.video-toggle.enabled",
     type: "bool",
   },
+  {
+    id: "media.videocontrols.picture-in-picture.enable-when-switching-tabs.enabled",
+    type: "bool",
+  },
 
   // Media
   { id: "media.hardwaremediakeys.enabled", type: "bool" },
@@ -524,6 +528,16 @@ Preferences.addSetting({
   onUserChange(checked) {
     if (!checked) {
       Glean.pictureinpictureSettings.disableSettings.record();
+    }
+  },
+});
+Preferences.addSetting({
+  id: "pictureInPictureEnableWhenSwitchingTabs",
+  pref: "media.videocontrols.picture-in-picture.enable-when-switching-tabs.enabled",
+  deps: ["pictureInPictureToggleEnabled"],
+  onUserChange(checked) {
+    if (checked) {
+      Glean.pictureinpictureSettings.enableAutotriggerSettings.record();
     }
   },
 });
@@ -1724,9 +1738,7 @@ SettingGroupManager.registerGroups({
           {
             control: "span",
             l10nId: "windows-launch-on-login-disabled",
-            controlAttrs: {
-              slot: "message",
-            },
+            slot: "message",
             options: [
               {
                 control: "a",
@@ -1763,8 +1775,8 @@ SettingGroupManager.registerGroups({
             control: "moz-button",
             l10nId: "set-as-my-default-browser",
             id: "setDefaultButton",
+            slot: "actions",
             controlAttrs: {
-              slot: "actions",
               type: "primary",
             },
           },
@@ -1874,9 +1886,9 @@ SettingGroupManager.registerGroups({
               {
                 control: "a",
                 l10nId: "home-prefs-mission-message-learn-more-link",
+                slot: "support-link",
                 controlAttrs: {
                   is: "moz-support-link",
-                  slot: "support-link",
                   "support-page": "sponsor-privacy",
                   "utm-content": "inproduct",
                 },
@@ -2080,6 +2092,12 @@ SettingGroupManager.registerGroups({
         id: "pictureInPictureToggleEnabled",
         l10nId: "browsing-picture-in-picture-toggle-enabled",
         supportPage: "picture-in-picture",
+        items: [
+          {
+            id: "pictureInPictureEnableWhenSwitchingTabs",
+            l10nId: "browsing-picture-in-picture-enable-when-switching-tabs",
+          },
+        ],
       },
       {
         id: "mediaControlToggleEnabled",
@@ -2508,9 +2526,7 @@ SettingGroupManager.registerGroups({
                     id: "turnOffPrimaryPassword",
                     l10nId: "forms-primary-pw-turn-off",
                     control: "moz-button",
-                    controlAttrs: {
-                      slot: "actions",
-                    },
+                    slot: "actions",
                   },
                 ],
               },
@@ -2545,8 +2561,8 @@ SettingGroupManager.registerGroups({
         ],
         controlAttrs: {
           "search-l10n-ids": `
-            history-remember-description2,
-            history-dontremember-description2,
+            history-remember-description3,
+            history-dontremember-description3,
             history-private-browsing-permanent.label,
             history-remember-browser-option.label,
             history-remember-search-option.label,

@@ -2532,10 +2532,11 @@ nsresult ScriptLoader::ProcessRequest(ScriptLoadRequest* aRequest) {
     aRequest->GetScriptLoadContext()->MaybeCancelOffThreadScript();
   }
 
-  // Free any source data, but keep the serialized Stencil as we might have to
-  // save it later.
-  aRequest->ClearScriptSource();
-  if (aRequest->IsSerializedStencil()) {
+  if (aRequest->IsTextSource()) {
+    // Free text source, but keep the serialized Stencil as we might have to
+    // save it later.
+    aRequest->ClearScriptText();
+  } else if (aRequest->IsSerializedStencil()) {
     // We received serialized Stencil as input, thus we were decoding, and we
     // will not be encoding it once more. We can safely clear the content of
     // this buffer.
@@ -2780,7 +2781,7 @@ void ScriptLoader::CalculateCacheFlag(ScriptLoadRequest* aRequest) {
          aRequest));
     aRequest->MarkNotCacheable();
     MOZ_ASSERT(!aRequest->getLoadedScript()->HasDiskCacheReference());
-    MOZ_ASSERT_IF(aRequest->IsSource(),
+    MOZ_ASSERT_IF(aRequest->IsTextSource(),
                   aRequest->HasNoSRIOrSRIAndSerializedStencil());
     return;
   }
@@ -2826,7 +2827,7 @@ void ScriptLoader::CalculateCacheFlag(ScriptLoadRequest* aRequest) {
          "!LoadedScript::HasDiskCacheReference",
          aRequest));
     aRequest->MarkSkippedDiskCaching();
-    MOZ_ASSERT_IF(aRequest->IsSource(),
+    MOZ_ASSERT_IF(aRequest->IsTextSource(),
                   aRequest->HasNoSRIOrSRIAndSerializedStencil());
     return;
   }
@@ -3172,7 +3173,7 @@ void ScriptLoader::InstantiateClassicScriptFromMaybeEncodedSource(
     return;
   }
 
-  MOZ_ASSERT(aRequest->IsSource());
+  MOZ_ASSERT(aRequest->IsTextSource());
   CollectDelazifications collectDelazifications =
       aRequest->PassedConditionForEitherCache() ? CollectDelazifications::Yes
                                                 : CollectDelazifications::No;
@@ -3343,12 +3344,12 @@ void ScriptLoader::TryCacheRequest(ScriptLoadRequest* aRequest) {
     cacheBehavior = CacheBehavior::Evict;
   }
 
+  LoadedScript* loadedScript = aRequest->getLoadedScript();
   if (cacheBehavior == CacheBehavior::Insert) {
-    auto loadData =
-        MakeRefPtr<ScriptLoadData>(this, aRequest, aRequest->getLoadedScript());
-    aRequest->ConvertToCachedStencil();
-    if (aRequest->getLoadedScript()->mFetchCount == 0) {
-      aRequest->getLoadedScript()->mFetchCount = 1;
+    auto loadData = MakeRefPtr<ScriptLoadData>(this, aRequest, loadedScript);
+    loadedScript->ConvertToCachedStencil();
+    if (loadedScript->mFetchCount == 0) {
+      loadedScript->mFetchCount = 1;
     }
     mCache->Insert(*loadData);
     LOG(("ScriptLoader (%p): Inserting in-memory cache for %s.", this,
@@ -3356,7 +3357,7 @@ void ScriptLoader::TryCacheRequest(ScriptLoadRequest* aRequest) {
     TRACE_FOR_TEST(aRequest, "memorycache:saved");
   } else {
     MOZ_ASSERT(cacheBehavior == CacheBehavior::Evict);
-    ScriptHashKey key(this, aRequest, aRequest->getLoadedScript());
+    ScriptHashKey key(this, aRequest, loadedScript);
     mCache->Evict(key);
     LOG(("ScriptLoader (%p): Evicting in-memory cache for %s.", this,
          aRequest->URI()->GetSpecOrDefault().get()));
@@ -4133,7 +4134,7 @@ nsresult ScriptLoader::OnStreamComplete(
     // If we are loading from source, store the cache info channel and
     // save the computed SRI hash or a dummy SRI hash in case we are going to
     // save the this script in the disk cache.
-    if (aRequest->IsSource() &&
+    if (aRequest->IsTextSource() &&
         StaticPrefs::dom_script_loader_bytecode_cache_enabled()) {
       aRequest->getLoadedScript()->mCacheInfo = cacheInfo;
       LOG(("ScriptLoadRequest (%p): nsICacheInfoChannel = %p", aRequest,
@@ -4202,7 +4203,7 @@ nsresult ScriptLoader::VerifySRI(ScriptLoadRequest* aRequest,
 
 nsresult ScriptLoader::SaveSRIHash(
     ScriptLoadRequest* aRequest, SRICheckDataVerifier* aSRIDataVerifier) const {
-  MOZ_ASSERT(aRequest->IsSource());
+  MOZ_ASSERT(aRequest->IsTextSource());
   JS::TranscodeBuffer& sri = aRequest->SRI();
   MOZ_ASSERT(sri.empty());
 

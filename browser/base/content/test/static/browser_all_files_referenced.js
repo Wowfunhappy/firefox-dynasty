@@ -341,6 +341,14 @@ var allowlist = [
   {
     file: "moz-src:///browser/components/aiwindow/models/IntentClassifier.sys.mjs",
   },
+  // Bug 2002840 - add function to return real time info injection message & tests (backed out due to unused file)
+  {
+    file: "moz-src:///browser/components/aiwindow/models/ChatUtils.mjs",
+  },
+  // Bug 2003328 - Implement createOpenAIEngine and prompt rendering
+  {
+    file: "moz-src:///browser/components/aiwindow/models/Utils.mjs",
+  },
 ];
 
 if (AppConstants.NIGHTLY_BUILD) {

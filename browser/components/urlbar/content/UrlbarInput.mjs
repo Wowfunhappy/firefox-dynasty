@@ -70,8 +70,6 @@ const lazy = XPCOMUtils.declareLazy({
   logger: () => lazy.UrlbarUtils.getLogger({ prefix: "Input" }),
 });
 
-const DEFAULT_FORM_HISTORY_NAME = "searchbar-history";
-
 const UNLIMITED_MAX_RESULTS = 99;
 
 let getBoundsWithoutFlushing = element =>
@@ -218,7 +216,6 @@ export class UrlbarInput extends HTMLElement {
   #compositionClosedPopup = false;
 
   valueIsTyped = false;
-  formHistoryName = DEFAULT_FORM_HISTORY_NAME;
 
   // Properties accessed in tests.
   lastQueryContextPromise = Promise.resolve();
@@ -420,13 +417,16 @@ export class UrlbarInput extends HTMLElement {
       // On startup, this will be called again by browser-init.js
       // once gBrowser has been initialized.
       this.addGBrowserListeners();
+    }
 
-      // If gBrowser or the search service is not initialized yet,
-      // the placeholder and icon will be updated in delayedStartupInit.
-      if (Services.search.isInitialized) {
-        this.searchModeSwitcher.updateSearchIcon();
-        this._updatePlaceholderFromDefaultEngine();
-      }
+    // If the search service is not initialized yet, the placeholder
+    // and icon will be updated in delayedStartupInit.
+    if (
+      Cu.isESModuleLoaded("resource://gre/modules/SearchService.sys.mjs") &&
+      Services.search.isInitialized
+    ) {
+      this.searchModeSwitcher.updateSearchIcon();
+      this._updatePlaceholderFromDefaultEngine();
     }
 
     // Expanding requires a parent toolbar, and us not being read-only.
@@ -2498,6 +2498,10 @@ export class UrlbarInput extends HTMLElement {
   }
 
   get searchMode() {
+    if (!this.window.gBrowser) {
+      // This only happens before DOMContentLoaded.
+      return null;
+    }
     return this.getSearchMode(this.window.gBrowser.selectedBrowser);
   }
 
@@ -5175,7 +5179,6 @@ export class UrlbarInput extends HTMLElement {
       ),
       tabGroup: this.window.gBrowser.selectedTab.group?.id ?? null,
       currentPage: this.window.gBrowser.currentURI.spec,
-      formHistoryName: this.formHistoryName,
       prohibitRemoteResults:
         event &&
         lazy.UrlbarUtils.isPasteEvent(event) &&

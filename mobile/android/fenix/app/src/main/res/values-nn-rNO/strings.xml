@@ -1481,6 +1481,14 @@
   <string name="tab_tray_menu_tab_settings">Fane-innstillingar</string>
   <!-- Text shown in the menu for closing all tabs -->
   <string name="tab_tray_menu_item_close">Lat att alle faner</string>
+  <!-- Text shown as the title of the Close all tabs confirmation dialog in Tab Manager -->
+  <string name="tab_manager_close_all_tabs_dialog_title">Late att alle faner?</string>
+  <!-- Text shown in the body of the Close all tabs confirmation dialog in Tab Manager -->
+  <string name="tab_manager_close_all_tabs_dialog_body">Dette vil late att alle opne faner.</string>
+  <!-- Text shown on the confirm button in the Close all tabs confirmation dialog -->
+  <string name="tab_manager_close_all_tabs_dialog_confirm">Lat att faner</string>
+  <!-- Text shown on the cancel button in the Close all tabs confirmation dialog -->
+  <string name="tab_manager_close_all_tabs_dialog_cancel">Avbryt</string>
   <!-- Text shown in the multiselect menu for bookmarking selected tabs. -->
   <string name="tab_tray_multiselect_menu_item_bookmark">Bokmerke</string>
   <!-- Content description (not visible, for screen readers etc.): Bookmarks selected tabs. -->
@@ -2761,6 +2769,8 @@
   <string name="autofill_settings_navigate_back_button_content_description">Tilbake</string>
   <!-- Title of the "Add card" screen -->
   <string name="credit_cards_add_card">Legg til betalingskort</string>
+  <!-- Content description for the "credit card feature" top bar back button -->
+  <string name="credit_cards_navigate_back_button_content_description">Naviger tilbake</string>
   <!-- Title of the "Edit card" screen -->
   <string name="credit_cards_edit_card">Rediger kort</string>
   <!-- The header for the card number of a credit card -->

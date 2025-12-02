@@ -14420,13 +14420,7 @@ void Document::WarnOnceAbout(
     return;
   }
   mDeprecationWarnedAbout[static_cast<size_t>(aOperation)] = true;
-  // Don't count deprecated operations for about pages since those pages
-  // are almost in our control, and we always need to remove uses there
-  // before we remove the operation itself anyway.
-  if (!IsAboutPage()) {
-    const_cast<Document*>(this)->SetUseCounter(
-        OperationToUseCounter(aOperation));
-  }
+  const_cast<Document*>(this)->SetUseCounter(OperationToUseCounter(aOperation));
   uint32_t flags =
       asError ? nsIScriptError::errorFlag : nsIScriptError::warningFlag;
   nsContentUtils::ReportToConsole(
@@ -18184,7 +18178,8 @@ void Document::NotifyUserGestureActivation(
 
   // 3. "...windows with the active window of each of document's ancestor
   // navigables."
-  for (WindowContext* wc = currentWC; wc; wc = wc->GetParentWindowContext()) {
+  for (WindowContext* wc = currentWC->GetParentWindowContext(); wc;
+       wc = wc->GetParentWindowContext()) {
     wc->NotifyUserGestureActivation(aModifiers);
   }
 
@@ -18193,7 +18188,8 @@ void Document::NotifyUserGestureActivation(
   // document's origin is same origin with document's origin"
   currentBC->PreOrderWalk([&](BrowsingContext* bc) {
     WindowContext* wc = bc->GetCurrentWindowContext();
-    if (!wc) {
+    // currentWC has already been notified
+    if (!wc || wc == currentWC) {
       return;
     }
 
