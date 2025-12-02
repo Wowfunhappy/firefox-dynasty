@@ -241,15 +241,15 @@ static const char SandboxPolicyContent[] = R"SANDBOX_LITERAL(
   ; added by haik on 26 june 2024 and seems to be for arm-only
   ; (big surprise), so limit to big sur and above.
   (if (defined? 'iokit-get-properties)
-     (if (>= macosVersion 1100)
-       (with-filter (iokit-registry-entry-class "IOPlatformDevice")
+    (if (>= macosVersion 1100)
+      (with-filter (iokit-registry-entry-class "IOPlatformDevice")
         (allow iokit-get-properties
           (iokit-property "product-id")
           (iokit-property "IORegistryEntryPropertyKeys")
           (iokit-property "ean-storage-present")))))
   (if (defined? 'iokit-get-properties)
-    (if (>= macosVersion 1100)    
-    (with-filter (iokit-registry-entry-class "IOService")
+    (if (>= macosVersion 1100)
+      (with-filter (iokit-registry-entry-class "IOService")
         (allow iokit-get-properties
           (iokit-property "housing-color")
           (iokit-property "syscfg-erly-kbgs-allow-load")
