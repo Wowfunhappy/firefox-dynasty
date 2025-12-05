@@ -83,38 +83,6 @@ features:
         description: The drawable displayed in the app menu for Settings
         type: String
         default: mozac_ic_settings
-  query-parameter-stripping:
-    description: Features for query parameter stripping.
-    variables:
-      sections-enabled:
-        description: "This property provides a lookup table of whether or not the given section should be enabled."
-        type: Map<QueryParameterStrippingSection, String>
-        default:
-          {
-            "query-parameter-stripping": "0",
-            "query-parameter-stripping-pmb": "0",
-            "query-parameter-stripping-allow-list": "",
-            "query-parameter-stripping-strip-list": "",
-          }
-    defaults:
-      - channel: developer
-        value: {
-          "sections-enabled": {
-            "query-parameter-stripping": "0",
-            "query-parameter-stripping-pmb": "0",
-            "query-parameter-stripping-allow-list": "",
-            "query-parameter-stripping-strip-list": "",
-          }
-        }
-      - channel: nightly
-        value: {
-          "sections-enabled": {
-            "query-parameter-stripping": "0",
-            "query-parameter-stripping-pmb": "0",
-            "query-parameter-stripping-allow-list": "",
-            "query-parameter-stripping-strip-list": "",
-          }
-        }
   cookie-banners:
     description: Features for cookie banner handling.
     variables:
@@ -484,6 +452,14 @@ features:
           set to false.
         type: Boolean
         default: false
+      isolationStrategy:
+        description: >
+          The web content isolation strategy to use with fission. "0" means "isolate nothing", similar to
+          non-fission behavior. "1" means "isolate everything", where every site-origin gets its own
+          process. "2" means "isolate high value", Android-specific setting to only isolate sites
+          considered "high value".
+        type: Int
+        default: 2
 
   suggest-shipped-domains:
     description: Feature that suggests domains from the shipped domain list.
@@ -737,15 +713,6 @@ features:
         type: Int
         default: 0
 
-  networking:
-    description: Enables networking features
-    variables:
-      fetchPriorityEnabled:
-        description: >
-          Enables or disables network.fetchpriority.enabled preference.
-        type: Boolean
-        default: true
-
   networkingBannedPorts:
     description: "Networking (Necko) Banned Ports"
     variables:
@@ -856,17 +823,7 @@ features:
       enabled:
         description: Whether or not the feature is available for the user.
         type: Boolean
-        default: false
-    defaults:
-      - channel: developer
-        value:
-          enabled: true
-      - channel: nightly
-        value:
-          enabled: true
-      - channel: beta
-        value:
-          enabled: true
+        default: true
 
   settings-search:
       description: Feature to allow users to search for settings.

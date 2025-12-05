@@ -1204,7 +1204,7 @@ export class DiscoveryStreamFeed {
           // mostly hit the HTTP cache rather than the network with these requests.
           if (preFlightConfig.enabled) {
             const preFlight = await this.fetchFromEndpoint(
-              `${endpointBaseUrl}v1/o`,
+              `${endpointBaseUrl}v1/ads-preflight`,
               {
                 method: "GET",
               }
@@ -1217,6 +1217,7 @@ export class DiscoveryStreamFeed {
                 preFlight.normalized_ua || lazy.userAgent
               );
               headers.append("X-Geoname-ID", preFlight.geoname_id);
+              headers.append("X-Geo-Location", preFlight.geo_location);
             }
           }
 
@@ -2490,8 +2491,12 @@ export class DiscoveryStreamFeed {
         // This is a config reset directly related to Discovery Stream pref.
         this.configReset();
         break;
-      case PREF_CONTEXTUAL_ADS:
       case PREF_USER_INFERRED_PERSONALIZATION:
+        this.configReset();
+        this._isContextualAds = undefined;
+        await this.resetContentCache();
+        break;
+      case PREF_CONTEXTUAL_ADS:
       case PREF_SYSTEM_INFERRED_PERSONALIZATION:
         this._isContextualAds = undefined;
         this._doLocalInferredRerank = undefined;

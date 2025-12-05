@@ -2149,8 +2149,10 @@ void nsPresContext::UserFontSetUpdated(gfxUserFontEntry* aUpdatedFont) {
   // TODO(emilio): We could be more granular if we knew which families have
   // potentially changed.
   if (!aUpdatedFont) {
-    auto hint = StyleSet()->UsesFontMetrics() ? RestyleHint::RecascadeSubtree()
-                                              : RestyleHint{0};
+    auto hint =
+        (StyleSet()->UsesFontMetrics() || StyleSet()->UsesRootFontMetrics())
+            ? RestyleHint::RecascadeSubtree()
+            : RestyleHint{0};
     PostRebuildAllStyleDataEvent(NS_STYLE_HINT_REFLOW, hint);
     return;
   }
@@ -2948,7 +2950,7 @@ void nsPresContext::UpdateDynamicToolbarOffset(ScreenIntCoord aOffset) {
   // position:fixed or position:sticky element is painted at the correct
   // position on the main-thread.
   if (mDynamicToolbarHeight == 0 || aOffset == -mDynamicToolbarMaxHeight) {
-    mPresShell->MarkFixedFramesForReflow(IntrinsicDirty::None);
+    mPresShell->MarkFixedFramesForReflow();
     mPresShell->MarkStickyFramesForReflow();
     mPresShell->ScheduleResizeEventIfNeeded(
         PresShell::ResizeEventKind::Regular);

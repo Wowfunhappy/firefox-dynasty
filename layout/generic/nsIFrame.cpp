@@ -2300,14 +2300,7 @@ static nsIFrame* GetActiveSelectionFrame(nsPresContext* aPresContext,
 }
 
 bool nsIFrame::ShouldHandleSelectionMovementEvents() {
-  nsCOMPtr<nsISelectionController> selCon;
-  GetSelectionController(PresContext(), getter_AddRefs(selCon));
-  if (!selCon) {
-    return false;
-  }
-  int16_t selType = nsISelectionController::SELECTION_OFF;
-  selCon->GetDisplaySelection(&selType);
-  if (selType == nsISelectionController::SELECTION_OFF) {
+  if (GetDisplaySelection() == nsISelectionController::SELECTION_OFF) {
     return false;
   }
   if (!IsSelectable()) {
@@ -4901,6 +4894,18 @@ bool nsIFrame::IsSelectable(StyleUserSelect* aSelectStyle) const {
     *aSelectStyle = style;
   }
   return style != StyleUserSelect::None;
+}
+
+bool nsIFrame::ShouldPaintNormalSelection() const {
+  if (IsSelectable()) {
+    // NOTE: Ideally, we should return false if display selection is "OFF".
+    // However, here is a hot path at painting.  Therefore, it should be checked
+    // before and we shouldn't need to check it.
+    return true;
+  }
+  // If we're not selectable by user, we should paint selection only while the
+  // normal selection is styled as "attention" by "Find in Page" or something.
+  return GetDisplaySelection() == nsISelectionController::SELECTION_ATTENTION;
 }
 
 bool nsIFrame::ShouldHaveLineIfEmpty() const {
@@ -9175,16 +9180,21 @@ bool nsIFrame::IsSelfEmpty() {
   return IsHiddenByContentVisibilityOfInFlowParentForLayout();
 }
 
-nsresult nsIFrame::GetSelectionController(nsPresContext* aPresContext,
-                                          nsISelectionController** aSelCon) {
-  if (!aPresContext || !aSelCon) {
-    return NS_ERROR_INVALID_ARG;
+nsISelectionController* nsIFrame::GetSelectionController() const {
+  if (nsTextControlFrame* const tcf = GetContainingTextControlFrame()) {
+    return tcf->ControlElement()->GetSelectionController();
   }
-  if (nsTextControlFrame* tcf = GetContainingTextControlFrame()) {
-    return tcf->GetOwnedSelectionController(aSelCon);
+  return static_cast<nsISelectionController*>(PresShell());
+}
+
+int16_t nsIFrame::GetDisplaySelection() const {
+  nsISelectionController* const selCon = GetSelectionController();
+  if (MOZ_UNLIKELY(!selCon)) {
+    return nsISelectionController::SELECTION_OFF;
   }
-  *aSelCon = do_AddRef(aPresContext->PresShell()).take();
-  return NS_OK;
+  int16_t display = nsISelectionController::SELECTION_OFF;
+  selCon->GetDisplaySelection(&display);
+  return display;
 }
 
 already_AddRefed<nsFrameSelection> nsIFrame::GetFrameSelection() {

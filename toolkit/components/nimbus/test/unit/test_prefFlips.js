@@ -164,7 +164,6 @@ async function setupTest({ ...args } = {}) {
     ...ctx,
     async cleanup() {
       assertNoObservers(ctx.manager);
-      await NimbusTestUtils.waitForAllUnenrollments();
       await baseCleanup();
     },
   };
@@ -1736,7 +1735,7 @@ add_task(async function test_prefFlips_unenrollment() {
       Assert.ok(enrollment.active, `It should still be active`);
     }
 
-    await NimbusTestUtils.waitForActiveEnrollments(expectedEnrollments);
+    await NimbusTestUtils.assert.activeEnrollments(expectedEnrollments);
 
     info("Checking expected unenrollments...");
     for (const slug of expectedUnenrollments) {
@@ -1771,7 +1770,7 @@ add_task(async function test_prefFlips_unenrollment() {
     let expectedCurrentEnrollments = new Set(expectedEnrollments).difference(
       new Set(expectedUnenrollments)
     );
-    await NimbusTestUtils.waitForActiveEnrollments(
+    await NimbusTestUtils.assert.activeEnrollments(
       Array.from(expectedCurrentEnrollments)
     );
 
@@ -1785,7 +1784,7 @@ add_task(async function test_prefFlips_unenrollment() {
     expectedCurrentEnrollments = expectedCurrentEnrollments.difference(
       new Set(unenrollmentOrder)
     );
-    await NimbusTestUtils.waitForActiveEnrollments(
+    await NimbusTestUtils.assert.activeEnrollments(
       Array.from(expectedCurrentEnrollments)
     );
 
@@ -1802,7 +1801,7 @@ add_task(async function test_prefFlips_unenrollment() {
       }
     }
 
-    await NimbusTestUtils.waitForActiveEnrollments([]);
+    await NimbusTestUtils.assert.activeEnrollments([]);
 
     info("Cleaning up prefs...");
     Services.prefs.deleteBranch(PREF_FOO);
@@ -2456,7 +2455,7 @@ add_task(async function test_prefFlips_failed() {
   // That callback triggers an async unenroll() without awaiting (because it
   // wouldn't block the ExperimentStore anyway) so we have to wait for the
   // unenroll to be propagated to the database first.
-  await NimbusTestUtils.waitForInactiveEnrollment(recipe.slug);
+  await NimbusTestUtils.assert.enrollmentExists(recipe.slug, { active: false });
 
   const enrollment = manager.store.get(recipe.slug);
   Assert.ok(!enrollment.active, "Experiment should not be active");
@@ -2534,7 +2533,7 @@ add_task(async function test_prefFlips_failed_multiple_prefs() {
   // That callback triggers an async unenroll() without awaiting (because it
   // wouldn't block the ExperimentStore anyway) so we have to wait for the
   // unenroll to be propagated to the database first.
-  await NimbusTestUtils.waitForInactiveEnrollment(recipe.slug);
+  await NimbusTestUtils.assert.enrollmentExists(recipe.slug, { active: false });
 
   const enrollment = manager.store.get(recipe.slug);
   Assert.ok(!enrollment.active, "Experiment should not be active");
@@ -2665,11 +2664,11 @@ add_task(async function test_prefFlips_failed_experiment_and_rollout_1() {
       Assert.ok(enrollment.active, `The enrollment for ${slug} is active`);
     }
 
-    await NimbusTestUtils.waitForActiveEnrollments(expectedEnrollments);
+    await NimbusTestUtils.assert.activeEnrollments(expectedEnrollments);
 
     info("Checking expected unenrollments...");
     for (const slug of expectedUnenrollments) {
-      await NimbusTestUtils.waitForInactiveEnrollment(slug);
+      await NimbusTestUtils.assert.enrollmentExists(slug, { active: false });
       const enrollment = manager.store.get(slug);
       Assert.ok(!enrollment.active, "The enrollment is no longer active.");
     }
@@ -2775,7 +2774,7 @@ add_task(async function test_prefFlips_failed_experiment_and_rollout_2() {
       );
     }
 
-    await NimbusTestUtils.waitForActiveEnrollments(expectedEnrollments);
+    await NimbusTestUtils.assert.activeEnrollments(expectedEnrollments);
 
     info("Checking expected enrollments...");
     for (const slug of expectedEnrollments) {
@@ -2785,7 +2784,7 @@ add_task(async function test_prefFlips_failed_experiment_and_rollout_2() {
 
     info("Checking expected unenrollments...");
     for (const slug of expectedUnenrollments) {
-      await NimbusTestUtils.waitForInactiveEnrollment(slug);
+      await NimbusTestUtils.assert.enrollmentExists(slug, { active: false });
       const enrollment = manager.store.get(slug);
       Assert.ok(!enrollment.active, "The enrollment is no longer active.");
     }
@@ -2844,7 +2843,7 @@ add_task(async function test_prefFlips_update_failure() {
     { manager, slug: "experiment" }
   );
 
-  await NimbusTestUtils.waitForActiveEnrollments(["rollout"]);
+  await NimbusTestUtils.assert.activeEnrollments(["rollout"]);
 
   const rolloutEnrollment = manager.store.get("rollout");
   const experimentEnrollment = manager.store.get("experiment");
@@ -3110,8 +3109,8 @@ async function test_prefFlips_restore_failure_conflict() {
     migrationState: NimbusTestUtils.migrationState.LATEST,
   });
 
-  await NimbusTestUtils.waitForActiveEnrollments(["rollout-1"]);
-  await NimbusTestUtils.waitForInactiveEnrollment("rollout-2");
+  await NimbusTestUtils.assert.activeEnrollments(["rollout-1"]);
+  await NimbusTestUtils.assert.enrollmentExists("rollout-2", { active: false });
 
   Assert.ok(manager.store.get("rollout-1").active, "rollout-1 is active");
   Assert.ok(!manager.store.get("rollout-2").active, "rollout-2 is not active");
@@ -3206,7 +3205,7 @@ async function test_prefFlips_restore_failure_wrong_type() {
   });
 
   await NimbusTestUtils.flushStore(manager.store);
-  await NimbusTestUtils.waitForInactiveEnrollment(recipe.slug);
+  await NimbusTestUtils.assert.enrollmentExists(recipe.slug, { active: false });
 
   const enrollment = manager.store.get(recipe.slug);
 
@@ -3264,7 +3263,9 @@ add_task(
     PrefUtils.setPref(PREF, "default-value", { branch: DEFAULT });
 
     await manager.enroll(recipe, "rs-loader");
-    await NimbusTestUtils.waitForInactiveEnrollment(recipe.slug);
+    await NimbusTestUtils.assert.enrollmentExists(recipe.slug, {
+      active: false,
+    });
 
     let enrollment = manager.store.get(recipe.slug);
 
@@ -3272,7 +3273,9 @@ add_task(
     Assert.equal(enrollment.unenrollReason, "prefFlips-failed");
 
     await manager.enroll(recipe, "rs-loader", { reenroll: true });
-    await NimbusTestUtils.waitForInactiveEnrollment(recipe.slug);
+    await NimbusTestUtils.assert.enrollmentExists(recipe.slug, {
+      active: false,
+    });
 
     enrollment = manager.store.get(recipe.slug);
 

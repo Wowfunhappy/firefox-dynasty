@@ -1901,6 +1901,21 @@
       }
     ]
   },
+  "1895672": {
+    "label": "hackgreensdr.org and websdr.78dx.ru",
+    "bugs": {
+      "1895672": {
+        "issue": "broken-audio",
+        "matches": ["*://hackgreensdr.org/*", "*://websdr.78dx.ru/*"]
+      }
+    },
+    "interventions": [
+      {
+        "platforms": ["all"],
+        "ua_string": ["add_Chrome"]
+      }
+    ]
+  },
   "1895997": {
     "label": "e.seb.lt",
     "bugs": {
@@ -2067,6 +2082,21 @@
     "interventions": [
       {
         "platforms": ["all"],
+        "ua_string": ["add_Chrome"]
+      }
+    ]
+  },
+  "1898916": {
+    "label": "smartmirror.link",
+    "bugs": {
+      "1898916": {
+        "issue": "firefox-blocked-completely",
+        "matches": ["*://www.smartmirror.link/*"]
+      }
+    },
+    "interventions": [
+      {
+        "platforms": ["desktop"],
         "ua_string": ["add_Chrome"]
       }
     ]
@@ -4873,6 +4903,21 @@
       }
     ]
   },
+  "1962644": {
+    "label": "www.coles.com.au",
+    "bugs": {
+      "1962644": {
+        "issue": "broken-layout",
+        "matches": ["*://www.coles.com.au/catalogues/view*"]
+      }
+    },
+    "interventions": [
+      {
+        "platforms": ["android"],
+        "ua_string": ["Chrome", "add_Firefox_as_Gecko"]
+      }
+    ]
+  },
   "1962654": {
     "label": "go.idnow.de",
     "bugs": {
@@ -6047,6 +6092,23 @@
       }
     ]
   },
+  "1999198": {
+    "label": "anime-bit.ru",
+    "bugs": {
+      "1999198": {
+        "issue": "broken-scrolling",
+        "matches": ["*://*.anime-bit.ru/*"]
+      }
+    },
+    "interventions": [
+      {
+        "platforms": ["android"],
+        "content_scripts": {
+          "js": ["bug1999198-anime-bit.ru-fix-broken-scrolling.js"]
+        }
+      }
+    ]
+  },
   "1999488": {
     "label": "languageacademy.com.au",
     "bugs": {
@@ -6142,6 +6204,55 @@
         "content_scripts": {
           "all_frames": true,
           "js": ["bug2000906-teams.microsoft.com-disable-resizeMode-in-gDM.js"]
+        }
+      }
+    ]
+  },
+  "2001936": {
+    "label": "larksuite.com",
+    "bugs": {
+      "2001936": {
+        "issue": "firefox-blocked-completely",
+        "matches": ["*://*.larksuite.com/*"]
+      }
+    },
+    "interventions": [
+      {
+        "platforms": ["desktop"],
+        "ua_string": ["Chrome", "add_Firefox_as_Gecko"]
+      }
+    ]
+  },
+  "2003011": {
+    "label": "ehealth.gov.gr",
+    "bugs": {
+      "2003011": {
+        "issue": "broken-layout",
+        "matches": ["*://ehealth.gov.gr/*"]
+      }
+    },
+    "interventions": [
+      {
+        "platforms": ["android"],
+        "content_scripts": {
+          "css": ["bug2003011-ehealth.gov.gr-fix-font-inflation-issue.css"]
+        }
+      }
+    ]
+  },
+  "2003019": {
+    "label": "jw.org",
+    "bugs": {
+      "2003019": {
+        "issue": "broken-layout",
+        "matches": ["*://www.jw.org/*/library/*"]
+      }
+    },
+    "interventions": [
+      {
+        "platforms": ["all"],
+        "content_scripts": {
+          "css": ["bug2003019-www.jw.org-fix-ruby-text-linebreaks.css"]
         }
       }
     ]

@@ -1877,12 +1877,12 @@ class ScrollContainerFrame::AsyncSmoothMSDScroll final
                        ScrollTriggeredByScript aTriggeredByScript)
       : mXAxisModel(aInitialPosition.x, aInitialDestination.x,
                     aInitialVelocity.width,
-                    StaticPrefs::layout_css_scroll_behavior_spring_constant(),
-                    StaticPrefs::layout_css_scroll_behavior_damping_ratio()),
+                    StaticPrefs::layout_css_scroll_snap_spring_constant(),
+                    StaticPrefs::layout_css_scroll_snap_damping_ratio()),
         mYAxisModel(aInitialPosition.y, aInitialDestination.y,
                     aInitialVelocity.height,
-                    StaticPrefs::layout_css_scroll_behavior_spring_constant(),
-                    StaticPrefs::layout_css_scroll_behavior_damping_ratio()),
+                    StaticPrefs::layout_css_scroll_snap_spring_constant(),
+                    StaticPrefs::layout_css_scroll_snap_damping_ratio()),
         mRange(aRange),
         mStartPosition(aInitialPosition),
         mLastRefreshTime(aStartTime),
@@ -7758,7 +7758,9 @@ bool ScrollContainerFrame::CanApzScrollInTheseDirections(
 
 bool ScrollContainerFrame::SmoothScrollVisual(
     const nsPoint& aVisualViewportOffset,
-    FrameMetrics::ScrollOffsetUpdateType aUpdateType) {
+    FrameMetrics::ScrollOffsetUpdateType aUpdateType, ScrollMode aMode) {
+  MOZ_ASSERT(aMode == ScrollMode::Smooth || aMode == ScrollMode::SmoothMsd);
+
   bool canDoApzSmoothScroll =
       nsLayoutUtils::AsyncPanZoomEnabled(this) && WantAsyncScroll();
   if (!canDoApzSmoothScroll) {
@@ -7785,7 +7787,7 @@ bool ScrollContainerFrame::SmoothScrollVisual(
 
   UniquePtr<ScrollSnapTargetIds> snapTargetIds;
   // Perform the scroll.
-  ApzSmoothScrollTo(mDestination, ScrollMode::SmoothMsd,
+  ApzSmoothScrollTo(mDestination, aMode,
                     aUpdateType == FrameMetrics::eRestore
                         ? ScrollOrigin::Restore
                         : ScrollOrigin::Other,
@@ -7825,6 +7827,17 @@ bool ScrollContainerFrame::IsSmoothScroll(dom::ScrollBehavior aBehavior) const {
   return (aBehavior == dom::ScrollBehavior::Auto &&
           styleFrame->StyleDisplay()->mScrollBehavior ==
               StyleScrollBehavior::Smooth);
+}
+
+ScrollMode ScrollContainerFrame::ScrollModeForScrollBehavior(
+    dom::ScrollBehavior aBehavior) const {
+  if (!IsSmoothScroll(aBehavior)) {
+    return ScrollMode::Instant;
+  }
+
+  return StaticPrefs::layout_css_scroll_behavior_same_physics_as_user_input()
+             ? ScrollMode::Smooth
+             : ScrollMode::SmoothMsd;
 }
 
 nsTArray<ScrollPositionUpdate> ScrollContainerFrame::GetScrollUpdates() const {

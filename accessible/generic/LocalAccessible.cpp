@@ -3678,15 +3678,8 @@ already_AddRefed<AccAttributes> LocalAccessible::BundleFieldsForCache(
     if (boundsChanged) {
       mBounds = Some(newBoundsRect);
 
-      nsTArray<int32_t> boundsArray(4);
-
-      boundsArray.AppendElement(newBoundsRect.x);
-      boundsArray.AppendElement(newBoundsRect.y);
-      boundsArray.AppendElement(newBoundsRect.width);
-      boundsArray.AppendElement(newBoundsRect.height);
-
-      fields->SetAttribute(CacheKey::ParentRelativeBounds,
-                           std::move(boundsArray));
+      UniquePtr<nsRect> ptr = MakeUnique<nsRect>(newBoundsRect);
+      fields->SetAttribute(CacheKey::ParentRelativeBounds, std::move(ptr));
     }
 
     if (frame && frame->ScrollableOverflowRect().IsEmpty()) {
@@ -3707,12 +3700,29 @@ already_AddRefed<AccAttributes> LocalAccessible::BundleFieldsForCache(
         TextLeafPoint point(this, 0);
         RefPtr<AccAttributes> attrs = point.GetTextAttributesLocalAcc(
             /* aIncludeDefaults */ false);
-        fields->SetAttribute(CacheKey::TextAttributes, std::move(attrs));
+        if (attrs->Count()) {
+          fields->SetAttribute(CacheKey::TextAttributes, std::move(attrs));
+        } else if (IsUpdatePush(CacheDomain::Text)) {
+          fields->SetAttribute(CacheKey::TextAttributes, DeleteEntry());
+        }
       }
     }
     if (HyperTextAccessible* ht = AsHyperText()) {
       RefPtr<AccAttributes> attrs = ht->DefaultTextAttributes();
-      fields->SetAttribute(CacheKey::TextAttributes, std::move(attrs));
+      LocalAccessible* parent = LocalParent();
+      if (HyperTextAccessible* htParent =
+              parent ? parent->AsHyperText() : nullptr) {
+        if (RefPtr<AccAttributes> parentAttrs =
+                htParent->DefaultTextAttributes()) {
+          // Discard any entries that our parent already has.
+          attrs->RemoveIdentical(parentAttrs);
+        }
+      }
+      if (attrs->Count()) {
+        fields->SetAttribute(CacheKey::TextAttributes, std::move(attrs));
+      } else if (IsUpdatePush(CacheDomain::Text)) {
+        fields->SetAttribute(CacheKey::TextAttributes, DeleteEntry());
+      }
     } else if (!IsText()) {
       // Language is normally cached in text attributes, but Accessibles that
       // aren't HyperText or Text (e.g. <img>, <input type="radio">) don't have
@@ -3905,12 +3915,19 @@ already_AddRefed<AccAttributes> LocalAccessible::BundleFieldsForCache(
     } else if (IsUpdatePush(CacheDomain::DOMNodeIDAndClass)) {
       fields->SetAttribute(CacheKey::DOMNodeID, DeleteEntry());
     }
-    nsString className;
-    DOMNodeClass(className);
-    if (!className.IsEmpty()) {
-      fields->SetAttribute(CacheKey::DOMNodeClass, std::move(className));
-    } else if (IsUpdatePush(CacheDomain::DOMNodeIDAndClass)) {
-      fields->SetAttribute(CacheKey::DOMNodeClass, DeleteEntry());
+
+    if (dom::Element* el = Elm()) {
+      nsTArray<RefPtr<nsAtom>> classes;
+      if (const nsAttrValue* attr = el->GetClasses()) {
+        for (uint32_t i = 0; i < attr->GetAtomCount(); i++) {
+          classes.AppendElement(attr->AtomAt(i));
+        }
+      }
+      if (!classes.IsEmpty()) {
+        fields->SetAttribute(CacheKey::DOMNodeClass, std::move(classes));
+      } else if (IsUpdatePush(CacheDomain::DOMNodeIDAndClass)) {
+        fields->SetAttribute(CacheKey::DOMNodeClass, DeleteEntry());
+      }
     }
   }
 

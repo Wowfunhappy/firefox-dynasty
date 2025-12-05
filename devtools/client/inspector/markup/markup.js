@@ -379,6 +379,7 @@ class MarkupView extends EventEmitter {
     this._initShortcuts();
 
     this._walkerEventListener = new WalkerEventListener(this.inspector, {
+      "anchor-name-change": this._onWalkerNodeStatesChanged,
       "container-type-change": this._onWalkerNodeStatesChanged,
       "display-change": this._onWalkerNodeStatesChanged,
       "scrollable-change": this._onWalkerNodeStatesChanged,
@@ -386,7 +387,7 @@ class MarkupView extends EventEmitter {
       mutations: this._onWalkerMutations,
     });
 
-    this.resourceCommand = this.inspector.toolbox.resourceCommand;
+    this.resourceCommand = this.inspector.commands.resourceCommand;
     this.resourceCommand.watchResources(
       [this.resourceCommand.TYPES.ROOT_NODE],
       {
@@ -1057,6 +1058,10 @@ class MarkupView extends EventEmitter {
     // this will probably leak.
     // TODO: use resource api listeners?
     if (nodeFront) {
+      nodeFront.walkerFront.on(
+        "anchor-name-change",
+        this._onWalkerNodeStatesChanged
+      );
       nodeFront.walkerFront.on(
         "container-type-change",
         this._onWalkerNodeStatesChanged

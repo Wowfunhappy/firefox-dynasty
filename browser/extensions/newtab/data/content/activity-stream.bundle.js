@@ -8544,7 +8544,8 @@ class TopSiteLink extends (external_React_default()).PureComponent {
           reporting_url: link.sponsored_impression_url,
           advertiser: title.toLocaleLowerCase(),
           source: NEWTAB_SOURCE,
-          visible_topsites: visibleTopSites
+          visible_topsites: visibleTopSites,
+          frecency_boosted: link.type === "frecency-boost"
         }
         // For testing.
         ,
@@ -8764,7 +8765,8 @@ class TopSite extends (external_React_default()).PureComponent {
             reporting_url: this.props.link.sponsored_click_url,
             advertiser: title.toLocaleLowerCase(),
             source: NEWTAB_SOURCE,
-            visible_topsites: this.props.visibleTopSites
+            visible_topsites: this.props.visibleTopSites,
+            frecency_boosted: this.props.link.type === "frecency-boost"
           }
         }));
       } else {
@@ -14299,6 +14301,22 @@ class _WallpaperCategories extends (external_React_default()).PureComponent {
   isWallpaperColorDark([r, g, b]) {
     return 0.2125 * r + 0.7154 * g + 0.0721 * b <= 110;
   }
+  sortWallpapersByOrder(wallpapers) {
+    return wallpapers.sort((a, b) => {
+      const aOrder = a.order || 0;
+      const bOrder = b.order || 0;
+      if (aOrder === 0 && bOrder === 0) {
+        return 0;
+      }
+      if (aOrder === 0) {
+        return 1;
+      }
+      if (bOrder === 0) {
+        return -1;
+      }
+      return aOrder - bOrder;
+    });
+  }
   render() {
     const prefs = this.props.Prefs.values;
     const {
@@ -14399,10 +14417,11 @@ class _WallpaperCategories extends (external_React_default()).PureComponent {
       className: "category-list"
     }, categories.map((category, index) => {
       const filteredList = wallpaperList.filter(wallpaper => wallpaper.category === category);
-      const activeWallpaperObj = activeWallpaper && filteredList.find(wp => wp.title === activeWallpaper);
+      const sortedList = this.sortWallpapersByOrder(filteredList);
+      const activeWallpaperObj = activeWallpaper && sortedList.find(wp => wp.title === activeWallpaper);
       // Detect custom solid color
       const isCustomSolidColor = category === "solid-colors" && activeWallpaper.startsWith("solid-color-picker");
-      const thumbnail = activeWallpaperObj || filteredList[0];
+      const thumbnail = activeWallpaperObj || sortedList[0];
       let fluent_id;
       switch (category) {
         case "abstracts":
@@ -14427,6 +14446,7 @@ class _WallpaperCategories extends (external_React_default()).PureComponent {
       let style = {};
       if (thumbnail?.wallpaperUrl) {
         style.backgroundImage = `url(${thumbnail.wallpaperUrl})`;
+        style.backgroundPosition = thumbnail.background_position || "center";
       } else {
         style.backgroundColor = thumbnail?.solid_color || "";
       }
@@ -14505,16 +14525,18 @@ class _WallpaperCategories extends (external_React_default()).PureComponent {
     }), /*#__PURE__*/external_React_default().createElement("div", {
       role: "grid",
       "aria-label": "Wallpaper selection. Use arrow keys to navigate."
-    }, /*#__PURE__*/external_React_default().createElement("fieldset", null, filteredWallpapers.map(({
-      title,
-      theme,
+    }, /*#__PURE__*/external_React_default().createElement("fieldset", null, this.sortWallpapersByOrder(filteredWallpapers).map(({
+      background_position,
       fluent_id,
       solid_color,
+      theme,
+      title,
       wallpaperUrl
     }, index) => {
       let style = {};
       if (wallpaperUrl) {
         style.backgroundImage = `url(${wallpaperUrl})`;
+        style.backgroundPosition = background_position || "center";
       } else {
         style.backgroundColor = solid_color || "";
       }
@@ -16166,11 +16188,13 @@ class BaseContent extends (external_React_default()).PureComponent {
     let url = "";
     let color = "transparent";
     let newTheme = colorMode;
+    let backgroundPosition = "center";
 
     // if no selected wallpaper fallback to browser/theme styles
     if (!selectedWallpaper) {
       __webpack_require__.g.document?.body.style.removeProperty("--newtab-wallpaper");
       __webpack_require__.g.document?.body.style.removeProperty("--newtab-wallpaper-color");
+      __webpack_require__.g.document?.body.style.removeProperty("--newtab-wallpaper-backgroundPosition");
       __webpack_require__.g.document?.body.classList.remove("lightWallpaper", "darkWallpaper");
       return;
     }
@@ -16179,6 +16203,8 @@ class BaseContent extends (external_React_default()).PureComponent {
     if (selectedWallpaper === "custom" && uploadedWallpaperUrl) {
       url = uploadedWallpaperUrl;
       color = "transparent";
+      // Note: There is no method to set a specific background position for custom wallpapers
+      backgroundPosition = "center";
       newTheme = uploadedWallpaperTheme || colorMode;
     } else if (wallpaperList) {
       const wallpaper = wallpaperList.find(wp => wp.title === selectedWallpaper);
@@ -16193,6 +16219,7 @@ class BaseContent extends (external_React_default()).PureComponent {
         // standard wallpaper & solid colors
       } else if (selectedWallpaper) {
         url = wallpaper?.wallpaperUrl || "";
+        backgroundPosition = wallpaper?.background_position || "center";
         color = wallpaper?.solid_color || "transparent";
         newTheme = wallpaper?.theme || colorMode;
         // if a solid color, determine if dark or light
@@ -16204,6 +16231,7 @@ class BaseContent extends (external_React_default()).PureComponent {
       }
     }
     __webpack_require__.g.document?.body.style.setProperty("--newtab-wallpaper", `url(${url})`);
+    __webpack_require__.g.document?.body.style.setProperty("--newtab-wallpaper-backgroundPosition", backgroundPosition);
     __webpack_require__.g.document?.body.style.setProperty("--newtab-wallpaper-color", color || "transparent");
     __webpack_require__.g.document?.body.classList.remove("lightWallpaper", "darkWallpaper");
     __webpack_require__.g.document?.body.classList.add(newTheme === "dark" ? "darkWallpaper" : "lightWallpaper");

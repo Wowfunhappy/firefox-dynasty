@@ -63,7 +63,6 @@ class NodeListFront extends FrontClassWithSpec(nodeListSpec) {
   }
 }
 
-exports.NodeListFront = NodeListFront;
 registerFront(NodeListFront);
 
 /**
@@ -492,6 +491,10 @@ class NodeFront extends FrontClassWithSpec(nodeSpec) {
 
   get containerType() {
     return this._form.containerType;
+  }
+
+  get anchorName() {
+    return this._form.anchorName;
   }
 
   get isTreeDisplayed() {

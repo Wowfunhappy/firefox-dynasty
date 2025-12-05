@@ -186,8 +186,9 @@ class Core(
             getDesktopMode = {
                 store.state.desktopMode
             },
-            webContentIsolationStrategy = WebContentIsolationStrategy.ISOLATE_HIGH_VALUE,
-            fetchPriorityEnabled = FxNimbus.features.networking.value().fetchPriorityEnabled,
+            webContentIsolationStrategy =
+                WebContentIsolationStrategy.fromValue(FxNimbus.features.fission.value().isolationStrategy),
+            fetchPriorityEnabled = true,
             parallelMarkingEnabled = FxNimbus.features.javascript.value().parallelMarkingEnabled,
             certificateTransparencyMode = FxNimbus.features.pki.value().certificateTransparencyMode,
             postQuantumKeyExchangeEnabled = FxNimbus.features.pqcrypto.value().postQuantumKeyExchangeEnabled,

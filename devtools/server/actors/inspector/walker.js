@@ -220,6 +220,10 @@ class WalkerActor extends Actor {
     this.overflowCausingElementsMap = new Map();
 
     this.showAllAnonymousContent = options.showAllAnonymousContent;
+    // Allow native anonymous content (like <video> controls) if preffed on
+    this.documentWalkerFilter = this.showAllAnonymousContent
+      ? allAnonymousContentTreeWalkerFilter
+      : standardTreeWalkerFilter;
 
     this.walkerSearch = new WalkerSearch(this);
 
@@ -349,16 +353,9 @@ class WalkerActor extends Actor {
     return "[WalkerActor " + this.actorID + "]";
   }
 
-  getDocumentWalkerFilter() {
-    // Allow native anonymous content (like <video> controls) if preffed on
-    return this.showAllAnonymousContent
-      ? allAnonymousContentTreeWalkerFilter
-      : standardTreeWalkerFilter;
-  }
-
   getDocumentWalker(node, skipTo) {
     return new DocumentWalker(node, this.rootWin, {
-      filter: this.getDocumentWalkerFilter(),
+      filter: this.documentWalkerFilter,
       skipTo,
       showAnonymousContent: true,
     });
@@ -440,6 +437,7 @@ class WalkerActor extends Actor {
       this.layoutActor = null;
       this.targetActor = null;
       this.chromeEventHandler = null;
+      this.documentWalkerFilter = null;
 
       this.emit("destroyed");
     } catch (e) {
@@ -546,6 +544,7 @@ class WalkerActor extends Actor {
     const containerTypeChanges = [];
     const displayTypeChanges = [];
     const scrollableStateChanges = [];
+    const anchorNameChanges = [];
 
     const currentOverflowCausingElementsMap = new Map();
 
@@ -586,6 +585,12 @@ class WalkerActor extends Actor {
         containerTypeChanges.push(actor);
         actor.currentContainerType = containerType;
       }
+
+      const anchorName = actor.anchorName;
+      if (anchorName !== actor.currentAnchorName) {
+        anchorNameChanges.push(actor);
+        actor.currentAnchorName = anchorName;
+      }
     }
 
     // Get the NodeActor for each node in the symmetric difference of
@@ -616,6 +621,10 @@ class WalkerActor extends Actor {
 
     if (containerTypeChanges.length) {
       this.emit("container-type-change", containerTypeChanges);
+    }
+
+    if (anchorNameChanges.length) {
+      this.emit("anchor-name-change", anchorNameChanges);
     }
   }
 
@@ -651,18 +660,15 @@ class WalkerActor extends Actor {
     const newParents = new Set();
     for (let node of nodes) {
       if (!(node instanceof NodeActor)) {
-        // If an anonymous node was passed in and we aren't supposed to know
-        // about it, then use the closest ancestor.
-        if (!this.showAllAnonymousContent) {
-          while (
-            node &&
-            standardTreeWalkerFilter(node) != nodeFilterConstants.FILTER_ACCEPT
-          ) {
-            node = this.rawParentNode(node);
-          }
-          if (!node) {
-            continue;
-          }
+        // If the provided node doesn't match the filter, use the closest ancestor
+        while (
+          node &&
+          this.documentWalkerFilter(node) != nodeFilterConstants.FILTER_ACCEPT
+        ) {
+          node = this.rawParentNode(node);
+        }
+        if (!node) {
+          continue;
         }
 
         node = this._getOrCreateNodeActor(node);
@@ -731,13 +737,13 @@ class WalkerActor extends Actor {
       return null;
     }
 
-    const filter = this.showAllAnonymousContent
-      ? allAnonymousContentTreeWalkerFilter
-      : standardTreeWalkerFilter;
     // If the parent node is one we should ignore (e.g. :-moz-snapshot-containing-block,
     // which is the root node for ::view-transition pseudo elements), we want to return
     // the closest non-ignored parent.
-    if (filter(parentNode) === nodeFilterConstants.FILTER_ACCEPT_CHILDREN) {
+    if (
+      this.documentWalkerFilter(parentNode) ===
+      nodeFilterConstants.FILTER_ACCEPT_CHILDREN
+    ) {
       return this.rawParentNode(parentNode);
     }
 
@@ -933,9 +939,6 @@ class WalkerActor extends Actor {
    * @returns Array<Node> the list of children.
    */
   _rawChildren(rawNode, includeAssigned) {
-    const filter = this.showAllAnonymousContent
-      ? allAnonymousContentTreeWalkerFilter
-      : standardTreeWalkerFilter;
     const ret = [];
     const children = InspectorUtils.getChildrenForNode(
       rawNode,
@@ -943,7 +946,7 @@ class WalkerActor extends Actor {
       includeAssigned
     );
     for (const child of children) {
-      const filterResult = filter(child);
+      const filterResult = this.documentWalkerFilter(child);
       if (filterResult == nodeFilterConstants.FILTER_ACCEPT) {
         ret.push(child);
       } else if (filterResult == nodeFilterConstants.FILTER_ACCEPT_CHILDREN) {
@@ -2251,11 +2254,10 @@ class WalkerActor extends Actor {
   onMutations(mutations) {
     // Don't send a mutation event if the mutation target would be ignored by the walker
     // filter function.
-    const documentWalkerFilter = this.getDocumentWalkerFilter();
     if (
       mutations.every(
         mutation =>
-          documentWalkerFilter(mutation.target) ===
+          this.documentWalkerFilter(mutation.target) ===
           nodeFilterConstants.FILTER_SKIP
       )
     ) {
@@ -2294,29 +2296,10 @@ class WalkerActor extends Actor {
         const removedActors = [];
         const addedActors = [];
         for (const removed of change.removedNodes) {
-          const removedActor = this.getNode(removed);
-          if (!removedActor) {
-            // If the client never encountered this actor we don't need to
-            // mention that it was removed.
-            continue;
-          }
-          // While removed from the tree, nodes are saved as orphaned.
-          this._orphaned.add(removedActor);
-          removedActors.push(removedActor.actorID);
+          this._onMutationsNode(removed, removedActors, "removed");
         }
         for (const added of change.addedNodes) {
-          const addedActor = this.getNode(added);
-          if (!addedActor) {
-            // If the client never encounted this actor we don't need to tell
-            // it about its addition for ownership tree purposes - if the
-            // client wants to see the new nodes it can ask for children.
-            continue;
-          }
-          // The actor is reconnected to the ownership tree, unorphan
-          // it and let the client know so that its ownership tree is up
-          // to date.
-          this._orphaned.delete(addedActor);
-          addedActors.push(addedActor.actorID);
+          this._onMutationsNode(added, addedActors, "added");
         }
 
         mutation.numChildren = targetActor.numChildren;
@@ -2329,6 +2312,59 @@ class WalkerActor extends Actor {
         }
       }
       this.queueMutation(mutation);
+    }
+  }
+
+  /**
+   * Handle a mutation on a node
+   *
+   * @param {Element} node
+   *        The element that is added/removed in the mutation
+   * @param {NodeActor[]} actors
+   *        An array that will be populated by this function with the node actors that
+   *        were added
+   * @param {string} mutationType
+   *        The type of mutation we're handlign ("added" or "removed")
+   */
+  _onMutationsNode(node, actors, mutationType) {
+    if (mutationType !== "added" && mutationType !== "removed") {
+      console.error("Unknown mutation type", mutationType);
+      return;
+    }
+
+    const actor = this.getNode(node);
+    if (actor) {
+      actors.push(actor.actorID);
+      if (mutationType === "added") {
+        // The actor is reconnected to the ownership tree, unorphan
+        // it and let the client know so that its ownership tree is up
+        // to date.
+        this._orphaned.delete(actor);
+        return;
+      }
+      if (mutationType === "removed") {
+        // While removed from the tree, nodes are saved as orphaned.
+        this._orphaned.add(actor);
+        return;
+      }
+    }
+
+    // Here, we might be in a case where a node is remove/added for which we don't have an
+    // actor for, but do have actors for its children.
+    if (
+      this.documentWalkerFilter(node) !==
+      nodeFilterConstants.FILTER_ACCEPT_CHILDREN
+    ) {
+      // At this point, the client never encountered this actor and the node wasn't ignored,
+      // so we don't need to tell it about this mutation.
+      // For added node, if the client wants to see the new nodes it can ask for children.
+      return;
+    }
+
+    // Otherwise, the node was ignored, so we need to go over its children to find
+    // actor references we might have.
+    for (const child of this._rawChildren(node)) {
+      this._onMutationsNode(child, actors, mutationType);
     }
   }
 
@@ -2390,8 +2426,7 @@ class WalkerActor extends Actor {
     const root = event.target;
 
     // Don't trigger a mutation if the document walker would filter out the element.
-    const documentWalkerFilter = this.getDocumentWalkerFilter();
-    if (documentWalkerFilter(root) === nodeFilterConstants.FILTER_SKIP) {
+    if (this.documentWalkerFilter(root) === nodeFilterConstants.FILTER_SKIP) {
       return;
     }
 

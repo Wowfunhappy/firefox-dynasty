@@ -763,8 +763,8 @@ class PresShell final : public nsStubDocumentObserver,
   nsIFrame* GetAbsoluteContainingBlock(nsIFrame* aFrame);
 
   // https://drafts.csswg.org/css-anchor-position-1/#target
-  const nsIFrame* GetAnchorPosAnchor(const nsAtom* aName,
-                                     const nsIFrame* aPositionedFrame) const;
+  nsIFrame* GetAnchorPosAnchor(const nsAtom* aName,
+                               const nsIFrame* aPositionedFrame) const;
   void AddAnchorPosAnchor(const nsAtom* aName, nsIFrame* aFrame);
   void RemoveAnchorPosAnchor(const nsAtom* aName, nsIFrame* aFrame);
   enum class AnchorPosUpdateResult {
@@ -1544,7 +1544,10 @@ class PresShell final : public nsStubDocumentObserver,
   /**
    * Calls FrameNeedsReflow on all fixed position children of the root frame.
    */
-  void MarkFixedFramesForReflow(IntrinsicDirty aIntrinsicDirty);
+  void MarkFixedFramesForReflow();
+  // Marks a positioned frame for reflow, assuming that size or position of the
+  // frame might change.
+  void MarkPositionedFrameForReflow(nsIFrame*);
 
   /**
    * Similar to above MarkFixedFramesForReflow, but for sticky position children

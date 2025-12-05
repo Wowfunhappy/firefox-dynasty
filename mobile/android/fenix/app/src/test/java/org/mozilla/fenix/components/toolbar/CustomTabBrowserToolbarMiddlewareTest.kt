@@ -4,7 +4,6 @@
 
 package org.mozilla.fenix.components.toolbar
 
-import android.content.Context
 import android.graphics.Bitmap
 import android.net.InetAddresses
 import android.util.Patterns
@@ -12,17 +11,13 @@ import androidx.appcompat.content.res.AppCompatResources
 import androidx.core.graphics.drawable.toBitmap
 import androidx.core.graphics.drawable.toDrawable
 import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleOwner
 import androidx.navigation.NavController
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.MainScope
-import kotlinx.coroutines.test.TestScope
-import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import mozilla.components.browser.state.action.ContentAction.UpdateProgressAction
 import mozilla.components.browser.state.action.ContentAction.UpdateSecurityInfoAction
@@ -31,7 +26,7 @@ import mozilla.components.browser.state.action.ContentAction.UpdateUrlAction
 import mozilla.components.browser.state.action.TrackingProtectionAction
 import mozilla.components.browser.state.state.BrowserState
 import mozilla.components.browser.state.state.CustomTabSessionState
-import mozilla.components.browser.state.state.SecurityInfoState
+import mozilla.components.browser.state.state.SecurityInfo
 import mozilla.components.browser.state.state.TrackingProtectionState
 import mozilla.components.browser.state.state.createCustomTab
 import mozilla.components.browser.state.state.createTab
@@ -41,6 +36,7 @@ import mozilla.components.compose.browser.toolbar.concept.Action.ActionButtonRes
 import mozilla.components.compose.browser.toolbar.concept.PageOrigin
 import mozilla.components.compose.browser.toolbar.concept.PageOrigin.Companion.ContextualMenuOption
 import mozilla.components.compose.browser.toolbar.concept.PageOrigin.Companion.PageOriginContextualMenuInteractions.CopyToClipboardClicked
+import mozilla.components.compose.browser.toolbar.store.BrowserToolbarInteraction.BrowserToolbarEvent
 import mozilla.components.compose.browser.toolbar.store.BrowserToolbarStore
 import mozilla.components.compose.browser.toolbar.store.ProgressBarConfig
 import mozilla.components.concept.engine.cookiehandling.CookieBannersStorage
@@ -262,8 +258,34 @@ class CustomTabBrowserToolbarMiddlewareTest {
     }
 
     @Test
+    fun `GIVEN the website's security is unknown WHEN initializing the toolbar THEN add an appropriate security indicator`() {
+        every { customTab.content.securityInfo } returns SecurityInfo.Unknown
+        every { customTab.trackingProtection.enabled } returns true
+        every { customTab.trackingProtection.ignoredOnTrackingProtection } returns false
+        val expectedSecurityIndicator = ActionButtonRes(
+            drawableResId = iconsR.drawable.mozac_ic_globe_24,
+            contentDescription = toolbarR.string.mozac_browser_toolbar_content_description_site_info,
+            state = ActionButton.State.DEFAULT,
+            highlighted = false,
+            onClick = object : BrowserToolbarEvent {},
+        )
+
+        val toolbarStore = buildStore()
+
+        val toolbarPageActions = toolbarStore.state.displayState.pageActionsStart
+        assertEquals(1, toolbarPageActions.size)
+        val securityIndicator = toolbarPageActions[0] as ActionButtonRes
+        assertEquals(expectedSecurityIndicator.drawableResId, securityIndicator.drawableResId)
+        assertEquals(expectedSecurityIndicator.contentDescription, securityIndicator.contentDescription)
+        assertEquals(expectedSecurityIndicator.state, securityIndicator.state)
+        assertEquals(expectedSecurityIndicator.highlighted, securityIndicator.highlighted)
+        assertFalse(securityIndicator.onClick is StartPageActions.SiteInfoClicked)
+        assertNull(securityIndicator.onLongClick)
+    }
+
+    @Test
     fun `GIVEN the website is secure WHEN initializing the toolbar THEN add an appropriate security indicator`() {
-        every { customTab.content.securityInfo.secure } returns true
+        every { customTab.content.securityInfo } returns SecurityInfo.Secure()
         every { customTab.trackingProtection.enabled } returns true
         every { customTab.trackingProtection.ignoredOnTrackingProtection } returns false
         val expectedSecurityIndicator = ActionButtonRes(
@@ -282,7 +304,7 @@ class CustomTabBrowserToolbarMiddlewareTest {
 
     @Test
     fun `GIVEN the website is insecure WHEN initializing the toolbar THEN add an appropriate security indicator`() {
-        every { customTab.content.securityInfo.secure } returns false
+        every { customTab.content.securityInfo } returns SecurityInfo.Insecure()
         val expectedSecurityIndicator = ActionButtonRes(
             drawableResId = iconsR.drawable.mozac_ic_shield_slash_24,
             contentDescription = toolbarR.string.mozac_browser_toolbar_content_description_site_info,
@@ -306,6 +328,7 @@ class CustomTabBrowserToolbarMiddlewareTest {
                 enabled = true,
                 ignoredOnTrackingProtection = false,
             ),
+            securityInfo = SecurityInfo.Insecure(),
         )
         val browserStore = BrowserStore(
             BrowserState(customTabs = listOf(customTab)),
@@ -328,7 +351,7 @@ class CustomTabBrowserToolbarMiddlewareTest {
         var securityIndicator = toolbarPageActions[0]
         assertEquals(expectedInsecureIndicator, securityIndicator)
 
-        browserStore.dispatch(UpdateSecurityInfoAction(customTabId, SecurityInfoState(true)))
+        browserStore.dispatch(UpdateSecurityInfoAction(customTabId, SecurityInfo.Secure()))
         mainLooperRule.idle()
         toolbarPageActions = toolbarStore.state.displayState.pageActionsStart
         assertEquals(1, toolbarPageActions.size)
@@ -356,7 +379,7 @@ class CustomTabBrowserToolbarMiddlewareTest {
             onClick = SiteInfoClicked,
         )
         val toolbarStore = buildStore(middleware)
-        browserStore.dispatch(UpdateSecurityInfoAction(customTabId, SecurityInfoState(true)))
+        browserStore.dispatch(UpdateSecurityInfoAction(customTabId, SecurityInfo.Secure()))
         mainLooperRule.idle()
         val toolbarPageActions = toolbarStore.state.displayState.pageActionsStart
         assertEquals(1, toolbarPageActions.size)
@@ -389,7 +412,7 @@ class CustomTabBrowserToolbarMiddlewareTest {
             onClick = SiteInfoClicked,
         )
         val toolbarStore = buildStore(middleware)
-        browserStore.dispatch(UpdateSecurityInfoAction(customTabId, SecurityInfoState(true)))
+        browserStore.dispatch(UpdateSecurityInfoAction(customTabId, SecurityInfo.Secure()))
         mainLooperRule.idle()
         var toolbarPageActions = toolbarStore.state.displayState.pageActionsStart
         assertEquals(1, toolbarPageActions.size)
@@ -429,7 +452,7 @@ class CustomTabBrowserToolbarMiddlewareTest {
             onClick = SiteInfoClicked,
         )
         val toolbarStore = buildStore(middleware)
-        browserStore.dispatch(UpdateSecurityInfoAction(customTabId, SecurityInfoState(true)))
+        browserStore.dispatch(UpdateSecurityInfoAction(customTabId, SecurityInfo.Secure()))
         mainLooperRule.idle()
         var toolbarPageActions = toolbarStore.state.displayState.pageActionsStart
         assertEquals(1, toolbarPageActions.size)

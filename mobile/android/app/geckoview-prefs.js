@@ -10,9 +10,6 @@
 // improves readability, particular for conditional blocks that exceed a single
 // screen.
 
-// Caret browsing is disabled on mobile (bug 476009)
-pref("accessibility.browsewithcaret_shortcut.enabled", false);
-
 pref("accessibility.typeaheadfind", false);
 pref("accessibility.typeaheadfind.flashBar", 1);
 pref("accessibility.typeaheadfind.linksonly", false);
@@ -111,6 +108,7 @@ pref("browser.meta_refresh_when_inactive.disabled", true);
 // The download protection UI is not implemented yet (bug 1239094).
 pref("browser.safebrowsing.downloads.enabled", false);
 
+pref("browser.safebrowsing.features.harmfuladdon.update", true);
 pref("browser.safebrowsing.features.cryptomining.update", true);
 pref("browser.safebrowsing.features.fingerprinting.update", true);
 pref("browser.safebrowsing.features.malware.update", true);

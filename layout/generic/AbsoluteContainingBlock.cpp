@@ -762,9 +762,56 @@ static nscoord OffsetToAlignedStaticPos(
   LogicalSize kidSizeInOwnWM =
       aKidSizeInAbsPosCBWM.ConvertTo(kidWM, aAbsPosCBWM);
   const LogicalAxis kidAxis = aAbsPosCBWM.ConvertAxisTo(aAbsPosCBAxis, kidWM);
+
+  // Build an Inset Modified rect from the anchor which can be used to align
+  // to the anchor-center, if AlignJustifySelf is AnchorCenter.
+  Maybe<LogicalRect> insetModifiedAnchorRect;
+  if (alignConst == StyleAlignFlags::ANCHOR_CENTER &&
+      aKidReflowInput.mAnchorPosResolutionCache) {
+    const auto* referenceData =
+        aKidReflowInput.mAnchorPosResolutionCache->mReferenceData;
+    if (referenceData) {
+      const auto* cachedData =
+          referenceData->Lookup(referenceData->mDefaultAnchorName);
+      if (cachedData && *cachedData) {
+        const auto& data = cachedData->ref();
+        if (data.mOffsetData) {
+          nsSize containerSize = aAbsPosCBSize.GetPhysicalSize(aAbsPosCBWM);
+          nsRect anchorRect(data.mOffsetData->mOrigin, data.mSize);
+          LogicalRect logicalAnchorRect(kidWM, anchorRect, containerSize);
+          if (aNonAutoAlignParams) {
+            logicalAnchorRect.Start(kidAxis, kidWM) -=
+                aNonAutoAlignParams->mCurrentStartInset;
+          }
+          insetModifiedAnchorRect = Some(logicalAnchorRect);
+        }
+      }
+    }
+  }
+
   nscoord offset = CSSAlignUtils::AlignJustifySelf(
       alignConst, kidAxis, flags, baselineAdjust, alignAreaSizeInAxis,
-      aKidReflowInput, kidSizeInOwnWM);
+      aKidReflowInput, kidSizeInOwnWM, insetModifiedAnchorRect);
+
+  // Safe alignment clamping for anchor-center.
+  // When using anchor-center with the safe keyword, or when both insets are
+  // auto (which defaults to safe behavior), clamp the element to stay within
+  // the containing block.
+  if ((!aNonAutoAlignParams || (safetyBits & StyleAlignFlags::SAFE)) &&
+      alignConst == StyleAlignFlags::ANCHOR_CENTER) {
+    const auto cbSize = aAbsPosCBSize.Size(aAbsPosCBAxis, aAbsPosCBWM);
+    const auto kidSize = aKidSizeInAbsPosCBWM.Size(aAbsPosCBAxis, aAbsPosCBWM);
+
+    if (aNonAutoAlignParams) {
+      const nscoord currentStartInset = aNonAutoAlignParams->mCurrentStartInset;
+      const nscoord finalStart = currentStartInset + offset;
+      const nscoord clampedStart =
+          CSSMinMax(finalStart, nscoord(0), cbSize - kidSize);
+      offset = clampedStart - currentStartInset;
+    } else {
+      offset = CSSMinMax(offset, nscoord(0), cbSize - kidSize);
+    }
+  }
 
   const auto rawAlignConst =
       (pcAxis == LogicalAxis::Inline)
@@ -1147,17 +1194,15 @@ void AbsoluteContainingBlock::ReflowAbsoluteFrame(
     RefPtr<ComputedStyle> nextFallbackStyle;
     while (true) {
       nextFallback = &fallbacks[aIndex];
-      if (nextFallback->IsIdentAndOrTactic()) {
-        nextFallbackStyle = aPresContext->StyleSet()->ResolvePositionTry(
-            *aKidFrame->GetContent()->AsElement(), *aKidFrame->Style(),
-            nextFallback->AsIdentAndOrTactic());
-        if (!nextFallbackStyle) {
-          // No @position-try rule for this name was found, per spec we should
-          // skip it.
-          aIndex++;
-          if (aIndex >= fallbacks.Length()) {
-            return false;
-          }
+      nextFallbackStyle = aPresContext->StyleSet()->ResolvePositionTry(
+          *aKidFrame->GetContent()->AsElement(), *aKidFrame->Style(),
+          *nextFallback);
+      if (!nextFallbackStyle) {
+        // No @position-try rule for this name was found, per spec we should
+        // skip it.
+        aIndex++;
+        if (aIndex >= fallbacks.Length()) {
+          return false;
         }
       }
       break;
@@ -1389,10 +1434,12 @@ void AbsoluteContainingBlock::ReflowAbsoluteFrame(
       // margin for us in that axis (since the thing that's aligned is the
       // margin box).  So, we clear out the margin here to avoid applying it
       // twice.
-      if (kidReflowInput.mFlags.mIOffsetsNeedCSSAlign) {
+      if (kidReflowInput.mFlags.mIOffsetsNeedCSSAlign ||
+          kidReflowInput.mFlags.mIAnchorCenter) {
         margin.IStart(outerWM) = margin.IEnd(outerWM) = 0;
       }
-      if (kidReflowInput.mFlags.mBOffsetsNeedCSSAlign) {
+      if (kidReflowInput.mFlags.mBOffsetsNeedCSSAlign ||
+          kidReflowInput.mFlags.mBAnchorCenter) {
         margin.BStart(outerWM) = margin.BEnd(outerWM) = 0;
       }
 
@@ -1445,9 +1492,10 @@ void AbsoluteContainingBlock::ReflowAbsoluteFrame(
       const auto* placeholderContainer =
           GetPlaceholderContainer(kidReflowInput.mFrame);
 
-      if (!iInsetAuto) {
+      if (!iInsetAuto || kidReflowInput.mFlags.mIAnchorCenter) {
         MOZ_ASSERT(
-            !kidReflowInput.mFlags.mIOffsetsNeedCSSAlign,
+            !kidReflowInput.mFlags.mIOffsetsNeedCSSAlign ||
+                kidReflowInput.mFlags.mIAnchorCenter,
             "Non-auto inline inset but requires CSS alignment for static "
             "position?");
         auto alignOffset = OffsetToAlignedStaticPos(
@@ -1464,8 +1512,9 @@ void AbsoluteContainingBlock::ReflowAbsoluteFrame(
             cbSize.ISize(outerWM) -
             (offsets.IStart(outerWM) + kidMarginBox.ISize(outerWM));
       }
-      if (!bInsetAuto) {
-        MOZ_ASSERT(!kidReflowInput.mFlags.mBOffsetsNeedCSSAlign,
+      if (!bInsetAuto || kidReflowInput.mFlags.mBAnchorCenter) {
+        MOZ_ASSERT(!kidReflowInput.mFlags.mBOffsetsNeedCSSAlign ||
+                       kidReflowInput.mFlags.mBAnchorCenter,
                    "Non-auto block inset but requires CSS alignment for static "
                    "position?");
         auto alignOffset = OffsetToAlignedStaticPos(
@@ -1605,13 +1654,6 @@ void AbsoluteContainingBlock::ReflowAbsoluteFrame(
     aKidFrame->UpdateOverflow();
   }();
 
-  // If author asked for `position-visibility: no-overflow` and we overflow
-  // `usedCB`, treat as "strongly hidden".
-  aKidFrame->AddOrRemoveStateBits(
-      NS_FRAME_POSITION_VISIBILITY_HIDDEN,
-      isOverflowingCB && aKidFrame->StylePosition()->mPositionVisibility ==
-                             StylePositionVisibility::NO_OVERFLOW);
-
   if (currentFallbackIndex) {
     aKidFrame->SetOrUpdateDeletableProperty(
         nsIFrame::LastSuccessfulPositionFallback(), *currentFallbackIndex,
@@ -1625,6 +1667,16 @@ void AbsoluteContainingBlock::ReflowAbsoluteFrame(
                  ToString(aKidFrame->GetRect()));
   }
 #endif
+  // If author asked for `position-visibility: no-overflow` and we overflow
+  // `usedCB`, treat as "strongly hidden". Note that for anchored frames this
+  // happens in ComputePositionVisibility. But no-overflow also applies to
+  // non-anchored frames.
+  if (!aAnchorPosResolutionCache) {
+    aKidFrame->AddOrRemoveStateBits(
+        NS_FRAME_POSITION_VISIBILITY_HIDDEN,
+        isOverflowingCB && aKidFrame->StylePosition()->mPositionVisibility &
+                               StylePositionVisibility::NO_OVERFLOW);
+  }
 
   if (aOverflowAreas) {
     aOverflowAreas->UnionWith(aKidFrame->GetOverflowAreasRelativeToParent());

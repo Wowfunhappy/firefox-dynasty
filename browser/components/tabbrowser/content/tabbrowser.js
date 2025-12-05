@@ -388,6 +388,10 @@
     /** @type {MozTabSplitViewWrapper} */
     #activeSplitView = null;
 
+    get activeSplitView() {
+      return this.#activeSplitView;
+    }
+
     /**
      * List of browsers which are currently in an active Split View.
      *
@@ -3306,6 +3310,11 @@
       panelEl.appendChild(footer);
     }
 
+    openSplitViewMenu(anchorElement) {
+      const menu = document.getElementById("split-view-menu");
+      menu.openPopup(anchorElement, "after_start");
+    }
+
     /**
      * @param {string} id
      * @param {string} color
@@ -4428,6 +4437,13 @@
           ? this.tabContainer.pinnedTabsContainer
           : this.tabContainer;
         tabContainer.insertBefore(tab, itemAfter);
+      }
+
+      if (tab.group?.collapsed) {
+        // Bug 1997096: automatically expand the group if we are adding a new
+        // tab to a collapsed group, and that tab does not have automatic focus
+        // (i.e. if the user right clicks and clicks "Open in New Tab")
+        tab.group.collapsed = false;
       }
 
       this._updateTabsAfterInsert();
@@ -7786,10 +7802,10 @@
           break;
         }
         case "TabSplitViewActivate":
-          this.#activeSplitView = aEvent.originalTarget;
+          this.#activeSplitView = aEvent.detail.splitview;
           break;
         case "TabSplitViewDeactivate":
-          if (this.#activeSplitView === aEvent.originalTarget) {
+          if (this.#activeSplitView === aEvent.detail.splitview) {
             this.#activeSplitView = null;
           }
           break;

@@ -1410,7 +1410,7 @@ static nsIFrame* GetNearestScrollableOrOverflowClipFrame(
       if (f->StyleDisplay()->mPosition == StylePositionProperty::Sticky) {
         auto* ssc = StickyScrollContainer::GetOrCreateForFrame(f);
         if (ssc && ssc->ScrollContainer()->IsMaybeAsynchronouslyScrolled()) {
-          return f;
+          return f->FirstContinuation();
         }
       }
     }
@@ -8759,9 +8759,9 @@ ScrollMetadata nsLayoutUtils::ComputeScrollMetadata(
         }
       }
 
-      metadata.SetIsSoftwareKeyboardVisible(presContext->GetKeyboardHeight() >
-                                            0);
-      metadata.SetInteractiveWidget(
+      metrics.SetIsSoftwareKeyboardVisible(presContext->GetKeyboardHeight() >
+                                           0);
+      metrics.SetInteractiveWidget(
           presContext->Document()->InteractiveWidget());
     }
 

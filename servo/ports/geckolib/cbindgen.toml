@@ -868,14 +868,21 @@ renaming_overrides_prefixing = true
   };
 """
 
+"AxisEndPoint" = """
+  inline gfx::Coord ToGfxCoord(const float* aBasis = nullptr) const;
+  gfx::Coord ToGfxCoord(const float& aBasis) const {
+    return ToGfxCoord(&aBasis);
+  };
+"""
+
 "ControlPoint" = """
   inline gfx::Point ToGfxPoint(
     const gfx::Point aStatePos, const gfx::Point aEndPoint,
-    const bool isRelativeEndPoint, const CSSSize* aBasis = nullptr) const;
+    const CSSSize* aBasis = nullptr) const;
   gfx::Point ToGfxPoint(
     const gfx::Point aStatePos, const gfx::Point aEndPoint,
-    const bool isRelativeEndPoint, const CSSSize& aBasis) const {
-    return ToGfxPoint(aStatePos, aEndPoint, isRelativeEndPoint, &aBasis);
+    const CSSSize& aBasis) const {
+    return ToGfxPoint(aStatePos, aEndPoint, &aBasis);
   }
 """
 
@@ -1077,6 +1084,7 @@ renaming_overrides_prefixing = true
  bool IsNormal() const { return *this == NORMAL; }
 
  inline bool IsBold() const;
+ inline bool PreferBold() const;
 """
 
 "FontStyle" = """

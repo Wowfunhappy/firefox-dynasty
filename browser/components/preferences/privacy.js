@@ -2801,6 +2801,116 @@ Preferences.addSetting({
   },
 });
 
+Preferences.addSetting({
+  id: "contentBlockingCategory",
+  pref: "browser.contentblocking.category",
+});
+
+Preferences.addSetting({
+  id: "etpStatusBoxGroup",
+});
+
+Preferences.addSetting({
+  id: "etpStatusItem",
+  deps: ["contentBlockingCategory"],
+  getControlConfig(config, { contentBlockingCategory }) {
+    // Display a different description and label depending on the content blocking category (= ETP level).
+    let categoryToL10nId = {
+      standard: "preferences-etp-level-standard",
+      strict: "preferences-etp-level-strict",
+      custom: "preferences-etp-level-custom",
+    };
+
+    return {
+      ...config,
+      l10nId:
+        categoryToL10nId[contentBlockingCategory.value] ??
+        "preferences-etp-level-standard",
+    };
+  },
+});
+
+Preferences.addSetting({
+  id: "etpStatusAdvancedButton",
+  onUserClick(e) {
+    e.preventDefault();
+    gotoPref("etp");
+  },
+});
+
+Preferences.addSetting({
+  id: "protectionsDashboardLink",
+});
+
+Preferences.addSetting({
+  id: "etpBannerEl",
+});
+
+Preferences.addSetting({
+  id: "etpAllowListBaselineEnabled",
+  pref: "privacy.trackingprotection.allow_list.baseline.enabled",
+  deps: ["contentBlockingCategory"],
+  visible({ contentBlockingCategory }) {
+    return contentBlockingCategory.value == "strict";
+  },
+});
+
+Preferences.addSetting({
+  id: "etpAllowListConvenienceEnabled",
+  pref: "privacy.trackingprotection.allow_list.convenience.enabled",
+});
+
+Preferences.addSetting({
+  id: "etpCustomizeButton",
+  onUserClick(e) {
+    e.preventDefault();
+    gotoPref("etpCustomize");
+  },
+});
+
+Preferences.addSetting({
+  id: "resistFingerprinting",
+  pref: "privacy.resistFingerprinting",
+});
+
+Preferences.addSetting({
+  id: "resistFingerprintingPBM",
+  pref: "privacy.resistFingerprinting.pbmode",
+});
+
+Preferences.addSetting({
+  id: "rfpWarning",
+  deps: ["resistFingerprinting", "resistFingerprintingPBM"],
+  visible({ resistFingerprinting, resistFingerprintingPBM }) {
+    return resistFingerprinting.value || resistFingerprintingPBM.value;
+  },
+});
+
+Preferences.addSetting({
+  id: "etpLevelWarning",
+  deps: ["contentBlockingCategory"],
+  visible({ contentBlockingCategory }) {
+    return contentBlockingCategory.value != "standard";
+  },
+});
+
+Preferences.addSetting({
+  id: "etpManageExceptionsButton",
+  onUserClick() {
+    let params = {
+      permissionType: "trackingprotection",
+      disableETPVisible: true,
+      prefilledHost: "",
+      hideStatusColumn: true,
+    };
+    gSubDialog.open(
+      "chrome://browser/content/preferences/dialogs/permissions.xhtml",
+      undefined,
+      params
+    );
+  },
+});
+
 function setEventListener(aId, aEventType, aCallback) {
   document
     .getElementById(aId)
@@ -3362,6 +3472,9 @@ var gPrivacyPane = {
     initSettingGroup("permissions");
     initSettingGroup("dnsOverHttps");
     initSettingGroup("dnsOverHttpsAdvanced");
+    initSettingGroup("etpStatus");
+    initSettingGroup("etpBanner");
+    initSettingGroup("etpAdvanced");
 
     /* Initialize Content Blocking */
     this.initContentBlocking();

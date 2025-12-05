@@ -15,16 +15,21 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.BiasAlignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.colorResource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -125,9 +130,21 @@ private fun SearchResults(
     modifier: Modifier = Modifier,
 ) {
     val state by store.observeAsComposableState { it }
+    val focusManager = LocalFocusManager.current
+    val listState = rememberLazyListState()
+
+    LaunchedEffect(listState) {
+        snapshotFlow { listState.isScrollInProgress }
+            .collect { isScrolling ->
+                if (isScrolling) {
+                    focusManager.clearFocus()
+                }
+            }
+    }
 
     LazyColumn(
         modifier = modifier,
+        state = listState,
     ) {
         state.groupedResults.forEach { (header, items) ->
             item {
@@ -168,6 +185,17 @@ private fun RecentSearchesContent(
     modifier: Modifier = Modifier,
 ) {
     val state by store.observeAsComposableState { it }
+    val focusManager = LocalFocusManager.current
+    val listState = rememberLazyListState()
+
+    LaunchedEffect(listState) {
+        snapshotFlow { listState.isScrollInProgress }
+            .collect { isScrolling ->
+                if (isScrolling) {
+                    focusManager.clearFocus()
+                }
+            }
+    }
 
     Column(
         modifier = modifier,
@@ -201,7 +229,9 @@ private fun RecentSearchesContent(
                )
             }
         }
-        LazyColumn {
+        LazyColumn(
+            state = listState,
+        ) {
             items(state.recentSearches.size) { index ->
                 val searchItem = state.recentSearches[index]
 
@@ -233,11 +263,11 @@ private fun EmptySearchResultsView(
 ) {
     Box(
         modifier = modifier,
-        contentAlignment = Alignment.Center,
+        contentAlignment = BiasAlignment(0f, VERTICAL_BIAS_OFFSET_IMAGE_MESSAGE),
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center,
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Image(
                 modifier = Modifier.size(77.dp),
@@ -386,3 +416,4 @@ private fun SettingsSearchScreenNoResultsPreview() {
 
 private val RECENT_SEARCHES_HEADER_TEXT_COLOR = mozilla.components.ui.colors.R.color.photonDarkGrey05
 private val RECENT_SEARCHES_CLEAR_RECENTS_TEXT_COLOR = mozilla.components.ui.colors.R.color.photonViolet70
+private const val VERTICAL_BIAS_OFFSET_IMAGE_MESSAGE = -0.33f

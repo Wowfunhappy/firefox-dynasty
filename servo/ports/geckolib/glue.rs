@@ -174,7 +174,7 @@ use style::values::generics::length::GenericAnchorSizeFunction;
 use style::values::resolved;
 use style::values::specified::align::AlignFlags;
 use style::values::specified::intersection_observer::IntersectionObserverMargin;
-use style::values::specified::position::DashedIdentAndOrTryTactic;
+use style::values::specified::position::PositionTryFallbacksItem;
 use style::values::specified::source_size_list::SourceSizeList;
 use style::values::specified::svg_path::PathCommand;
 use style::values::specified::{AbsoluteLength, NoCalcLength};
@@ -2052,6 +2052,12 @@ pub extern "C" fn Servo_StyleSet_SetAuthorStyleDisabled(
 pub extern "C" fn Servo_StyleSet_UsesFontMetrics(raw_data: &PerDocumentStyleData) -> bool {
     let doc_data = raw_data;
     doc_data.borrow().stylist.device().used_font_metrics()
+}
+
+#[no_mangle]
+pub extern "C" fn Servo_StyleSet_UsesRootFontMetrics(raw_data: &PerDocumentStyleData) -> bool {
+    let doc_data = raw_data;
+    doc_data.borrow().stylist.device().used_root_font_metrics()
 }
 
 #[no_mangle]
@@ -4446,7 +4452,7 @@ pub unsafe extern "C" fn Servo_ComputedValues_GetForPositionTry(
     raw_data: &PerDocumentStyleData,
     style: &ComputedValues,
     element: &RawGeckoElement,
-    name_and_try_tactic: &DashedIdentAndOrTryTactic,
+    fallback_item: &PositionTryFallbacksItem,
 ) -> Strong<ComputedValues> {
     let global_style_data = &*GLOBAL_STYLE_DATA;
     let guard = global_style_data.shared_lock.read();
@@ -4454,7 +4460,7 @@ pub unsafe extern "C" fn Servo_ComputedValues_GetForPositionTry(
     let element = GeckoElement(element);
     let data = raw_data.borrow();
     data.stylist
-        .resolve_position_try(style, &guards, element, name_and_try_tactic)
+        .resolve_position_try(style, &guards, element, fallback_item)
         .into()
 }
 
@@ -6940,7 +6946,7 @@ fn create_context_for_animation<'a>(
     container_size_query: ContainerSizeQuery<'a>,
 ) -> Context<'a> {
     Context::new_for_animation(
-        StyleBuilder::for_animation(
+        StyleBuilder::for_derived_style(
             per_doc_data.stylist.device(),
             Some(&per_doc_data.stylist),
             style,
@@ -7080,12 +7086,12 @@ pub extern "C" fn Servo_GetComputedKeyframeValues(
                 let guard = declarations.read_with(&guard);
                 for decl in guard.normal_declaration_iter() {
                     if let PropertyDeclaration::Custom(ref declaration) = *decl {
-                        builder.cascade(declaration, priority);
+                        builder.cascade(declaration, priority, &element);
                     }
                 }
             }
             iter.reset();
-            let _deferred = builder.build(DeferFontRelativeCustomPropertyResolution::No);
+            let _deferred = builder.build(DeferFontRelativeCustomPropertyResolution::No, &element);
             debug_assert!(
                 _deferred.is_none(),
                 "Custom property processing deferred despite specifying otherwise?"
@@ -7234,8 +7240,13 @@ pub extern "C" fn Servo_AnimationValue_Compute(
         .next()
     {
         Some((decl, imp)) if imp == Importance::Normal => {
-            let animation =
-                AnimationValue::from_declaration(decl, &mut context, style, default_values);
+            let animation = AnimationValue::from_declaration(
+                decl,
+                &mut context,
+                style,
+                default_values,
+                &element,
+            );
             animation.map_or(Strong::null(), |value| Arc::new(value).into())
         },
         _ => Strong::null(),
@@ -10774,6 +10785,8 @@ fn offset_params_from_base_params(
             mPosition: params.mPosition,
             mPositionArea: params.mPositionArea,
             mCache: params.mCache,
+            mIAnchorCenter: params.mIAnchorCenter,
+            mBAnchorCenter: params.mBAnchorCenter,
         },
     }
 }

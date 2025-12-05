@@ -208,3 +208,50 @@ preferences-doh-custom-provider-label =
 
 preferences-doh-header2 =
   .heading = DNS over HTTPS
+
+## ETP status section
+
+preferences-etp-status-header =
+    .label = Enhanced Tracking Protection
+    .description = Some sites use trackers to learn what you do online. { -brand-short-name } blocks many of them automatically to protect your privacy while you browse.
+
+preferences-etp-level-standard =
+    .label = Standard (default)
+    .description = Blocks known trackers and cookies, helping protect your privacy without affecting most websites’ functionality.
+
+preferences-etp-level-strict =
+    .label = Strict
+    .description = Stronger protection, but may cause some sites or content to break.
+
+preferences-etp-level-custom =
+    .label = Custom
+    .description = Choose which trackers and scripts to block.
+
+preferences-etp-status-advanced-button =
+    .label = Advanced settings
+
+preferences-etp-status-protections-dashboard-link =
+        .label = View your personalized Protections Dashboard
+        .description = See how many creepers { -brand-short-name } has blocked for you, including social media trackers, fingerprinters, and cryptominers.
+
+preferences-etp-header =
+    .heading = Enhanced Tracking Protection
+    .description = Aut voluptates deleniti ut. Aut et praesentium voluptas dolore nostrum occaecati.
+
+preferences-etp-advanced-settings-group =
+    .label = Advanced settings
+    .description = Trackers follow you around online to collect information about your browsing habits and interests. { -brand-short-name } blocks many of these trackers and other malicious scripts.
+
+preferences-etp-customize-button =
+    .label = Customize
+
+preferences-etp-rfp-warning-message =
+    .message = You’re using Resist Fingerprinting (RFP), which replaces some of { -brand-short-name }’s fingerprinting protection settings. This might cause some sites to break.
+
+preferences-etp-level-warning-message =
+    .heading = Heads up
+    .message = Your settings may cause some websites to not display content or work correctly. If a site seems broken, you may want to turn off tracking protection for that site to load all content.
+
+preferences-etp-manage-exceptions-button =
+    .label = Manage exceptions
+    .description = Manage websites where Enhanced Tracking Protection is disabled.
