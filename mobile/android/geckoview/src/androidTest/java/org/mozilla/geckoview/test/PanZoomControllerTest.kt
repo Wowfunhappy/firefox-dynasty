@@ -28,8 +28,8 @@ import kotlin.math.roundToInt
 @MediumTest
 class PanZoomControllerTest : BaseSessionTest() {
     private val errorEpsilon = 3.0
+    private val logTag = "PanZoomControllerTest"
     private val scrollWaitTimeout = 10000.0 // 10 seconds
-    private val LOGTAG = "PanZoomControllerTest"
 
     private fun setupDocument(documentPath: String) {
         mainSession.loadTestPath(documentPath)
@@ -822,7 +822,8 @@ class PanZoomControllerTest : BaseSessionTest() {
         )
         assertThat(
             "we waited a frame",
-                   promise.value as Boolean, equalTo(true),
+                   promise.value as Boolean,
+            equalTo(true),
         )
         mainSession.promiseAllPaintsDone()
         mainSession.flushApzRepaints()
@@ -839,11 +840,12 @@ class PanZoomControllerTest : BaseSessionTest() {
             object : GeckoSession.CompositorScrollDelegate {
                 override fun onScrollChanged(session: GeckoSession, update: ScrollPositionUpdate) {
                     var scrollY = update.scrollY
-                    Log.d(LOGTAG, "test scroll delegate onScrollChanged, scrollY = " + scrollY)
+                    Log.d(logTag, "test scroll delegate onScrollChanged, scrollY = " + scrollY)
                     wasNotified = true
                     assertThat(
                         "notified scrollY is correct",
-                            scrollY, equalTo(50.0f),
+                            scrollY,
+                        equalTo(50.0f),
                     )
                     }
             },
@@ -855,7 +857,8 @@ class PanZoomControllerTest : BaseSessionTest() {
 
         assertThat(
             "delegate was notified on registration",
-                   wasNotified, equalTo(true),
+                   wasNotified,
+            equalTo(true),
         )
 
         // Clean up

@@ -802,7 +802,8 @@ class BrowserToolbarMiddlewareTest {
             )
         }
         assertEquals(
-            "false", Events.enteredUrl.testGetValue()?.last()?.extra?.get("autocomplete"),
+            "false",
+            Events.enteredUrl.testGetValue()?.last()?.extra?.get("autocomplete"),
         )
     }
 
@@ -2814,7 +2815,7 @@ class BrowserToolbarMiddlewareTest {
         val toolbarStore = buildStore(middleware)
         mainLooperRule.idle()
 
-        val editButton = toolbarStore.state.displayState.browserActionsEnd [0] as ActionButtonRes
+        val editButton = toolbarStore.state.displayState.browserActionsEnd[0] as ActionButtonRes
         assertEquals(expectedEditBookmarkButton(Source.AddressBar), editButton)
     }
 
@@ -3150,16 +3151,13 @@ class BrowserToolbarMiddlewareTest {
                     contentDescription = StringResContentDescription(tabcounterR.string.mozac_browser_menu_new_tab),
                     onClick = AddNewTab(source),
                 ),
-
                 BrowserToolbarMenuButton(
                     icon = DrawableResIcon(iconsR.drawable.mozac_ic_private_mode_24),
                     text = StringResText(tabcounterR.string.mozac_browser_menu_new_private_tab),
                     contentDescription = StringResContentDescription(tabcounterR.string.mozac_browser_menu_new_private_tab),
                     onClick = AddNewPrivateTab(source),
                 ),
-
                 BrowserToolbarMenuDivider,
-
                 BrowserToolbarMenuButton(
                     icon = DrawableResIcon(iconsR.drawable.mozac_ic_cross_24),
                     text = StringResText(tabcounterR.string.mozac_close_tab),

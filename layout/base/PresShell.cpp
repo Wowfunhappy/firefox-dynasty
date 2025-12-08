@@ -1114,18 +1114,6 @@ void PresShell::Destroy() {
     mMVMContext = nullptr;
   }
 
-#ifdef ACCESSIBILITY
-  if (mDocAccessible) {
-#  ifdef DEBUG
-    if (a11y::logging::IsEnabled(a11y::logging::eDocDestroy))
-      a11y::logging::DocDestroy("presshell destroyed", mDocument);
-#  endif
-
-    mDocAccessible->Shutdown();
-    mDocAccessible = nullptr;
-  }
-#endif  // ACCESSIBILITY
-
   MaybeReleaseCapturingContent();
 
   EventHandler::OnPresShellDestroy(mDocument);
@@ -1183,6 +1171,18 @@ void PresShell::Destroy() {
   }
 
   mIsDestroying = true;
+
+#ifdef ACCESSIBILITY
+  if (mDocAccessible) {
+#  ifdef DEBUG
+    if (a11y::logging::IsEnabled(a11y::logging::eDocDestroy))
+      a11y::logging::DocDestroy("presshell destroyed", mDocument);
+#  endif
+
+    mDocAccessible->Shutdown();
+    mDocAccessible = nullptr;
+  }
+#endif  // ACCESSIBILITY
 
   // We can't release all the event content in
   // mCurrentEventContentStack here since there might be code on the
@@ -11693,10 +11693,7 @@ static bool CheckOverflow(nsIFrame* aPositioned,
   if (!hasFallbacks) {
     return false;
   }
-  const auto overflows = !AnchorPositioningUtils::FitsInContainingBlock(
-      AnchorPositioningUtils::ContainingBlockInfo::UseCBFrameSize(aPositioned),
-      aPositioned, &aData);
-  return hasFallbacks && overflows;
+  return !AnchorPositioningUtils::FitsInContainingBlock(aPositioned, aData);
 }
 
 // HACK(dshin, Bug 1999954): This is a workaround. While we try to lay out
@@ -12548,7 +12545,7 @@ void PresShell::PaintSynchronously() {
     return;
   }
   RefPtr widget = GetOwnWidget();
-  if (NS_WARN_IF(!widget)) {
+  if (!widget) {
     // We were asked to paint a non-root pres shell, or an already-detached
     // shell.
     return;

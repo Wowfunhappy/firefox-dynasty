@@ -6142,6 +6142,11 @@
 
 # Disable storing the session history in the parent process, and accessing it
 # over IPC from the child processes.
+# WARNING: Until the test harness can understand ship-pref default values, this pref’s
+# default must be synchronized with the values set in testing/mochitest/runtests.py and in
+# testing/web-platform/tests/tools/wptrunner/wptrunner/browsers/firefox_android.py.
+# Changing the default here without updating the test harnesses will cause mismatches
+# in automation.
 - name: fission.disableSessionHistoryInParent
   type: bool
   value: false
@@ -7736,7 +7741,7 @@
 - name: gfx.webrender.layer-compositor
   type: bool
 #if defined(XP_WIN)
-  value: true
+  value: @IS_NIGHTLY_BUILD@
 #else
   value: false
 #endif
@@ -17351,6 +17356,12 @@
 # Show the Windows Passkey settings link in about:preferences. This is
 # set to true if we find that webauthn.dll is sufficiently recent.
 - name: security.webauthn.show_ms_settings_link
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
+
+# Allow WebAuthn when a certificate override is in place
+- name: security.webauthn.allow_with_certificate_override
   type: RelaxedAtomicBool
   value: false
   mirror: always
