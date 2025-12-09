@@ -614,9 +614,12 @@ static int32_t PerformWake(Instance* instance, PtrT byteOffset, int32_t count,
   Pages pages = instance->memory(memoryIndex)->volatilePages();
 #ifdef JS_64BIT
   // Ensure that the memory size is no more than 4GiB.
-  MOZ_ASSERT(pages <= Pages(MaxMemory32PagesValidation));
+  MOZ_ASSERT(pages <=
+             Pages::fromPageCount(
+                 MaxMemoryPagesValidation(AddressType::I32, pages.pageSize()),
+                 pages.pageSize()));
 #endif
-  return uint32_t(pages.value());
+  return uint32_t(pages.pageCount());
 }
 
 /* static */ uint64_t Instance::memorySize_m64(Instance* instance,
@@ -630,9 +633,10 @@ static int32_t PerformWake(Instance* instance, PtrT byteOffset, int32_t count,
 
   Pages pages = instance->memory(memoryIndex)->volatilePages();
 #ifdef JS_64BIT
-  MOZ_ASSERT(pages <= Pages(MaxMemory64PagesValidation));
+  MOZ_ASSERT(pages <= Pages::fromPageCount(MaxMemory64StandardPagesValidation,
+                                           pages.pageSize()));
 #endif
-  return pages.value();
+  return pages.pageCount();
 }
 
 template <typename PointerT, typename CopyFuncT, typename IndexT>
@@ -1250,7 +1254,8 @@ static bool WasmDiscardCheck(Instance* instance, I byteOffset, I byteLen,
                              size_t memLen, bool shared) {
   JSContext* cx = instance->cx();
 
-  if (byteOffset % wasm::PageSize != 0 || byteLen % wasm::PageSize != 0) {
+  if (byteOffset % wasm::StandardPageSizeBytes != 0 ||
+      byteLen % wasm::StandardPageSizeBytes != 0) {
     ReportTrapError(cx, JSMSG_WASM_UNALIGNED_ACCESS);
     return false;
   }
@@ -2679,6 +2684,12 @@ bool Instance::init(JSContext* cx, const JSObjectVector& funcImports,
     MOZ_ASSERT(limit <= UINT32_MAX);
 #endif
     data.boundsCheckLimit = limit;
+#ifdef ENABLE_WASM_CUSTOM_PAGE_SIZES
+    data.boundsCheckLimit16 = limit > 1 ? limit - 1 : 0;
+    data.boundsCheckLimit32 = limit > 3 ? limit - 3 : 0;
+    data.boundsCheckLimit64 = limit > 7 ? limit - 7 : 0;
+    data.boundsCheckLimit128 = limit > 15 ? limit - 15 : 0;
+#endif
     data.isShared = md.isShared();
 
     // Add observer if our memory base may grow
@@ -4044,6 +4055,12 @@ void Instance::onMovingGrowMemory(const WasmMemoryObject* memory) {
     MOZ_ASSERT(limit <= UINT32_MAX);
 #endif
     md.boundsCheckLimit = limit;
+#ifdef ENABLE_WASM_CUSTOM_PAGE_SIZES
+    md.boundsCheckLimit16 = limit > 1 ? limit - 1 : 0;
+    md.boundsCheckLimit32 = limit > 3 ? limit - 3 : 0;
+    md.boundsCheckLimit64 = limit > 7 ? limit - 7 : 0;
+    md.boundsCheckLimit128 = limit > 15 ? limit - 15 : 0;
+#endif
 
     if (i == 0) {
       memory0Base_ = md.base;

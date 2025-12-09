@@ -2301,19 +2301,6 @@ void Document::RecordPageLoadEventTelemetry() {
 }
 
 #ifndef ANDROID
-static void AccumulateHttp3FcpGleanPref(const nsCString& http3Key,
-                                        const TimeDuration& duration) {
-  if (http3Key == "http3"_ns) {
-    glean::performance_pageload::http3_fcp_http3.AccumulateRawDuration(
-        duration);
-  } else if (http3Key == "supports_http3"_ns) {
-    glean::performance_pageload::http3_fcp_supports_http3.AccumulateRawDuration(
-        duration);
-  } else {
-    MOZ_ASSERT_UNREACHABLE("Unknown value for http3Key");
-  }
-}
-
 static void AccumulatePriorityFcpGleanPref(
     const nsCString& http3WithPriorityKey, const TimeDuration& duration) {
   if (http3WithPriorityKey == "with_priority"_ns) {
@@ -2466,15 +2453,6 @@ void Document::AccumulatePageLoadTelemetry() {
     glean::performance_pageload::fcp.AccumulateRawDuration(
         firstContentfulComposite - navigationStart);
 
-    if (!http3Key.IsEmpty()) {
-      glean::perf::http3_first_contentful_paint.Get(http3Key)
-          .AccumulateRawDuration(firstContentfulComposite - navigationStart);
-#ifndef ANDROID
-      AccumulateHttp3FcpGleanPref(http3Key,
-                                  firstContentfulComposite - navigationStart);
-#endif
-    }
-
     if (!http3WithPriorityKey.IsEmpty()) {
       glean::perf::h3p_first_contentful_paint.Get(http3WithPriorityKey)
           .AccumulateRawDuration(firstContentfulComposite - navigationStart);
@@ -2483,9 +2461,6 @@ void Document::AccumulatePageLoadTelemetry() {
           http3WithPriorityKey, firstContentfulComposite - navigationStart);
 #endif
     }
-
-    glean::perf::dns_first_contentful_paint.Get(dnsKey).AccumulateRawDuration(
-        firstContentfulComposite - navigationStart);
 
     glean::performance_pageload::fcp_responsestart.AccumulateRawDuration(
         firstContentfulComposite - responseStart);
@@ -2510,10 +2485,6 @@ void Document::AccumulatePageLoadTelemetry() {
           GetNavigationTiming()->GetLoadEventStartTimeStamp()) {
     glean::performance_pageload::load_time.AccumulateRawDuration(
         loadEventStart - navigationStart);
-    if (!http3Key.IsEmpty()) {
-      glean::perf::http3_page_load_time.Get(http3Key).AccumulateRawDuration(
-          loadEventStart - navigationStart);
-    }
 
     if (!http3WithPriorityKey.IsEmpty()) {
       glean::perf::h3p_page_load_time.Get(http3WithPriorityKey)
@@ -13732,7 +13703,8 @@ void Document::FlushAutoFocusCandidates() {
 
   nsTObserverArray<nsWeakPtr>::ForwardIterator iter(mAutoFocusCandidates);
   while (iter.HasMore()) {
-    nsCOMPtr<Element> autoFocusElement = do_QueryReferent(iter.GetNext());
+    nsWeakPtr weakElement = iter.GetNext();
+    nsCOMPtr<Element> autoFocusElement = do_QueryReferent(weakElement);
     if (!autoFocusElement) {
       continue;
     }
@@ -13741,8 +13713,9 @@ void Document::FlushAutoFocusCandidates() {
     // to run which might affect the focusability of this element.
     autoFocusElementDoc->FlushPendingNotifications(FlushType::Frames);
 
-    // Above layout flush may cause the PresShell to disappear.
-    if (!mPresShell) {
+    // Above layout flush may cause the PresShell to disappear or autofocus to
+    // complete. The iterator position might have changed.
+    if (!mPresShell || mAutoFocusFired) {
       return;
     }
 
@@ -13756,7 +13729,7 @@ void Document::FlushAutoFocusCandidates() {
     // If doc is not fully active, then remove element from candidates, and
     // continue.
     if (!autoFocusElementDoc->IsCurrentActiveDocument()) {
-      iter.Remove();
+      mAutoFocusCandidates.RemoveElement(weakElement);
       continue;
     }
 
@@ -13786,7 +13759,7 @@ void Document::FlushAutoFocusCandidates() {
       continue;
     }
 
-    iter.Remove();
+    mAutoFocusCandidates.RemoveElement(weakElement);
 
     // Let inclusiveAncestorDocuments be a list consisting of doc, plus the
     // active documents of each of doc's browsing context's ancestor browsing

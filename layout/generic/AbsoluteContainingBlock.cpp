@@ -780,9 +780,9 @@ static nscoord OffsetToAlignedStaticPos(
       aKidSizeInAbsPosCBWM.ConvertTo(kidWM, aAbsPosCBWM);
   const LogicalAxis kidAxis = aAbsPosCBWM.ConvertAxisTo(aAbsPosCBAxis, kidWM);
 
-  // Build an Inset Modified rect from the anchor which can be used to align
-  // to the anchor-center, if AlignJustifySelf is AnchorCenter.
-  Maybe<LogicalRect> insetModifiedAnchorRect;
+  // Build an Inset Modified anchor info from the anchor which can be used to
+  // align to the anchor-center, if AlignJustifySelf is AnchorCenter.
+  Maybe<CSSAlignUtils::AnchorAlignInfo> anchorAlignInfo;
   if (alignConst == StyleAlignFlags::ANCHOR_CENTER &&
       aKidReflowInput.mAnchorPosResolutionCache) {
     const auto* referenceData =
@@ -793,14 +793,23 @@ static nscoord OffsetToAlignedStaticPos(
       if (cachedData && *cachedData) {
         const auto& data = cachedData->ref();
         if (data.mOffsetData) {
-          nsSize containerSize = aAbsPosCBSize.GetPhysicalSize(aAbsPosCBWM);
-          nsRect anchorRect(data.mOffsetData->mOrigin, data.mSize);
-          LogicalRect logicalAnchorRect(kidWM, anchorRect, containerSize);
+          const nsSize containerSize =
+              aAbsPosCBSize.GetPhysicalSize(aAbsPosCBWM);
+          const nsRect anchorRect(data.mOffsetData->mOrigin, data.mSize);
+          const LogicalRect logicalAnchorRect{aAbsPosCBWM, anchorRect,
+                                              containerSize};
+          const auto axisInAbsPosCBWM =
+              kidWM.ConvertAxisTo(kidAxis, aAbsPosCBWM);
+          const auto anchorStart =
+              logicalAnchorRect.Start(axisInAbsPosCBWM, aAbsPosCBWM);
+          const auto anchorSize =
+              logicalAnchorRect.Size(axisInAbsPosCBWM, aAbsPosCBWM);
+          anchorAlignInfo =
+              Some(CSSAlignUtils::AnchorAlignInfo{anchorStart, anchorSize});
           if (aNonAutoAlignParams) {
-            logicalAnchorRect.Start(kidAxis, kidWM) -=
+            anchorAlignInfo->mAnchorStart -=
                 aNonAutoAlignParams->mCurrentStartInset;
           }
-          insetModifiedAnchorRect = Some(logicalAnchorRect);
         }
       }
     }
@@ -808,7 +817,7 @@ static nscoord OffsetToAlignedStaticPos(
 
   nscoord offset = CSSAlignUtils::AlignJustifySelf(
       alignConst, kidAxis, flags, baselineAdjust, alignAreaSizeInAxis,
-      aKidReflowInput, kidSizeInOwnWM, insetModifiedAnchorRect);
+      aKidReflowInput, kidSizeInOwnWM, anchorAlignInfo);
 
   // Safe alignment clamping for anchor-center.
   // When using anchor-center with the safe keyword, or when both insets are
@@ -858,17 +867,19 @@ static nscoord OffsetToAlignedStaticPos(
       // 1. We fit inside the IMCB, no action needed.
     } else if (kidSize <= overflowLimitRectEnd - overflowLimitRectStart) {
       // 2. We overflowed IMCB, try to cover IMCB completely, if it's not.
-      if (kidEnd < imcbEnd) {
-        offset += imcbEnd - kidEnd;
-      } else if (kidStart > imcbStart) {
-        offset -= kidStart - imcbStart;
-      } else {
+      if (kidStart <= imcbStart && kidEnd >= imcbEnd) {
         // IMCB already covered, ensure that we aren't escaping the limit rect.
         if (kidStart < overflowLimitRectStart) {
           offset += overflowLimitRectStart - kidStart;
         } else if (kidEnd > overflowLimitRectEnd) {
           offset -= kidEnd - overflowLimitRectEnd;
         }
+      } else if (kidEnd < imcbEnd && kidStart < imcbStart) {
+        // Space to end, overflowing on start - nudge to end.
+        offset += std::min(imcbStart - kidStart, imcbEnd - kidEnd);
+      } else if (kidStart > imcbStart && kidEnd > imcbEnd) {
+        // Space to start, overflowing on end - nudge to start.
+        offset -= std::min(kidEnd - imcbEnd, kidStart - imcbStart);
       }
     } else {
       // 3. We'll overflow the limit rect. Start align the subject int overflow
@@ -961,53 +972,53 @@ void AbsoluteContainingBlock::ResolveAutoMarginsAfterLayout(
     ReflowInput& aKidReflowInput, const LogicalSize& aCBSize,
     const LogicalSize& aKidSize, LogicalMargin& aMargin,
     const LogicalMargin& aOffsets) {
-  MOZ_ASSERT(aKidReflowInput.mFlags.mDeferAutoMarginComputation);
-
-  WritingMode wm = aKidReflowInput.GetWritingMode();
   WritingMode outerWM = aKidReflowInput.mParentReflowInput->GetWritingMode();
-
-  const LogicalSize cbSizeInWM = aCBSize.ConvertTo(wm, outerWM);
-  const LogicalSize kidSizeInWM = aKidSize.ConvertTo(wm, outerWM);
-  LogicalMargin marginInWM = aMargin.ConvertTo(wm, outerWM);
-  LogicalMargin offsetsInWM = aOffsets.ConvertTo(wm, outerWM);
-
-  // No need to substract border sizes because aKidSize has it included
-  // already. Also, if any offset is auto, the auto margin resolves to zero.
-  // https://drafts.csswg.org/css-position-3/#abspos-margins
-  const bool autoOffset = offsetsInWM.BEnd(wm) == NS_AUTOOFFSET ||
-                          offsetsInWM.BStart(wm) == NS_AUTOOFFSET;
-  nscoord availMarginSpace =
-      autoOffset ? 0
-                 : cbSizeInWM.BSize(wm) - kidSizeInWM.BSize(wm) -
-                       offsetsInWM.BStartEnd(wm) - marginInWM.BStartEnd(wm);
-
   const auto& styleMargin = aKidReflowInput.mStyleMargin;
   const auto anchorResolutionParams =
       AnchorPosResolutionParams::From(&aKidReflowInput);
-  if (wm.IsOrthogonalTo(outerWM)) {
-    ReflowInput::ComputeAbsPosInlineAutoMargin(
-        availMarginSpace, outerWM,
-        styleMargin
-            ->GetMargin(LogicalSide::IStart, outerWM, anchorResolutionParams)
-            ->IsAuto(),
-        styleMargin
-            ->GetMargin(LogicalSide::IEnd, outerWM, anchorResolutionParams)
-            ->IsAuto(),
-        aMargin);
-  } else {
-    ReflowInput::ComputeAbsPosBlockAutoMargin(
-        availMarginSpace, outerWM,
-        styleMargin
-            ->GetMargin(LogicalSide::BStart, outerWM, anchorResolutionParams)
-            ->IsAuto(),
-        styleMargin
-            ->GetMargin(LogicalSide::BEnd, outerWM, anchorResolutionParams)
-            ->IsAuto(),
-        aMargin);
-  }
 
+  auto ResolveMarginsInAxis = [&](LogicalAxis aAxis) {
+    const auto startSide = MakeLogicalSide(aAxis, LogicalEdge::Start);
+    const auto endSide = MakeLogicalSide(aAxis, LogicalEdge::End);
+
+    // No need to substract border sizes because aKidSize has it included
+    // already. Also, if any offset is auto, the auto margin resolves to zero.
+    // https://drafts.csswg.org/css-position-3/#abspos-margins
+    const bool autoOffset =
+        aOffsets.Side(startSide, outerWM) == NS_AUTOOFFSET ||
+        aOffsets.Side(endSide, outerWM) == NS_AUTOOFFSET;
+
+    nscoord availMarginSpace;
+    if (autoOffset) {
+      availMarginSpace = 0;
+    } else {
+      const nscoord stretchFitSize = std::max(
+          0, aCBSize.Size(aAxis, outerWM) - aOffsets.StartEnd(aAxis, outerWM) -
+                 aMargin.StartEnd(aAxis, outerWM));
+      availMarginSpace = stretchFitSize - aKidSize.Size(aAxis, outerWM);
+    }
+
+    const bool startSideMarginIsAuto =
+        styleMargin->GetMargin(startSide, outerWM, anchorResolutionParams)
+            ->IsAuto();
+    const bool endSideMarginIsAuto =
+        styleMargin->GetMargin(endSide, outerWM, anchorResolutionParams)
+            ->IsAuto();
+
+    if (aAxis == LogicalAxis::Inline) {
+      ReflowInput::ComputeAbsPosInlineAutoMargin(availMarginSpace, outerWM,
+                                                 startSideMarginIsAuto,
+                                                 endSideMarginIsAuto, aMargin);
+    } else {
+      ReflowInput::ComputeAbsPosBlockAutoMargin(availMarginSpace, outerWM,
+                                                startSideMarginIsAuto,
+                                                endSideMarginIsAuto, aMargin);
+    }
+  };
+
+  ResolveMarginsInAxis(LogicalAxis::Inline);
+  ResolveMarginsInAxis(LogicalAxis::Block);
   aKidReflowInput.SetComputedLogicalMargin(outerWM, aMargin);
-  aKidReflowInput.SetComputedLogicalOffsets(outerWM, aOffsets);
 
   nsMargin* propValue =
       aKidReflowInput.mFrame->GetProperty(nsIFrame::UsedMarginProperty());
@@ -1209,27 +1220,13 @@ void AbsoluteContainingBlock::ReflowAbsoluteFrame(
                                      aAnchorPosResolutionCache,
                                      firstTryIndex == currentFallbackIndex);
     auto cb = [&]() {
-      if (isGrid) {
-        // TODO(emilio): how does position-area interact with grid?
-        const auto border = aDelegatingFrame->GetUsedBorder();
-        const nsPoint borderShift{border.left, border.top};
-        // Shift in by border of the overall grid container.
-        return ContainingBlockRect{nsGridContainerFrame::GridItemCB(aKidFrame) +
-                                   borderShift};
-      }
-
-      auto positionArea = aKidFrame->StylePosition()->mPositionArea;
-      if (currentFallback && currentFallback->IsPositionArea()) {
-        MOZ_ASSERT(currentFallback->IsPositionArea());
-        positionArea = currentFallback->AsPositionArea();
-      }
-
       if (aAnchorPosResolutionCache) {
         const auto defaultAnchorInfo =
             AnchorPositioningUtils::ResolveAnchorPosRect(
                 aKidFrame, aDelegatingFrame, nullptr, false,
                 aAnchorPosResolutionCache);
         if (defaultAnchorInfo) {
+          auto positionArea = aKidFrame->StylePosition()->mPositionArea;
           if (!positionArea.IsNone()) {
             // Offset should be up to, but not including the containing block's
             // scroll offset.
@@ -1258,6 +1255,16 @@ void AbsoluteContainingBlock::ReflowAbsoluteFrame(
           }
           return ContainingBlockRect{aOriginalScrollableContainingBlockRect};
         }
+      }
+
+      if (isGrid) {
+        // TODO(emilio, bug 2004596): This adjustment is supposed to also
+        // restrict the position-area rect above...
+        const auto border = aDelegatingFrame->GetUsedBorder();
+        const nsPoint borderShift{border.left, border.top};
+        // Shift in by border of the overall grid container.
+        return ContainingBlockRect{nsGridContainerFrame::GridItemCB(aKidFrame) +
+                                   borderShift};
       }
 
       if (ViewportFrame* viewport = do_QueryFrame(aDelegatingFrame)) {
@@ -1415,10 +1422,8 @@ void AbsoluteContainingBlock::ReflowAbsoluteFrame(
       ResolveSizeDependentOffsets(kidReflowInput, cbSize, kidSize, margin,
                                   cb.ResolvedPositionArea(), offsets);
 
-      if (kidReflowInput.mFlags.mDeferAutoMarginComputation) {
-        ResolveAutoMarginsAfterLayout(kidReflowInput, cbSize, kidSize, margin,
-                                      offsets);
-      }
+      ResolveAutoMarginsAfterLayout(kidReflowInput, cbSize, kidSize, margin,
+                                    offsets);
 
       // If the inset is constrained as non-auto, we may have a child that does
       // not fill out the inset-reduced containing block. In this case, we need

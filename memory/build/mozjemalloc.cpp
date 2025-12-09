@@ -175,7 +175,7 @@ using namespace mozilla;
 // while another thread accesses it.  This means that clearing this value or
 // otherwise dropping a reference to it must not be done while holding an
 // arena's lock.
-MOZ_CONSTINIT static RefPtr<MallocProfilerCallbacks> sCallbacks;
+constinit static RefPtr<MallocProfilerCallbacks> sCallbacks;
 #endif
 
 // ***************************************************************************

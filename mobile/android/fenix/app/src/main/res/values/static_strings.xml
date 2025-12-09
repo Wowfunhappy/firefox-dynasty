@@ -89,10 +89,6 @@
     <string name="preferences_debug_settings_composable_toolbar" translatable="false">Enable Composable Toolbar</string>
     <!-- Label for enabling the redesigned toolbar options -->
     <string name="preferences_debug_settings_toolbar_redesign" translatable="false">Enable Redesigned Toolbar Options</string>
-    <!-- Label for enabling the redesigned simple toolbar -->
-    <string name="preferences_debug_settings_simple_toolbar_customization" tools:ignore="UnusedResources" moz:removedIn="145">Enable simple toolbar customization</string>
-    <!-- Label for enabling the redesigned expanded toolbar -->
-    <string name="preferences_debug_settings_expanded_toolbar_customization" tools:ignore="UnusedResources" moz:removedIn="145">Enable expanded toolbar customization</string>
     <!-- Label for enabling the redesigned toolbar -->
     <string name="preferences_debug_settings_toolbar_customization">Enable Toolbar Customization</string>
     <!-- Label for a longer description of the redesigned toolbar depending on the composable toolbar feature -->
@@ -184,6 +180,8 @@
     <string name="profiler_error">Something went wrong with the profiler</string>
     <string name="profiler_io_error">Something went wrong contacting the Profiler server.</string>
     <string name="profiler_uploaded_url_to_clipboard">URL copied to clipboard successfully</string>
+    <string name="profiler_service_notification_channel_name" translatable="false">App Profiling Status</string>
+    <string name="profiler_service_description" translatable="false">App Profiling Status</string>
 
     <!-- Debug drawer "contextual feature recommendation" (CFR) tools -->
     <!-- The description of the reset CFR section in CFR Tools -->

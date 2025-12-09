@@ -60,7 +60,7 @@ void ComputeAnchorCenterUsage(
   }
 
   const auto* stylePos = aFrame->StylePosition();
-  WritingMode wm = aFrame->GetWritingMode();
+  const auto parentWM = parent->GetWritingMode();
 
   auto checkAxis = [&](LogicalAxis aAxis) {
     StyleAlignFlags alignment =
@@ -69,12 +69,10 @@ void ComputeAnchorCenterUsage(
         StyleAlignFlags::ANCHOR_CENTER) {
       return false;
     }
-    LogicalSide startSide = aAxis == LogicalAxis::Inline ? LogicalSide::IStart
-                                                         : LogicalSide::BStart;
-    LogicalSide endSide =
-        aAxis == LogicalAxis::Inline ? LogicalSide::IEnd : LogicalSide::BEnd;
-    return stylePos->mOffset.Get(wm.PhysicalSide(startSide)).IsAuto() ||
-           stylePos->mOffset.Get(wm.PhysicalSide(endSide)).IsAuto();
+    LogicalSide startSide = MakeLogicalSide(aAxis, LogicalEdge::Start);
+    LogicalSide endSide = MakeLogicalSide(aAxis, LogicalEdge::End);
+    return stylePos->mOffset.Get(parentWM.PhysicalSide(startSide)).IsAuto() ||
+           stylePos->mOffset.Get(parentWM.PhysicalSide(endSide)).IsAuto();
   };
 
   aInlineUsesAnchorCenter = checkAxis(LogicalAxis::Inline);
@@ -1861,7 +1859,7 @@ void ReflowInput::InitAbsoluteConstraints(const ReflowInput* aCBReflowInput,
     AutoMaybeDisableFontInflation an(mFrame);
 
     auto size = mFrame->ComputeSize(
-        mRenderingContext, wm, aCBSize.ConvertTo(wm, cbwm),
+        *this, wm, aCBSize.ConvertTo(wm, cbwm),
         aCBSize.ConvertTo(wm, cbwm).ISize(wm),  // XXX or AvailableISize()?
         ComputedLogicalMargin(wm).Size(wm) +
             ComputedLogicalOffsets(wm).Size(wm),
@@ -1876,42 +1874,16 @@ void ReflowInput::InitAbsoluteConstraints(const ReflowInput* aCBReflowInput,
         size.mAspectRatioUsage == nsIFrame::AspectRatioUsage::ToComputeBSize;
   }
 
-  // XXX Now that we have ComputeSize, can we condense many of the
-  // branches off of widthIsAuto?
-
   LogicalMargin margin = ComputedLogicalMargin(cbwm);
   const LogicalMargin borderPadding = ComputedLogicalBorderPadding(cbwm);
+  const LogicalSize computedSize = mComputedSize.ConvertTo(cbwm, wm);
 
   bool iSizeIsAuto =
       mStylePosition->ISize(cbwm, anchorResolutionParams.mBaseParams)->IsAuto();
-  bool marginIStartIsAuto = false;
-  bool marginIEndIsAuto = false;
-  bool marginBStartIsAuto = false;
-  bool marginBEndIsAuto = false;
-  const bool hasIntrinsicKeywordForBSize =
-      mFrame->HasIntrinsicKeywordForBSize();
-
-  // Unconstrained size implies fit-content sizing, so auto margin(s) cannot
-  // be resolved at this time, except for cases where any inset is auto (Which
-  // will take up available space and leave auto margins to be zero).
-  const LogicalSize computedSize = mComputedSize.ConvertTo(cbwm, wm);
-  const bool nonZeroAutoMarginOnUnconstrainedSize =
-      isOrthogonal ? computedSize.ISize(cbwm) == NS_UNCONSTRAINEDSIZE &&
-                         !(iStartIsAuto || iEndIsAuto)
-                   : computedSize.BSize(cbwm) == NS_UNCONSTRAINEDSIZE &&
-                         !(bStartIsAuto || bEndIsAuto);
-  // TODO(dshin, Bug 1985982): We should defer _all_ auto margin computation for
-  // simplicity.
-  mFlags.mDeferAutoMarginComputation =
-      nonZeroAutoMarginOnUnconstrainedSize || hasIntrinsicKeywordForBSize;
   if (iStartIsAuto) {
-    // We know 'right' is not 'auto' anymore thanks to the hypothetical
-    // box code above.
-    // Solve for 'left'.
+    // We know 'inset-inline-end' is not 'auto' anymore thanks to the
+    // hypothetical box code above. Solve for 'inset-inline-start'.
     if (iSizeIsAuto) {
-      // XXXldb This, and the corresponding code in
-      // AbsoluteContainingBlock.cpp, could probably go away now that
-      // we always compute widths.
       offsets.IStart(cbwm) = NS_AUTOOFFSET;
     } else {
       offsets.IStart(cbwm) = aCBSize.ISize(cbwm) - offsets.IEnd(cbwm) -
@@ -1919,48 +1891,22 @@ void ReflowInput::InitAbsoluteConstraints(const ReflowInput* aCBReflowInput,
                              borderPadding.IStartEnd(cbwm);
     }
   } else if (iEndIsAuto) {
-    // We know 'left' is not 'auto' anymore thanks to the hypothetical
-    // box code above.
-    // Solve for 'right'.
+    // We know 'inset-inline-start' is not 'auto' anymore thanks to the
+    // hypothetical box code above. Solve for 'inset-inline-end'.
     if (iSizeIsAuto) {
-      // XXXldb This, and the corresponding code in
-      // AbsoluteContainingBlock.cpp, could probably go away now that
-      // we always compute widths.
       offsets.IEnd(cbwm) = NS_AUTOOFFSET;
     } else {
       offsets.IEnd(cbwm) = aCBSize.ISize(cbwm) - offsets.IStart(cbwm) -
                            computedSize.ISize(cbwm) - margin.IStartEnd(cbwm) -
                            borderPadding.IStartEnd(cbwm);
     }
-  } else if (!mFlags.mDeferAutoMarginComputation || !isOrthogonal) {
-    // Neither 'inline-start' nor 'inline-end' is 'auto'.
-    // The inline-size might not fill all the available space (even though we
-    // didn't shrink-wrap) in case:
-    //  * insets are explicitly set and the child frame is not stretched
-    //  * inline-size was specified
-    //  * we're dealing with a replaced element
-    //  * width was constrained by min- or max-inline-size.
-
-    nscoord availMarginSpace =
-        aCBSize.ISize(cbwm) - offsets.IStartEnd(cbwm) - margin.IStartEnd(cbwm) -
-        borderPadding.IStartEnd(cbwm) - computedSize.ISize(cbwm);
-    marginIStartIsAuto = mStyleMargin
-                             ->GetMargin(LogicalSide::IStart, cbwm,
-                                         anchorResolutionParams.mBaseParams)
-                             ->IsAuto();
-    marginIEndIsAuto = mStyleMargin
-                           ->GetMargin(LogicalSide::IEnd, cbwm,
-                                       anchorResolutionParams.mBaseParams)
-                           ->IsAuto();
-    ComputeAbsPosInlineAutoMargin(availMarginSpace, cbwm, marginIStartIsAuto,
-                                  marginIEndIsAuto, margin);
   }
 
   bool bSizeIsAuto =
       mStylePosition->BSize(cbwm, anchorResolutionParams.mBaseParams)
           ->BehavesLikeInitialValueOnBlockAxis();
   if (bStartIsAuto) {
-    // solve for block-start
+    // Solve for 'inset-block-start'.
     if (bSizeIsAuto) {
       offsets.BStart(cbwm) = NS_AUTOOFFSET;
     } else {
@@ -1969,7 +1915,7 @@ void ReflowInput::InitAbsoluteConstraints(const ReflowInput* aCBReflowInput,
                              computedSize.BSize(cbwm) - offsets.BEnd(cbwm);
     }
   } else if (bEndIsAuto) {
-    // solve for block-end
+    // Solve for 'inset-block-end'.
     if (bSizeIsAuto) {
       offsets.BEnd(cbwm) = NS_AUTOOFFSET;
     } else {
@@ -1977,49 +1923,9 @@ void ReflowInput::InitAbsoluteConstraints(const ReflowInput* aCBReflowInput,
                            borderPadding.BStartEnd(cbwm) -
                            computedSize.BSize(cbwm) - offsets.BStart(cbwm);
     }
-  } else if (!mFlags.mDeferAutoMarginComputation || isOrthogonal) {
-    // Neither block-start nor -end is 'auto'.
-    nscoord autoBSize = aCBSize.BSize(cbwm) - margin.BStartEnd(cbwm) -
-                        borderPadding.BStartEnd(cbwm) - offsets.BStartEnd(cbwm);
-    autoBSize = std::max(autoBSize, 0);
-    // FIXME: Bug 1602669: if |autoBSize| happens to be numerically equal to
-    // NS_UNCONSTRAINEDSIZE, we may get some unexpected behavior. We need a
-    // better way to distinguish between unconstrained size and resolved size.
-    NS_WARNING_ASSERTION(autoBSize != NS_UNCONSTRAINEDSIZE,
-                         "Unexpected size from block-start and block-end");
-
-    // The block-size might not fill all the available space in case:
-    //  * insets are explicitly set and the child frame is not stretched
-    //  * bsize was specified
-    //  * we're dealing with a replaced element
-    //  * bsize was constrained by min- or max-bsize.
-    nscoord availMarginSpace = autoBSize - computedSize.BSize(cbwm);
-    marginBStartIsAuto = mStyleMargin
-                             ->GetMargin(LogicalSide::BStart, cbwm,
-                                         anchorResolutionParams.mBaseParams)
-                             ->IsAuto();
-    marginBEndIsAuto = mStyleMargin
-                           ->GetMargin(LogicalSide::BEnd, cbwm,
-                                       anchorResolutionParams.mBaseParams)
-                           ->IsAuto();
-
-    ComputeAbsPosBlockAutoMargin(availMarginSpace, cbwm, marginBStartIsAuto,
-                                 marginBEndIsAuto, margin);
   }
 
   SetComputedLogicalOffsets(cbwm, offsets);
-  SetComputedLogicalMargin(cbwm, margin);
-
-  // If we have auto margins, update our UsedMarginProperty. The property
-  // will have already been created by InitOffsets if it is needed.
-  if (marginIStartIsAuto || marginIEndIsAuto || marginBStartIsAuto ||
-      marginBEndIsAuto) {
-    nsMargin* propValue = mFrame->GetProperty(nsIFrame::UsedMarginProperty());
-    MOZ_ASSERT(propValue,
-               "UsedMarginProperty should have been created "
-               "by InitOffsets.");
-    *propValue = margin.GetPhysicalMargin(cbwm);
-  }
 }
 
 // This will not be converted to abstract coordinates because it's only
@@ -2509,11 +2415,10 @@ void ReflowInput::InitConstraints(
         }
       }
 
-      auto size =
-          mFrame->ComputeSize(mRenderingContext, wm, cbSize, AvailableISize(),
-                              ComputedLogicalMargin(wm).Size(wm),
-                              ComputedLogicalBorderPadding(wm).Size(wm),
-                              mStyleSizeOverrides, mComputeSizeFlags);
+      auto size = mFrame->ComputeSize(*this, wm, cbSize, AvailableISize(),
+                                      ComputedLogicalMargin(wm).Size(wm),
+                                      ComputedLogicalBorderPadding(wm).Size(wm),
+                                      mStyleSizeOverrides, mComputeSizeFlags);
 
       mComputedSize = size.mLogicalSize;
       NS_ASSERTION(ComputedISize() >= 0, "Bogus inline-size");

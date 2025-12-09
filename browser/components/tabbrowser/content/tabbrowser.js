@@ -3238,7 +3238,7 @@
         return null;
       }
 
-      this.dispatchEvent(
+      this.tabContainer.dispatchEvent(
         new CustomEvent("SplitViewCreated", {
           bubbles: true,
         })
@@ -3247,7 +3247,7 @@
     }
 
     /**
-     * Removes a tab from a split view wrapper. This also removes the split view wrapper component
+     * Removes all tabs from a split view wrapper. This also removes the split view wrapper component
      *
      * @param {MozTabSplitViewWrapper} [splitView]
      *   The split view to remove.
@@ -3265,6 +3265,7 @@
           )
         );
       }
+
       splitview.remove();
     }
 
@@ -3302,12 +3303,14 @@
      */
     #insertSplitViewFooter(tab) {
       const panelEl = document.getElementById(tab.linkedPanel);
-      if (panelEl.querySelector("split-view-footer")) {
+      if (panelEl?.querySelector("split-view-footer")) {
         return;
       }
-      const footer = document.createXULElement("split-view-footer");
-      footer.setTab(tab);
-      panelEl.appendChild(footer);
+      if (panelEl) {
+        const footer = document.createXULElement("split-view-footer");
+        footer.setTab(tab);
+        panelEl.appendChild(footer);
+      }
     }
 
     openSplitViewMenu(anchorElement) {
@@ -9738,10 +9741,12 @@ var TabContextMenu = {
     let contextEditNote = document.getElementById("context_editNote");
     if (gBrowser._tabNotesEnabled) {
       let noteURL = this.contextTab.canonicalUrl;
-      let hasNote = this.TabNotes.has(noteURL);
       contextAddNote.disabled = !noteURL;
-      contextAddNote.hidden = hasNote;
-      contextEditNote.hidden = !hasNote;
+
+      this.TabNotes.has(noteURL).then(hasNote => {
+        contextAddNote.hidden = hasNote;
+        contextEditNote.hidden = !hasNote;
+      });
     } else {
       contextAddNote.hidden = true;
       contextEditNote.hidden = true;
@@ -10261,7 +10266,7 @@ var TabContextMenu = {
     let newTab = null;
     if (this.contextTabs.length < 2) {
       // Open new tab to split with context tab
-      newTab = gBrowser.addTrustedTab(BROWSER_NEW_TAB_URL);
+      newTab = gBrowser.addTrustedTab("about:opentabs");
       tabsToAdd = [this.contextTabs[0], newTab];
     }
 

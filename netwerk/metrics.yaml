@@ -11,27 +11,6 @@ $tags:
   - 'Core :: Networking'
 
 networking:
-  speculative_connect_outcome:
-    type: labeled_counter
-    description: >
-      Counts the occurrence of each outcome of a speculative connection
-    bugs:
-      - https://bugzilla.mozilla.org/show_bug.cgi?id=909865
-    data_reviews:
-      - https://bugzilla.mozilla.org/show_bug.cgi?id=909865
-    data_sensitivity:
-      - technical
-    notification_emails:
-      - necko@mozilla.com
-      - acreskey@mozilla.com
-    expires: never
-    labels:
-      - successful
-      - aborted_socket_limit
-      - aborted_socket_fail
-      - aborted_https_not_enabled
-    telemetry_mirror: NETWORKING_SPECULATIVE_CONNECT_OUTCOME
-
   cookie_timestamp_fixed_count:
     type: labeled_counter
     description: >
@@ -966,6 +945,26 @@ networking:
     expires: never
     telemetry_mirror: HTTP_UPLOAD_THROUGHPUT_MBPS_HTTP_2_100
 
+  http_3_upload_throughput_1_10:
+    type: custom_distribution
+    unit: mbps
+    range_min: 0
+    range_max: 3000
+    bucket_count: 100
+    histogram_type: exponential
+    description: >
+     The upload throughput for http/3 request size between 1MB and 10MB. Measured in megabits per second, Mbps.
+    bugs:
+      - https://bugzilla.mozilla.org/show_bug.cgi?id=2003794
+    data_reviews:
+      - https://bugzilla.mozilla.org/show_bug.cgi?id=2003794
+    data_sensitivity:
+      - technical
+    notification_emails:
+      - necko@mozilla.com
+      - omansfeld@mozilla.com
+    expires: 157
+
   http_3_upload_throughput_10_50:
     type: custom_distribution
     unit: mbps
@@ -1093,6 +1092,26 @@ networking:
       - necko@mozilla.com
       - minden@mozilla.com
     expires: never
+
+  http_3_spurious_congestion_event_ratio:
+    type: custom_distribution
+    unit: integer
+    range_min: 0
+    range_max: 10000
+    bucket_count: 100
+    histogram_type: linear
+    description: >
+      HTTP3: spurious congestion event to loss induced congestion event ratio (10000 scaling factor).
+    bugs:
+      - https://bugzilla.mozilla.org/show_bug.cgi?id=1992148
+    data_reviews:
+      - https://bugzilla.mozilla.org/show_bug.cgi?id=1992148
+    data_sensitivity:
+      - technical
+    notification_emails:
+      - necko@mozilla.com
+      - omansfeld@mozilla.com
+    expires: 157
 
   http_3_connection_close_reason:
     type: labeled_counter

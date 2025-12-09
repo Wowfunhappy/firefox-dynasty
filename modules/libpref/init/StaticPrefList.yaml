@@ -9057,6 +9057,13 @@
   mirror: always
   set_spidermonkey_pref: startup
 
+ # Experimental support for Iterator.join in JavaScript.
+- name: javascript.options.experimental.iterator_join
+  type: bool
+  value: false
+  mirror: always
+  set_spidermonkey_pref: startup
+
 #endif  // NIGHTLY_BUILD
 
 # Whether to Baseline-compile self-hosted functions the first time they are
@@ -9236,6 +9243,12 @@
 #endif
     mirror: always
     set_spidermonkey_pref: always
+
+-   name: javascript.options.wasm_custom_page_sizes
+    type: bool
+    value: false
+    mirror: always
+    set_spidermonkey_pref: startup
 
 #if defined(ENABLE_WASM_SIMD)
 #if defined(JS_CODEGEN_X64) || defined(JS_CODEGEN_X86)

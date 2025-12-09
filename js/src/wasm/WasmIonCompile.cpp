@@ -1544,7 +1544,8 @@ class FunctionCompiler {
   // by both explicit bounds checking and bounds check elimination.
   void foldConstantPointer(MemoryAccessDesc* access, MDefinition** base) {
     uint64_t offsetGuardLimit = GetMaxOffsetGuardLimit(
-        codeMeta().hugeMemoryEnabled(access->memoryIndex()));
+        codeMeta().hugeMemoryEnabled(access->memoryIndex()),
+        codeMeta().memories[access->memoryIndex()].pageSize());
 
     if ((*base)->isConstant()) {
       uint64_t basePtr = 0;
@@ -1569,7 +1570,8 @@ class FunctionCompiler {
   void maybeComputeEffectiveAddress(MemoryAccessDesc* access,
                                     MDefinition** base, bool mustAddOffset) {
     uint64_t offsetGuardLimit = GetMaxOffsetGuardLimit(
-        codeMeta().hugeMemoryEnabled(access->memoryIndex()));
+        codeMeta().hugeMemoryEnabled(access->memoryIndex()),
+        codeMeta().memories[access->memoryIndex()].pageSize());
 
     if (access->offset64() >= offsetGuardLimit ||
         access->offset64() > UINT32_MAX || mustAddOffset ||
@@ -1579,6 +1581,8 @@ class FunctionCompiler {
   }
 
   MWasmLoadInstance* needBoundsCheck(uint32_t memoryIndex) {
+    MOZ_RELEASE_ASSERT(codeMeta().memories[memoryIndex].pageSize() ==
+                       PageSize::Standard);
 #ifdef JS_64BIT
     // For 32-bit base pointers:
     //
@@ -1592,7 +1596,8 @@ class FunctionCompiler {
     bool mem32LimitIs64Bits =
         isMem32(memoryIndex) &&
         !codeMeta().memories[memoryIndex].boundsCheckLimitIsAlways32Bits() &&
-        MaxMemoryBytes(codeMeta().memories[memoryIndex].addressType()) >=
+        MaxMemoryBytes(codeMeta().memories[memoryIndex].addressType(),
+                       codeMeta().memories[memoryIndex].pageSize()) >=
             0x100000000;
 #else
     // On 32-bit platforms we have no more than 2GB memory and the limit for a

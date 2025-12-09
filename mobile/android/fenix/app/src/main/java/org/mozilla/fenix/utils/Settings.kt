@@ -45,8 +45,8 @@ import org.mozilla.fenix.R
 import org.mozilla.fenix.autofill.address.RegionAddressFeatureGate
 import org.mozilla.fenix.browser.browsingmode.BrowsingMode
 import org.mozilla.fenix.components.settings.counterPreference
-import org.mozilla.fenix.components.settings.featureFlagPreference
-import org.mozilla.fenix.components.settings.lazyFeatureFlagPreference
+import org.mozilla.fenix.components.settings.featureFlagBooleanPreference
+import org.mozilla.fenix.components.settings.lazyFeatureFlagBooleanPreference
 import org.mozilla.fenix.components.toolbar.ToolbarPosition
 import org.mozilla.fenix.debugsettings.addresses.EmptyAddressesDebugRegionRepository
 import org.mozilla.fenix.debugsettings.addresses.SharedPrefsAddressesDebugRegionRepository
@@ -183,28 +183,26 @@ class Settings(
     /**
      * Indicates if the recent saved bookmarks functionality should be visible.
      */
-    var showBookmarksHomeFeature by lazyFeatureFlagPreference(
+    var showBookmarksHomeFeature by booleanPreference(
         appContext.getPreferenceKey(R.string.pref_key_customization_bookmarks),
         default = { homescreenSections[HomeScreenSection.BOOKMARKS] == true },
-        featureFlag = true,
     )
 
     /**
      * Indicates if the recent tabs functionality should be visible.
      */
-    var showRecentTabsFeature by lazyFeatureFlagPreference(
+    var showRecentTabsFeature by booleanPreference(
         appContext.getPreferenceKey(R.string.pref_key_recent_tabs),
-        featureFlag = true,
         default = { homescreenSections[HomeScreenSection.JUMP_BACK_IN] == true },
     )
 
     /**
      * Indicates if the stories homescreen section should be shown.
      */
-    var showPocketRecommendationsFeature by lazyFeatureFlagPreference(
+    var showPocketRecommendationsFeature by lazyFeatureFlagBooleanPreference(
         appContext.getPreferenceKey(R.string.pref_key_pocket_homescreen_recommendations),
         featureFlag = ContentRecommendationsFeatureHelper.isContentRecommendationsFeatureEnabled(appContext),
-        default = { homescreenSections[HomeScreenSection.POCKET] == true },
+        defaultValue = { homescreenSections[HomeScreenSection.POCKET] == true },
     )
 
     /**
@@ -240,19 +238,18 @@ class Settings(
     /**
      * Indicates if the Pocket recommendations homescreen section should also show sponsored stories.
      */
-    val showPocketSponsoredStories by lazyFeatureFlagPreference(
+    val showPocketSponsoredStories by lazyFeatureFlagBooleanPreference(
         key = appContext.getPreferenceKey(R.string.pref_key_pocket_sponsored_stories),
-        default = { homescreenSections[HomeScreenSection.POCKET_SPONSORED_STORIES] == true },
+        defaultValue = { homescreenSections[HomeScreenSection.POCKET_SPONSORED_STORIES] == true },
         featureFlag = ContentRecommendationsFeatureHelper.isPocketSponsoredStoriesFeatureEnabled(appContext),
     )
 
     /**
      * Indicates whether or not the "Recently Visited" section should be shown on the home screen.
      */
-    var historyMetadataUIFeature by lazyFeatureFlagPreference(
+    var historyMetadataUIFeature by booleanPreference(
         appContext.getPreferenceKey(R.string.pref_key_history_metadata_feature),
         default = { homescreenSections[HomeScreenSection.RECENT_EXPLORATIONS] == true },
-        featureFlag = true,
     )
 
     /**
@@ -276,18 +273,16 @@ class Settings(
     /**
      * Indicates whether or not the homepage header should be shown.
      */
-    var showHomepageHeader by lazyFeatureFlagPreference(
+    var showHomepageHeader by booleanPreference(
         appContext.getPreferenceKey(R.string.pref_key_enable_homepage_header),
-        featureFlag = true,
         default = { homescreenSections[HomeScreenSection.HEADER] == true },
     )
 
     /**
      * Indicates whether or not top sites should be shown on the home screen.
      */
-    var showTopSitesFeature by lazyFeatureFlagPreference(
+    var showTopSitesFeature by booleanPreference(
         appContext.getPreferenceKey(R.string.pref_key_show_top_sites),
-        featureFlag = true,
         default = { homescreenSections[HomeScreenSection.TOP_SITES] == true },
     )
 
@@ -352,9 +347,8 @@ class Settings(
      * Indicates if the custom review prompt feature should be enabled. `True` if the feature is
      * enabled, `false` otherwise.
      */
-    var customReviewPromptFeatureEnabled by lazyFeatureFlagPreference(
+    var customReviewPromptFeatureEnabled by booleanPreference(
         appContext.getPreferenceKey(R.string.pref_key_custom_review_prompt_enabled),
-        featureFlag = true,
         default = { FxNimbus.features.customReviewPrompt.value().enabled },
     )
 
@@ -505,15 +499,13 @@ class Settings(
         default = false,
     )
 
-    val appIconSelection by lazyFeatureFlagPreference(
+    val appIconSelection by booleanPreference(
         key = appContext.getPreferenceKey(R.string.pref_key_app_icon_selection_enabled),
-        featureFlag = true,
         default = { FxNimbus.features.appIconSelection.value().enabled },
     )
 
-    var privateBrowsingLockedFeatureEnabled by lazyFeatureFlagPreference(
+    var privateBrowsingLockedFeatureEnabled by booleanPreference(
         key = appContext.getPreferenceKey(R.string.pref_key_private_browsing_locked_enabled),
-        featureFlag = true,
         default = { FxNimbus.features.privateBrowsingLock.value().enabled },
     )
 
@@ -527,10 +519,9 @@ class Settings(
         false,
     )
 
-    var shouldShowMenuBanner by lazyFeatureFlagPreference(
+    var shouldShowMenuBanner by booleanPreference(
         key = appContext.getPreferenceKey(R.string.pref_key_show_menu_banner),
         default = { FxNimbus.features.menuRedesign.value().menuBanner },
-        featureFlag = true,
     )
 
     var defaultSearchEngineName by stringPreference(
@@ -620,19 +611,17 @@ class Settings(
     /**
      * Returns true if the terms of use feature flag is enabled
      */
-    var isTermsOfUsePromptEnabled by lazyFeatureFlagPreference(
+    var isTermsOfUsePromptEnabled by booleanPreference(
         key = appContext.getPreferenceKey(R.string.pref_key_terms_prompt_enabled),
         default = { FxNimbus.features.termsOfUsePrompt.value().enabled },
-        featureFlag = true,
     )
 
     /**
      * Returns true if the nimbus flag for showing the terms of use drag handle is true.
      */
-    var shouldShowTermsOfUsePromptDragHandle by lazyFeatureFlagPreference(
+    var shouldShowTermsOfUsePromptDragHandle by booleanPreference(
         key = appContext.getPreferenceKey(R.string.pref_key_terms_prompt_drag_handle_enabled),
         default = { FxNimbus.features.termsOfUsePrompt.value().enableDragToDismiss },
-        featureFlag = true,
     )
 
     /**
@@ -861,18 +850,16 @@ class Settings(
     /**
      * Indicates if the request blocking feature for Local Network / Local Device Access blocking is enabled.
      */
-    var isLnaBlockingEnabled by lazyFeatureFlagPreference(
+    var isLnaBlockingEnabled by booleanPreference(
         key = appContext.getPreferenceKey(R.string.pref_key_enable_lna_blocking_enabled),
-        featureFlag = true,
         default = { FxNimbus.features.lnaBlocking.value().blocking },
     )
 
     /**
      * Indicates if the Local Network / Local Device Access tracker blocking feature is enabled.
      */
-    var isLnaTrackerBlockingEnabled by lazyFeatureFlagPreference(
+    var isLnaTrackerBlockingEnabled by booleanPreference(
         key = appContext.getPreferenceKey(R.string.pref_key_enable_lna_tracker_blocking_enabled),
-        featureFlag = true,
         default = { FxNimbus.features.lnaBlocking.value().blockTrackers },
     )
 
@@ -883,27 +870,24 @@ class Settings(
      * allowing requests that originate from remote origins targeting either localhost addresses or
      * local network addresses.
      */
-    var isLnaFeatureEnabled by lazyFeatureFlagPreference(
+    var isLnaFeatureEnabled by booleanPreference(
         key = appContext.getPreferenceKey(R.string.pref_key_enable_lna_feature_enabled),
-        featureFlag = true,
         default = { FxNimbus.features.lnaBlocking.value().enabled },
     )
 
     /**
      * Indicates whether isolated content processes are enabled or not.
      */
-    var isIsolatedProcessEnabled by lazyFeatureFlagPreference(
+    var isIsolatedProcessEnabled by booleanPreference(
         key = appContext.getPreferenceKey(R.string.pref_key_enable_isolated_process),
-        featureFlag = true,
         default = { FxNimbus.features.isolatedContentProcesses.value().enabled },
     )
 
     /**
      * Indicates whether app Zygote preloading using isolated content processes are enabled or not.
      */
-    var isAppZygoteEnabled by lazyFeatureFlagPreference(
+    var isAppZygoteEnabled by booleanPreference(
         key = appContext.getPreferenceKey(R.string.pref_key_enable_app_zygote_process),
-        featureFlag = true,
         default = { FxNimbus.features.isolatedContentProcesses.value().appZygotePreloading },
     )
 
@@ -1002,9 +986,8 @@ class Settings(
         }
     }
 
-    var whatsappLinkSharingEnabled by lazyFeatureFlagPreference(
+    var whatsappLinkSharingEnabled by booleanPreference(
         key = appContext.getPreferenceKey(R.string.pref_key_link_sharing),
-        featureFlag = true,
         default = { FxNimbus.features.sentFromFirefox.value().enabled },
     )
 
@@ -1068,9 +1051,8 @@ class Settings(
         false,
     )
 
-    var shouldUseCookieBannerPrivateMode by lazyFeatureFlagPreference(
+    var shouldUseCookieBannerPrivateMode by booleanPreference(
         appContext.getPreferenceKey(R.string.pref_key_cookie_banner_private_mode),
-        featureFlag = true,
         default = { shouldUseCookieBannerPrivateModeDefaultValue },
     )
 
@@ -1138,10 +1120,9 @@ class Settings(
     /**
      * Indicates if the re-engagement notification feature is enabled
      */
-    var reEngagementNotificationEnabled by lazyFeatureFlagPreference(
+    var reEngagementNotificationEnabled by booleanPreference(
         key = appContext.getPreferenceKey(R.string.pref_key_re_engagement_notification_enabled),
         default = { FxNimbus.features.reEngagementNotification.value().enabled },
-        featureFlag = true,
     )
 
     /**
@@ -1226,9 +1207,8 @@ class Settings(
     /**
      * Indicates if the cookie banners CRF should be shown.
      */
-    var shouldShowCookieBannersCFR by lazyFeatureFlagPreference(
+    var shouldShowCookieBannersCFR by booleanPreference(
         appContext.getPreferenceKey(R.string.pref_key_should_show_cookie_banners_action_popup),
-        featureFlag = true,
         default = { shouldShowCookieBannerUI },
     )
 
@@ -1986,15 +1966,15 @@ class Settings(
     /**
      * Address Sync feature.
      */
-    var isAddressSyncEnabled by featureFlagPreference(
+    var isAddressSyncEnabled by featureFlagBooleanPreference(
         key = appContext.getPreferenceKey(R.string.pref_key_enable_address_sync),
-        default = true,
+        defaultValue = true,
         featureFlag = isAddressFeatureEnabled(appContext),
     )
 
-    var addressFeature by featureFlagPreference(
+    var addressFeature by featureFlagBooleanPreference(
         appContext.getPreferenceKey(R.string.pref_key_show_address_feature),
-        default = true,
+        defaultValue = true,
         featureFlag = isAddressFeatureEnabled(appContext),
     )
 
@@ -2176,9 +2156,8 @@ class Settings(
     /**
      * Indicates if the onboarding redesign should be used.
      */
-    var useOnboardingRedesign by lazyFeatureFlagPreference(
+    var useOnboardingRedesign by booleanPreference(
         key = appContext.getPreferenceKey(R.string.pref_key_use_onboarding_redesign),
-        featureFlag = true,
         default = { FxNimbus.features.junoOnboarding.value().useOnboardingRedesign },
     )
 
@@ -2190,10 +2169,9 @@ class Settings(
         default = true,
     )
 
-    var shouldUseComposableToolbar by lazyFeatureFlagPreference(
+    var shouldUseComposableToolbar by booleanPreference(
         key = appContext.getPreferenceKey(R.string.pref_key_enable_composable_toolbar),
         default = { FxNimbus.features.composableToolbar.value().enabled },
-        featureFlag = true,
     )
 
     /**
@@ -2215,10 +2193,9 @@ class Settings(
     /**
      * Indicates whether or not to use remote server search configuration.
      */
-    var useRemoteSearchConfiguration by lazyFeatureFlagPreference(
+    var useRemoteSearchConfiguration by booleanPreference(
         key = appContext.getPreferenceKey(R.string.pref_key_use_remote_search_configuration),
         default = { FxNimbus.features.remoteSearchConfiguration.value().enabled },
-        featureFlag = true,
     )
 
     /**
@@ -2317,10 +2294,9 @@ class Settings(
     /**
      * Indicates if the menu redesign is enabled.
      */
-    var enableMenuRedesign by lazyFeatureFlagPreference(
+    var enableMenuRedesign by booleanPreference(
         key = appContext.getPreferenceKey(R.string.pref_key_enable_menu_redesign),
         default = { FxNimbus.features.menuRedesign.value().enabled },
-        featureFlag = true,
     )
 
     /**
@@ -2334,19 +2310,17 @@ class Settings(
     /**
      * Indicates if the Homepage as a New Tab is enabled.
      */
-    var enableHomepageAsNewTab by lazyFeatureFlagPreference(
+    var enableHomepageAsNewTab by booleanPreference(
         key = appContext.getPreferenceKey(R.string.pref_key_enable_homepage_as_new_tab),
         default = { FxNimbus.features.homepageAsNewTab.value().enabled },
-        featureFlag = true,
     )
 
     /**
      * Indicates if the Homepage Search Bar is enabled.
      */
-    var enableHomepageSearchBar by lazyFeatureFlagPreference(
+    var enableHomepageSearchBar by booleanPreference(
         key = appContext.getPreferenceKey(R.string.pref_key_enable_homepage_searchbar),
         default = { FxNimbus.features.homepageSearchBar.value().enabled },
-        featureFlag = true,
     )
 
     /**
@@ -2368,10 +2342,9 @@ class Settings(
     /**
      * Indicates if the Unified Trust Panel is enabled.
      */
-    var enableUnifiedTrustPanel by lazyFeatureFlagPreference(
+    var enableUnifiedTrustPanel by booleanPreference(
         key = appContext.getPreferenceKey(R.string.pref_key_enable_unified_trust_panel),
         default = { FxNimbus.features.unifiedTrustPanel.value().enabled },
-        featureFlag = true,
     )
 
     /**
@@ -2429,9 +2402,9 @@ class Settings(
     /**
      * Indicates if Firefox Suggest is enabled.
      */
-    var enableFxSuggest by lazyFeatureFlagPreference(
+    var enableFxSuggest by lazyFeatureFlagBooleanPreference(
         key = appContext.getPreferenceKey(R.string.pref_key_enable_fxsuggest),
-        default = { FxNimbus.features.fxSuggest.value().enabled },
+        defaultValue = { FxNimbus.features.fxSuggest.value().enabled },
         featureFlag = FeatureFlags.FX_SUGGEST,
     )
 
@@ -2453,9 +2426,9 @@ class Settings(
      * Indicates if the user has chosen to show sponsored search suggestions in the awesomebar.
      * The default value is computed lazily, and based on whether Firefox Suggest is enabled.
      */
-    var showSponsoredSuggestions by lazyFeatureFlagPreference(
+    var showSponsoredSuggestions by lazyFeatureFlagBooleanPreference(
         key = appContext.getPreferenceKey(R.string.pref_key_show_sponsored_suggestions),
-        default = { enableFxSuggest },
+        defaultValue = { enableFxSuggest },
         featureFlag = FeatureFlags.FX_SUGGEST,
     )
 
@@ -2464,9 +2437,9 @@ class Settings(
      * awesomebar. The default value is computed lazily, and based on whether Firefox Suggest
      * is enabled.
      */
-    var showNonSponsoredSuggestions by lazyFeatureFlagPreference(
+    var showNonSponsoredSuggestions by lazyFeatureFlagBooleanPreference(
         key = appContext.getPreferenceKey(R.string.pref_key_show_nonsponsored_suggestions),
-        default = { enableFxSuggest },
+        defaultValue = { enableFxSuggest },
         featureFlag = FeatureFlags.FX_SUGGEST,
     )
 
@@ -2482,9 +2455,8 @@ class Settings(
     /**
      * Indicates whether Relay enabled or not.
      */
-    var isRelayFeatureEnabled by lazyFeatureFlagPreference(
+    var isRelayFeatureEnabled by booleanPreference(
         key = appContext.getPreferenceKey(R.string.pref_key_enable_relay_email_masks),
-        featureFlag = true,
         default = { FxNimbus.features.relayEmailMasks.value().enabled },
     )
 
@@ -2518,10 +2490,9 @@ class Settings(
     /**
      * Indicates if the microsurvey feature is enabled.
      */
-    var microsurveyFeatureEnabled by lazyFeatureFlagPreference(
+    var microsurveyFeatureEnabled by booleanPreference(
         key = appContext.getPreferenceKey(R.string.pref_key_microsurvey_feature_enabled),
         default = { FxNimbus.features.microsurveys.value().enabled },
-        featureFlag = true,
     )
 
     /**
@@ -2672,10 +2643,9 @@ class Settings(
     /**
      * Indicates whether or not to show the entry point for the DNS over HTTPS settings
      */
-    val showDohEntryPoint by lazyFeatureFlagPreference(
+    val showDohEntryPoint by booleanPreference(
         key = appContext.getPreferenceKey(R.string.pref_key_doh_settings_enabled),
         default = { FxNimbus.features.doh.value().showUi },
-        featureFlag = true,
     )
 
     /**
@@ -2784,22 +2754,20 @@ class Settings(
     /**
      * Indicates if the sponsored tiles are suppressed.
      */
-    var suppressSponsoredTopSitesEnabled by lazyFeatureFlagPreference(
+    var suppressSponsoredTopSitesEnabled by booleanPreference(
         key = appContext.getPreferenceKey(R.string.pref_key_suppress_sponsored_tiles),
-        featureFlag = true,
         default = { FxNimbus.features.suppressSponsoredTopSites.value().enabled },
     )
 
     /**
      * Indicates whether or not to show the checklist feature.
      */
-    var showSetupChecklist by lazyFeatureFlagPreference(
+    var showSetupChecklist by booleanPreference(
         key = appContext.getPreferenceKey(R.string.pref_key_setup_checklist_complete),
         default = {
             FxNimbus.features.setupChecklist.value().enabled &&
                     canShowAddSearchWidgetPrompt(AppWidgetManager.getInstance(appContext))
         },
-        featureFlag = true,
     )
 
     /**

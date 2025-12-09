@@ -102,7 +102,6 @@
 #include "nsIObjectOutputStream.h"
 #include "nsIRunnable.h"
 #include "nsIScriptContext.h"
-#include "nsISizeOf.h"
 #include "nsISupportsUtils.h"
 #include "nsIURI.h"
 #include "nsIXPConnect.h"
@@ -1047,11 +1046,9 @@ nsresult nsXULElement::MakeHeavyweight(nsXULPrototypeElement* aPrototype) {
     bool oldValueSet;
     // XXX we might wanna have a SetAndTakeAttr that takes an nsAttrName
     if (protoattr->mName.IsAtom()) {
-      rv = mAttrs.SetAndSwapAttr(protoattr->mName.Atom(), attrValue,
-                                 &oldValueSet);
+      rv = SetAndSwapAttr(protoattr->mName.Atom(), attrValue, &oldValueSet);
     } else {
-      rv = mAttrs.SetAndSwapAttr(protoattr->mName.NodeInfo(), attrValue,
-                                 &oldValueSet);
+      rv = SetAndSwapAttr(protoattr->mName.NodeInfo(), attrValue, &oldValueSet);
     }
     NS_ENSURE_SUCCESS(rv, rv);
   }
@@ -2014,8 +2011,13 @@ void nsXULPrototypeScript::Set(JS::Stencil* aStencil) { mStencil = aStencil; }
 
 void nsXULPrototypeScript::AddSizeOfExcludingThis(nsWindowSizes& aSizes,
                                                   size_t* aNodeSize) const {
-  if (nsCOMPtr<nsISizeOf> iface = do_QueryInterface(mSrcURI)) {
-    *aNodeSize += iface->SizeOfIncludingThis(aSizes.mState.mMallocSizeOf);
+  // It is okay to include the size of mSrcURI here even though it might have
+  // strong references from elsewhere because the URI was created for this
+  // object, in XULContentSinkImpl::OpenScript() or
+  // nsXULPrototypeElement::Deserialize(). Only objects that created their own
+  // URI will call nsIURI::SizeOfIncludingThis().
+  if (mSrcURI) {
+    *aNodeSize += mSrcURI->SizeOfIncludingThis(aSizes.mState.mMallocSizeOf);
   }
 }
 
