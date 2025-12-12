@@ -200,7 +200,7 @@ class CustomTabBrowserToolbarMiddleware(
                                         url = customTab.content.url,
                                         title = customTab.content.title,
                                         isLocalPdf = customTab.content.url.isContentUrl(),
-                                        isSecured = customTab.content.securityInfo.secure,
+                                        isSecured = customTab.content.securityInfo.isSecure,
                                         sitePermissions = sitePermissions,
                                         certificateName = customTab.content.securityInfo.issuer,
                                         permissionHighlights = customTab.content.permissionHighlights,
@@ -215,7 +215,7 @@ class CustomTabBrowserToolbarMiddleware(
                                             url = customTab.content.url,
                                             title = customTab.content.title,
                                             isLocalPdf = customTab.content.url.isContentUrl(),
-                                            isSecured = customTab.content.securityInfo.secure,
+                                            isSecured = customTab.content.securityInfo.isSecure,
                                             sitePermissions = sitePermissions,
                                             gravity = settings.toolbarPosition.androidGravity,
                                             certificateName = customTab.content.securityInfo.issuer,
@@ -435,7 +435,7 @@ class CustomTabBrowserToolbarMiddleware(
                 ),
             )
         } else if (
-                customTab?.content?.securityInfo?.secure == true &&
+                customTab?.content?.securityInfo?.isSecure == true &&
                 customTab.trackingProtection.enabled &&
                 !customTab.trackingProtection.ignoredOnTrackingProtection
             ) {
