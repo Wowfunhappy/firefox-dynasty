@@ -112,6 +112,7 @@ export class BaseContent extends React.PureComponent {
     this.handleDismissDownloadHighlight =
       this.handleDismissDownloadHighlight.bind(this);
     this.applyBodyClasses = this.applyBodyClasses.bind(this);
+    this.toggleSectionsMgmtPanel = this.toggleSectionsMgmtPanel.bind(this);
     this.state = {
       fixedSearch: false,
       firstVisibleTimestamp: null,
@@ -120,6 +121,7 @@ export class BaseContent extends React.PureComponent {
       wallpaperTheme: "",
       showDownloadHighlightOverride: null,
       visible: false,
+      showSectionsMgmtPanel: false,
     };
   }
 
@@ -235,6 +237,20 @@ export class BaseContent extends React.PureComponent {
     if (wallpapersEnabled) {
       this.updateWallpaper();
     }
+
+    this._onHashChange = () => {
+      const hash = globalThis.location?.hash || "";
+      if (hash === "#customize" || hash === "#customize-topics") {
+        this.openCustomizationMenu();
+
+        if (hash === "#customize-topics") {
+          this.toggleSectionsMgmtPanel();
+        }
+      }
+    };
+
+    this._onHashChange();
+    globalThis.addEventListener("hashchange", this._onHashChange);
   }
 
   componentDidUpdate(prevProps) {
@@ -309,6 +325,9 @@ export class BaseContent extends React.PureComponent {
         VISIBILITY_CHANGE_EVENT,
         this._onVisibilityChange
       );
+    }
+    if (this._onHashChange) {
+      globalThis.removeEventListener("hashchange", this._onHashChange);
     }
   }
 
@@ -586,6 +605,12 @@ export class BaseContent extends React.PureComponent {
     return 0.2125 * r + 0.7154 * g + 0.0721 * b <= 110;
   }
 
+  toggleSectionsMgmtPanel() {
+    this.setState(prevState => ({
+      showSectionsMgmtPanel: !prevState.showSectionsMgmtPanel,
+    }));
+  }
+
   shouldDisplayTopicSelectionModal() {
     const prefs = this.props.Prefs.values;
     const pocketEnabled =
@@ -723,10 +748,6 @@ export class BaseContent extends React.PureComponent {
       mayHaveWeather
         ? "is-tall"
         : "";
-
-    const hasThumbsUpDownLayout =
-      prefs["discoverystream.thumbsUpDown.searchTopsitesCompact"];
-    const hasThumbsUpDown = prefs["discoverystream.thumbsUpDown.enabled"];
     const sectionsEnabled = prefs["discoverystream.sections.enabled"];
     const topicLabelsEnabled = prefs["discoverystream.topicLabels.enabled"];
     const sectionsCustomizeMenuPanelEnabled =
@@ -771,7 +792,6 @@ export class BaseContent extends React.PureComponent {
         "only-topsites",
       noSectionsEnabled && "no-sections",
       prefs["logowordmark.alwaysVisible"] && "visible-logo",
-      hasThumbsUpDownLayout && hasThumbsUpDown && "thumbs-ui-compact",
     ]
       .filter(v => v)
       .join(" ");
@@ -881,6 +901,8 @@ export class BaseContent extends React.PureComponent {
             mayHaveTimerWidget={mayHaveTimerWidget}
             mayHaveListsWidget={mayHaveListsWidget}
             showing={customizeMenuVisible}
+            toggleSectionsMgmtPanel={this.toggleSectionsMgmtPanel}
+            showSectionsMgmtPanel={this.state.showSectionsMgmtPanel}
           />
           {this.shouldShowOMCHighlight("CustomWallpaperHighlight") && (
             <MessageWrapper dispatch={this.props.dispatch}>

@@ -23,8 +23,9 @@ use crate::clip::{ClipDataStore, ClipNodeFlags, ClipChainInstance, ClipItemKind}
 use crate::frame_builder::{FrameBuildingContext, FrameBuildingState, PictureContext, PictureState};
 use crate::gpu_types::{BrushFlags, LinearGradientBrushData};
 use crate::internal_types::{FastHashMap, PlaneSplitAnchor, Filter};
-use crate::picture::{ClusterFlags, PictureCompositeMode, PicturePrimitive, SliceId};
-use crate::picture::{PrimitiveList, PrimitiveCluster, SurfaceIndex, TileCacheInstance, SubpixelMode, Picture3DContext};
+use crate::picture::{ClusterFlags, PictureCompositeMode, PicturePrimitive};
+use crate::picture::{PrimitiveList, PrimitiveCluster, SurfaceIndex, SubpixelMode, Picture3DContext};
+use crate::tile_cache::{SliceId, TileCacheInstance};
 use crate::prim_store::line_dec::MAX_LINE_DECORATION_RESOLUTION;
 use crate::prim_store::*;
 use crate::quad;
@@ -262,7 +263,7 @@ fn prepare_prim_for_render(
                     || may_need_repetition(prim_data.stretch_size, prim_data.common.prim_rect)
             }
             // TODO(bug 1899546) Enable quad conic gradients with SWGL.
-            PrimitiveInstanceKind::ConicGradient { data_handle, .. } if !frame_context.fb_config.is_software => {
+            PrimitiveInstanceKind::ConicGradient { data_handle, .. } => {
                 let prim_data = &data_stores.conic_grad[*data_handle];
                 !prim_data.brush_segments.is_empty()
                     || may_need_repetition(prim_data.stretch_size, prim_data.common.prim_rect)
@@ -527,16 +528,6 @@ fn prepare_interned_prim_for_render(
             );
 
             prim_data.update(frame_state);
-        }
-        PrimitiveInstanceKind::Clear { data_handle, .. } => {
-            profile_scope!("Clear");
-            let prim_data = &mut data_stores.prim[*data_handle];
-
-            prim_data.common.may_need_repetition = false;
-
-            // Update the template this instane references, which may refresh the GPU
-            // cache with any shared template data.
-            prim_data.update(frame_state, frame_context.scene_properties);
         }
         PrimitiveInstanceKind::NormalBorder { data_handle, ref mut render_task_ids, .. } => {
             profile_scope!("NormalBorder");
@@ -1347,7 +1338,6 @@ fn update_clip_task_for_brush(
         }
         PrimitiveInstanceKind::Picture { .. } |
         PrimitiveInstanceKind::TextRun { .. } |
-        PrimitiveInstanceKind::Clear { .. } |
         PrimitiveInstanceKind::LineDecoration { .. } |
         PrimitiveInstanceKind::BackdropCapture { .. } |
         PrimitiveInstanceKind::BackdropRender { .. } => {
@@ -1805,7 +1795,6 @@ fn build_segments_if_needed(
         PrimitiveInstanceKind::TextRun { .. } |
         PrimitiveInstanceKind::NormalBorder { .. } |
         PrimitiveInstanceKind::ImageBorder { .. } |
-        PrimitiveInstanceKind::Clear { .. } |
         PrimitiveInstanceKind::LinearGradient { .. } |
         PrimitiveInstanceKind::CachedLinearGradient { .. } |
         PrimitiveInstanceKind::RadialGradient { .. } |

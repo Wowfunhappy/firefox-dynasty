@@ -1692,8 +1692,6 @@ function OpenBrowserWindow(options) {
   options ??= {};
   options.openerWindow ??= window;
 
-  AIWindow.handleAIWindowOptions(window, options);
-
   let win = BrowserWindowTracker.openWindow(options);
 
   win.addEventListener(
@@ -2250,7 +2248,7 @@ var XULBrowserWindow = {
 
     // Ensure we close any remaining open locationspecific panels
     if (!isSameDocument) {
-      closeOpenPanels("panel[locationspecific='true']");
+      closeOpenPanels(":is(panel, menupopup)[locationspecific='true']");
     }
 
     gPermissionPanel.onLocationChange();

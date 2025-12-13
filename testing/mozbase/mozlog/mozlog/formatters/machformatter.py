@@ -77,7 +77,7 @@ class MachFormatter(base.BaseFormatter):
         enable_screenshot=False,
         **kwargs,
     ):
-        super(MachFormatter, self).__init__(**kwargs)
+        super().__init__(**kwargs)
 
         if start_time is None:
             start_time = time.time()
@@ -115,7 +115,7 @@ class MachFormatter(base.BaseFormatter):
     def __call__(self, data):
         self.summary(data)
 
-        s = super(MachFormatter, self).__call__(data)
+        s = super().__call__(data)
         if s is None:
             return
 
@@ -174,14 +174,13 @@ class MachFormatter(base.BaseFormatter):
             if expected not in ("PASS", "OK"):
                 color = self.color_formatter.log_test_status_fail
                 status = "EXPECTED-%s" % status
+        elif status in known_intermittent:
+            color = self.color_formatter.log_test_status_known_intermittent
+            status = "KNOWN-INTERMITTENT-%s" % status
         else:
-            if status in known_intermittent:
-                color = self.color_formatter.log_test_status_known_intermittent
-                status = "KNOWN-INTERMITTENT-%s" % status
-            else:
-                color = self.color_formatter.log_test_status_fail
-                if status in ("PASS", "OK"):
-                    status = "UNEXPECTED-%s" % status
+            color = self.color_formatter.log_test_status_fail
+            if status in ("PASS", "OK"):
+                status = "UNEXPECTED-%s" % status
         return color(status)
 
     def _format_status(self, test, data):

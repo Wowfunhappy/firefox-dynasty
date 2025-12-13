@@ -23,6 +23,8 @@ class CopyableTArray;
 
 namespace mozilla {
 
+class nsDisplayListBuilder;
+
 struct AnchorPosInfo {
   // Border-box of the anchor frame, offset against the positioned frame's
   // absolute containing block's padding box.
@@ -92,6 +94,7 @@ class AnchorPosReferenceData {
   struct PositionTryBackup {
     mozilla::PhysicalAxes mCompensatingForScroll;
     nsPoint mDefaultScrollShift;
+    nsRect mAdjustedContainingBlock;
   };
   using Value = mozilla::Maybe<AnchorPosResolutionData>;
 
@@ -126,21 +129,26 @@ class AnchorPosReferenceData {
   PositionTryBackup TryPositionWithSameDefaultAnchor() {
     auto compensatingForScroll = std::exchange(mCompensatingForScroll, {});
     auto defaultScrollShift = std::exchange(mDefaultScrollShift, {});
-    return {compensatingForScroll, defaultScrollShift};
+    auto adjustedContainingBlock = std::exchange(mAdjustedContainingBlock, {});
+    return {compensatingForScroll, defaultScrollShift, adjustedContainingBlock};
   }
 
   void UndoTryPositionWithSameDefaultAnchor(PositionTryBackup&& aBackup) {
     mCompensatingForScroll = aBackup.mCompensatingForScroll;
     mDefaultScrollShift = aBackup.mDefaultScrollShift;
+    mAdjustedContainingBlock = aBackup.mAdjustedContainingBlock;
   }
 
   // Distance from the default anchor to the nearest scroll container.
   DistanceToNearestScrollContainer mDistanceToDefaultScrollContainer;
   // https://drafts.csswg.org/css-anchor-position-1/#default-scroll-shift
   nsPoint mDefaultScrollShift;
-  // Rect of containing block before being inset-modified, at the time of
-  // resolution.
-  nsRect mContainingBlockRect;
+  // Rect of the original containg block.
+  nsRect mOriginalContainingBlockRect;
+  // Adjusted containing block, by position-area or grid, as per
+  // https://drafts.csswg.org/css-position/#original-cb
+  // TODO(dshin, bug 2004596): "or" should be "and/or."
+  nsRect mAdjustedContainingBlock;
   // TODO(dshin, bug 1987962): Remembered scroll offset
   // https://drafts.csswg.org/css-anchor-position-1/#remembered-scroll-offset
   // Name of the default used anchor. Not necessarily positioned frame's
@@ -309,8 +317,12 @@ struct AnchorPositioningUtils {
   /**
    * If aFrame is positioned using CSS anchor positioning, and it scrolls with
    * its anchor this function returns the anchor. Otherwise null.
+   * Note that this function has different behaviour if it called during paint
+   * (ie aBuilder not null) or not during painting (aBuilder null).
    */
-  static nsIFrame* GetAnchorThatFrameScrollsWith(nsIFrame* aFrame);
+  static nsIFrame* GetAnchorThatFrameScrollsWith(nsIFrame* aFrame,
+                                                 nsDisplayListBuilder* aBuilder,
+                                                 bool aSkipAsserts = false);
 
   // Trigger a layout for positioned items that are currently overflowing their
   // abs-cb and that have available fallbacks to try.

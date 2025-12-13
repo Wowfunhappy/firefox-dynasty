@@ -332,7 +332,10 @@ def macos_sign(
     # non-Mach-O executables such as script files. We want to avoid
     # any complications that might be caused by existing extended
     # attributes.
-    xattr_cmd = ["xattr", "-cr", app]
+    # Bug 2005439: xattr -r is not valid on linux
+    xattr_cmd = (
+        ["xattr", "-c", app] if sys.platform == "linux" else ["xattr", "-cr", app]
+    )
     run(command_context, xattr_cmd, capture_output=not verbose_arg)
 
     # Remove existing signatures. The codesign command only replaces
@@ -513,7 +516,7 @@ def sign_with_codesign(
                     entitlement_file = signing_group["entitlements"][
                         "by-build-platform"
                     ][".*devedition.*"]
-                elif channel == "release" or channel == "beta":
+                elif channel in {"release", "beta"}:
                     entitlement_file = signing_group["entitlements"][
                         "by-build-platform"
                     ]["default"]["by-project"]["default"]
@@ -540,7 +543,7 @@ def sign_with_codesign(
             for binary_path in binary_paths:
                 cs_cmd.append(binary_path)
 
-        run(ctx, cs_cmd, capture_output=not verbose_arg, check=True)
+        run(ctx, cs_cmd, capture_output=not verbose_arg)
 
         for temp_file in temp_files_to_cleanup:
             os.remove(temp_file)
@@ -550,7 +553,7 @@ def run(ctx, cmd, **kwargs):
     cmd_as_str = " ".join(cmd)
     ctx.log(logging.DEBUG, "macos-sign", {"cmd": cmd_as_str}, "[{cmd}]")
     try:
-        subprocess.run(cmd, **kwargs)
+        subprocess.run(cmd, check=True, **kwargs)
     except subprocess.CalledProcessError as e:
         ctx.log(
             logging.ERROR,
@@ -567,7 +570,7 @@ def verify_result(ctx, app, verbose_arg):
     # Verbosely verify validity of signed app
     cs_verify_cmd = ["codesign", "-vv", app]
     try:
-        run(ctx, cs_verify_cmd, capture_output=not verbose_arg, check=True)
+        run(ctx, cs_verify_cmd, capture_output=not verbose_arg)
         ctx.log(
             logging.INFO,
             "macos-sign",
@@ -649,7 +652,7 @@ def sign_with_rcodesign(
                     entitlement_file = signing_group["entitlements"][
                         "by-build-platform"
                     ][".*devedition.*"]
-                elif channel == "release" or channel == "beta":
+                elif channel in {"release", "beta"}:
                     entitlement_file = signing_group["entitlements"][
                         "by-build-platform"
                     ]["default"]["by-project"]["default"]
@@ -696,7 +699,7 @@ def sign_with_rcodesign(
                     scoped_arg = binary_path_relative + ":" + entitlement_file
                     cs_cmd.append(scoped_arg)
 
-    run(ctx, cs_cmd, capture_output=not verbose_arg, check=True)
+    run(ctx, cs_cmd, capture_output=not verbose_arg)
 
     for temp_file in temp_files_to_cleanup:
         os.remove(temp_file)

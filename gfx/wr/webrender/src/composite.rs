@@ -10,7 +10,9 @@ use crate::renderer::GpuBufferBuilderF;
 use euclid::Box2D;
 use crate::gpu_types::{ZBufferId, ZBufferIdGenerator};
 use crate::internal_types::{FrameAllocator, FrameMemory, FrameVec, TextureSource};
-use crate::picture::{ImageDependency, ResolvedSurfaceTexture, TileCacheInstance, TileId, TileSurface};
+use crate::picture::{ImageDependency, ResolvedSurfaceTexture};
+use crate::tile_cache::{TileCacheInstance, TileSurface};
+use crate::tile_cache::TileId;
 use crate::prim_store::DeferredResolve;
 use crate::resource_cache::{ImageRequest, ResourceCache};
 use crate::util::{extract_inner_rect_safe, Preallocator, ScaleOffset};
@@ -102,7 +104,6 @@ pub enum CompositeTileSurface {
     Color {
         color: ColorF,
     },
-    Clear,
     ExternalSurface {
         external_surface_index: ResolvedExternalSurfaceIndex,
     },
@@ -136,7 +137,6 @@ bitflags! {
 pub enum TileKind {
     Opaque,
     Alpha,
-    Clear,
 }
 
 // Index in to the compositor transforms stored in `CompositeState`
@@ -177,8 +177,6 @@ pub fn tile_kind(surface: &CompositeTileSurface, is_opaque: bool) -> TileKind {
         // Color tiles are, by definition, opaque. We might support non-opaque color
         // tiles if we ever find pages that have a lot of these.
         CompositeTileSurface::Color { .. } => TileKind::Opaque,
-        // Clear tiles have a special bucket
-        CompositeTileSurface::Clear => TileKind::Clear,
         CompositeTileSurface::Texture { .. }
         | CompositeTileSurface::ExternalSurface { .. } => {
             // Texture surfaces get bucketed by opaque/alpha, for z-rejection
@@ -458,7 +456,6 @@ pub enum TileSurfaceKind {
     Color {
         color: ColorF,
     },
-    Clear,
 }
 
 impl From<&TileSurface> for TileSurfaceKind {
@@ -466,7 +463,6 @@ impl From<&TileSurface> for TileSurfaceKind {
         match surface {
             TileSurface::Texture { .. } => TileSurfaceKind::Texture,
             TileSurface::Color { color } => TileSurfaceKind::Color { color: *color },
-            TileSurface::Clear => TileSurfaceKind::Clear,
         }
     }
 }
@@ -619,6 +615,7 @@ pub struct CompositorTransform {
 
 #[cfg_attr(feature = "capture", derive(Serialize))]
 #[cfg_attr(feature = "replay", derive(Deserialize))]
+#[derive(Debug)]
 pub struct CompositorClip {
     pub rect: DeviceRect,
     pub radius: BorderRadius,
@@ -1615,6 +1612,8 @@ pub struct CompositorInputLayer {
     pub usage: CompositorSurfaceUsage,
     // If true, layer is opaque, blend can be disabled
     pub is_opaque: bool,
+    pub rounded_clip_rect: DeviceIntRect,
+    pub rounded_clip_radii: ClipRadius,
 }
 
 // Provides the parameters about the frame to the compositor implementation.
@@ -1656,6 +1655,8 @@ pub trait LayerCompositor {
         transform: CompositorSurfaceTransform,
         clip_rect: DeviceIntRect,
         image_rendering: ImageRendering,
+        rounded_clip_rect: DeviceIntRect,
+        rounded_clip_radii: ClipRadius,
     );
 
     // Finish compositing this frame - commit the visual tree to the OS

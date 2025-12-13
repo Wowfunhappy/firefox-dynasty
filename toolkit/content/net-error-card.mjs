@@ -61,6 +61,7 @@ export class NetErrorCard extends MozLitElement {
   };
 
   static ERROR_CODES = new Set([
+    "SEC_ERROR_UNTRUSTED_ISSUER",
     "SEC_ERROR_REVOKED_CERTIFICATE",
     "SEC_ERROR_UNKNOWN_ISSUER",
     "SSL_ERROR_BAD_CERT_DOMAIN",
@@ -72,6 +73,7 @@ export class NetErrorCard extends MozLitElement {
     "NS_ERROR_OFFLINE",
     "NS_ERROR_DOM_COOP_FAILED",
     "NS_ERROR_DOM_COEP_FAILED",
+    "MOZILLA_PKIX_ERROR_NOT_YET_VALID_CERTIFICATE",
   ]);
 
   static isSupported() {
@@ -219,11 +221,13 @@ export class NetErrorCard extends MozLitElement {
 
   introContentTemplate() {
     switch (this.errorInfo.errorCodeString) {
+      case "SEC_ERROR_UNTRUSTED_ISSUER":
       case "SEC_ERROR_REVOKED_CERTIFICATE":
       case "SEC_ERROR_UNKNOWN_ISSUER":
       case "SSL_ERROR_BAD_CERT_DOMAIN":
       case "SEC_ERROR_EXPIRED_CERTIFICATE":
       case "MOZILLA_PKIX_ERROR_SELF_SIGNED_CERT":
+      case "MOZILLA_PKIX_ERROR_NOT_YET_VALID_CERTIFICATE":
         return html`<p
           id="certErrorIntro"
           data-l10n-id="fp-certerror-intro"
@@ -265,6 +269,21 @@ export class NetErrorCard extends MozLitElement {
     let content;
 
     switch (this.errorInfo.errorCodeString) {
+      case "SEC_ERROR_UNTRUSTED_ISSUER": {
+        content = this.advancedSectionTemplate({
+          whyDangerousL10nId:
+            "fp-certerror-untrusted-issuer-why-dangerous-body",
+          whyDangerousL10nArgs: {
+            hostname: this.hostname,
+          },
+          whatCanYouDoL10nId:
+            "fp-certerror-untrusted-issuer-what-can-you-do-body",
+          learnMoreL10nId: "fp-learn-more-about-cert-issues",
+          learnMoreSupportPage: "connection-not-secure",
+          viewCert: true,
+        });
+        break;
+      }
       case "SEC_ERROR_REVOKED_CERTIFICATE": {
         content = this.advancedSectionTemplate({
           whyDangerousL10nId: "fp-certerror-revoked-why-dangerous-body",
@@ -395,6 +414,25 @@ export class NetErrorCard extends MozLitElement {
           whatCanYouDoL10nId: "fp-certerror-transparency-what-can-you-do-body",
           learnMoreL10nId: "fp-learn-more-about-secure-connection-failures",
           learnMoreSupportPage: "connection-not-secure",
+          viewCert: true,
+        });
+        break;
+      }
+      case "MOZILLA_PKIX_ERROR_NOT_YET_VALID_CERTIFICATE": {
+        const notBefore = this.errorInfo.validNotBefore;
+        content = this.advancedSectionTemplate({
+          whyDangerousL10nId:
+            "fp-certerror-pkix-not-yet-valid-why-dangerous-body",
+          whyDangerousL10nArgs: {
+            date: notBefore,
+          },
+          whatCanYouDoL10nId:
+            "fp-certerror-pkix-not-yet-valid-what-can-you-do-body",
+          whatCanYouDoL10nArgs: {
+            date: Date.now(),
+          },
+          learnMoreL10nId: "fp-learn-more-about-time-related-errors",
+          learnMoreSupportPage: "time-errors",
           viewCert: true,
         });
         break;

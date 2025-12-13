@@ -274,14 +274,7 @@ module.exports = {
     // Remove this line setting `csscontrols/use-logical` to null after implementing fixes
     "csstools/use-logical": null,
     "stylelint-plugin-mozilla/no-base-design-tokens": true,
-    "stylelint-plugin-mozilla/use-background-color-tokens": true,
-    "stylelint-plugin-mozilla/use-border-color-tokens": true,
-    "stylelint-plugin-mozilla/use-border-radius-tokens": true,
-    "stylelint-plugin-mozilla/use-font-size-tokens": true,
-    "stylelint-plugin-mozilla/use-font-weight-tokens": true,
-    "stylelint-plugin-mozilla/use-space-tokens": true,
-    "stylelint-plugin-mozilla/use-text-color-tokens": true,
-    "stylelint-plugin-mozilla/use-box-shadow-tokens": true,
+    "stylelint-plugin-mozilla/use-design-tokens": true,
     "stylelint-plugin-mozilla/no-non-semantic-token-usage": true,
     "stylelint-plugin-mozilla/use-size-tokens": true,
   },
@@ -396,6 +389,8 @@ module.exports = {
     {
       name: "design-token-rules-off",
       files: [
+        // CSS files under browser/branding do not use design tokens
+        "browser/branding/**",
         // CSS files under browser/components/extensions are not using design tokens
         "browser/components/extensions/**",
         // Webcompat interventions are not expected to use design tokens
@@ -411,6 +406,12 @@ module.exports = {
         "mobile/android/**",
         // Docs do not use design tokens
         "docs/**",
+        // DOM does not use design tokens
+        "dom/**",
+        // Layouts do not use design tokens
+        "layout/**",
+        // Testing does not use design tokens
+        "testing/**",
         // UA Widgets should not use design tokens
         "toolkit/themes/shared/media/pipToggle.css",
         "toolkit/themes/shared/media/videocontrols.css",
@@ -423,14 +424,7 @@ module.exports = {
         "browser/components/backup/content/archive.css",
       ],
       rules: {
-        "stylelint-plugin-mozilla/use-background-color-tokens": null,
-        "stylelint-plugin-mozilla/use-border-color-tokens": null,
-        "stylelint-plugin-mozilla/use-border-radius-tokens": null,
-        "stylelint-plugin-mozilla/use-font-size-tokens": null,
-        "stylelint-plugin-mozilla/use-font-weight-tokens": null,
-        "stylelint-plugin-mozilla/use-space-tokens": null,
-        "stylelint-plugin-mozilla/use-text-color-tokens": null,
-        "stylelint-plugin-mozilla/use-box-shadow-tokens": null,
+        "stylelint-plugin-mozilla/use-design-tokens": null,
         "stylelint-plugin-mozilla/no-non-semantic-token-usage": null,
         "stylelint-plugin-mozilla/use-size-tokens": null,
       },
@@ -442,11 +436,7 @@ module.exports = {
         "devtools/client/aboutdebugging/src/**",
       ],
       rules: {
-        "stylelint-plugin-mozilla/use-background-color-tokens": true,
-        "stylelint-plugin-mozilla/use-border-color-tokens": true,
-        "stylelint-plugin-mozilla/use-border-radius-tokens": true,
-        "stylelint-plugin-mozilla/use-space-tokens": true,
-        "stylelint-plugin-mozilla/use-text-color-tokens": true,
+        "stylelint-plugin-mozilla/use-design-tokens": true,
         "stylelint-plugin-mozilla/no-non-semantic-token-usage": true,
         "stylelint-plugin-mozilla/use-size-tokens": true,
       },

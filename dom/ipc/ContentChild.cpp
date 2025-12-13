@@ -76,6 +76,7 @@
 #include "mozilla/dom/MemoryReportRequest.h"
 #include "mozilla/dom/Navigation.h"
 #include "mozilla/dom/PSessionStorageObserverChild.h"
+#include "mozilla/dom/PolicyContainer.h"
 #include "mozilla/dom/PostMessageEvent.h"
 #include "mozilla/dom/PushNotifier.h"
 #include "mozilla/dom/RemoteWorkerDebuggerManagerChild.h"
@@ -1170,9 +1171,7 @@ nsresult ContentChild::ProvideWindowCommon(
   // This creates a new document and the timing is quite fragile.
   NS_ENSURE_TRUE(browsingContext->GetDOMWindow(), NS_ERROR_ABORT);
   browsingContext->GetDOMWindow()->SetInitialPrincipal(
-      aOpenWindowInfo->PrincipalToInheritForAboutBlank(),
-      aOpenWindowInfo->PolicyContainerToInheritForAboutBlank(),
-      aOpenWindowInfo->CoepToInheritForAboutBlank());
+      aOpenWindowInfo->PrincipalToInheritForAboutBlank());
 
   // Set to true when we're ready to return from this function.
   bool ready = false;
@@ -1960,6 +1959,10 @@ mozilla::ipc::IPCResult ContentChild::RecvConstructBrowser(
 
   RefPtr<nsOpenWindowInfo> openWindowInfo = new nsOpenWindowInfo();
   openWindowInfo->mPrincipalToInheritForAboutBlank = aWindowInit.principal();
+  // XXX We should consider moving this to CreateAboutBlankDocumentViewer (bug
+  // 2004943)
+  openWindowInfo->mPolicyContainerToInheritForAboutBlank =
+      new PolicyContainer();
 
   {
     // Block the script runner that notifies about the creation of the script

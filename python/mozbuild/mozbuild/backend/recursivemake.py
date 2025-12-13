@@ -208,8 +208,8 @@ class RecursiveMakeTraversal:
     SubDirectoriesTuple = namedtuple("SubDirectories", SubDirectoryCategories)
 
     class SubDirectories(SubDirectoriesTuple):
-        def __new__(self):
-            return RecursiveMakeTraversal.SubDirectoriesTuple.__new__(self, [], [])
+        def __new__(cls):
+            return RecursiveMakeTraversal.SubDirectoriesTuple.__new__(cls, [], [])
 
     def __init__(self):
         self._traversal = {}
@@ -302,11 +302,9 @@ class RecursiveMakeTraversal:
         if start not in self._traversal:
             return
         for node in parallel:
-            for n in self.traverse(node, filter):
-                yield n
+            yield from self.traverse(node, filter)
         for dir in sequential:
-            for d in self.traverse(dir, filter):
-                yield d
+            yield from self.traverse(dir, filter)
 
     def get_subdirs(self, dir):
         """
@@ -386,7 +384,7 @@ class RecursiveMakeBackend(MakeBackend):
         }
 
     def summary(self):
-        summary = super(RecursiveMakeBackend, self).summary()
+        summary = super().summary()
         summary.extend(
             "; {makefile_in:d} -> {makefile_out:d} Makefile",
             makefile_in=self._makefile_in_count,
@@ -1515,7 +1513,7 @@ class RecursiveMakeBackend(MakeBackend):
             backend_file.write_once("%s: %s\n" % (obj_target, obj.symbols_file))
 
         for lib in shared_libs:
-            assert obj.KIND != "host" and obj.KIND != "wasm"
+            assert obj.KIND not in {"host", "wasm"}
             backend_file.write_once(
                 "SHARED_LIBS += %s\n" % self._pretty_path(lib.import_path, backend_file)
             )
@@ -1590,8 +1588,8 @@ class RecursiveMakeBackend(MakeBackend):
         install_manifest = self._install_manifests[manifest]
         reltarget = mozpath.relpath(target, path)
 
-        for path, files in files.walk():
-            target_var = (mozpath.join(target, path) if path else target).replace(
+        for subpath, subfiles in files.walk():
+            target_var = (mozpath.join(target, subpath) if subpath else target).replace(
                 "/", "_"
             )
             # We don't necessarily want to combine these, because non-wildcard
@@ -1601,9 +1599,9 @@ class RecursiveMakeBackend(MakeBackend):
             objdir_files = []
             absolute_files = []
 
-            for f in files:
+            for f in subfiles:
                 assert not isinstance(f, RenamedSourcePath)
-                dest_dir = mozpath.join(reltarget, path)
+                dest_dir = mozpath.join(reltarget, subpath)
                 dest_file = mozpath.join(dest_dir, f.target_basename)
                 if not isinstance(f, ObjDirPath):
                     if "*" in f:
@@ -1634,7 +1632,7 @@ class RecursiveMakeBackend(MakeBackend):
                 else:
                     install_manifest.add_optional_exists(dest_file)
                     objdir_files.append(self._pretty_path(f, backend_file))
-            install_location = "$(DEPTH)/%s" % mozpath.join(target, path)
+            install_location = "$(DEPTH)/%s" % mozpath.join(target, subpath)
             if objdir_files:
                 tier = "export" if obj.install_target == "dist/include" else "misc"
                 # We cannot generate multilocale.txt during misc at the moment.
@@ -1666,16 +1664,16 @@ class RecursiveMakeBackend(MakeBackend):
         # Note that if this becomes a manifest, OBJDIR_PP_FILES will likely
         # still need to use PP_TARGETS internally because we can't have an
         # install manifest for the root of the objdir.
-        for i, (path, files) in enumerate(files.walk()):
+        for i, (walk_path, walk_files) in enumerate(files.walk()):
             self._no_skip["misc"].add(backend_file.relobjdir)
             var = "%s_%d" % (name, i)
-            for f in files:
+            for f in walk_files:
                 backend_file.write(
                     "%s += %s\n" % (var, self._pretty_path(f, backend_file))
                 )
             backend_file.write(
                 "%s_PATH := $(DEPTH)/%s\n"
-                % (var, mozpath.join(obj.install_target, path))
+                % (var, mozpath.join(obj.install_target, walk_path))
             )
             backend_file.write("%s_TARGET := misc\n" % var)
             backend_file.write("PP_TARGETS += %s\n" % var)
@@ -1707,13 +1705,13 @@ class RecursiveMakeBackend(MakeBackend):
         path = mozpath.basedir(target, ("dist/bin",))
         if not path:
             raise Exception("Cannot install localized files to " + target)
-        for i, (path, files) in enumerate(files.walk()):
+        for i, (walk_path, walk_files) in enumerate(files.walk()):
             name = "LOCALIZED_FILES_%d" % i
             self._no_skip["misc"].add(backend_file.relobjdir)
-            self._write_localized_files_files(files, name + "_FILES", backend_file)
+            self._write_localized_files_files(walk_files, name + "_FILES", backend_file)
             # Use FINAL_TARGET here because some l10n repack rules set
             # XPI_NAME to generate langpacks.
-            backend_file.write("%s_DEST = $(FINAL_TARGET)/%s\n" % (name, path))
+            backend_file.write("%s_DEST = $(FINAL_TARGET)/%s\n" % (name, walk_path))
             backend_file.write("%s_TARGET := misc\n" % name)
             backend_file.write("INSTALL_TARGETS += %s\n" % name)
 
@@ -1722,10 +1720,10 @@ class RecursiveMakeBackend(MakeBackend):
         path = mozpath.basedir(target, ("dist/bin",))
         if not path:
             raise Exception("Cannot install localized files to " + target)
-        for i, (path, files) in enumerate(files.walk()):
+        for i, (path, file_list) in enumerate(files.walk()):
             name = "LOCALIZED_PP_FILES_%d" % i
             self._no_skip["misc"].add(backend_file.relobjdir)
-            self._write_localized_files_files(files, name, backend_file)
+            self._write_localized_files_files(file_list, name, backend_file)
             # Use FINAL_TARGET here because some l10n repack rules set
             # XPI_NAME to generate langpacks.
             backend_file.write("%s_PATH = $(FINAL_TARGET)/%s\n" % (name, path))
@@ -1742,9 +1740,9 @@ class RecursiveMakeBackend(MakeBackend):
         # We can't use an install manifest for the root of the objdir, since it
         # would delete all the other files that get put there by the build
         # system.
-        for i, (path, files) in enumerate(files.walk()):
+        for i, (path, file_list) in enumerate(files.walk()):
             self._no_skip["misc"].add(backend_file.relobjdir)
-            for f in files:
+            for f in file_list:
                 backend_file.write(
                     "OBJDIR_%d_FILES += %s\n" % (i, self._pretty_path(f, backend_file))
                 )

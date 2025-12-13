@@ -1363,7 +1363,7 @@ class Settings(
 
     var shouldShowToolbarCustomization by booleanPreference(
         key = appContext.getPreferenceKey(R.string.pref_key_enable_toolbar_customization),
-        default = { FxNimbus.features.toolbarRedesignOption.value().showExpandedCustomization },
+        default = { FxNimbus.features.toolbarRedesignOption.value().showCustomization },
     )
 
     val toolbarPosition: ToolbarPosition
@@ -2140,13 +2140,28 @@ class Settings(
         hasUserBeenOnboarded: Boolean,
         isLauncherIntent: Boolean,
     ): Boolean {
-        return if (featureEnabled && !hasUserBeenOnboarded && isLauncherIntent) {
+        val shouldShowByDefaultConditions = featureEnabled && !hasUserBeenOnboarded && isLauncherIntent
+
+        val shouldShow = shouldShowByDefaultConditions || enablePersistentOnboarding
+
+        if (shouldShow) {
             FxNimbus.features.junoOnboarding.recordExposure()
-            true
-        } else {
-            false
         }
+
+        return shouldShow
     }
+
+    /**
+     * Secret setting preference that forces the onboarding flow to be shown every time `HomeActivity`
+     * is created. When `true`, onboarding is displayed on each launch; when `false`, onboarding is only
+     * shown based on the default conditions.
+     *
+     * Build specific onboarding cards configuration (as defined in `onboarding.yaml.fml`) still applies.
+     */
+    var enablePersistentOnboarding by booleanPreference(
+        appContext.getPreferenceKey(R.string.pref_key_enable_persistent_onboarding),
+        default = false,
+    )
 
     /**
      * Indicates if the onboarding feature is enabled.
@@ -2337,6 +2352,14 @@ class Settings(
     var enableMozillaAdsClient by booleanPreference(
         key = appContext.getPreferenceKey(R.string.pref_key_enable_mozilla_ads_client),
         default = FeatureFlags.MOZILLA_ADS_CLIENT_ENABLED,
+    )
+
+    /**
+     * Indicates if Firefox Labs is enabled.
+     */
+    var enableFirefoxLabs by booleanPreference(
+        key = appContext.getPreferenceKey(R.string.pref_key_enable_firefox_labs),
+        default = FeatureFlags.FIREFOX_LABS,
     )
 
     /**

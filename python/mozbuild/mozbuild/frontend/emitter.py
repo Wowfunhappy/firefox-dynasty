@@ -253,8 +253,7 @@ class TreeMetadataEmitter(LoggingMixin):
             for o in lib.refs:
                 yield o
                 if isinstance(o, StaticLibrary):
-                    for q in recurse_refs(o):
-                        yield q
+                    yield from recurse_refs(o)
 
         # Check that all static libraries refering shared libraries in
         # USE_LIBS are linked into a shared library or program.
@@ -1223,8 +1222,7 @@ class TreeMetadataEmitter(LoggingMixin):
 
         # We always emit a directory traversal descriptor. This is needed by
         # the recursive make backend.
-        for o in self._emit_directory_traversal_from_context(context):
-            yield o
+        yield from self._emit_directory_traversal_from_context(context)
 
         for obj in self._process_xpidl(context):
             yield obj
@@ -1423,10 +1421,7 @@ class TreeMetadataEmitter(LoggingMixin):
                         "(resolved to %s)" % (local_include, full_path),
                         context,
                     )
-            if (
-                full_path == context.config.topsrcdir
-                or full_path == context.config.topobjdir
-            ):
+            if full_path in {context.config.topsrcdir, context.config.topobjdir}:
                 raise SandboxValidationError(
                     "Path specified in LOCAL_INCLUDES "
                     "(%s) resolves to the topsrcdir or topobjdir (%s), which is "
@@ -1567,18 +1562,17 @@ class TreeMetadataEmitter(LoggingMixin):
                                     % (var, f),
                                     context,
                                 )
-                        else:
-                            # Additionally, don't allow LOCALIZED_GENERATED_FILES to be used
-                            # in anything *but* LOCALIZED_FILES.
-                            if f.target_basename in localized_generated_files:
-                                raise SandboxValidationError(
-                                    (
-                                        "Outputs of LOCALIZED_GENERATED_FILES cannot "
-                                        "be used in %s: %s"
-                                    )
-                                    % (var, f),
-                                    context,
+                        # Additionally, don't allow LOCALIZED_GENERATED_FILES to be used
+                        # in anything *but* LOCALIZED_FILES.
+                        elif f.target_basename in localized_generated_files:
+                            raise SandboxValidationError(
+                                (
+                                    "Outputs of LOCALIZED_GENERATED_FILES cannot "
+                                    "be used in %s: %s"
                                 )
+                                % (var, f),
+                                context,
+                            )
 
             # Addons (when XPI_NAME is defined) and Applications (when
             # DIST_SUBDIR is defined) use a different preferences directory

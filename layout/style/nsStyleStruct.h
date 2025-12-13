@@ -41,9 +41,9 @@ struct nsStyleVisibility;
 class nsComputedDOMStyle;
 namespace mozilla {
 class ComputedStyle;
-struct IntrinsicSize;
-struct ReflowInput;
 struct AnchorPosResolutionCache;
+struct IntrinsicSize;
+struct SizeComputationInput;
 
 }  // namespace mozilla
 
@@ -399,8 +399,9 @@ struct AnchorPosResolutionParams {
   static inline AnchorPosResolutionParams From(
       const nsIFrame* aFrame,
       mozilla::AnchorPosResolutionCache* aAnchorPosResolutionCache = nullptr);
-  static inline AnchorPosResolutionParams From(
-      const mozilla::ReflowInput* aRI, bool aIgnorePositionArea = false);
+  static AnchorPosResolutionParams From(
+      const mozilla::SizeComputationInput* aSizingInput,
+      bool aIgnorePositionArea = false);
   static inline AnchorPosResolutionParams From(
       const nsComputedDOMStyle* aComputedDOMStyle);
 };
@@ -417,6 +418,12 @@ struct AnchorResolvedMarginHelper {
       const AnchorPosResolutionParams& aParams) {
     if (aValue.HasAnchorPositioningFunction()) {
       return ResolveAnchor(aValue, aAxis, aParams);
+    }
+    // For `position-area` values other than `none`, the used value of `auto`
+    // margin properties resolves to 0:
+    // <https://drafts.csswg.org/css-anchor-position-1/#valdef-position-area-position-area>
+    if (aValue.IsAuto() && !aParams.mPositionArea.IsNone()) {
+      return Zero();
     }
     return AnchorResolvedMargin::NonOwning(&aValue);
   }
@@ -494,9 +501,9 @@ struct MOZ_NEEDS_MEMMOVABLE_MEMBERS nsStyleMargin {
 
   mozilla::StyleRect<mozilla::StyleMargin> mMargin;
   mozilla::StyleRect<mozilla::StyleLength> mScrollMargin;
-  // TODO: Add support for overflow-clip-margin: <visual-box> and maybe
-  // per-axis/side clipping, see https://github.com/w3c/csswg-drafts/issues/7245
-  mozilla::StyleLength mOverflowClipMargin;
+  // TODO: Add support per-axis/side clipping, see
+  // https://github.com/w3c/csswg-drafts/issues/7245
+  mozilla::StyleOverflowClipMargin mOverflowClipMargin;
 };
 
 struct MOZ_NEEDS_MEMMOVABLE_MEMBERS nsStylePadding {

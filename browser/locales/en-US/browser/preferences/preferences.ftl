@@ -864,7 +864,14 @@ home-prefs-mission-message2 =
     .message = Our sponsors support our mission to build a better web.
 
 home-prefs-manage-topics-link = Manage topics
+
+home-prefs-manage-topics-link2 =
+    .label = Manage topics
+
 home-prefs-choose-wallpaper-link = Choose a wallpaper
+
+home-prefs-choose-wallpaper-link2 =
+    .label = Choose a wallpaper
 
 # Variables:
 #   $num (number) - Number of rows displayed
@@ -894,8 +901,8 @@ search-separate-default-engine-2 =
 search-separate-default-engine-dropdown =
     .aria-label = Default search engine in private windows
 
-search-suggestions-header = Search Suggestions
-search-suggestions-desc = Choose how suggestions from search engines appear.
+search-suggestions-header-2 =
+    .label = Search engine suggestions
 
 search-show-suggestions-option =
     .label = Show search suggestions
@@ -908,15 +915,16 @@ search-show-suggestions-url-bar-option =
 # This string describes what the user will observe when the system
 # prioritizes search suggestions over browsing history in the results
 # that extend down from the address bar. In the original English string,
-# "ahead" refers to location (appearing most proximate to), not time
+# "before" refers to location (appearing most proximate to), not time
 # (appearing before).
-search-show-suggestions-above-history-option =
-    .label = Show search suggestions ahead of browsing history in address bar results
+search-show-suggestions-above-history-option-2 =
+    .label = Show search suggestions before browsing history in address bar results
 
-search-show-suggestions-private-windows =
-    .label = Show search suggestions in Private Windows
+search-show-suggestions-private-windows-2 =
+    .label = Search suggestions in private windows
 
-search-suggestions-cant-show = Search suggestions will not be shown in location bar results because you have configured { -brand-short-name } to never remember history.
+search-suggestions-cant-show-2 =
+    .message = Search suggestions will not be shown in location bar results because you have configured { -brand-short-name } to never remember history.
 
 search-one-click-header2 = Search Shortcuts
 
@@ -980,6 +988,11 @@ containers-settings-button =
 containers-remove-button =
     .label = Remove
 
+## Account and sync
+
+sync-group-label =
+    .label = Sync
+
 ## Firefox account - Signed out. Note that "Sync" and "Firefox account" are now
 ## more discrete ("signed in" no longer means "and sync is connected").
 
@@ -988,6 +1001,10 @@ sync-signedout-description2 = Synchronize your bookmarks, history, tabs, passwor
 
 sync-signedout-account-signin3 =
     .label = Sign in to sync…
+    .accesskey = i
+
+sync-signedout-account-signin-4 =
+    .label = Sign in to your account to start syncing
     .accesskey = i
 
 # This message contains two links and two icon images.
@@ -1043,10 +1060,21 @@ sync-sign-in =
 
 prefs-syncing-on = Syncing: ON
 
+prefs-syncing-on-2 =
+    .label = Syncing is ON
+
 prefs-syncing-off = Syncing: OFF
+
+prefs-syncing-off-2 =
+    .label = Syncing is OFF
+    .description = Turn on sync to get your your bookmarks, passwords, history, and more on any device.
 
 prefs-sync-turn-on-syncing =
     .label = Turn on syncing…
+    .accesskey = s
+
+prefs-sync-turn-on-syncing-2 =
+    .label = Turn on syncing
     .accesskey = s
 
 prefs-sync-offer-setup-label2 = Synchronize your bookmarks, history, tabs, passwords, add-ons, and settings across all your devices.
@@ -1055,8 +1083,16 @@ prefs-sync-now-button =
     .label = Sync Now
     .accesskey = N
 
+prefs-sync-now-button-2 =
+    .label = Sync now
+    .accesskey = N
+
 prefs-syncing-button =
     .label = Syncing…
+
+prefs-syncing-button-2 =
+    .label = Syncing…
+    .title = Sync now
 
 ## The list of things currently syncing.
 
@@ -1079,6 +1115,10 @@ sync-currently-syncing-settings = Settings
 
 sync-manage-options =
     .label = Manage sync…
+    .accesskey = M
+
+sync-manage-options-2 =
+    .label = Manage synced data
     .accesskey = M
 
 ## The "Choose what to sync" dialog.
@@ -1133,6 +1173,9 @@ sync-engine-settings =
 
 sync-device-name-header = Device Name
 
+sync-device-name-header-2 =
+    .label = Device Name
+
 # Variables:
 #   $placeholder (string) - The placeholder text of the input
 sync-device-name-input =
@@ -1156,6 +1199,9 @@ sync-device-name-save =
     .accesskey = v
 
 sync-connect-another-device = Connect another device
+
+sync-connect-another-device-2 =
+    .label = Connect another device
 
 ## Privacy Section
 
@@ -1474,11 +1520,11 @@ addressbar-locbar-engines-option-1 =
 addressbar-locbar-quickactions-option =
     .label = Quick actions
     .accesskey = Q
-addressbar-locbar-showrecentsearches-option =
-    .label = Show recent searches
+addressbar-locbar-showrecentsearches-option-2 =
+    .label = Recent searches
     .accesskey = r
-addressbar-locbar-showtrendingsuggestions-option =
-    .label = Show trending search suggestions
+addressbar-locbar-showtrendingsuggestions-option-2 =
+    .label = Trending search suggestions
     .accesskey = t
 
 # Toggles whether suggestions are obtained from Firefox Suggest or not (local or online).

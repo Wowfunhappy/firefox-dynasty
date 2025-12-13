@@ -727,19 +727,18 @@ class Descriptor(DescriptorProvider):
             # test bindings, which don't export, will work correctly.
             basename = os.path.basename(self.interface.filename)
             headerDefault = basename.replace(".webidl", "Binding.h")
+        elif not self.interface.isExternal() and self.interface.getExtendedAttribute(
+            "HeaderFile"
+        ):
+            headerDefault = self.interface.getExtendedAttribute("HeaderFile")[0]
+        elif (
+            self.interface.isIteratorInterface()
+            or self.interface.isAsyncIteratorInterface()
+        ):
+            headerDefault = "mozilla/dom/IterableIterator.h"
         else:
-            if not self.interface.isExternal() and self.interface.getExtendedAttribute(
-                "HeaderFile"
-            ):
-                headerDefault = self.interface.getExtendedAttribute("HeaderFile")[0]
-            elif (
-                self.interface.isIteratorInterface()
-                or self.interface.isAsyncIteratorInterface()
-            ):
-                headerDefault = "mozilla/dom/IterableIterator.h"
-            else:
-                headerDefault = self.nativeType
-                headerDefault = headerDefault.replace("::", "/") + ".h"
+            headerDefault = self.nativeType
+            headerDefault = headerDefault.replace("::", "/") + ".h"
         self.headerFile = desc.get("headerFile", headerDefault)
         self.headerIsDefault = self.headerFile == headerDefault
         if self.jsImplParent == self.nativeType:
@@ -1375,8 +1374,7 @@ def getDependentDictionariesFromDictionary(d):
     while d:
         yield d
         for member in d.members:
-            for next in getDictionariesFromType(member.type):
-                yield next
+            yield from getDictionariesFromType(member.type)
         d = d.parent
 
 
@@ -1393,13 +1391,11 @@ def getDictionariesFromType(type):
     if type.isUnion():
         # Look for dictionaries in all the member types
         for t in type.flatMemberTypes:
-            for next in getDictionariesFromType(t):
-                yield next
+            yield from getDictionariesFromType(t)
     elif type.isDictionary():
         # Find the dictionaries that are itself, any of its ancestors, or
         # contained in any of its member types.
-        for d in getDependentDictionariesFromDictionary(type.inner):
-            yield d
+        yield from getDependentDictionariesFromDictionary(type.inner)
 
 
 def getDictionariesConvertedToJS(descriptors, dictionaries, callbacks):

@@ -60,7 +60,8 @@ use crate::frame_builder::FrameBuilderConfig;
 use glyph_rasterizer::{FontInstance, SharedFontResources};
 use crate::hit_test::HitTestingScene;
 use crate::intern::Interner;
-use crate::internal_types::{FastHashMap, LayoutPrimitiveInfo, Filter, FilterGraphNode, FilterGraphOp, FilterGraphPictureReference, PlaneSplitterIndex, PipelineInstanceId};
+use crate::internal_types::{FastHashMap, LayoutPrimitiveInfo, Filter, PlaneSplitterIndex, PipelineInstanceId};
+use crate::svg_filter::{FilterGraphNode, FilterGraphOp, FilterGraphPictureReference};
 use crate::picture::{Picture3DContext, PictureCompositeMode, PicturePrimitive};
 use crate::picture::{BlitReason, OrderedPictureChild, PrimitiveList, SurfaceInfo, PictureFlags};
 use crate::picture_graph::PictureGraph;
@@ -1596,20 +1597,6 @@ impl<'a> SceneBuilder<'a> {
                     clip_node_id,
                     info.tag,
                     anim_id,
-                );
-            }
-            DisplayItem::ClearRectangle(ref info) => {
-                profile_scope!("clear");
-
-                let (layout, _, spatial_node_index, clip_node_id) = self.process_common_properties_with_bounds(
-                    &info.common,
-                    info.bounds,
-                );
-
-                self.add_clear_rectangle(
-                    spatial_node_index,
-                    clip_node_id,
-                    &layout,
                 );
             }
             DisplayItem::Line(ref info) => {
@@ -3273,27 +3260,6 @@ impl<'a> SceneBuilder<'a> {
                 pending_primitive.prim,
             );
         }
-    }
-
-    pub fn add_clear_rectangle(
-        &mut self,
-        spatial_node_index: SpatialNodeIndex,
-        clip_node_id: ClipNodeId,
-        info: &LayoutPrimitiveInfo,
-    ) {
-        // Clear prims must be in their own picture cache slice to
-        // be composited correctly.
-        self.add_tile_cache_barrier_if_needed(SliceFlags::empty());
-
-        self.add_primitive(
-            spatial_node_index,
-            clip_node_id,
-            info,
-            Vec::new(),
-            PrimitiveKeyKind::Clear,
-        );
-
-        self.add_tile_cache_barrier_if_needed(SliceFlags::empty());
     }
 
     pub fn add_line(

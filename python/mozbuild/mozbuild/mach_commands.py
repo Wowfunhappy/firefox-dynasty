@@ -426,6 +426,7 @@ def cargo_vet(command_context, arguments, stdout=None, env=os.environ):
     try:
         res = subprocess.run(
             [cargo, "vet"] + arguments,
+            check=False,
             cwd=cargo_vet_dir,
             stdout=stdout,
             env=env,
@@ -572,7 +573,9 @@ def clobber(command_context, what, full=False):
             ret = subprocess.call(cmd, cwd=topsrcdir)
         elif conditions.is_git(command_context) or conditions.is_jj(command_context):
             cmd = ["git", "clean", "-d", "-f", "-x", "*.py[cdo]", "*/__pycache__/*"]
-            result = subprocess.run(cmd, cwd=topsrcdir, stderr=subprocess.DEVNULL)
+            result = subprocess.run(
+                cmd, check=False, cwd=topsrcdir, stderr=subprocess.DEVNULL
+            )
             # We assume the `jj` repo is a colocated `git` repo, if not, fall back to a pure python approach
             if conditions.is_jj(command_context) and result.returncode != 0:
                 _pure_python_clean(topsrcdir)
@@ -682,7 +685,7 @@ def show_log(command_context, log_file=None):
         except OSError as os_error:
             # (POSIX)   errno.EPIPE: BrokenPipeError: [Errno 32] Broken pipe
             # (Windows) errno.EINVAL: OSError:        [Errno 22] Invalid argument
-            if os_error.errno == errno.EPIPE or os_error.errno == errno.EINVAL:
+            if os_error.errno in {errno.EPIPE, errno.EINVAL}:
                 # If the user manually terminates 'less' before the entire log file
                 # is piped (without scrolling close enough to the bottom) we will get
                 # one of these errors (depends on the OS) because the logger will still
@@ -1278,8 +1281,7 @@ def gtest(
 
         # Clamp error code to 255 to prevent overflowing multiple of
         # 256 into 0
-        if exit_code > 255:
-            exit_code = 255
+        exit_code = min(exit_code, 255)
 
     # Show aggregated report information and any test errors.
     command_context.log(
@@ -2393,8 +2395,24 @@ def _run_desktop(
         if appdata is True:
             appdata = tmpdir
 
-        extra_env["MOZ_APP_DATA"] = os.path.join(appdata, "AppData", "Roaming")
-        extra_env["MOZ_LOCAL_APP_DATA"] = os.path.join(appdata, "Local")
+        extra_env["MOZ_APP_DATA"] = os.path.normpath(
+            os.path.join(appdata, "AppData", "Roaming")
+        )
+        command_context.log(
+            logging.INFO,
+            "run",
+            {"app_data": extra_env["MOZ_APP_DATA"]},
+            "Overriding application data directory to {app_data}",
+        )
+        extra_env["MOZ_LOCAL_APP_DATA"] = os.path.normpath(
+            os.path.join(appdata, "Local")
+        )
+        command_context.log(
+            logging.INFO,
+            "run",
+            {"local_app_data": extra_env["MOZ_LOCAL_APP_DATA"]},
+            "Overriding local application data directory to {local_app_data}",
+        )
 
     if not enable_crash_reporter:
         extra_env["MOZ_CRASHREPORTER_DISABLE"] = "1"

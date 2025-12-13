@@ -238,9 +238,7 @@ def install_app_bundle(command_context, bundle):
     bundletool = mozpath.join(command_context._mach_context.state_dir, "bundletool.jar")
     device = ADBDeviceFactory(verbose=True)
     bundle_path = mozpath.join(command_context.topobjdir, bundle)
-    java_home = java_home = os.path.dirname(
-        os.path.dirname(command_context.substs["JAVA"])
-    )
+    java_home = os.path.dirname(os.path.dirname(command_context.substs["JAVA"]))
     device.install_app_bundle(bundletool, bundle_path, java_home, timeout=120)
 
 
@@ -266,7 +264,7 @@ def android_install_geckoview_example(command_context, args):
 def android_install_fenix(command_context, args):
     gradle(
         command_context,
-        ["fenix:installFenixDebug"] + args,
+        ["fenix:installDebug"] + args,
         verbose=True,
     )
     return 0
@@ -302,7 +300,7 @@ def android_install_geckoview_test_runner(command_context, args):
 def android_install_fenix_release(command_context, args):
     gradle(
         command_context,
-        ["-p", "mobile/android/fenix", "installFenixRelease"] + args,
+        ["-p", "mobile/android/fenix", "installRelease"] + args,
         verbose=True,
     )
     return 0

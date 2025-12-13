@@ -85,7 +85,7 @@ class RaptorTestCommand:
             if "MOZ_FETCHES_DIR" in str(value):
                 # Skip CI-specific options
                 continue
-            if arg == "t" or arg == "test":
+            if arg in {"t", "test"}:
                 # Don't add the test argument, it's added
                 # by setup_test
                 continue
@@ -305,7 +305,7 @@ class AlertTestRunner(Layer):
     }
 
     def __init__(self, env, mach_cmd):
-        super(AlertTestRunner, self).__init__(env, mach_cmd)
+        super().__init__(env, mach_cmd)
         self.perfherder_data = {}
 
     def _get_task_info(self, task_id):

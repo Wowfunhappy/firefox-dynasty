@@ -6,13 +6,23 @@ head = "head.js"
 firefox-appdir = "browser"
 support-files = []
 
+["test_Chat.js"]
+
 ["test_ChatUtils.js"]
 
 ["test_Insights.js"]
 
+["test_InsightsChatSource.js"]
+
+["test_InsightsDriftDetector.js"]
+
 ["test_InsightsHistorySource.js"]
 
+["test_InsightsManager.js"]
+
 ["test_SearchBrowsingHistory.js"]
+
+["test_Tools_GetOpenTabs.js"]
 
 ["test_Tools_SearchBrowsingHistory.js"]
 

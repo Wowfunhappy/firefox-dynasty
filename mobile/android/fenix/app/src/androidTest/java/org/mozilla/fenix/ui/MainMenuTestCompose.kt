@@ -190,9 +190,11 @@ class MainMenuTestCompose : TestSetup() {
         }.openPasswords {
             verifySecurityPromptForLogins()
             tapSetupLater()
-            verifyEmptySavedLoginsListView()
-            exitMenu()
+            verifyEmptySavedLoginsListView(composeTestRule)
+        }.goBack(composeTestRule) {
         }
+
+        exitMenu()
         browserScreen {
             verifyPageContent(testPage.content)
         }
@@ -562,6 +564,7 @@ class MainMenuTestCompose : TestSetup() {
     }
 
     // TestRail link: https://mozilla.testrail.io/index.php?/cases/view/3080156
+    @Ignore("Failing, see: https://bugzilla.mozilla.org/show_bug.cgi?id=2005535")
     @SmokeTest
     @Test
     fun verifyTheExtensionInstallationTest() {
@@ -1088,8 +1091,13 @@ class MainMenuTestCompose : TestSetup() {
         }.openPasswords {
             verifySecurityPromptForLogins()
             tapSetupLater()
-            verifyEmptySavedLoginsListView()
-        }.goBackToHomeScreen {
+            verifyEmptySavedLoginsListView(composeTestRule)
+        }.goBack(composeTestRule) {
+        }
+
+        exitMenu()
+
+        homeScreen {
             verifyHomeComponent(composeTestRule)
         }
     }

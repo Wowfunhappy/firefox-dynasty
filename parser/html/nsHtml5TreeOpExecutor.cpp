@@ -107,6 +107,12 @@ class MOZ_RAII nsHtml5AutoFlush final {
           "How do we have mParser but the doc update isn't open?");
     }
     mExecutor->EndFlush();
+    if (mExecutor->IsComplete()) {
+      // `mExecutor->EndDocUpdate()` caused a call to `nsIParser::Terminate`,
+      // so now we should clear the whole op queue in order to be able to
+      // assert in the destructor of `nsHtml5TreeOpExecutor`.
+      mOpsToRemove = mExecutor->OpQueueLength();
+    }
     mExecutor->RemoveFromStartOfOpQueue(mOpsToRemove);
     // We might have missed a speculative load flush due to sync XHR
     mExecutor->FlushSpeculativeLoads();

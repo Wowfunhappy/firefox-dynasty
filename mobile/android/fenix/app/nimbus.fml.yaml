@@ -133,18 +133,6 @@ features:
           }
         }
 
-  growth-data:
-    description: A feature measuring campaign growth data
-    variables:
-      enabled:
-        description: If true, the feature is active
-        type: Boolean
-        default: false
-    defaults:
-      - channel: release
-        value:
-          enabled: true
-
   re-engagement-notification:
     description: A feature that shows the re-engagement notification if the user is inactive.
     variables:
@@ -849,27 +837,20 @@ features:
           Whether or not the toolbar redesign option is visible to the user.  This allows the user to switch between simple and expanded toolbar.
         type: Boolean
         default: true
-      show-simple-customization:
+      show-customization:
         description: >
-          Whether or not the simple toolbar customization option is visible to the user.
-        type: Boolean
-        default: false
-      show-expanded-customization:
-        description: >
-          Whether or not the expanded toolbar customization option is visible to the user.
+          Whether or not the simple/expanded toolbar customization option is visible to the user.
         type: Boolean
         default: false
     defaults:
       - channel: developer
         value:
           show-options: true
-          show-simple-customization: false
-          show-expanded-customization: false
+          show-customization: false
       - channel: nightly
         value:
           show-options: true
-          show-simple-customization: false
-          show-expanded-customization: false
+          show-customization: false
 
   tab-management-enhancements:
     description: Control the visibility of the tab management enhancements.
@@ -897,7 +878,7 @@ features:
       - channel: nightly
         value:
           enabled: true
-          opening_animation_enabled: true
+          opening_animation_enabled: false
 
   suppress-sponsored-top-sites:
     description: Suppress sponsored top sites for new users for 14 days.

@@ -5,6 +5,8 @@
  */
 import { XPCOMUtils } from "resource://gre/modules/XPCOMUtils.sys.mjs";
 
+const AIWINDOW_URL = "chrome://browser/content/aiwindow/aiWindow.html";
+
 /**
  * AI Window Service
  */
@@ -36,43 +38,51 @@ export const AIWindow = {
   /**
    * Sets options for new AI Window if new or inherited conditions are met
    *
-   * @param {object} win opener window
-   * @param {object} options options to be passed into BrowserWindowTracker.openWindow
+   * @param {object} options Used in BrowserWindowTracker.openWindow
+   * @param {object} options.openerWindow Window making the BrowserWindowTracker.openWindow call
+   * @param {object} options.args Array of arguments to pass to new window
+   * @param {boolean} options.aiWindow Should new window be AI Window
+   * @param {boolean} options.private Should new window be Private Window
+   *
+   * @returns {object} Modified arguments appended to the options object
    */
-  handleAIWindowOptions(win, options = {}) {
-    const { openerWindow } = options;
-
+  handleAIWindowOptions({
+    openerWindow,
+    args,
+    aiWindow,
+    private: isPrivate,
+  } = {}) {
+    // Indicates whether the new window should inherit AI Window state from opener window
     const canInheritAIWindow =
-      this.isAIWindowActive(win) &&
-      !options.private &&
-      !Object.hasOwn(options, "aiWindow");
+      this.isAIWindowEnabled() &&
+      this.isAIWindowActive(openerWindow) &&
+      !isPrivate &&
+      !aiWindow;
 
     const willOpenAIWindow =
-      openerWindow &&
-      openerWindow.AIWindow?.isAIWindowEnabled &&
-      (options.aiWindow || canInheritAIWindow);
+      (aiWindow && this.isAIWindowEnabled()) || canInheritAIWindow;
 
     if (!willOpenAIWindow) {
-      return;
+      return args;
     }
 
-    options.args ??= Cc["@mozilla.org/array;1"].createInstance(
-      Ci.nsIMutableArray
-    );
+    args ??= Cc["@mozilla.org/array;1"].createInstance(Ci.nsIMutableArray);
 
-    if (!options.args.length) {
+    if (!args.length) {
       const aiWindowURI = Cc["@mozilla.org/supports-string;1"].createInstance(
         Ci.nsISupportsString
       );
-      aiWindowURI.data = "chrome://browser/content/genai/smartAssist.html";
-      options.args.appendElement(aiWindowURI);
+      aiWindowURI.data = AIWINDOW_URL;
+      args.appendElement(aiWindowURI);
 
       const aiOption = Cc["@mozilla.org/hash-property-bag;1"].createInstance(
         Ci.nsIWritablePropertyBag2
       );
-      aiOption.setPropertyAsBool("ai-window", options.aiWindow);
-      options.args.appendElement(aiOption);
+      aiOption.setPropertyAsBool("ai-window", aiWindow);
+      args.appendElement(aiOption);
     }
+
+    return args;
   },
 
   /**
@@ -83,7 +93,7 @@ export const AIWindow = {
    */
 
   isAIWindowActive(win) {
-    return win.document.documentElement.hasAttribute("ai-window");
+    return !!win && win.document.documentElement.hasAttribute("ai-window");
   },
 
   /**
@@ -94,5 +104,9 @@ export const AIWindow = {
 
   isAIWindowEnabled() {
     return this.AIWindowEnabled;
+  },
+
+  get newTabURL() {
+    return AIWINDOW_URL;
   },
 };

@@ -226,7 +226,7 @@ for args in todo:
 
 if "--write" not in ARGS:
     print("Use --write to write. Exiting...")
-    exit(0)
+    sys.exit(0)
 
 # -
 
@@ -236,7 +236,7 @@ def run_cmd(args):
     if "-vv" not in ARGS:
         dest = subprocess.DEVNULL
     try:
-        subprocess.run(args, stderr=dest)
+        subprocess.run(args, check=True, stderr=dest)
     except FileNotFoundError:
         print("FileNotFoundError, is ffmpeg not in your PATH?")
         raise

@@ -50,7 +50,7 @@ def quote(s):
 # DIR, but when running under the shell, use POSIX style paths.
 DIR = directories(os.path, os.getcwd())
 
-AUTOMATION = env.get("AUTOMATION", False)
+AUTOMATION = bool(env.get("AUTOMATION"))
 
 parser = argparse.ArgumentParser(description="Run a spidermonkey shell build job")
 parser.add_argument(
@@ -315,11 +315,10 @@ if word_bits == 32:
             sse_flags = "-arch:SSE2"
         else:
             sse_flags = "-msse -msse2 -mfpmath=sse"
-        env["CCFLAGS"] = "{0} {1}".format(env.get("CCFLAGS", ""), sse_flags)
-        env["CXXFLAGS"] = "{0} {1}".format(env.get("CXXFLAGS", ""), sse_flags)
-else:
-    if platform.system() == "Windows":
-        CONFIGURE_ARGS += " --target=x86_64-pc-windows-msvc"
+        env["CCFLAGS"] = "{} {}".format(env.get("CCFLAGS", ""), sse_flags)
+        env["CXXFLAGS"] = "{} {}".format(env.get("CXXFLAGS", ""), sse_flags)
+elif platform.system() == "Windows":
+    CONFIGURE_ARGS += " --target=x86_64-pc-windows-msvc"
 
 if platform.system() == "Linux" and AUTOMATION:
     CONFIGURE_ARGS = "--enable-stdcxx-compat " + CONFIGURE_ARGS

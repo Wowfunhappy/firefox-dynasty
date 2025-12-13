@@ -6,6 +6,7 @@
 
 #include "AnchorPositioningUtils.h"
 
+#include "DisplayPortUtils.h"
 #include "ScrollContainerFrame.h"
 #include "mozilla/Maybe.h"
 #include "mozilla/PresShell.h"
@@ -15,6 +16,7 @@
 #include "mozilla/dom/Element.h"
 #include "nsCanvasFrame.h"
 #include "nsContainerFrame.h"
+#include "nsDisplayList.h"
 #include "nsIContent.h"
 #include "nsIFrame.h"
 #include "nsIFrameInlines.h"
@@ -206,7 +208,8 @@ bool IsAnchorLaidOutStrictlyBeforeElement(
     // possible anchor's containing block isn't.
     if (positionedContainingBlock->IsViewportFrame() &&
         !anchorContainingBlock->IsViewportFrame()) {
-      return true;
+      return !nsLayoutUtils::IsProperAncestorFrame(aPositionedFrame,
+                                                   aPossibleAnchorFrame);
     }
 
     auto isLastContainingBlockOrderable =
@@ -318,21 +321,21 @@ bool IsPositionedElementAlsoSkippedWhenAnchorIsSkipped(
   return true;
 }
 
-struct LazyAncestorHolder {
+class LazyAncestorHolder {
   const nsIFrame* mFrame;
-  Maybe<nsTArray<const nsIFrame*>> mAncestors;
+  AutoTArray<const nsIFrame*, 8> mAncestors;
+  bool mFilled = false;
+
+ public:
+  const nsTArray<const nsIFrame*>& GetAncestors() {
+    if (!mFilled) {
+      nsLayoutUtils::FillAncestors(mFrame, nullptr, &mAncestors);
+      mFilled = true;
+    }
+    return mAncestors;
+  }
 
   explicit LazyAncestorHolder(const nsIFrame* aFrame) : mFrame(aFrame) {}
-
-  const nsTArray<const nsIFrame*>& GetAncestors() {
-    if (!mAncestors) {
-      AutoTArray<const nsIFrame*, 8> ancestors;
-      nsLayoutUtils::FillAncestors(mFrame, nullptr, &ancestors);
-      mAncestors.emplace(std::move(ancestors));
-    }
-
-    return *mAncestors;
-  }
 };
 
 bool IsAcceptableAnchorElement(
@@ -872,18 +875,25 @@ bool AnchorPositioningUtils::FitsInContainingBlock(
     const nsIFrame* aPositioned, const AnchorPosReferenceData& aReferenceData) {
   MOZ_ASSERT(aPositioned->GetProperty(nsIFrame::AnchorPosReferences()) ==
              &aReferenceData);
-  return aReferenceData.mContainingBlockRect.Contains(
+  return aReferenceData.mOriginalContainingBlockRect.Contains(
       aPositioned->GetMarginRect());
 }
 
 nsIFrame* AnchorPositioningUtils::GetAnchorThatFrameScrollsWith(
-    nsIFrame* aFrame) {
+    nsIFrame* aFrame, nsDisplayListBuilder* aBuilder,
+    bool aSkipAsserts /* = false */) {
+#ifdef DEBUG
+  if (!aSkipAsserts) {
+    MOZ_ASSERT(!aBuilder || aBuilder->IsPaintingToWindow());
+    MOZ_ASSERT_IF(!aBuilder, aFrame->PresContext()->LayoutPhaseCount(
+                                 nsLayoutPhase::DisplayListBuilding) == 0);
+  }
+#endif
+
   if (!StaticPrefs::apz_async_scroll_css_anchor_pos_AtStartup()) {
     return nullptr;
   }
-  mozilla::PhysicalAxes axes = aFrame->GetAnchorPosCompensatingForScroll();
-  // TODO for now we return the anchor if we are compensating in either axis.
-  // This is not fully spec compliant, bug 1988034 tracks this.
+  PhysicalAxes axes = aFrame->GetAnchorPosCompensatingForScroll();
   if (axes.isEmpty()) {
     return nullptr;
   }
@@ -902,7 +912,19 @@ nsIFrame* AnchorPositioningUtils::GetAnchorThatFrameScrollsWith(
                     aFrame->GetParent(), anchor)) {
     return nullptr;
   }
-  return anchor;
+  if (!aBuilder) {
+    return anchor;
+  }
+  // TODO for now ShouldAsyncScrollWithAnchor will return false if we are
+  // compensating in only one axis and there is a scroll frame between the
+  // anchor and the positioned's containing block that can scroll in the "wrong"
+  // axis so that we don't async scroll in the wrong axis because ASRs/APZ only
+  // support scrolling in both axes. This is not fully spec compliant, bug
+  // 1988034 tracks this.
+  return DisplayPortUtils::ShouldAsyncScrollWithAnchor(aFrame, anchor, aBuilder,
+                                                       axes)
+             ? anchor
+             : nullptr;
 }
 
 static bool TriggerFallbackReflow(PresShell* aPresShell, nsIFrame* aPositioned,

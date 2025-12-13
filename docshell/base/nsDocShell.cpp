@@ -6613,9 +6613,14 @@ bool nsDocShell::VerifyDocumentViewer() {
   if (mIsBeingDestroyed) {
     return false;
   }
-  // The viewer should be created during docshell initialization. So unless
-  // we're being destroyed, there always needs to be a viewer.
-  MOZ_ASSERT_UNREACHABLE("The content viewer should've been created eagerly.");
+  if (!mInitialized) {
+    // The viewer should be created during docshell initialization. If something
+    // wants a viewer or document, it has to initialize the docshell first.
+    MOZ_ASSERT_UNREACHABLE(
+        "The docshell should be initialized to get a viewer.");
+  } else {
+    NS_WARNING("No document viewer, docshell failed to initialize.");
+  }
   return false;
 }
 
@@ -7895,6 +7900,30 @@ nsresult nsDocShell::CreateDocumentViewer(const nsACString& aContentType,
   bool errorOnLocationChangeNeeded = false;
   nsCOMPtr<nsIChannel> failedChannel = mFailedChannel;
   nsCOMPtr<nsIURI> failedURI;
+
+  // https://html.spec.whatwg.org/#finalize-a-cross-document-navigation
+  // 9. If entryToReplace is null, then: ...
+  //    Otherwise: ...
+  //      4. If historyEntry's document state's origin is same origin with
+  //         entryToReplace's document state's origin, then set
+  //         historyEntry's navigation API key to entryToReplace's
+  //         navigation API key.
+  bool isReplace =
+      mActiveEntry && mLoadingEntry && IsValidLoadType(mLoadType) &&
+      NavigationUtils::NavigationTypeFromLoadType(mLoadType)
+          .map([](auto type) { return type == NavigationType::Replace; })
+          .valueOr(false);
+  if (isReplace) {
+    nsCOMPtr<nsIURI> uri = mActiveEntry->GetURIOrInheritedForAboutBlank();
+    nsCOMPtr<nsIURI> targetURI =
+        mLoadingEntry->mInfo.GetURIOrInheritedForAboutBlank();
+    bool sameOrigin =
+        NS_SUCCEEDED(nsContentUtils::GetSecurityManager()->CheckSameOriginURI(
+            targetURI, uri, false, false));
+    if (sameOrigin) {
+      mLoadingEntry->mInfo.NavigationKey() = mActiveEntry->NavigationKey();
+    }
+  }
 
   if (mLoadType == LOAD_ERROR_PAGE) {
     // We need to set the SH entry and our current URI here and not
@@ -10846,6 +10875,18 @@ nsresult nsDocShell::DoURILoad(nsDocShellLoadState* aLoadState,
     inheritPrincipal = inheritAttrs && !uri->SchemeIs("data");
   }
 
+  // If a page opens about:blank, it will have a content principal.
+  // If it is then restored after a restart, we might not have initialized
+  // UsesOAC for it. If this is the case, do a normal load (bug 2004647).
+  // XXX bug 2005205 tracks removing this workaround.
+  const auto shouldSkipSyncLoadForSHRestore = [&] {
+    return aLoadState->LoadIsFromSessionHistory() &&
+           aLoadState->PrincipalToInherit() &&
+           !mBrowsingContext->Group()
+                ->UsesOriginAgentCluster(aLoadState->PrincipalToInherit())
+                .isSome();
+  };
+
   MOZ_ASSERT_IF(NS_IsAboutBlankAllowQueryAndFragment(uri) &&
                     aLoadState->PrincipalToInherit(),
                 inheritPrincipal);
@@ -10853,7 +10894,8 @@ nsresult nsDocShell::DoURILoad(nsDocShellLoadState* aLoadState,
   const bool isAboutBlankLoadOntoInitialAboutBlank =
       !aLoadState->IsInitialAboutBlankHandlingProhibited() &&
       IsAboutBlankLoadOntoInitialAboutBlank(uri,
-                                            aLoadState->PrincipalToInherit());
+                                            aLoadState->PrincipalToInherit()) &&
+      !shouldSkipSyncLoadForSHRestore();
 
   // FIXME We still have a ton of codepaths that don't pass through
   //       DocumentLoadListener, so probably need to create session history info
@@ -12834,7 +12876,7 @@ void nsDocShell::MaybeFireTraverseHistory(nsDocShellLoadState* aLoadState) {
                                     ->mInfo.GetURIOrInheritedForAboutBlank();
   if (NS_FAILED(nsContentUtils::GetSecurityManager()->CheckSameOriginURI(
           activeURI, loadingURI,
-          /*reportError=*/true,
+          /*reportError=*/false,
           /*fromPrivateWindow=*/false))) {
     return;
   }

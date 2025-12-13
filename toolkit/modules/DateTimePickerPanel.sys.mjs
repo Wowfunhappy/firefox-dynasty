@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-export var DateTimePickerPanel = class {
+export class DateTimePickerPanel {
   constructor(element) {
     this.element = element;
 
@@ -81,16 +81,6 @@ export var DateTimePickerPanel = class {
     this.element.hidePopup();
   }
 
-  setPopupValue(data) {
-    const detail = data.value;
-    // Month value from input box starts from 1 instead of 0
-    detail.month = detail.month == undefined ? undefined : detail.month - 1;
-    this.postMessageToPicker({
-      name: "PickerSetValue",
-      detail,
-    });
-  }
-
   initPicker(detail) {
     let locale = new Services.intl.Locale(
       Services.locale.webExposedLocales[0],
@@ -159,10 +149,7 @@ export var DateTimePickerPanel = class {
     });
   }
 
-  /**
-   * @param {boolean} passAllValues: Pass spinner values regardless if they've been set/changed or not
-   */
-  setInputBoxValue(passAllValues) {
+  setInputBoxValue() {
     const value = {
       year: this.pickerState.year,
       month: this.pickerState.month,
@@ -170,19 +157,6 @@ export var DateTimePickerPanel = class {
       hour: this.pickerState.hour,
       minute: this.pickerState.minute,
     };
-    if (this.type !== "date") {
-      const isNoValueSet =
-        this.pickerState.isHourSet ||
-        this.pickerState.isMinuteSet ||
-        this.pickerState.isDayPeriodSet;
-      if (!passAllValues || isNoValueSet) {
-        value.hour =
-          this.pickerState.isHourSet || this.pickerState.isDayPeriodSet
-            ? value.hour
-            : undefined;
-        value.minute = this.pickerState.isMinuteSet ? value.minute : undefined;
-      }
-    }
     this.sendPickerValueChanged(value);
   }
 
@@ -286,4 +260,4 @@ export var DateTimePickerPanel = class {
       this.dateTimePopupFrame.contentWindow.postMessage(data, "*");
     }
   }
-};
+}

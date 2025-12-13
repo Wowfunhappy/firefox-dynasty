@@ -452,6 +452,17 @@ export class DiscoveryStreamFeed {
           );
           return null;
         }
+
+        // ObliviousHTTP.ohttpRequest only accepts a key/value object, and not
+        // a Headers instance. We normalize any headers to a key/value object.
+        //
+        // We use instanceof here since isInstance isn't available for node
+        // tests like DiscoveryStreamFeed.test.js.
+        // eslint-disable-next-line mozilla/use-isInstance
+        if (options.headers && options.headers instanceof Headers) {
+          options.headers = Object.fromEntries(options.headers);
+        }
+
         fetchPromise = lazy.ObliviousHTTP.ohttpRequest(
           ohttpRelayURL,
           config,
@@ -987,6 +998,7 @@ export class DiscoveryStreamFeed {
           sponsor: spoc.sponsor,
           title: spoc.title,
           url: spoc.url,
+          attribution: spoc.attributions || null,
         })),
       };
     }
@@ -1189,6 +1201,8 @@ export class DiscoveryStreamFeed {
           ...(placements.length ? { placements } : {}),
         };
 
+        const marsOhttpEnabled = state.Prefs.values[PREF_UNIFIED_ADS_OHTTP];
+
         // Bug 1964715: Remove this logic when AdsFeed is 100% enabled
         if (unifiedAdsEnabled && !adsFeedEnabled) {
           const endpointBaseUrl = state.Prefs.values[PREF_UNIFIED_ADS_ENDPOINT];
@@ -1196,13 +1210,11 @@ export class DiscoveryStreamFeed {
           unifiedAdsPlacements = this.getAdsPlacements();
           const blockedSponsors =
             state.Prefs.values[PREF_UNIFIED_ADS_BLOCKED_LIST];
-          const preFlightConfig =
-            state.Prefs.values?.trainhopConfig?.marsPreFlight || {};
 
           // We need some basic data that we can pass along to the ohttp request.
           // We purposefully don't use ohttp on this request. We also expect to
           // mostly hit the HTTP cache rather than the network with these requests.
-          if (preFlightConfig.enabled) {
+          if (marsOhttpEnabled) {
             const preFlight = await this.fetchFromEndpoint(
               `${endpointBaseUrl}v1/ads-preflight`,
               {
@@ -1227,8 +1239,6 @@ export class DiscoveryStreamFeed {
             blocks: blockedSponsors.split(","),
           };
         }
-
-        const marsOhttpEnabled = state.Prefs.values[PREF_UNIFIED_ADS_OHTTP];
 
         let spocsResponse;
         // Logic decision point: Query ads servers in this file or utilize AdsFeed method

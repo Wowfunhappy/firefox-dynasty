@@ -19,13 +19,12 @@ from pathlib import Path
 
 def fatal_err(msg):
     print(f"\033[31mError: {msg}\033[0m")
-    exit(1)
+    sys.exit(1)
 
 
 def run_cmd_checked(*args, **kwargs):
     """Run a command, throwing an exception if it exits with non-zero status."""
-    kwargs["check"] = True
-    return subprocess.run(*args, **kwargs)
+    return subprocess.run(*args, check=True, **kwargs)
 
 
 def find_project_root():

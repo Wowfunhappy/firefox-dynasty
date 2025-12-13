@@ -210,7 +210,19 @@ XPCOMUtils.defineLazyPreferenceGetter(
   lazy,
   "lastBackupFileName",
   LAST_BACKUP_FILE_NAME_PREF_NAME,
-  ""
+  "",
+  function onUpdateLastBackupFileName(_pref, _prevVal, newVal) {
+    let bs;
+    try {
+      bs = BackupService.get();
+    } catch (e) {
+      // This can throw if the BackupService hasn't initialized yet, which
+      // is a case we're okay to ignore.
+    }
+    if (bs) {
+      bs.onUpdateLastBackupFileName(newVal);
+    }
+  }
 );
 
 XPCOMUtils.defineLazyServiceGetter(
@@ -648,13 +660,8 @@ export class BackupService extends EventTarget {
       BACKUP_ARCHIVE_ENABLED_OVERRIDE_PREF_NAME,
       false
     );
-    // This is explicitly checking for archiveKillswitchTriggered !== false because
-    // we now also (potentially) want to use this nimbus setting for doing staged rollout
-    // of the feature. What this means is that if the value is:
-    //     - true: feature is turned off ("killed")
-    //     - undefined: feature is turned off (not launched yet)
-    //     - false: feature is turned on
-    if (archiveKillswitchTriggered !== false && !archiveOverrideEnabled) {
+    // Only disable feature if archiveKillswitch is true.
+    if (archiveKillswitchTriggered && !archiveOverrideEnabled) {
       return {
         enabled: false,
         reason: "Archiving a profile disabled remotely.",
@@ -727,8 +734,6 @@ export class BackupService extends EventTarget {
       false
     );
 
-    // restoreKillswitch is a "normal" killswitch, in contrast
-    // to archiveKillswitch
     if (restoreKillswitchTriggered && !restoreOverrideEnabled) {
       return {
         enabled: false,
@@ -860,7 +865,7 @@ export class BackupService extends EventTarget {
     encryptionEnabled: false,
     /** @type {number?} Number of seconds since UNIX epoch */
     lastBackupDate: null,
-    lastBackupFileName: "",
+    lastBackupFileName: lazy.lastBackupFileName,
     supportBaseLink: Services.urlFormatter.formatURLPref("app.support.baseURL"),
     recoveryInProgress: false,
     /**
@@ -1245,12 +1250,15 @@ export class BackupService extends EventTarget {
   /**
    * Returns a reference to a BackupService singleton. If this is the first time
    * that this getter is accessed, this causes the BackupService singleton to be
-   * be instantiated.
+   * instantiated.
    *
    * @static
-   * @type {BackupService}
+   * @param {object} BackupResources
+   *   Optional object containing BackupResource classes to initialize the instance with.
+   * @returns {BackupService}
+   *   The BackupService singleton instance.
    */
-  static init() {
+  static init(BackupResources = DefaultBackupResources) {
     if (this.#instance) {
       return this.#instance;
     }
@@ -1258,12 +1266,28 @@ export class BackupService extends EventTarget {
     // If there is unsent restore telemetry, send it now.
     GleanPings.profileRestore.submit();
 
-    this.#instance = new BackupService(DefaultBackupResources);
+    this.#instance = new BackupService(BackupResources);
 
     this.#instance.checkForPostRecovery();
     this.#instance.initBackupScheduler();
     this.#instance.initStatusObservers();
     return this.#instance;
+  }
+
+  /**
+   * Clears the BackupService singleton instance.
+   * This should only be used in tests.
+   *
+   * @static
+   */
+  static uninit() {
+    if (this.#instance) {
+      lazy.logConsole.debug("Uninitting the BackupService");
+
+      this.#instance.uninitBackupScheduler();
+      this.#instance.uninitStatusObservers();
+      this.#instance = null;
+    }
   }
 
   /**
@@ -1916,9 +1940,6 @@ export class BackupService extends EventTarget {
     await IOUtils.move(sourcePath, destPath);
 
     Services.prefs.setStringPref(LAST_BACKUP_FILE_NAME_PREF_NAME, FILENAME);
-    // It is expected that our caller will call stateUpdate(), so we skip doing
-    // that here. This is done via the backupInProgress setter in createBackup.
-    this.#_state.lastBackupFileName = FILENAME;
 
     for (let childFilePath of existingChildren) {
       let childFileName = PathUtils.filename(childFilePath);
@@ -3661,6 +3682,32 @@ export class BackupService extends EventTarget {
   }
 
   /**
+   * Updates lastBackupFileName in the backup service state. Should be called every time
+   * the value for browser.backup.scheduled.last-backup-file changes.
+   *
+   * @param {string} newLastBackupFileName
+   *    Name of the last known backup file
+   */
+  onUpdateLastBackupFileName(newLastBackupFileName) {
+    lazy.logConsole.debug(
+      `The last backup file name is being updated to ${newLastBackupFileName}`
+    );
+
+    this.#_state.lastBackupFileName = newLastBackupFileName;
+
+    if (!newLastBackupFileName) {
+      lazy.logConsole.debug(
+        `Looks like we've cleared the last backup file name, let's also clear the last backup date`
+      );
+
+      this.#_state.lastBackupDate = null;
+      Services.prefs.clearUserPref(LAST_BACKUP_TIMESTAMP_PREF_NAME);
+    }
+
+    this.stateUpdate();
+  }
+
+  /**
    * Returns the moz-icon URL of a file. To get the moz-icon URL, the
    * file path is convered to a fileURI. If there is a problem retreiving
    * the moz-icon due to an invalid file path, return null instead.
@@ -4006,16 +4053,8 @@ export class BackupService extends EventTarget {
       LAST_BACKUP_TIMESTAMP_PREF_NAME,
       0
     );
-    if (!lastBackupPrefValue) {
-      this.#_state.lastBackupDate = null;
-    } else {
-      this.#_state.lastBackupDate = lastBackupPrefValue;
-    }
 
-    this.#_state.lastBackupFileName = Services.prefs.getStringPref(
-      LAST_BACKUP_FILE_NAME_PREF_NAME,
-      ""
-    );
+    this.#_state.lastBackupDate = lastBackupPrefValue || null;
 
     this.stateUpdate();
 
@@ -4587,7 +4626,7 @@ export class BackupService extends EventTarget {
   async showBackupLocation() {
     let backupFilePath = PathUtils.join(
       lazy.backupDirPref,
-      this.#_state.lastBackupFileName
+      lazy.lastBackupFileName
     );
     if (await IOUtils.exists(backupFilePath)) {
       new lazy.nsLocalFile(backupFilePath).reveal();
@@ -4621,7 +4660,7 @@ export class BackupService extends EventTarget {
     speedUpHeuristic = false,
   } = {}) {
     // Do we already have a backup for this browser? if so, we don't need to do any searching!
-    if (this.#_state.lastBackupFileName) {
+    if (lazy.lastBackupFileName) {
       return {
         found: true,
         multipleBackupsFound: false,
@@ -4862,13 +4901,7 @@ export class BackupService extends EventTarget {
             });
           }
 
-          this.#_state.lastBackupDate = null;
-          Services.prefs.clearUserPref(LAST_BACKUP_TIMESTAMP_PREF_NAME);
-
-          this.#_state.lastBackupFileName = "";
           Services.prefs.clearUserPref(LAST_BACKUP_FILE_NAME_PREF_NAME);
-
-          this.stateUpdate();
         } else {
           lazy.logConsole.log(
             "Not deleting last backup file, since none is known about."

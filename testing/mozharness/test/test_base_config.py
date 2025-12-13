@@ -16,7 +16,7 @@ except ImportError:
 else:
     JSON_TYPE = "simplejson"
 
-import mozharness.base.config as config
+from mozharness.base import config
 
 MH_DIR = os.path.dirname(os.path.dirname(__file__))
 
@@ -30,7 +30,7 @@ class TestParseConfigFile(unittest.TestCase):
         fh = open(filename)
         contents = json.load(fh)
         fh.close()
-        if "output" == "dict":
+        if output == "dict":
             return dict(contents)
         else:
             return contents

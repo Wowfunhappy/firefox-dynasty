@@ -1425,7 +1425,7 @@
 # Control whether we enable the feature of crash pull at all
 - name: browser.crashReports.crashPull
   type: bool
-  value: @IS_NIGHTLY_BUILD@
+  value: true
   mirror: always
 
 # Should we prompt the user to send targeted crash report requested by devs?
@@ -2904,6 +2904,12 @@
   value: true
   mirror: always
 
+# Whether pointerrawupdate's movementX and movementY are set to non-zero values.
+- name: dom.event.pointer.rawupdate.movement.enabled
+  type: bool
+  value: true
+  mirror: always
+
 # Whether wheel event target's should be grouped. When enabled, all wheel
 # events that occur in a given wheel transaction have the same event target.
 - name: dom.event.wheel-event-groups.enabled
@@ -3011,6 +3017,12 @@
 # Expose Window.TextEvent and make the builtin editors dispatch `textInput`
 # event as a default action of `beforeinput`.
 - name: dom.events.textevent.enabled
+  type: bool
+  value: true
+  mirror: always
+
+# Whether to expose execCommand("paste") to web content.
+- name: dom.execCommand.paste.enabled
   type: bool
   value: true
   mirror: always
@@ -4500,7 +4512,7 @@
 # (https://w3c.github.io/trusted-types/dist/spec/) is enabled.
 - name: dom.security.trusted_types.enabled
   type: RelaxedAtomicBool
-  value: @IS_EARLY_BETA_OR_EARLIER@
+  value: true
   mirror: always
 
 # If true, all content requests will get upgraded to HTTPS://
@@ -6189,6 +6201,9 @@
 # The strategy used to control how sites are isolated into separate processes
 # when Fisison is enabled. This pref has no effect if Fission is disabled.
 # See the `WebContentIsolationStrategy` enum in `ProcessIsolation.cpp`.
+# On Android, this is currently overridden: for Fenix - via nimbus.fml.yml,
+# and for other Andoid Components consumers value 2 is hardcoded
+# in the default settings in mozilla.components.concept.engine.Settings
 - name: fission.webContentIsolationStrategy
   type: uint32_t
   value: 1
@@ -8871,7 +8886,7 @@
 # NOTE: These must match JitOptions defaults.
 - name: javascript.options.inlining_bytecode_max_length
   type: uint32_t
-  value: 130
+  value: 140
   mirror: always
   do_not_use_directly: true
 
@@ -9050,6 +9065,13 @@
   mirror: always
   set_spidermonkey_pref: startup
 
+  # Experimental support for Promise.allKeyed in JavaScript.
+- name: javascript.options.experimental.promise_allkeyed
+  type: bool
+  value: false
+  mirror: always
+  set_spidermonkey_pref: startup
+
  # Experimental support for Iterator Chunking in JavaScript.
 - name: javascript.options.experimental.iterator_chunking
   type: bool
@@ -9064,6 +9086,12 @@
   mirror: always
   set_spidermonkey_pref: startup
 
+  # Experimental support for WASM/EcmaScript module integration in JavaScript.
+- name: javascript.options.experimental.wasm_esm_integration
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
+  set_spidermonkey_pref: startup
 #endif  // NIGHTLY_BUILD
 
 # Whether to Baseline-compile self-hosted functions the first time they are

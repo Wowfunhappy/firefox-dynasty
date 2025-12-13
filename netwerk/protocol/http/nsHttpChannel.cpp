@@ -155,6 +155,9 @@
 #  include "mozilla/StaticPrefs_fuzzing.h"
 #endif
 
+#include "mozilla/dom/ReportDeliver.h"
+#include "mozilla/dom/ReportingHeader.h"
+
 namespace mozilla {
 
 using namespace dom;
@@ -4546,6 +4549,76 @@ bool nsHttpChannel::ShouldBypassProcessNotModified() {
   return false;
 }
 
+void nsHttpChannel::MaybeGenerateNELReport() {
+  if (!StaticPrefs::network_http_network_error_logging_enabled()) {
+    return;
+  }
+
+  nsCOMPtr<nsINetworkErrorReport> report;
+  if (nsCOMPtr<nsINetworkErrorLogging> nel =
+          components::NetworkErrorLogging::Service()) {
+    nel->GenerateNELReport(this, getter_AddRefs(report));
+  }
+
+  mReportedNEL = true;
+
+  // https://www.w3.org/TR/2023/WD-network-error-logging-20231005/#deliver-a-network-report
+  // 4. Generate a network report given these parameters:
+  // type: network-error
+  // url
+  // user_agent
+  // body
+
+  if (!report) {
+    return;
+  }
+
+  nsCOMPtr<nsIScriptSecurityManager> ssm = nsContentUtils::GetSecurityManager();
+  if (!ssm) {
+    return;
+  }
+
+  nsCOMPtr<nsIPrincipal> channelPrincipal;
+  ssm->GetChannelResultPrincipal(this, getter_AddRefs(channelPrincipal));
+  if (!channelPrincipal) {
+    return;
+  }
+
+  nsAutoCString body;
+  nsAutoString group;
+  nsAutoString url;
+
+  report->GetBody(body);
+  report->GetGroup(group);
+  report->GetUrl(url);
+
+  nsAutoCString endpointURL;
+  ReportingHeader::GetEndpointForReportIncludeSubdomains(
+      group, channelPrincipal, /* includeSubdomains */ true, endpointURL);
+  if (endpointURL.IsEmpty()) {
+    return;
+  }
+
+  ReportDeliver::ReportData data;
+  data.mType = u"network-error"_ns;
+  data.mGroupName = group;
+  data.mURL = url;
+  data.mFailures = 0;
+  data.mCreationTime = TimeStamp::Now();
+
+  data.mPrincipal = channelPrincipal;
+  data.mEndpointURL = endpointURL;
+  data.mReportBodyJSON = body;
+  nsAutoCString userAgent;
+  // XXX(valentin): Should this be the potentially user set value of the header
+  // or the current value of user_agent from http handler?
+  (void)mRequestHead.GetHeader(nsHttp::User_Agent, userAgent);
+  data.mUserAgent = NS_ConvertUTF8toUTF16(userAgent);
+
+  // Enqueue the report to be delivered by the reporting API
+  ReportDeliver::Fetch(data);
+}
+
 nsresult nsHttpChannel::ProcessNotModified(
     const std::function<nsresult(nsHttpChannel*, nsresult)>&
         aContinueProcessResponseFunc) {
@@ -4598,13 +4671,8 @@ nsresult nsHttpChannel::ProcessNotModified(
   rv = mCacheEntry->SetMetaDataElement("response-head", head.get());
   if (NS_FAILED(rv)) return rv;
 
-  if (StaticPrefs::network_http_network_error_logging_enabled() &&
-      LoadUsedNetwork() && !mReportedNEL) {
-    if (nsCOMPtr<nsINetworkErrorLogging> nel =
-            components::NetworkErrorLogging::Service()) {
-      nel->GenerateNELReport(this);
-    }
-    mReportedNEL = true;
+  if (LoadUsedNetwork() && !mReportedNEL) {
+    MaybeGenerateNELReport();
   }
 
   // make the cached response be the current response
@@ -6980,6 +7048,9 @@ nsHttpChannel::Cancel(nsresult status) {
 
   LOG(("nsHttpChannel::Cancel [this=%p status=%" PRIx32 ", reason=%s]\n", this,
        static_cast<uint32_t>(status), mCanceledReason.get()));
+  PROFILER_MARKER("nsHttpChannel::Cancel", NETWORK, {}, FlowMarker,
+                  Flow::FromPointer(this));
+
   MOZ_ASSERT_IF(!(mConnectionInfo && mConnectionInfo->UsingConnect()) &&
                     NS_SUCCEEDED(mStatus),
                 !AllowedErrorForTransactionRetry(status));
@@ -7110,13 +7181,8 @@ nsresult nsHttpChannel::CancelInternal(nsresult status) {
     return NS_OK;
   }
 
-  if (StaticPrefs::network_http_network_error_logging_enabled() &&
-      LoadUsedNetwork() && !mReportedNEL) {
-    if (nsCOMPtr<nsINetworkErrorLogging> nel =
-            components::NetworkErrorLogging::Service()) {
-      nel->GenerateNELReport(this);
-    }
-    mReportedNEL = true;
+  if (LoadUsedNetwork() && !mReportedNEL) {
+    MaybeGenerateNELReport();
   }
 
   // We don't want the content process to see any header values
@@ -10307,13 +10373,8 @@ nsresult nsHttpChannel::ContinueOnStopRequest(nsresult aStatus, bool aIsFromNet,
     mAuthRetryPending = false;
   }
 
-  if (StaticPrefs::network_http_network_error_logging_enabled() &&
-      LoadUsedNetwork() && !mReportedNEL) {
-    if (nsCOMPtr<nsINetworkErrorLogging> nel =
-            components::NetworkErrorLogging::Service()) {
-      nel->GenerateNELReport(this);
-    }
-    mReportedNEL = true;
+  if (LoadUsedNetwork() && !mReportedNEL) {
+    MaybeGenerateNELReport();
   }
 
   // notify "http-on-before-stop-request" observers
@@ -10826,6 +10887,53 @@ nsHttpChannel::GetAlternativeDataType(nsACString& aType) {
     return NS_ERROR_NOT_AVAILABLE;
   }
   aType = mAvailableCachedAltDataType;
+  return NS_OK;
+}
+
+class CacheEntryWriteHandle : public nsICacheEntryWriteHandle {
+  virtual ~CacheEntryWriteHandle() = default;
+
+ public:
+  NS_DECL_ISUPPORTS
+  NS_DECL_NSICACHEENTRYWRITEHANDLE
+
+  explicit CacheEntryWriteHandle(nsICacheEntry* aCacheEntry)
+      : mCacheEntry(aCacheEntry) {
+    MOZ_ASSERT(mCacheEntry);
+  }
+
+ private:
+  nsCOMPtr<nsICacheEntry> mCacheEntry;
+};
+
+NS_IMPL_ADDREF(CacheEntryWriteHandle)
+NS_IMPL_RELEASE(CacheEntryWriteHandle)
+NS_INTERFACE_MAP_BEGIN(CacheEntryWriteHandle)
+  NS_INTERFACE_MAP_ENTRY(nsISupports)
+  NS_INTERFACE_MAP_ENTRY(nsICacheEntryWriteHandle)
+NS_INTERFACE_MAP_END
+
+NS_IMETHODIMP
+CacheEntryWriteHandle::OpenAlternativeOutputStream(
+    const nsACString& type, int64_t predictedSize,
+    nsIAsyncOutputStream** _retval) {
+  nsresult rv =
+      mCacheEntry->OpenAlternativeOutputStream(type, predictedSize, _retval);
+  if (NS_SUCCEEDED(rv)) {
+    mCacheEntry->SetMetaDataElement("alt-data-from-child", nullptr);
+  }
+  return rv;
+}
+
+NS_IMETHODIMP
+nsHttpChannel::GetCacheEntryWriteHandle(nsICacheEntryWriteHandle** _retval) {
+  if (!mCacheEntry) {
+    return NS_ERROR_NOT_AVAILABLE;
+  }
+
+  nsCOMPtr<nsICacheEntryWriteHandle> handle =
+      new CacheEntryWriteHandle(mCacheEntry);
+  handle.forget(_retval);
   return NS_OK;
 }
 

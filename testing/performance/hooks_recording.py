@@ -95,8 +95,7 @@ def before_iterations(kw):
         raise Exception("No tests were selected for recording!")
 
     def next_site():
-        for site in sites:
-            yield site
+        yield from sites
 
     next_site = next_site()
 
@@ -106,7 +105,6 @@ def before_iterations(kw):
 
 
 def before_runs(env):
-    global next_site
     print("Running before_runs")
     add_options(env, options)
 

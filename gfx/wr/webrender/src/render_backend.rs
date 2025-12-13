@@ -36,7 +36,8 @@ use crate::intern::DataStore;
 use crate::internal_types::DebugOutput;
 use crate::internal_types::{FastHashMap, FrameId, FrameStamp, RenderedDocument, ResultMsg};
 use malloc_size_of::{MallocSizeOf, MallocSizeOfOps};
-use crate::picture::{PictureScratchBuffer, SliceId, TileCacheInstance, TileCacheParams, SurfaceInfo, RasterConfig};
+use crate::picture::{PictureScratchBuffer, SurfaceInfo, RasterConfig};
+use crate::tile_cache::{SliceId, TileCacheInstance, TileCacheParams};
 use crate::picture::PicturePrimitive;
 use crate::prim_store::{PrimitiveScratchBuffer, PrimitiveInstance};
 use crate::prim_store::{PrimitiveInstanceKind, PrimTemplateCommonData};
@@ -234,8 +235,7 @@ impl DataStores {
         prim_inst: &PrimitiveInstance
     ) -> &PrimTemplateCommonData {
         match prim_inst.kind {
-            PrimitiveInstanceKind::Rectangle { data_handle, .. } |
-            PrimitiveInstanceKind::Clear { data_handle, .. } => {
+            PrimitiveInstanceKind::Rectangle { data_handle, .. } => {
                 let prim_data = &self.prim[data_handle];
                 &prim_data.common
             }

@@ -634,6 +634,10 @@ CanonicalBrowsingContext::CreateLoadingSessionHistoryEntryForLoad(
   }
   MOZ_DIAGNOSTIC_ASSERT(entry);
 
+  if (aLoadState->GetNavigationType() == NavigationType::Replace) {
+    MaybeReuseNavigationKeyFromActiveEntry(entry);
+  }
+
   UniquePtr<LoadingSessionHistoryInfo> loadingInfo;
   if (existingLoadingInfo) {
     loadingInfo = MakeUnique<LoadingSessionHistoryInfo>(*existingLoadingInfo);
@@ -753,6 +757,11 @@ CanonicalBrowsingContext::ReplaceLoadingSessionHistoryEntryForLoad(
       loadingEntry->SetDocshellID(GetHistoryID());
       loadingEntry->SetIsDynamicallyAdded(CreatedDynamically());
 
+      if (aInfo->mTriggeringNavigationType &&
+          *aInfo->mTriggeringNavigationType == NavigationType::Replace) {
+        MaybeReuseNavigationKeyFromActiveEntry(loadingEntry);
+      }
+
       auto result = MakeUnique<LoadingSessionHistoryInfo>(loadingEntry, aInfo);
       MOZ_LOG_FMT(
           gNavigationAPILog, LogLevel::Debug,
@@ -804,6 +813,33 @@ void CanonicalBrowsingContext::GetContiguousEntriesForLoad(
   if (!aLoadingInfo.mLoadIsFromSessionHistory || !sameOrigin) {
     aLoadingInfo.mContiguousEntries.AppendElement(aEntry->Info());
   }
+}
+
+void CanonicalBrowsingContext::MaybeReuseNavigationKeyFromActiveEntry(
+    SessionHistoryEntry* aEntry) {
+  MOZ_ASSERT(aEntry);
+
+  // https://html.spec.whatwg.org/#finalize-a-cross-document-navigation
+  // 9. If entryToReplace is null, then: ...
+  //    Otherwise: ...
+  //      4. If historyEntry's document state's origin is same origin with
+  //         entryToReplace's document state's origin, then set
+  //         historyEntry's navigation API key to entryToReplace's
+  //         navigation API key.
+  if (!mActiveEntry) {
+    return;
+  }
+
+  nsCOMPtr<nsIURI> uri = mActiveEntry->GetURIOrInheritedForAboutBlank();
+  nsCOMPtr<nsIURI> targetURI = aEntry->GetURIOrInheritedForAboutBlank();
+  bool sameOrigin =
+      NS_SUCCEEDED(nsContentUtils::GetSecurityManager()->CheckSameOriginURI(
+          targetURI, uri, false, false));
+  if (!sameOrigin) {
+    return;
+  }
+
+  aEntry->SetNavigationKey(mActiveEntry->Info().NavigationKey());
 }
 
 using PrintPromise = CanonicalBrowsingContext::PrintPromise;
@@ -2320,8 +2356,6 @@ nsresult CanonicalBrowsingContext::PendingRemotenessChange::FinishSubframe() {
       NullPrincipal::Create(target->OriginAttributesRef());
   RefPtr<nsOpenWindowInfo> openWindowInfo = new nsOpenWindowInfo();
   openWindowInfo->mPrincipalToInheritForAboutBlank = initialPrincipal;
-  openWindowInfo->mPartitionedPrincipalToInheritForAboutBlank =
-      initialPrincipal;
   WindowGlobalInit windowInit =
       WindowGlobalActor::AboutBlankInitializer(target, initialPrincipal);
 

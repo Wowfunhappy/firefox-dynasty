@@ -619,7 +619,6 @@ def autotest(
     # do this on a local trusted clang-tidy package.
     command_context._set_log_level(verbose)
     command_context.activate_virtualenv()
-    dump_results = dump_results
 
     force_download = not dump_results
 
@@ -1630,10 +1629,9 @@ def _generate_path_list(command_context, paths, verbose=True):
                     ):
                         # Supported extension and accepted path
                         path_list.append(f_in_dir)
-        else:
-            # Make sure that the file exists and it has a supported extension
-            if os.path.isfile(f) and f.endswith(extensions):
-                path_list.append(f)
+        # Make sure that the file exists and it has a supported extension
+        elif os.path.isfile(f) and f.endswith(extensions):
+            path_list.append(f)
 
     return path_list
 

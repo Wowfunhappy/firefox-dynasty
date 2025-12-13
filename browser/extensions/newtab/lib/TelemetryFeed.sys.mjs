@@ -883,7 +883,7 @@ export class TelemetryFeed {
 
     const { p } =
       this._privateRandomContentTelemetryProbablityValues[cache_key];
-    if (!lazy.NewTabContentPing.decideWithProbability(p)) {
+    if (lazy.NewTabContentPing.decideWithProbability(p)) {
       return item;
     }
     const allRecs = this.getAllRecommendations(); // Number of recommendations has changed
@@ -905,7 +905,11 @@ export class TelemetryFeed {
     };
     // If we're replacing a non top stories item, then assign the appropriate
     // section to the item
-    if (resultItem.section !== TOP_STORIES_SECTION_NAME && randomItem.section) {
+    if (
+      resultItem.section &&
+      resultItem.section !== TOP_STORIES_SECTION_NAME &&
+      randomItem.section
+    ) {
       resultItem.section = randomItem.section;
       resultItem.section_position = randomItem.section_position;
     }
@@ -1031,66 +1035,6 @@ export class TelemetryFeed {
           }
         }
 
-        break;
-      }
-      case "POCKET_THUMBS_DOWN":
-      case "POCKET_THUMBS_UP": {
-        const {
-          corpus_item_id,
-          format,
-          is_section_followed,
-          action_position,
-          received_rank,
-          recommendation_id,
-          recommended_at,
-          scheduled_corpus_item_id,
-          section_position,
-          section,
-          thumbs_down,
-          thumbs_up,
-          tile_id,
-          topic,
-        } = action.data.value ?? {};
-
-        const gleanData = {
-          tile_id,
-          position: action_position,
-          // We conditionally add in a few props.
-          ...(corpus_item_id ? { corpus_item_id } : {}),
-          ...(scheduled_corpus_item_id ? { scheduled_corpus_item_id } : {}),
-          ...(corpus_item_id || scheduled_corpus_item_id
-            ? {
-                received_rank,
-                recommended_at,
-              }
-            : {
-                recommendation_id,
-              }),
-          thumbs_up,
-          thumbs_down,
-          topic,
-          ...(format ? { format } : {}),
-          ...(section
-            ? {
-                section,
-                section_position,
-                ...(this.sectionsPersonalizationEnabled
-                  ? { is_section_followed: !!is_section_followed }
-                  : {}),
-              }
-            : {}),
-        };
-        Glean.pocket.thumbVotingInteraction.record({
-          ...this.redactNewTabPing(gleanData),
-          newtab_visit_id: session.session_id,
-        });
-        if (this.privatePingEnabled) {
-          // eslint-disable-next-line no-unused-vars
-          this.newtabContentPing.recordEvent(
-            "thumbVotingInteraction",
-            gleanData
-          );
-        }
         break;
       }
       // Bug 1969452 - Feature Highlight Telemetry Events
