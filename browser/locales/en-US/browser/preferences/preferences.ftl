@@ -347,9 +347,11 @@ preferences-web-appearance-override-warning3 =
 preferences-web-appearance-link =
     .label = Manage { -brand-short-name } themes in Extensions & Themes
 
-preferences-contrast-control-header = Contrast Control
-
-preferences-contrast-control-description = Websites have a variety of foreground and background colors. Configure { -brand-short-name } to use the same colors across websites for improved readability.
+preferences-contrast-control-group =
+    .label = Website contrast
+    .description = Websites use a variety of foreground and background colors. For consistent contrast, you can use the same colors across websites.
+preferences-contrast-control-radio-group =
+    .label = Override colors
 
 preferences-contrast-control-use-platform-settings =
     .label = Automatic (use system settings)
@@ -379,9 +381,11 @@ advanced-fonts =
     .accesskey = A
 
 # Zoom is a noun, and the message is used as header for a group of options
-preferences-zoom-header = Zoom
+preferences-zoom-header2 =
+  .label = Zoom
 
-preferences-default-zoom = Default zoom
+preferences-default-zoom-label =
+    .label = Default zoom
     .accesskey = z
 
 # Variables:
@@ -1338,9 +1342,9 @@ autofill-payment-methods-add-button = Add new payment method
 payments-list-header =
   .label = Payment methods
 payments-list-item-label = <strong>Payment methods</strong>
-payments-remove-payment-prompt-title = Remove this payment method?
-payments-remove-payment-prompt-confirm-button = Remove
-payments-remove-payment-prompt-cancel-button = Cancel
+payments-delete-payment-prompt-title = Delete this payment method?
+payments-delete-payment-prompt-confirm-button = Delete
+payments-delete-payment-prompt-cancel-button = Cancel
 autofill-addresses-title = Addresses and more
 autofill-addresses-header =
     .aria-label = Addresses and more
