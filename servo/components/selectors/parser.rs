@@ -793,7 +793,7 @@ pub fn namespace_empty_string<Impl: SelectorImpl>() -> Impl::NamespaceUrl {
     Impl::NamespaceUrl::default()
 }
 
-type SelectorData<Impl> = ThinArc<SpecificityAndFlags, Component<Impl>>;
+pub(super) type SelectorData<Impl> = ThinArc<SpecificityAndFlags, Component<Impl>>;
 
 /// Whether a selector may match a featureless host element, and whether it may match other
 /// elements.
@@ -3430,7 +3430,9 @@ where
     Impl: SelectorImpl,
 {
     debug_assert!(parser.parse_has());
-    if state.intersects(SelectorParsingState::DISALLOW_RELATIVE_SELECTOR | SelectorParsingState::AFTER_PSEUDO) {
+    if state.intersects(
+        SelectorParsingState::DISALLOW_RELATIVE_SELECTOR | SelectorParsingState::AFTER_PSEUDO,
+    ) {
         return Err(input.new_custom_error(SelectorParseErrorKind::InvalidState));
     }
     // Nested `:has()` is disallowed, mark it as such.

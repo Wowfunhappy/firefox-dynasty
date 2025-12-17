@@ -1785,6 +1785,85 @@ Preferences.addSetting({
   },
 });
 
+Preferences.addSetting({
+  /** @type {{ _removeAddressDialogStrings: string[] } & SettingConfig} */
+  id: "address-item",
+  _removeAddressDialogStrings: [],
+  onUserClick(e) {
+    const action = e.target.getAttribute("action");
+    const guid = e.target.getAttribute("guid");
+    if (action === "remove") {
+      let [title, confirm, cancel] = this._removeAddressDialogStrings;
+      FormAutofillPreferences.prototype.openRemoveAddressDialog(
+        guid,
+        window.browsingContext.topChromeWindow.browsingContext,
+        title,
+        confirm,
+        cancel
+      );
+    } else if (action === "edit") {
+      FormAutofillPreferences.prototype.openEditAddressDialog(guid, window);
+    }
+  },
+  setup(emitChange) {
+    document.l10n
+      .formatValues([
+        { id: "addresses-delete-address-prompt-title" },
+        { id: "addresses-delete-address-prompt-confirm-button" },
+        { id: "addresses-delete-address-prompt-cancel-button" },
+      ])
+      .then(val => (this._removeAddressDialogStrings = val))
+      .then(emitChange);
+  },
+  disabled() {
+    return !!this._removeAddressDialogStrings.length;
+  },
+});
+
+Preferences.addSetting({
+  id: "add-address-button",
+  deps: ["saveAndFillAddresses"],
+  onUserClick: () => {
+    FormAutofillPreferences.prototype.openEditAddressDialog(undefined, window);
+  },
+  disabled: ({ saveAndFillAddresses }) => !saveAndFillAddresses.value,
+});
+
+Preferences.addSetting({
+  id: "addresses-list-header",
+});
+
+Preferences.addSetting(
+  class extends Preferences.AsyncSetting {
+    static id = "addresses-list";
+
+    async getAddresses() {
+      await FormAutofillPreferences.prototype.initializeAddressesStorage();
+      return FormAutofillPreferences.prototype.makeAddressesListItems();
+    }
+
+    async getControlConfig() {
+      return {
+        items: await this.getAddresses(),
+      };
+    }
+
+    setup() {
+      Services.obs.addObserver(this.emitChange, "formautofill-storage-changed");
+      return () =>
+        Services.obs.removeObserver(
+          this.emitChange,
+          "formautofill-storage-changed"
+        );
+    }
+
+    async visible() {
+      const items = await this.getAddresses();
+      return !!items.length;
+    }
+  }
+);
+
 SettingGroupManager.registerGroups({
   containers: {
     // This section is marked as in progress for testing purposes
@@ -1926,6 +2005,49 @@ SettingGroupManager.registerGroups({
         id: "data-migration",
         l10nId: "preferences-data-migration-button",
         control: "moz-box-button",
+      },
+    ],
+  },
+  homepage: {
+    inProgress: true,
+    headingLevel: 2,
+    l10nId: "home-homepage-title",
+    items: [
+      {
+        id: "homepageNewWindows",
+        control: "moz-select",
+        l10nId: "home-homepage-new-windows",
+        options: [
+          {
+            value: "home",
+            l10nId: "home-mode-choice-default-fx",
+          },
+          { value: "blank", l10nId: "home-mode-choice-blank" },
+          { value: "custom", l10nId: "home-mode-choice-custom" },
+        ],
+      },
+      {
+        id: "homepageGoToCustomHomepageUrlPanel",
+        control: "moz-box-button",
+        l10nId: "home-homepage-custom-homepage-button",
+      },
+      {
+        id: "homepageNewTabs",
+        control: "moz-select",
+        l10nId: "home-homepage-new-tabs",
+        options: [
+          {
+            value: "true",
+            l10nId: "home-mode-choice-default-fx",
+          },
+          { value: "false", l10nId: "home-mode-choice-blank" },
+        ],
+      },
+      {
+        id: "homepageRestoreDefaults",
+        control: "moz-button",
+        l10nId: "home-restore-defaults",
+        controlAttrs: { id: "restoreDefaultHomePageBtn" },
       },
     ],
   },
@@ -2371,6 +2493,11 @@ SettingGroupManager.registerGroups({
     headingLevel: 2,
     items: [
       {
+        id: "certEnableThirdPartyToggle",
+        l10nId: "certs-thirdparty-toggle",
+        supportPage: "automatically-trust-third-party-certificates",
+      },
+      {
         id: "certificateButtonGroup",
         control: "moz-box-group",
         items: [
@@ -2393,12 +2520,6 @@ SettingGroupManager.registerGroups({
             },
           },
         ],
-      },
-
-      {
-        id: "certEnableThirdPartyToggle",
-        l10nId: "certs-thirdparty-toggle",
-        supportPage: "automatically-trust-third-party-certificates",
       },
     ],
   },
@@ -3110,9 +3231,7 @@ SettingGroupManager.registerGroups({
       {
         id: "payments-list",
         control: "moz-box-group",
-        l10nId: "payments-list-header",
         controlAttrs: {
-          hasHeader: true,
           type: "list",
         },
       },
@@ -3324,6 +3443,22 @@ SettingGroupManager.registerGroups({
       },
     ],
   },
+  manageAddresses: {
+    items: [
+      {
+        id: "add-address-button",
+        control: "moz-button",
+        l10nId: "autofill-addresses-add-button",
+      },
+      {
+        id: "addresses-list",
+        control: "moz-box-group",
+        controlAttrs: {
+          type: "list",
+        },
+      },
+    ],
+  },
   sync: {
     inProgress: true,
     l10nId: "sync-group-label",
@@ -3414,6 +3549,111 @@ SettingGroupManager.registerGroups({
                 },
               },
             ],
+          },
+        ],
+      },
+    ],
+  },
+  account: {
+    inProgress: true,
+    l10nId: "account-group-label",
+    headingLevel: 2,
+    items: [
+      {
+        id: "noFxaAccountGroup",
+        control: "moz-box-group",
+        items: [
+          {
+            id: "noFxaAccount",
+            control: "placeholder-message",
+            l10nId: "account-placeholder",
+            controlAttrs: {
+              imagesrc: "chrome://global/skin/illustrations/security-error.svg",
+            },
+          },
+          {
+            id: "noFxaSignIn",
+            control: "moz-box-link",
+            l10nId: "sync-signedout-account-short",
+          },
+        ],
+      },
+      {
+        id: "fxaSignedInGroup",
+        control: "moz-box-group",
+        items: [
+          {
+            id: "fxaLoginVerified",
+            control: "moz-box-item",
+            l10nId: "sync-account-signed-in",
+            l10nArgs: { email: "" },
+            iconSrc: "chrome://browser/skin/fxa/avatar-color.svg",
+            controlAttrs: {
+              layout: "large-icon",
+            },
+          },
+          {
+            id: "verifiedManage",
+            control: "moz-box-link",
+            l10nId: "sync-manage-account2",
+            controlAttrs: {
+              href: "https://accounts.firefox.com/settings",
+            },
+          },
+          {
+            id: "fxaUnlinkButton",
+            control: "moz-box-button",
+            l10nId: "sync-sign-out2",
+          },
+        ],
+      },
+      {
+        id: "fxaUnverifiedGroup",
+        control: "moz-box-group",
+        items: [
+          {
+            id: "fxaLoginUnverified",
+            control: "placeholder-message",
+            l10nId: "sync-signedin-unverified2",
+            l10nArgs: { email: "" },
+            controlAttrs: {
+              imagesrc: "chrome://global/skin/illustrations/security-error.svg",
+            },
+          },
+          {
+            id: "verifyFxaAccount",
+            control: "moz-box-link",
+            l10nId: "sync-verify-account",
+          },
+          {
+            id: "unverifiedUnlinkFxaAccount",
+            control: "moz-box-button",
+            l10nId: "sync-remove-account",
+          },
+        ],
+      },
+      {
+        id: "fxaLoginRejectedGroup",
+        control: "moz-box-group",
+        items: [
+          {
+            id: "fxaLoginRejected",
+            control: "placeholder-message",
+            l10nId: "sync-signedin-login-failure2",
+            l10nArgs: { email: "" },
+            controlAttrs: {
+              imagesrc: "chrome://global/skin/illustrations/security-error.svg",
+            },
+          },
+          {
+            id: "rejectReSignIn",
+            control: "moz-box-link",
+            l10nId: "sync-sign-in",
+          },
+          {
+            id: "rejectUnlinkFxaAccount",
+            control: "moz-box-button",
+            l10nId: "sync-remove-account",
           },
         ],
       },

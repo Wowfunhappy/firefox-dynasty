@@ -360,17 +360,13 @@ var allowlist = [
   {
     file: "moz-src:///browser/components/aiwindow/models/Tools.sys.mjs",
   },
-  // Bug 2003671 - Fetch Insights - getRelevantInsights
-  {
-    file: "moz-src:///browser/components/aiwindow/models/InsightsManager.sys.mjs",
-  },
   // Bug 2004888 - [FirstRun] Create Firstrun.html opening firstrun welcome screen
   {
     file: "chrome://browser/content/aiwindow/firstrun.html",
   },
-  // Bug 2005524 - Insights drift detector for generation from history
+  // Bug 2005768 - Insights scheduler for generation from history
   {
-    file: "moz-src:///browser/components/aiwindow/models/InsightsDriftDetector.sys.mjs",
+    file: "moz-src:///browser/components/aiwindow/models/InsightsHistoryScheduler.sys.mjs",
   },
   // Bug 2000987 - get user messages from chat source
   {

@@ -394,11 +394,11 @@ PromiseCombinatorDataHolder* PromiseCombinatorDataHolder::New(
 
   cx->check(resultPromise, elements.value(), resolveOrReject);
 
-  dataHolder->setFixedSlot(Slot_Promise, ObjectValue(*resultPromise));
-  dataHolder->setFixedSlot(Slot_RemainingElements, Int32Value(1));
-  dataHolder->setFixedSlot(Slot_ValuesArray, elements.value());
-  dataHolder->setFixedSlot(Slot_ResolveOrRejectFunction,
-                           ObjectValue(*resolveOrReject));
+  dataHolder->initFixedSlot(Slot_Promise, ObjectValue(*resultPromise));
+  dataHolder->initFixedSlot(Slot_RemainingElements, Int32Value(1));
+  dataHolder->initFixedSlot(Slot_ValuesArray, elements.value());
+  dataHolder->initFixedSlot(Slot_ResolveOrRejectFunction,
+                            ObjectValue(*resolveOrReject));
   return dataHolder;
 }
 
@@ -3602,6 +3602,31 @@ static bool Promise_static_all(JSContext* cx, unsigned argc, Value* vp) {
   return CommonPromiseCombinator(cx, args, CombinatorKind::All);
 }
 
+#ifdef NIGHTLY_BUILD
+/**
+ * Await Dictionary Proposal
+ *
+ * Promise.allKeyed
+ * https://tc39.es/proposal-await-dictionary/#sec-promise.allkeyed
+ */
+static bool Promise_static_allKeyed(JSContext* cx, unsigned argc, Value* vp) {
+  JS_ReportErrorASCII(cx, "Promise.allKeyed is not yet implemented");
+  return false;
+}
+
+/**
+ * Await Dictionary Proposal
+ *
+ * Promise.allSettledKeyed
+ * https://tc39.es/proposal-await-dictionary/#sec-promise.allsettledkeyed
+ */
+static bool Promise_static_allSettledKeyed(JSContext* cx, unsigned argc,
+                                           Value* vp) {
+  JS_ReportErrorASCII(cx, "Promise.allSettledKeyed is not yet implemented");
+  return false;
+}
+#endif
+
 [[nodiscard]] static bool PerformPromiseThen(
     JSContext* cx, Handle<PromiseObject*> promise, HandleValue onFulfilled_,
     HandleValue onRejected_, Handle<PromiseCapability> resultCapability);
@@ -5664,19 +5689,19 @@ static PromiseReactionRecord* NewReactionRecord(
 
   // See comments for ReactionRecordSlots for the relation between
   // spec record fields and PromiseReactionRecord slots.
-  reaction->setFixedSlot(PromiseReactionRecord::Promise,
-                         ObjectOrNullValue(resultCapability.promise()));
+  reaction->initFixedSlot(PromiseReactionRecord::Promise,
+                          ObjectOrNullValue(resultCapability.promise()));
   // We set [[Type]] in EnqueuePromiseReactionJob, by calling
   // setTargetStateAndHandlerArg.
-  reaction->setFixedSlot(PromiseReactionRecord::Flags, Int32Value(0));
-  reaction->setFixedSlot(PromiseReactionRecord::OnFulfilled, onFulfilled);
-  reaction->setFixedSlot(PromiseReactionRecord::OnRejected, onRejected);
-  reaction->setFixedSlot(PromiseReactionRecord::Resolve,
-                         ObjectOrNullValue(resultCapability.resolve()));
-  reaction->setFixedSlot(PromiseReactionRecord::Reject,
-                         ObjectOrNullValue(resultCapability.reject()));
-  reaction->setFixedSlot(PromiseReactionRecord::HostDefinedData,
-                         ObjectOrNullValue(hostDefinedData));
+  reaction->initFixedSlot(PromiseReactionRecord::Flags, Int32Value(0));
+  reaction->initFixedSlot(PromiseReactionRecord::OnFulfilled, onFulfilled);
+  reaction->initFixedSlot(PromiseReactionRecord::OnRejected, onRejected);
+  reaction->initFixedSlot(PromiseReactionRecord::Resolve,
+                          ObjectOrNullValue(resultCapability.resolve()));
+  reaction->initFixedSlot(PromiseReactionRecord::Reject,
+                          ObjectOrNullValue(resultCapability.reject()));
+  reaction->initFixedSlot(PromiseReactionRecord::HostDefinedData,
+                          ObjectOrNullValue(hostDefinedData));
 
   return reaction;
 }
@@ -7906,6 +7931,10 @@ static const JSPropertySpec promise_properties[] = {
 static const JSFunctionSpec promise_static_methods[] = {
     JS_FN("all", Promise_static_all, 1, 0),
     JS_FN("allSettled", Promise_static_allSettled, 1, 0),
+#ifdef NIGHTLY_BUILD
+    JS_FN("allKeyed", Promise_static_allKeyed, 1, 0),
+    JS_FN("allSettledKeyed", Promise_static_allSettledKeyed, 1, 0),
+#endif
     JS_FN("any", Promise_static_any, 1, 0),
     JS_FN("race", Promise_static_race, 1, 0),
     JS_FN("reject", Promise_reject, 1, 0),

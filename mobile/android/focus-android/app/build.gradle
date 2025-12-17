@@ -22,8 +22,8 @@ if (findProject(":geckoview") != null) {
 apply from: versionCodeGradle
 
 import com.android.build.api.variant.FilterConfiguration
+import com.google.android.gms.oss.licenses.plugin.DependencyTask
 import groovy.json.JsonOutput
-import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 import static org.gradle.api.tasks.testing.TestResult.ResultType
 
@@ -90,9 +90,9 @@ android {
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
             matchingFallbacks = ['release']
 
-            if (gradle.hasProperty("localProperties.autosignReleaseWithDebugKey") ||
-                gradle.mozconfig.substs.DEVELOPER_OPTIONS) {
-                println ("All builds will be automatically signed with the debug key")
+            // If building locally, just use debug signing. In official automation builds, the
+            // files are signed using a separate service and not within gradle.
+            if (!gradle.mozconfig.substs.MOZ_AUTOMATION) {
                 signingConfig signingConfigs.debug
             }
 
@@ -670,6 +670,16 @@ tasks.register('printVariants') {
         ])
         println 'variants: ' + JsonOutput.toJson(variants.get())
     }
+}
+
+// Fix for Gradle 9 strictness: Ensure CleanUp runs before DependencyTask
+tasks.withType(DependencyTask).configureEach { task ->
+    // The OSS plugin creates a "LicensesCleanUp" task for every "DependencyTask"
+    // e.g., nightlyOssDependencyTask -> nightlyOssLicensesCleanUp
+    def cleanUpTaskName = task.name.replace("DependencyTask", "LicensesCleanUp")
+
+    // make the dependency task depend on its cleanup task.
+    task.dependsOn(tasks.named(cleanUpTaskName))
 }
 
 afterEvaluate {

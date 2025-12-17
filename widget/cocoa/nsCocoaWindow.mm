@@ -5664,9 +5664,10 @@ void nsCocoaWindow::Show(bool aState) {
         mWindowAnimationBehavior = behavior;
       }
 
-      // We don't want alwaysontop / alert windows to pull focus when they're
-      // opened, as these tend to be for peripheral indicators and displays.
-      if (mAlwaysOnTop || mIsAlert) {
+      // We don't want most alwaysontop / alert windows to pull focus when
+      // they're opened, as these tend to be for peripheral indicators and
+      // displays.
+      if ((mAlwaysOnTop && mPiPType != PiPType::DocumentPiP) || mIsAlert) {
         [mWindow orderFront:nil];
       } else {
         [mWindow makeKeyAndOrderFront:nil];
@@ -6955,7 +6956,7 @@ void nsCocoaWindow::ReportMoveEvent() {
 
   // Dispatch the move event to Gecko, if we're visible.
   if (IsVisible()) {
-    NotifyWindowMoved(mBounds.x, mBounds.y);
+    NotifyWindowMoved(mBounds.TopLeft());
   }
 
   mInReportMoveEvent = false;
@@ -7017,11 +7018,10 @@ void nsCocoaWindow::ReportSizeEvent() {
   UpdateBounds();
   LayoutDeviceIntRect innerBounds = GetClientBounds();
   if (mWidgetListener) {
-    mWidgetListener->WindowResized(this, innerBounds.width, innerBounds.height);
+    mWidgetListener->WindowResized(this, innerBounds.Size());
   }
   if (mAttachedWidgetListener) {
-    mAttachedWidgetListener->WindowResized(this, innerBounds.width,
-                                           innerBounds.height);
+    mAttachedWidgetListener->WindowResized(this, innerBounds.Size());
   }
   NS_OBJC_END_TRY_IGNORE_BLOCK;
 }

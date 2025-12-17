@@ -7,6 +7,7 @@
 //!
 //! [position]: https://drafts.csswg.org/css-backgrounds-3/#position
 
+use crate::derives::*;
 use crate::logical_geometry::{LogicalAxis, LogicalSide, PhysicalSide, WritingMode};
 use crate::parser::{Parse, ParserContext};
 use crate::selector_map::PrecomputedHashMap;
@@ -25,7 +26,7 @@ use crate::values::specified::align::AlignFlags;
 use crate::values::specified::{AllowQuirks, Integer, LengthPercentage, NonNegativeNumber};
 use crate::values::DashedIdent;
 use crate::{Atom, Zero};
-use cssparser::Parser;
+use cssparser::{match_ignore_ascii_case, Parser};
 use num_traits::FromPrimitive;
 use selectors::parser::SelectorParseErrorKind;
 use servo_arc::Arc;

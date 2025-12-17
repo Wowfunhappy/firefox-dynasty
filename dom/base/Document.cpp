@@ -162,6 +162,7 @@
 #include "mozilla/dom/DocumentFragment.h"
 #include "mozilla/dom/DocumentInlines.h"
 #include "mozilla/dom/DocumentL10n.h"
+#include "mozilla/dom/DocumentPictureInPicture.h"
 #include "mozilla/dom/DocumentTimeline.h"
 #include "mozilla/dom/DocumentType.h"
 #include "mozilla/dom/ElementBinding.h"
@@ -211,6 +212,7 @@
 #include "mozilla/dom/Performance.h"
 #include "mozilla/dom/PermissionMessageUtils.h"
 #include "mozilla/dom/PolicyContainer.h"
+#include "mozilla/dom/PopoverData.h"
 #include "mozilla/dom/PostMessageEvent.h"
 #include "mozilla/dom/ProcessingInstruction.h"
 #include "mozilla/dom/Promise.h"
@@ -2565,8 +2567,6 @@ Document::~Document() {
   if (mAnimationController) {
     mAnimationController->Disconnect();
   }
-
-  MOZ_ASSERT(mTimelines.isEmpty());
 
   mParentDocument = nullptr;
 
@@ -12270,6 +12270,35 @@ bool Document::CanSavePresentation(nsIRequest* aNewRequest,
   return ret;
 }
 
+// https://wicg.github.io/document-picture-in-picture/#close-any-associated-document-picture-in-picture-windows
+void Document::CloseAnyAssociatedDocumentPiPWindows() {
+  BrowsingContext* bc = GetBrowsingContext();
+  if (!bc || !bc->IsTop()) {
+    return;
+  }
+
+  // 3. Close us if we're a PIP window
+  // Note that this method is called when the opener or pip document is
+  // destroyed, which might mean the PiP is already closing.
+  if (bc->GetIsDocumentPiP() && !bc->GetClosed()) {
+    if (IsUncommittedInitialDocument()) {
+      // Don't close us if we're just doing the initial about:blank load.
+      return;
+    }
+    return bc->Close(CallerType::System, IgnoreErrors());
+  }
+
+  // 4,5. Close a PIP window opened by us
+  if (nsPIDOMWindowInner* inner = GetInnerWindow()) {
+    if (DocumentPictureInPicture* dpip =
+            inner->GetExtantDocumentPictureInPicture()) {
+      if (RefPtr<nsGlobalWindowInner> pipWindow = dpip->GetWindow()) {
+        pipWindow->Close();
+      }
+    }
+  }
+}
+
 void Document::Destroy() {
   // The DocumentViewer wants to release the document now.  So, tell our content
   // to drop any references to the document so that it can be destroyed.
@@ -12679,6 +12708,9 @@ void Document::OnPageHide(bool aPersisted, EventTarget* aDispatchStartTarget,
     mIsShowing = false;
     mVisible = false;
   }
+
+  // https://wicg.github.io/document-picture-in-picture/#close-on-destroy
+  CloseAnyAssociatedDocumentPiPWindows();
 
   PointerLockManager::Unlock("Document::OnPageHide", this);
 
@@ -15352,7 +15384,7 @@ void Document::HandleEscKey() {
   for (const nsWeakPtr& weakPtr : Reversed(mTopLayer)) {
     nsCOMPtr<Element> element(do_QueryReferent(weakPtr));
     if (RefPtr popoverHTMLEl = nsGenericHTMLElement::FromNodeOrNull(element)) {
-      if (element->IsAutoPopover() && element->IsPopoverOpen()) {
+      if (element->IsPopoverOpenedInMode(PopoverAttributeState::Auto)) {
         popoverHTMLEl->HidePopover(IgnoreErrors());
         return;
       }
@@ -16057,56 +16089,119 @@ bool Document::TopLayerContains(Element& aElement) const {
   return mTopLayer.Contains(weakElement);
 }
 
+// https://html.spec.whatwg.org/#close-entire-popover-list
+void Document::CloseEntirePopoverList(PopoverAttributeState aMode,
+                                      bool aFocusPreviousElement,
+                                      bool aFireEvents) {
+  // 1. While popoverList is not empty:
+  // XXX: Rather than computing the list, find from top layer elements
+  while (RefPtr popover = GetTopmostPopoverOf(aMode)) {
+    // 1.1. Run the hide popover algorithm given popoverList's last item,
+    // focusPreviousElement, fireEvents, false, and null.
+    HidePopover(*popover, aFocusPreviousElement, aFireEvents,
+                /* aSource */ nullptr, IgnoreErrors());
+  }
+}
+
+// https://html.spec.whatwg.org/#hide-all-popovers-until
 void Document::HideAllPopoversUntil(nsINode& aEndpoint,
                                     bool aFocusPreviousElement,
                                     bool aFireEvents) {
-  auto closeAllOpenPopovers = [&aFocusPreviousElement, &aFireEvents,
-                               this]() MOZ_CAN_RUN_SCRIPT_FOR_DEFINITION {
-    while (RefPtr<Element> topmost = GetTopmostAutoPopover()) {
-      HidePopover(*topmost, aFocusPreviousElement, aFireEvents,
-                  /* aSource */ nullptr, IgnoreErrors());
-    }
-  };
+  const auto* endpointHTMLEl = nsGenericHTMLElement::FromNodeOrNull(&aEndpoint);
 
-  if (aEndpoint.IsElement() && !aEndpoint.AsElement()->IsPopoverOpen()) {
+  // 1. If endpoint is an HTML element and endpoint is not in the popover
+  // showing state, then return.
+  if (endpointHTMLEl && !endpointHTMLEl->IsPopoverOpen()) {
     return;
   }
 
+  // 2. Let document be endpoint's node document.
+  MOZ_ASSERT(aEndpoint.OwnerDoc() == this);
+  // 3. Assert: endpoint is a Document or endpoint's popover visibility state is
+  // showing.
+  // 4. Assert: endpoint is a Document or endpoint's popover attribute is in the
+  // Auto state or endpoint's popover attribute is in the Hint state.
+  // todo(keithamus): Implement this
+
+  // 5. If endpoint is a Document:
   if (&aEndpoint == this) {
-    closeAllOpenPopovers();
+    // 5.1. Run close entire popover list given document's showing hint popover
+    // list, focusPreviousElement, and fireEvents.
+    // 5.2. Run close entire popover list given document's showing auto popover
+    // list, focusPreviousElement, and fireEvents.
+    CloseEntirePopoverList(PopoverAttributeState::Auto, aFocusPreviousElement,
+                           aFireEvents);
+    // 5.3. Return.
     return;
   }
 
-  // https://github.com/whatwg/html/pull/9198
+  // 6. If document's showing hint popover list contains endpoint:
+  // 6.1. Assert: endpoint's popover attribute is in the Hint state.
+  // 6.2. Run hide popover stack until given endpoint, document's showing hint
+  // popover list, focusPreviousElement, and fireEvents.
+  // 6.3. Return.
+  // todo(keithamus): Implement this
+
+  // 7. Run close entire popover list given document's showing hint popover
+  // list, focusPreviousElement, and fireEvents.
+  // 8. If document's showing auto popover list does not contain endpoint, then
+  // return.
+
+  // 9. Run hide popover stack until given endpoint, document's showing auto
+  // popover list, focusPreviousElement, and fireEvents.
+  HidePopoverStackUntil(PopoverAttributeState::Auto, aEndpoint,
+                        aFocusPreviousElement, aFireEvents);
+}
+
+// https://html.spec.whatwg.org/#hide-popover-stack-until
+void Document::HidePopoverStackUntil(PopoverAttributeState aMode,
+                                     nsINode& aEndpoint,
+                                     bool aFocusPreviousElement,
+                                     bool aFireEvents) {
   auto needRepeatingHide = [&]() {
-    auto autoList = AutoPopoverList();
+    auto autoList = PopoverListOf(aMode);
     return autoList.Contains(&aEndpoint) &&
            &aEndpoint != autoList.LastElement();
   };
 
-  MOZ_ASSERT((&aEndpoint)->IsElement() &&
-             (&aEndpoint)->AsElement()->IsAutoPopover());
+  // 1. Let repeatingHide be false.
   bool repeatingHide = false;
   bool fireEvents = aFireEvents;
+
+  // 2. Perform the following steps at least once:
   do {
+    // 2.1. Let lastToHide be null.
     RefPtr<const Element> lastToHide = nullptr;
     bool foundEndpoint = false;
-    for (const Element* popover : AutoPopoverList()) {
+    // 2.2. For each popover in popoverList:
+    for (const Element* popover : PopoverListOf(aMode)) {
+      // 2.2.1. If popover is endpoint, then break.
+      // todo(keithamus): Get this logic closer to spec.
       if (popover == &aEndpoint) {
         foundEndpoint = true;
       } else if (foundEndpoint) {
+        // 2.2.2. Set lastToHide to popover.
         lastToHide = popover;
         break;
       }
     }
 
+    // 2.3. If lastToHide is null, then return.
     if (!foundEndpoint) {
-      closeAllOpenPopovers();
+      CloseEntirePopoverList(PopoverAttributeState::Auto, aFocusPreviousElement,
+                             fireEvents);
       return;
     }
 
+    // 2.4. While lastToHide's popover visibility state is showing:
     while (lastToHide && lastToHide->IsPopoverOpen()) {
-      RefPtr<Element> topmost = GetTopmostAutoPopover();
+      // 2.4.1. Assert: popoverList is not empty.
+      // todo(keithamus): Assert
+
+      // 2.4.2. Run the hide popover algorithm given the last item in
+      // popoverList, focusPreviousElement, fireEvents, false, and null.
+      RefPtr<Element> topmost =
+          GetTopmostPopoverOf(PopoverAttributeState::Auto);
       if (!topmost) {
         break;
       }
@@ -16114,10 +16209,18 @@ void Document::HideAllPopoversUntil(nsINode& aEndpoint,
                   /* aSource */ nullptr, IgnoreErrors());
     }
 
+    // 2.5. Assert: repeatingHide is false or popoverList's last item is
+    // endpoint.
+    // todo(keithamus): Assert
+
+    // 2.6. Set repeatingHide to true if popoverList contains endpoint and
+    // popoverList's last item is not endpoint, otherwise false.
     repeatingHide = needRepeatingHide();
+    // 2.7. If repeatingHide is true, then set fireEvents to false.
     if (repeatingHide) {
       fireEvents = false;
     }
+    // ... and keep performing them while repeatingHide is true.
   } while (repeatingHide);
 }
 
@@ -16161,8 +16264,11 @@ void Document::HidePopover(Element& aPopover, bool aFocusPreviousElement,
     }
   });
 
+  PopoverData* popoverData = popoverHTMLEl->GetPopoverData();
+
   // 7. If element's opened in popover mode is "auto" or "hint", then:
-  if (popoverHTMLEl->IsAutoPopover()) {
+  if (popoverData &&
+      popoverData->GetOpenedInMode() == PopoverAttributeState::Auto) {
     // 7.1. Run hide all popovers until given element, focusPreviousElement, and
     // fireEvents.
     HideAllPopoversUntil(*popoverHTMLEl, aFocusPreviousElement, fireEvents);
@@ -16179,14 +16285,16 @@ void Document::HidePopover(Element& aPopover, bool aFocusPreviousElement,
     // See, https://github.com/whatwg/html/issues/9197
     // If popoverHTMLEl is not on top, hide popovers again without firing
     // events.
-    if (NS_WARN_IF(GetTopmostAutoPopover() != popoverHTMLEl)) {
+    if (NS_WARN_IF(GetTopmostPopoverOf(PopoverAttributeState::Auto) !=
+                   popoverHTMLEl)) {
       HideAllPopoversUntil(*popoverHTMLEl, aFocusPreviousElement, false);
       if (!popoverHTMLEl->CheckPopoverValidity(PopoverVisibilityState::Showing,
                                                nullptr, aRv)) {
         return;
       }
-      MOZ_ASSERT(GetTopmostAutoPopover() == popoverHTMLEl,
-                 "popoverHTMLEl should be on top of auto popover list");
+      MOZ_ASSERT(
+          GetTopmostPopoverOf(PopoverAttributeState::Auto) == popoverHTMLEl,
+          "popoverHTMLEl should be on top of auto popover list");
     }
   }
 
@@ -16208,9 +16316,8 @@ void Document::HidePopover(Element& aPopover, bool aFocusPreviousElement,
     // auto popover list's last item is not element, then run hide all popovers
     // until given element, focusPreviousElement, and false. Hide all popovers
     // when beforetoggle shows a popover.
-    if (popoverHTMLEl->IsAutoPopover() &&
-        GetTopmostAutoPopover() != popoverHTMLEl &&
-        popoverHTMLEl->PopoverOpen()) {
+    if (popoverHTMLEl->IsPopoverOpenedInMode(PopoverAttributeState::Auto) &&
+        GetTopmostPopoverOf(PopoverAttributeState::Auto) != popoverHTMLEl) {
       HideAllPopoversUntil(*popoverHTMLEl, aFocusPreviousElement, false);
     }
 
@@ -16236,6 +16343,8 @@ void Document::HidePopover(Element& aPopover, bool aFocusPreviousElement,
   data->SetInvoker(nullptr);
 
   // 12. Set element's opened in popover mode to null.
+  popoverHTMLEl->GetPopoverData()->SetOpenedInMode(PopoverAttributeState::None);
+
   // 13. Set element's popover visibility state to hidden.
   popoverHTMLEl->PopoverPseudoStateUpdate(false, true);
   popoverHTMLEl->GetPopoverData()->SetPopoverVisibilityState(
@@ -16262,11 +16371,11 @@ void Document::HidePopover(Element& aPopover, bool aFocusPreviousElement,
   }
 }
 
-nsTArray<Element*> Document::AutoPopoverList() const {
+nsTArray<Element*> Document::PopoverListOf(PopoverAttributeState aMode) const {
   nsTArray<Element*> elements;
   for (const nsWeakPtr& ptr : mTopLayer) {
     if (nsCOMPtr<Element> element = do_QueryReferent(ptr)) {
-      if (element && element->IsAutoPopover() && element->IsPopoverOpen()) {
+      if (element && element->IsPopoverOpenedInMode(aMode)) {
         elements.AppendElement(element);
       }
     }
@@ -16274,24 +16383,14 @@ nsTArray<Element*> Document::AutoPopoverList() const {
   return elements;
 }
 
-Element* Document::GetTopmostAutoPopover() const {
+Element* Document::GetTopmostPopoverOf(PopoverAttributeState aMode) const {
   for (const nsWeakPtr& weakPtr : Reversed(mTopLayer)) {
     nsCOMPtr<Element> element(do_QueryReferent(weakPtr));
-    if (element && element->IsAutoPopover() && element->IsPopoverOpen()) {
+    if (element && element->IsPopoverOpenedInMode(aMode)) {
       return element;
     }
   }
   return nullptr;
-}
-
-void Document::AddToAutoPopoverList(Element& aElement) {
-  MOZ_ASSERT(aElement.IsAutoPopover());
-  TopLayerPush(aElement);
-}
-
-void Document::RemoveFromAutoPopoverList(Element& aElement) {
-  MOZ_ASSERT(aElement.IsAutoPopover());
-  TopLayerPop(aElement);
 }
 
 void Document::AddPopoverToTopLayer(Element& aElement) {
@@ -16384,6 +16483,12 @@ const char* Document::GetFullscreenError(CallerType aCallerType) {
     return "FullscreenDeniedDisabled";
   }
 
+  BrowsingContext* bc = GetBrowsingContext();
+  // https://github.com/WICG/document-picture-in-picture/issues/133
+  if (!bc || bc->Top()->GetIsDocumentPiP()) {
+    return "FullscreenDeniedPiP";
+  }
+
   if (aCallerType == CallerType::System) {
     // Chrome code can always use the fullscreen API, provided it's not
     // explicitly disabled.
@@ -16400,12 +16505,29 @@ const char* Document::GetFullscreenError(CallerType aCallerType) {
 
   // Ensure that all containing elements are <iframe> and have allowfullscreen
   // attribute set.
-  BrowsingContext* bc = GetBrowsingContext();
-  if (!bc || !bc->FullscreenAllowed()) {
+  if (!bc->FullscreenAllowed()) {
     return "FullscreenDeniedContainerNotAllowed";
   }
 
   return nullptr;
+}
+
+// Informs JSWA Fullscreen implementation to resume via sending
+// "MozDOMFullscreen:Entered".
+static inline void PropagateFullscreenRequest(Document* aDoc,
+                                              Element* aElement) {
+  nsContentUtils::DispatchEventOnlyToChrome(
+      aDoc, aElement, u"MozDOMFullscreen:Entered"_ns, CanBubble::eYes,
+      Cancelable::eNo, /* DefaultAction */ nullptr);
+}
+
+static bool ElementIsRemoteFrame(Element* aElement) {
+  MOZ_ASSERT(aElement);
+  RefPtr<nsFrameLoader> loader;
+  if (RefPtr<nsFrameLoaderOwner> loaderOwner = do_QueryObject(aElement)) {
+    loader = loaderOwner->GetFrameLoader();
+  }
+  return loader && loader->IsRemoteFrame();
 }
 
 bool Document::FullscreenElementReadyCheck(FullscreenRequest& aRequest) {
@@ -16416,7 +16538,19 @@ bool Document::FullscreenElementReadyCheck(FullscreenRequest& aRequest) {
   // should change and no event should be dispatched, but we still need
   // to resolve the returned promise.
   Element* fullscreenElement = GetUnretargetedFullscreenElement();
-  if (elem == fullscreenElement) {
+  if (NS_WARN_IF(elem == fullscreenElement)) {
+    // But this introduces behavior that we now need to account for;
+    // because we can have arbitrary depth of OOP-frames, we may hit this check
+    // for a process that already is fullscreen, e.g. the parent process.
+    // If the target element is a frame or we're the parent process, just resume
+    // the JS Window Actor messaging without doing any more work.
+    // We know for sure, that the document must be fullscreened already, so
+    // there is no request to the OS for fullscreen that needs to be made, for
+    // instance. Note: this is just for JSWA not the platform-only fullscreen
+    // implementation.
+    if (ElementIsRemoteFrame(elem)) {
+      PropagateFullscreenRequest(this, elem);
+    }
     aRequest.MayResolvePromise();
     return false;
   }
@@ -16653,7 +16787,8 @@ bool Document::ApplyFullscreen(UniquePtr<FullscreenRequest> aRequest) {
 
   Element* elem = aRequest->Element();
 
-  RefPtr<nsINode> hideUntil = elem->GetTopmostPopoverAncestor(nullptr, false);
+  RefPtr<nsINode> hideUntil = elem->GetTopmostPopoverAncestor(
+      PopoverAttributeState::Auto, nullptr, false);
   if (!hideUntil) {
     hideUntil = OwnerDoc();
   }
@@ -16732,6 +16867,12 @@ bool Document::ApplyFullscreen(UniquePtr<FullscreenRequest> aRequest) {
     }
 
     Document* parent = child->GetInProcessParentDocument();
+
+    // If this is true, nothing above this node will have changed, stopping here
+    // prevents us from sending duplicate events.
+    if (parent->GetUnretargetedFullscreenElement() == element) {
+      break;
+    }
     parent->SetFullscreenElement(*element);
     changed.AppendElement(parent);
     child = parent;
@@ -16744,10 +16885,16 @@ bool Document::ApplyFullscreen(UniquePtr<FullscreenRequest> aRequest) {
   // notifying parent process to enter fullscreen. Note that chrome
   // code may also want to listen to MozDOMFullscreen:NewOrigin event
   // to pop up warning UI.
-  if (!previousFullscreenDoc) {
-    nsContentUtils::DispatchEventOnlyToChrome(
-        this, elem, u"MozDOMFullscreen:Entered"_ns, CanBubble::eYes,
-        Cancelable::eNo, /* DefaultAction */ nullptr);
+  // We also need to propagate the message in the JSWA message chain,
+  // so that if out of process sub-frames, that has requested fs
+  // gets notified to resume it's request. We can know, that the request did not
+  // originate from this process, if the JS promise is null.
+  if (!aRequest->GetPromise() || !previousFullscreenDoc) {
+    MOZ_ASSERT(
+        (previousFullscreenDoc &&
+         ElementIsRemoteFrame(child->GetUnretargetedFullscreenElement())) ||
+        !previousFullscreenDoc);
+    PropagateFullscreenRequest(this, elem);
   }
 
   // The origin which is fullscreen gets changed. Trigger an event so
@@ -18260,6 +18407,62 @@ BrowsingContext* Document::GetBrowsingContext() const {
                             : nullptr;
 }
 
+static void PropagateUserGestureActivationBetweenPiP(
+    BrowsingContext* currentBC, UserActivation::Modifiers aModifiers) {
+  // https://wicg.github.io/document-picture-in-picture/#user-activation-propagation
+  // Monkey patch to activation notification
+  if (currentBC->Top()->GetIsDocumentPiP()) {
+    // 5. If we are in a PIP window, give transient activation to the opener
+    // window
+    // This means activation in a cross-origin subframe in the PIP window
+    // will cause the opener to get activation.
+    RefPtr<BrowsingContext> opener = currentBC->Top()->GetOpener();
+    if (!opener) {
+      return;
+    }
+    WindowContext* wc = opener->GetCurrentWindowContext();
+    NS_ENSURE_TRUE_VOID(wc);
+    wc->NotifyUserGestureActivation(aModifiers);
+  } else {
+    // 6. Get top-level navigable's last opened PiP window
+    // this means activation in a cross-origin subframe in the opener will
+    // cause the PIP window to get activation.
+    nsPIDOMWindowOuter* outer = currentBC->Top()->GetDOMWindow();
+    NS_ENSURE_TRUE_VOID(outer);
+    nsPIDOMWindowInner* inner = outer->GetCurrentInnerWindow();
+    NS_ENSURE_TRUE_VOID(inner);
+    DocumentPictureInPicture* dpip = inner->GetExtantDocumentPictureInPicture();
+    if (!dpip) {
+      return;
+    }
+    nsGlobalWindowInner* pip = dpip->GetWindow();
+    if (!pip) {
+      return;
+    }
+
+    // 7. Give transient activation to the pip window and it's same origin
+    // descendants
+    BrowsingContext* pipBC = pip->GetBrowsingContext();
+    NS_ENSURE_TRUE_VOID(pipBC);
+    WindowContext* pipWC = pipBC->GetCurrentWindowContext();
+    NS_ENSURE_TRUE_VOID(pipWC);
+    pipBC->PreOrderWalk([&](BrowsingContext* bc) {
+      WindowContext* wc = bc->GetCurrentWindowContext();
+      if (!wc) {
+        return;
+      }
+
+      // Check same-origin as current document
+      WindowGlobalChild* wgc = wc->GetWindowGlobalChild();
+      if (!wgc || !wgc->IsSameOriginWith(pipWC)) {
+        return;
+      }
+
+      wc->NotifyUserGestureActivation(aModifiers);
+    });
+  }
+}
+
 void Document::NotifyUserGestureActivation(
     UserActivation::Modifiers
         aModifiers /* = UserActivation::Modifiers::None() */) {
@@ -18305,6 +18508,8 @@ void Document::NotifyUserGestureActivation(
 
     wc->NotifyUserGestureActivation(aModifiers);
   });
+
+  PropagateUserGestureActivationBetweenPiP(currentBC, aModifiers);
 
   // If there has been a user activation, mark the current session history entry
   // as having been interacted with.
@@ -20829,9 +21034,7 @@ RadioGroupContainer& Document::OwnedRadioGroupContainer() {
 }
 
 void Document::UpdateHiddenByContentVisibilityForAnimations() {
-  for (AnimationTimeline* timeline : Timelines()) {
-    timeline->UpdateHiddenByContentVisibility();
-  }
+  mTimelinesController.UpdateHiddenByContentVisibility();
 }
 
 void Document::SetAllowDeclarativeShadowRoots(

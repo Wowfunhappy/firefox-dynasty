@@ -554,13 +554,7 @@ class BrowsingContextModule extends RootBiDiModule {
       lazy.pprint`Expected "promptUnload" to be a boolean, got ${promptUnload}`
     );
 
-    const context = lazy.NavigableManager.getBrowsingContextById(contextId);
-    if (!context) {
-      throw new lazy.error.NoSuchFrameError(
-        `Browsing Context with id ${contextId} not found`
-      );
-    }
-
+    const context = this._getNavigable(contextId);
     lazy.assert.topLevel(
       context,
       lazy.pprint`Browsing context with id ${contextId} is not top-level`
@@ -848,7 +842,8 @@ class BrowsingContextModule extends RootBiDiModule {
    * @param {string=} options.root
    *     Id of the root browsing context.
    * @param {MozContextScope=} options."moz:scope"
-   *     The scope to retrieve browsing contexts from.
+   *     The scope from which browsing contexts are retrieved. This
+   *     parameter cannot be used when a root browsing context is specified.
    *
    * @returns {BrowsingContextGetTreeResult}
    *     Tree of browsing context information.
@@ -859,7 +854,7 @@ class BrowsingContextModule extends RootBiDiModule {
     const {
       maxDepth = null,
       root: rootId = null,
-      "moz:scope": scope = MozContextScope.CONTENT,
+      "moz:scope": scope = null,
     } = options;
 
     if (maxDepth !== null) {
@@ -869,16 +864,18 @@ class BrowsingContextModule extends RootBiDiModule {
       );
     }
 
-    const contextScopes = Object.values(MozContextScope);
-    lazy.assert.that(
-      _scope => contextScopes.includes(_scope),
-      `Expected "moz:scope" to be one of ${contextScopes}, ` +
-        lazy.pprint`got ${scope}`
-    )(scope);
+    if (scope !== null) {
+      const contextScopes = Object.values(MozContextScope);
+      lazy.assert.that(
+        _scope => contextScopes.includes(_scope),
+        `Expected "moz:scope" to be one of ${contextScopes}, ` +
+          lazy.pprint`got ${scope}`
+      )(scope);
 
-    if (scope != MozContextScope.CONTENT) {
-      // By default only content browsing contexts are allowed.
-      lazy.assert.hasSystemAccess();
+      if (scope != MozContextScope.CONTENT) {
+        // By default only content browsing contexts are allowed.
+        lazy.assert.hasSystemAccess();
+      }
     }
 
     let contexts;
@@ -890,7 +887,15 @@ class BrowsingContextModule extends RootBiDiModule {
         lazy.pprint`Expected "root" to be a string, got ${rootId}`
       );
 
-      contexts = [this._getNavigable(rootId, { scope })];
+      if (scope) {
+        // At the moment we only allow to set a specific scope
+        // when querying at the top-level.
+        throw new lazy.error.InvalidArgumentError(
+          `"root" and "moz:scope" are mutual exclusive`
+        );
+      }
+
+      contexts = [this._getNavigable(rootId, { supportsChromeScope: true })];
     } else {
       switch (scope) {
         case MozContextScope.CHROME: {
@@ -2591,6 +2596,7 @@ class BrowsingContextModule extends RootBiDiModule {
  * @param {number=} options.maxDepth
  *     Depth of the browsing context tree to traverse. If not specified
  *     the whole tree is returned.
+ *
  * @returns {BrowsingContextInfo}
  *     The information about the browsing context.
  */

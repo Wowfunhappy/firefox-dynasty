@@ -32,7 +32,6 @@ import androidx.navigation.fragment.findNavController
 import androidx.navigation.fragment.navArgs
 import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.ui.NavDisplay
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import mozilla.appservices.places.BookmarkRoot
 import mozilla.components.browser.state.selector.normalTabs
@@ -184,7 +183,7 @@ class TabManagementFragment : DialogFragment() {
 
         tabManagerController = DefaultTabManagerController(
             accountManager = requireComponents.backgroundServices.accountManager,
-            activity = activity,
+            context = requireContext(),
             appStore = requireComponents.appStore,
             tabsTrayStore = tabsTrayStore,
             browserStore = requireComponents.core.store,
@@ -197,7 +196,6 @@ class TabManagementFragment : DialogFragment() {
             fenixBrowserUseCases = requireComponents.useCases.fenixBrowserUseCases,
             closeSyncedTabsUseCases = requireComponents.useCases.closeSyncedTabsUseCases,
             bookmarksStorage = requireComponents.core.bookmarksStorage,
-            ioDispatcher = Dispatchers.IO,
             collectionStorage = requireComponents.core.tabCollectionStorage,
             showUndoSnackbarForTab = ::showUndoSnackbarForTab,
             showUndoSnackbarForInactiveTab = ::showUndoSnackbarForInactiveTab,
@@ -289,7 +287,7 @@ class TabManagementFragment : DialogFragment() {
                                         requireContext().settings().shouldShowAutoCloseTabsBanner &&
                                             requireContext().settings().canShowCfr,
                                     shouldShowLockPbmBanner = shouldShowLockPbmBanner(
-                                        isPrivateMode = (activity as HomeActivity).browsingModeManager.mode.isPrivate,
+                                        isPrivateMode = requireComponents.appStore.state.mode.isPrivate,
                                         hasPrivateTabs = requireComponents.core.store.state.privateTabs.isNotEmpty(),
                                         biometricAvailable = BiometricManager.from(requireContext())
                                             .isHardwareAvailable(),

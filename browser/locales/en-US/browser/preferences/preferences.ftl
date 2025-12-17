@@ -722,13 +722,18 @@ home-new-windows-tabs-description2 = Choose what you see when you open your home
 
 ## Home Section - Home Page Customization
 
-home-homepage-header = Homepage
+home-homepage-title =
+    .label = Homepage
 
 home-homepage-mode-label = Homepage and new windows
 
-home-homepage-mode-label2 = New windows
+home-homepage-new-windows =
+    .label = New windows
 
 home-newtabs-mode-label = New tabs
+
+home-homepage-new-tabs =
+    .label = New tabs
 
 home-restore-defaults =
     .label = Restore Defaults
@@ -751,7 +756,8 @@ home-homepage-manage-extension-button =
     .label = Manage extension
 
 # This option leads to the "Custom Homepage" subpage
-home-homepage-custom-homepage-url = Choose a specific site
+home-homepage-custom-homepage-button =
+    .label = Choose a specific site
 
 ## Custom Homepage subpage
 
@@ -997,6 +1003,13 @@ containers-remove-button =
 sync-group-label =
     .label = Sync
 
+account-group-label =
+    .label = { -vendor-short-name } account
+
+account-placeholder =
+    .label = You’re not signed in
+    .description = Sign in to keep your data private, encrypted, and synced across devices.
+
 ## Firefox account - Signed out. Note that "Sync" and "Firefox account" are now
 ## more discrete ("signed in" no longer means "and sync is connected").
 
@@ -1009,6 +1022,10 @@ sync-signedout-account-signin3 =
 
 sync-signedout-account-signin-4 =
     .label = Sign in to your account to start syncing
+    .accesskey = i
+
+sync-signedout-account-short =
+    .label = Sign in
     .accesskey = i
 
 # This message contains two links and two icon images.
@@ -1037,14 +1054,39 @@ sync-sign-out =
     .label = Sign Out…
     .accesskey = g
 
+sync-sign-out2 =
+    .label = Sign out
+    .accesskey = g
+
 sync-manage-account = Manage account
+    .accesskey = o
+
+sync-manage-account2 =
+    .label = Manage account
     .accesskey = o
 
 ## Variables
 ## $email (string) - Email used for Firefox account
+## $name (string) - Name used for Firefox account
+
+sync-account-signed-in =
+    .label = { $email }
+
+sync-account-signed-in-display-name =
+    .label = { $name }
+    .description = { $email }
 
 sync-signedin-unverified = { $email } is not verified.
+
+sync-signedin-unverified2 =
+    .label = { $email } isn’t confirmed yet
+    .description = Check your inbox to confirm your account and make it official.
+
 sync-signedin-login-failure = Please sign in to reconnect { $email }
+
+sync-signedin-login-failure2 =
+    .label = You’re signed out of { $email }
+    .description = Sign back in to reconnect and start syncing your data.
 
 ##
 
@@ -1341,19 +1383,9 @@ autofill-reauth-payment-methods-checkbox-2 =
 autofill-payment-methods-add-button = Add new payment method
 payments-list-header =
   .label = Payment methods
-payments-list-item-label = <strong>Payment methods</strong>
 payments-delete-payment-prompt-title = Delete this payment method?
 payments-delete-payment-prompt-confirm-button = Delete
 payments-delete-payment-prompt-cancel-button = Cancel
-autofill-addresses-title = Addresses and more
-autofill-addresses-header =
-    .aria-label = Addresses and more
-autofill-addresses-checkbox-message =
-    .label = Save and autofill addresses
-    .accesskey = S
-autofill-addresses-manage-addresses-button =
-    .label = Manage addresses and more
-    .accesskey = M
 
 # These values are displayed for each credit card record listed on the Manage Payment methods
 # settings page.
@@ -1363,6 +1395,36 @@ autofill-addresses-manage-addresses-button =
 payment-moz-box-item =
   .label = { $cardNumber }
   .description = { $expDate }
+
+autofill-addresses-title = Addresses and more
+autofill-addresses-header =
+    .aria-label = Addresses and more
+autofill-addresses-checkbox-message =
+    .label = Save and autofill addresses
+    .accesskey = S
+autofill-addresses-manage-addresses-button =
+    .label = Manage addresses and more
+    .accesskey = M
+addresses-list-header =
+    .label = Addresses
+addreses-delete-address-button-label =
+    .aria-label = Delete
+addreses-edit-address-button-label =
+    .aria-label = Edit
+addresses-delete-address-prompt-title = Delete this address?
+addresses-delete-address-prompt-confirm-button = Delete
+addresses-delete-address-prompt-cancel-button = Cancel
+autofill-addresses-add-button = Add new address
+autofill-addresses-manage-addresses-title =
+    .heading = Manage addresses and more
+
+# These values are displayed for each address record listed on the "Manage addresses and more" subpage.
+# Variables:
+#   $name (string) - The name associated with the address
+#   $address (string) - The address
+address-moz-box-item =
+  .label = { $name }
+  .description = { $address }
 
 ## Privacy Section - History
 

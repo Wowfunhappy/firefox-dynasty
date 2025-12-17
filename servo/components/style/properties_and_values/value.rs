@@ -12,6 +12,8 @@ use super::{
         data_type::DataType, Component as SyntaxComponent, ComponentName, Descriptor, Multiplier,
     },
 };
+use crate::custom_properties::ComputedValue as ComputedPropertyValue;
+use crate::derives::*;
 use crate::properties;
 use crate::stylesheets::{CssRuleType, Origin, UrlExtraData};
 use crate::values::{
@@ -19,7 +21,6 @@ use crate::values::{
     computed::{self, ToComputedValue},
     specified, CustomIdent,
 };
-use crate::custom_properties::ComputedValue as ComputedPropertyValue;
 use crate::{
     dom::AttributeProvider,
     parser::{Parse, ParserContext},
@@ -527,7 +528,7 @@ impl<'a> Parser<'a> {
                         )),
                     );
                 };
-                debug_assert_matches!(multiplier, Multiplier::Space);
+                debug_assert_eq!(multiplier, Multiplier::Space);
                 loop {
                     values.push(SpecifiedValueComponent::TransformFunction(
                         specified::Transform::parse(context, input)?,

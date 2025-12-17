@@ -252,14 +252,6 @@ void AbsoluteContainingBlock::Reflow(nsContainerFrame* aDelegatingFrame,
                                      const nsRect& aContainingBlock,
                                      AbsPosReflowFlags aFlags,
                                      OverflowAreas* aOverflowAreas) {
-  // PageContentFrame replicates fixed pos children so we really don't want
-  // them contributing to overflow areas because that means we'll create new
-  // pages ad infinitum if one of them overflows the page.
-  if (aDelegatingFrame->IsPageContentFrame()) {
-    MOZ_ASSERT(mChildListID == FrameChildListID::Fixed);
-    aOverflowAreas = nullptr;
-  }
-
   const auto scrollableContainingBlock = [&]() -> nsRect {
     switch (aDelegatingFrame->Style()->GetPseudoType()) {
       case PseudoStyleType::scrolledContent:
@@ -785,12 +777,14 @@ static nscoord OffsetToAlignedStaticPos(
   Maybe<CSSAlignUtils::AnchorAlignInfo> anchorAlignInfo;
   if (alignConst == StyleAlignFlags::ANCHOR_CENTER &&
       aKidReflowInput.mAnchorPosResolutionCache) {
-    const auto* referenceData =
+    auto* referenceData =
         aKidReflowInput.mAnchorPosResolutionCache->mReferenceData;
     if (referenceData) {
       const auto* cachedData =
           referenceData->Lookup(referenceData->mDefaultAnchorName);
       if (cachedData && *cachedData) {
+        referenceData->AdjustCompensatingForScroll(
+            aAbsPosCBWM.PhysicalAxis(aAbsPosCBAxis));
         const auto& data = cachedData->ref();
         if (data.mOffsetData) {
           const nsSize containerSize =
@@ -1251,9 +1245,12 @@ void AbsoluteContainingBlock::ReflowAbsoluteFrame(
                     aKidFrame->GetWritingMode(),
                     aDelegatingFrame->GetWritingMode(), positionArea,
                     &resolvedPositionArea);
-            return ContainingBlockRect{offset, resolvedPositionArea,
-                                       aOriginalScrollableContainingBlockRect,
-                                       scrolledAnchorCb};
+            return ContainingBlockRect{
+                offset, resolvedPositionArea,
+                aOriginalScrollableContainingBlockRect,
+                // Unscroll the CB by canceling out the previously applied
+                // scroll offset (See above), the offset will be applied later.
+                scrolledAnchorCb + offset};
           }
           return ContainingBlockRect{aOriginalScrollableContainingBlockRect};
         }
@@ -1519,10 +1516,6 @@ void AbsoluteContainingBlock::ReflowAbsoluteFrame(
       // block, which is necessary for inset computation. However, the position
       // of a frame originates against the border box.
       r += cb.mFinalRect.TopLeft();
-      if (cb.mAnchorShiftInfo) {
-        // Push the frame out to where the anchor is.
-        r += cb.mAnchorShiftInfo->mOffset;
-      }
 
       aKidFrame->SetRect(r);
     }

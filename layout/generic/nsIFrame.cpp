@@ -3228,11 +3228,13 @@ void nsIFrame::BuildDisplayListForStackingContext(
   const bool combines3DTransformWithAncestors =
       (extend3DContext || isTransformed) && Combines3DTransformWithAncestors();
 
-  Maybe<nsDisplayListBuilder::AutoPreserves3DContext> autoPreserves3DContext;
+  UniquePtr<nsDisplayListBuilder::AutoPreserves3DContext>
+      autoPreserves3DContext;
   if (extend3DContext && !combines3DTransformWithAncestors) {
     // Start a new preserves3d context to keep informations on
     // nsDisplayListBuilder.
-    autoPreserves3DContext.emplace(aBuilder);
+    autoPreserves3DContext =
+        MakeUnique<nsDisplayListBuilder::AutoPreserves3DContext>(aBuilder);
     // Save dirty rect on the builder to avoid being distorted for
     // multiple transforms along the chain.
     aBuilder->SavePreserves3DRect();
@@ -5338,14 +5340,14 @@ nsresult nsIFrame::SelectByTypeAtPoint(const nsPoint& aPoint,
     return NS_ERROR_FAILURE;
   }
 
-  uint32_t offset;
-  nsIFrame* frame = SelectionMovementUtils::GetFrameForNodeOffset(
-      offsets.content, offsets.offset, offsets.associate, &offset);
-  if (!frame) {
+  FrameAndOffset frameAndOffset = SelectionMovementUtils::GetFrameForNodeOffset(
+      offsets.content, offsets.offset, offsets.associate);
+  if (!frameAndOffset) {
     return NS_ERROR_FAILURE;
   }
-  return frame->PeekBackwardAndForwardForSelection(
-      aBeginAmountType, aEndAmountType, static_cast<int32_t>(offset),
+  return frameAndOffset->PeekBackwardAndForwardForSelection(
+      aBeginAmountType, aEndAmountType,
+      static_cast<int32_t>(frameAndOffset.mOffsetInFrameContent),
       aBeginAmountType != eSelectWord, aSelectFlags);
 }
 

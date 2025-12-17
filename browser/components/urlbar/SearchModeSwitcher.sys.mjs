@@ -200,7 +200,12 @@ export class SearchModeSwitcher {
   }
 
   observe(_subject, topic, data) {
-    if (!this.#input.window || this.#input.window.closed) {
+    if (
+      !this.#input.window ||
+      this.#input.window.closed ||
+      // TODO bug 2005783 stop observing when input is disconnected.
+      !this.#input.isConnected
+    ) {
       return;
     }
 
@@ -333,8 +338,10 @@ export class SearchModeSwitcher {
       labelEl.textContent = label;
     }
 
-    // If keyword.enabled is true, then the tooltip is already set.
-    if (!lazy.UrlbarPrefs.get("keyword.enabled")) {
+    if (
+      !lazy.UrlbarPrefs.get("keyword.enabled") &&
+      this.#input.sapName != "searchbar"
+    ) {
       this.#input.document.l10n.setAttributes(
         this.#toolbarbutton,
         "urlbar-searchmode-no-keyword"

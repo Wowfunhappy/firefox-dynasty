@@ -572,6 +572,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "block2"
+version = "0.6.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cdeb9d870516001442e364c5220d3574d2da8dc765554b4a617230d33fa58ef5"
+dependencies = [
+ "objc2",
+]
+
+[[package]]
 name = "bookmark_sync"
 version = "0.1.0"
 dependencies = [
@@ -1200,6 +1209,20 @@ dependencies = [
  "uuid",
  "windows-sys",
  "yaml-rust2",
+]
+
+[[package]]
+name = "crashping"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "env_logger",
+ "glean",
+ "log",
+ "mozbuild",
+ "mozilla-central-workspace-hack",
+ "serde_json",
+ "time",
 ]
 
 [[package]]
@@ -2718,9 +2741,9 @@ dependencies = [
 
 [[package]]
 name = "glean"
-version = "66.1.2"
+version = "66.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "16967309c8c9320aa752fbb700db55b543983845ad5309cb981c0df9650a530f"
+checksum = "3bd66fe38baf2f972ca9fb63015533f05a11c971462a289c923270803da68b91"
 dependencies = [
  "crossbeam-channel",
  "glean-core",
@@ -2733,9 +2756,9 @@ dependencies = [
 
 [[package]]
 name = "glean-core"
-version = "66.1.2"
+version = "66.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b8d8cb0e35e0bc8472cf75cd3ca4d448f208003ea49a524deb623bdfd7c6c882"
+checksum = "416be389bdbac4b784bc226950607acaa9e56888e6fbc91ee2ac9ba5f6bbee1c"
 dependencies = [
  "android_logger",
  "bincode",
@@ -4074,12 +4097,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "matches"
-version = "0.1.10"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2532096657941c2fea9c289d370a250971c689d4f143798ff67113ec042024a5"
-
-[[package]]
 name = "maybe-async"
 version = "0.2.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5192,6 +5209,21 @@ source = "git+https://github.com/glandium/rust-objc?rev=4de89f5aa9851ceca4d40e7a
 dependencies = [
  "malloc_buf",
 ]
+
+[[package]]
+name = "objc2"
+version = "0.6.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b7c2599ce0ec54857b29ce62166b0ed9b4f6f1a70ccc9a71165b6154caca8c05"
+dependencies = [
+ "objc2-encode",
+]
+
+[[package]]
+name = "objc2-encode"
+version = "4.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ef25abbcd74fb2609453eb695bd2f860d389e457f67dc17cafc8b8cbc89d0c33"
 
 [[package]]
 name = "object"
@@ -6680,11 +6712,9 @@ dependencies = [
  "indexmap",
  "itertools",
  "itoa",
- "lazy_static",
  "log",
  "malloc_size_of",
  "malloc_size_of_derive",
- "matches",
  "mozbuild",
  "new_debug_unreachable",
  "nsstring",
@@ -8091,11 +8121,13 @@ dependencies = [
  "arrayvec",
  "ash",
  "bincode",
+ "block2",
  "io-surface",
  "log",
  "metal",
  "nsstring",
  "objc",
+ "objc2",
  "parking_lot",
  "serde",
  "static_prefs",

@@ -357,6 +357,7 @@ static nsWindow* gFocusWindow = nullptr;
 static bool gBlockActivateEvent = false;
 static bool gGlobalsInitialized = false;
 static bool gUseAspectRatio = true;
+bool gUseStableRounding = true;
 static uint32_t gLastTouchID = 0;
 // See Bug 1777269 for details. We don't know if the suspected leave notify
 // event is a correct one when we get it.
@@ -482,7 +483,7 @@ nsWindow::nsWindow()
 
 bool nsWindow::WaylandPipEnabled() const {
 #ifdef MOZ_WAYLAND
-  return mIsPIPWindow &&
+  return mPiPType == PiPType::MediaPiP &&
          StaticPrefs::widget_wayland_experimental_pip_enabled_AtStartup() &&
          GdkIsWaylandDisplay() && WaylandDisplayGet()->GetPipShell();
 #else
@@ -592,7 +593,10 @@ void nsWindow::DispatchResized() {
     return;
   }
 
-  auto clientSize = GetClientSize();
+  auto clientSize = gUseStableRounding
+                        ? GetClientSize()
+                        : LayoutDeviceIntSize::Round(mClientArea.Size() *
+                                                     GetDesktopToDeviceScale());
 
   LOG("nsWindow::DispatchResized() client scaled size [%d, %d]",
       (int)clientSize.width, (int)clientSize.height);
@@ -618,11 +622,10 @@ void nsWindow::DispatchResized() {
   }
 
   if (mWidgetListener) {
-    mWidgetListener->WindowResized(this, clientSize.width, clientSize.height);
+    mWidgetListener->WindowResized(this, clientSize);
   }
   if (mAttachedWidgetListener) {
-    mAttachedWidgetListener->WindowResized(this, clientSize.width,
-                                           clientSize.height);
+    mAttachedWidgetListener->WindowResized(this, clientSize);
   }
 }
 
@@ -2066,9 +2069,8 @@ void nsWindow::WaylandPopupPropagateChangesToLayout(bool aMove, bool aResize) {
     }
   }
   if (aMove) {
-    auto pos = ToLayoutDevicePixels(mClientArea);
-    LOG("  needPositionUpdate, bounds [%d, %d]", pos.x, pos.y);
-    NotifyWindowMoved(pos.x, pos.y, ByMoveToRect::Yes);
+    LOG("  needPositionUpdate, bounds [%d, %d]", mClientArea.x, mClientArea.y);
+    NotifyWindowMoved(mClientArea.TopLeft(), ByMoveToRect::Yes);
   }
 }
 
@@ -3401,7 +3403,7 @@ void nsWindow::RecomputeBoundsX11(bool aMayChangeCsdMargin) {
     return result;
   };
 
-  // Window position and size with decoration byt WITHOUT system titlebar.
+  // Window position and size with decoration but WITHOUT system titlebar.
   auto GetBounds = [&](GdkWindow* aWin) {
     GdkRectangle b{0};
     if (IsTopLevelWidget() && aWin == toplevel) {
@@ -3424,57 +3426,39 @@ void nsWindow::RecomputeBoundsX11(bool aMayChangeCsdMargin) {
              ToString(toplevelBoundsWithTitlebar).c_str());
   LOGVERBOSE("  toplevelBounds %s", ToString(toplevelBounds).c_str());
 
-  // Unscaled bounds include decorations and titlebar (X11)
-  DesktopIntRect finalBounds = [&] {
-    auto bounds = toplevelBoundsWithTitlebar;
-    // The toplevelBoundsWithTitlebar should always really be as wide as the
-    // toplevel bounds, but when opening multiple windows in quick succession on
-    // X11 they might not (see bug 1988787). This prevents having a really small
-    // window in such case.
-    bounds.width = std::max(bounds.width, toplevelBounds.width);
-    bounds.height = std::max(bounds.height, toplevelBounds.height);
-    return bounds;
-  }();
-  LOGVERBOSE("  finalBounds %s", ToString(finalBounds).c_str());
+  // Offset from system decoration to gtk decoration.
+  const auto systemDecorationOffset =
+      toplevelBounds.TopLeft() - toplevelBoundsWithTitlebar.TopLeft();
+
+  // This is relative to our parent window, that is, to topLevelBounds.
+  mClientArea = GetBounds(mGdkWindow);
+  // Make it relative to topLevelBoundsWithTitlebar
+  mClientArea.MoveBy(systemDecorationOffset);
+  LOGVERBOSE("  mClientArea %s", ToString(mClientArea).c_str());
+
+  if (mClientArea.X() < 0 || mClientArea.Y() < 0 || mClientArea.Width() <= 1 ||
+      mClientArea.Height() <= 1) {
+    // If we don't have gdkwindow bounds, assume we take the whole toplevel
+    // except system decorations.
+    mClientArea = DesktopIntRect(systemDecorationOffset, toplevelBounds.Size());
+  }
+
   const bool decorated =
       IsTopLevelWidget() && mSizeMode != nsSizeMode_Fullscreen && !mUndecorated;
-  LOGVERBOSE("  decorated %d", decorated);
   if (!decorated) {
     mClientMargin = {};
   } else if (aMayChangeCsdMargin) {
-    // TODO: Do we really need so complex margin calculation on X11?
-    const DesktopIntRect clientRectRelativeToFrame = [&] {
-      auto topLevelBoundsRelativeToFrame = toplevelBounds;
-      topLevelBoundsRelativeToFrame -= toplevelBoundsWithTitlebar.TopLeft();
-
-      LOGVERBOSE("  topLevelBoundsRelativeToFrame %s",
-                 ToString(topLevelBoundsRelativeToFrame).c_str());
-      if (!mGdkWindow) {
-        return topLevelBoundsRelativeToFrame;
-      }
-      auto gdkWindowBounds = GetBounds(mGdkWindow);
-      if (gdkWindowBounds.X() < 0 || gdkWindowBounds.Y() < 0 ||
-          gdkWindowBounds.Width() <= 1 || gdkWindowBounds.Height() <= 1) {
-        // If we don't have gdkwindow bounds, assume we take the whole toplevel.
-        return topLevelBoundsRelativeToFrame;
-      }
-      LOGVERBOSE("  gdkWindowBounds %s", ToString(gdkWindowBounds).c_str());
-      // gdkWindowBounds is relative to topLevelBounds already.
-      return gdkWindowBounds + topLevelBoundsRelativeToFrame.TopLeft();
-    }();
-
-    auto relative = clientRectRelativeToFrame;
-    LOGVERBOSE("  clientRectRelativeToFrame %s", ToString(relative).c_str());
-    mClientMargin = DesktopIntRect(DesktopIntPoint(), finalBounds.Size()) -
-                    clientRectRelativeToFrame;
-    LOGVERBOSE("  mClientMargin %s", ToString(mClientMargin).c_str());
+    mClientMargin =
+        DesktopIntRect(DesktopIntPoint(), toplevelBoundsWithTitlebar.Size()) -
+        mClientArea;
     mClientMargin.EnsureAtLeast(DesktopIntMargin());
   } else {
     // Assume the client margin remains the same.
   }
 
-  mClientArea = finalBounds;
-  mClientArea.Deflate(mClientMargin);
+  // We want mClientArea in global coordinates. We derive everything from here,
+  // so move it to global coords.
+  mClientArea.MoveBy(toplevelBoundsWithTitlebar.TopLeft());
 }
 #endif
 #ifdef MOZ_WAYLAND
@@ -3601,8 +3585,7 @@ void nsWindow::RecomputeBounds(bool aMayChangeCsdMargin, bool aScaleChange) {
                        oldClientArea.Size() != mClientArea.Size();
 
   if (moved) {
-    auto pos = ToLayoutDevicePixels(mClientArea.TopLeft());
-    NotifyWindowMoved(pos.x, pos.y);
+    NotifyWindowMoved(GetScreenBoundsUnscaled().TopLeft());
   }
   if (resized) {
     DispatchResized();
@@ -4469,7 +4452,7 @@ Maybe<GdkWindowEdge> nsWindow::CheckResizerEdge(
     const LayoutDeviceIntPoint& aPoint) {
   // Don't allow resizing maximized/fullscreen windows, nor add extra resizing
   // margins on non PiP windows.
-  if (mSizeMode != nsSizeMode_Normal || !mIsPIPWindow) {
+  if (mSizeMode != nsSizeMode_Normal || mPiPType != PiPType::MediaPiP) {
     return Nothing();
   }
 
@@ -4640,7 +4623,7 @@ void nsWindow::OnMotionNotifyEvent(GdkEventMotion* aEvent) {
     // If we set resize cursor on widget level keep it locked and prevent layout
     // to switch it back to default (by synthetic mouse events for instance)
     // until resize is finished. This affects PIP windows only.
-    if (mIsPIPWindow) {
+    if (mPiPType == PiPType::MediaPiP) {
       mWidgetCursorLocked = true;
     }
     return;
@@ -5088,9 +5071,9 @@ void nsWindow::OnButtonReleaseEvent(GdkEventButton* aEvent) {
     DispatchContextMenuEventFromMouseEvent(domButton, aEvent, refPoint);
   }
 
-  // Open window manager menu on PIP window to allow user
+  // Open window manager menu on Media PiP window to allow user
   // to place it on top / all workspaces.
-  if (mAlwaysOnTop && aEvent->button == 3) {
+  if (mPiPType == PiPType::MediaPiP && aEvent->button == 3) {
     TryToShowNativeWindowMenu(aEvent);
   }
 }
@@ -5630,19 +5613,23 @@ void nsWindow::OnWindowStateEvent(GtkWidget* aWidget,
     return result;
   }();
 
+  const bool fullscreenChanging =
+      mSizeMode != oldSizeMode && (mSizeMode == nsSizeMode_Fullscreen ||
+                                   oldSizeMode == nsSizeMode_Fullscreen);
+
   if (mSizeMode != oldSizeMode || mIsTiled != oldIsTiled) {
-    RecomputeBounds(/* MayChangeCsdMargin */ false);
+    // When going to fullscreen to non-fullscreen our client margin may change
+    // without other notifications (because we assume fullscreen windows are not
+    // decorated).
+    RecomputeBounds(/* MayChangeCSDMargin */ fullscreenChanging);
   }
   if (mSizeMode != oldSizeMode) {
     if (mWidgetListener) {
       mWidgetListener->SizeModeChanged(mSizeMode);
     }
-    if (mSizeMode == nsSizeMode_Fullscreen ||
-        oldSizeMode == nsSizeMode_Fullscreen) {
-      if (mCompositorWidgetDelegate) {
-        mCompositorWidgetDelegate->NotifyFullscreenChanged(
-            mSizeMode == nsSizeMode_Fullscreen);
-      }
+    if (fullscreenChanging && mCompositorWidgetDelegate) {
+      mCompositorWidgetDelegate->NotifyFullscreenChanged(mSizeMode ==
+                                                         nsSizeMode_Fullscreen);
     }
   }
 }
@@ -6274,9 +6261,9 @@ nsresult nsWindow::Create(nsIWidget* aParent, const LayoutDeviceIntRect& aRect,
     mGtkWindowDecoration = GetSystemGtkWindowDecoration();
   }
 
-  // Don't use transparency for PictureInPicture windows.
+  // Don't use transparency for Media PictureInPicture windows.
   bool toplevelNeedsAlphaVisual = false;
-  if (mWindowType == WindowType::TopLevel && !mIsPIPWindow) {
+  if (mWindowType == WindowType::TopLevel && mPiPType != PiPType::MediaPiP) {
     toplevelNeedsAlphaVisual = IsToplevelWindowTransparent();
   }
 
@@ -6320,8 +6307,8 @@ nsresult nsWindow::Create(nsIWidget* aParent, const LayoutDeviceIntRect& aRect,
     gtk_window_resize(GTK_WINDOW(mShell), mClientArea.width,
                       mClientArea.height);
   }
-  if (mIsPIPWindow) {
-    LOG("  Is PIP window\n");
+  if (mPiPType == PiPType::MediaPiP) {
+    LOG("  Is Media PiP window\n");
     gtk_window_set_type_hint(GTK_WINDOW(mShell), GDK_WINDOW_TYPE_HINT_UTILITY);
   } else if (mIsAlert) {
     LOG("  Is alert window\n");
@@ -6437,7 +6424,8 @@ nsresult nsWindow::Create(nsIWidget* aParent, const LayoutDeviceIntRect& aRect,
 
   // alwaysontop windows are generally used for peripheral indicators,
   // so we don't focus them by default.
-  if (mAlwaysOnTop) {
+  const bool shouldFocus = !mAlwaysOnTop || mPiPType == PiPType::DocumentPiP;
+  if (!shouldFocus) {
     gtk_window_set_focus_on_map(GTK_WINDOW(mShell), FALSE);
   }
 
@@ -6461,7 +6449,7 @@ nsresult nsWindow::Create(nsIWidget* aParent, const LayoutDeviceIntRect& aRect,
   // make sure this is the focus widget in the container
   gtk_widget_show(container);
 
-  if (!mAlwaysOnTop) {
+  if (shouldFocus) {
     gtk_widget_grab_focus(container);
   }
 
@@ -6632,7 +6620,9 @@ nsresult nsWindow::Create(nsIWidget* aParent, const LayoutDeviceIntRect& aRect,
                    nullptr);
 
   LOG("  nsWindow type %d %s\n", int(mWindowType),
-      mIsPIPWindow ? "PIP window" : "");
+      mPiPType == PiPType::MediaPiP
+          ? "Media PiP window"
+          : (mPiPType == PiPType::DocumentPiP ? "Document PiP window" : ""));
   LOG("  mShell %p (window %p) mContainer %p mGdkWindow %p XID 0x%lx\n", mShell,
       GetToplevelGdkWindow(), mContainer, mGdkWindow, GetX11Window());
 
@@ -6865,8 +6855,7 @@ void nsWindow::NativeMoveResize(bool aMoved, bool aResized) {
     }
     if (aMoved) {
       mClientArea.MoveTo(mLastMoveRequest);
-      auto pos = ToLayoutDevicePixels(mLastMoveRequest);
-      NotifyWindowMoved(pos.x, pos.y);
+      NotifyWindowMoved(mClientArea.TopLeft());
     }
     if (aResized) {
       DispatchResized();
@@ -7236,7 +7225,7 @@ void nsWindow::UpdateOpaqueRegionInternal() {
 }
 
 bool nsWindow::IsChromeWindowTitlebar() {
-  return mDrawInTitlebar && !mIsPIPWindow &&
+  return mDrawInTitlebar && mPiPType != PiPType::MediaPiP &&
          mWindowType == WindowType::TopLevel;
 }
 
@@ -7487,7 +7476,7 @@ nsresult nsWindow::MakeFullScreen(bool aFullScreen) {
         mSizeMode != nsSizeMode_Minimized) {
       mLastSizeModeBeforeFullscreen = mSizeMode;
     }
-    if (mIsPIPWindow) {
+    if (mPiPType == PiPType::MediaPiP) {
       gtk_window_set_type_hint(GTK_WINDOW(mShell), GDK_WINDOW_TYPE_HINT_NORMAL);
       if (gUseAspectRatio) {
         mAspectRatioSaved = mAspectRatio;
@@ -7509,7 +7498,7 @@ nsresult nsWindow::MakeFullScreen(bool aFullScreen) {
 
     gtk_window_unfullscreen(GTK_WINDOW(mShell));
 
-    if (mIsPIPWindow && gUseAspectRatio) {
+    if (mPiPType == PiPType::MediaPiP && gUseAspectRatio) {
       mAspectRatio = mAspectRatioSaved;
       // ApplySizeConstraints();
     }
@@ -8804,6 +8793,9 @@ static nsresult initialize_prefs(void) {
   } else {
     gUseAspectRatio = IsGnomeDesktopEnvironment() || IsKdeDesktopEnvironment();
   }
+  // 'Stable' Wayland subsurface rounding algorithm is used by all compositors
+  // except KDE.
+  gUseStableRounding = !IsKdeDesktopEnvironment() || GdkIsX11Display();
   return NS_OK;
 }
 
@@ -9027,7 +9019,7 @@ void nsWindow::SetCompositorWidgetDelegate(CompositorWidgetDelegate* delegate) {
 }
 
 bool nsWindow::IsAlwaysUndecoratedWindow() const {
-  if (mIsPIPWindow || gKioskMode) {
+  if (mPiPType == PiPType::MediaPiP || gKioskMode) {
     return true;
   }
   if (mWindowType == WindowType::Dialog &&

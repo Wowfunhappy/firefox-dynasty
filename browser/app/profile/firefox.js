@@ -2250,6 +2250,8 @@ pref("browser.ml.smartAssist.overrideNewTab", false);
 // AI Window Feature
 pref("browser.aiwindow.enabled", false);
 pref("browser.aiwindow.chatStore.loglevel", "Error");
+pref("browser.aiwindow.insights", false);
+pref("browser.aiwindow.insightsLogLevel", "Warn");
 
 // Block insecure active content on https pages
 pref("security.mixed_content.block_active_content", true);
@@ -2668,7 +2670,11 @@ pref("browser.tabs.fadeOutExplicitlyUnloadedTabs", true);
 pref("browser.tabs.fadeOutUnloadedTabs", false);
 
 // Whether tabs can be "split" or displayed side by side at once.
-pref("browser.tabs.splitView.enabled", false);
+#ifdef NIGHTLY_BUILD
+  pref("browser.tabs.splitView.enabled", true);
+#else
+  pref("browser.tabs.splitView.enabled", false);
+#endif
 
 // Whether SVG favicons should be safely re-encoded using the moz-remote-image:// protocol.
 pref("browser.tabs.remoteSVGIconDecoding", false);
@@ -3536,9 +3542,6 @@ pref("browser.ipProtection.variant", "");
 pref("browser.ipProtection.panelOpenCount", 0);
 // Pref to enable support for site exceptions
 pref("browser.ipProtection.features.siteExceptions", false);
-pref("browser.ipProtection.exceptionsMode", "all");
-pref("browser.ipProtection.domainExclusions", "");
-pref("browser.ipProtection.domainInclusions", "");
 pref("browser.ipProtection.log", false);
 pref("browser.ipProtection.guardian.endpoint", "https://vpn.mozilla.org/");
 pref("browser.ipProtection.added", false);

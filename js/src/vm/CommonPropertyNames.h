@@ -28,6 +28,8 @@
   IF_DECORATORS(MACRO_(addInitializer, "addInitializer"))                      \
   MACRO_(address, "address")                                                   \
   MACRO_(all, "all")                                                           \
+  MACRO_(allKeyed, "allKeyed")                                                 \
+  MACRO_(allSettledKeyed, "allSettledKeyed")                                   \
   MACRO_(allowContentIter, "allowContentIter")                                 \
   MACRO_(allowContentIterWith, "allowContentIterWith")                         \
   MACRO_(allowContentIterWithNext, "allowContentIterWithNext")                 \
@@ -303,6 +305,7 @@
   MACRO_(literal, "literal")                                                   \
   MACRO_(loc, "loc")                                                           \
   MACRO_(locale, "locale")                                                     \
+  MACRO_(localeMatcher, "localeMatcher")                                       \
   MACRO_(many, "many")                                                         \
   MACRO_(MapConstructorInit, "MapConstructorInit")                             \
   MACRO_(MapIteratorNext, "MapIteratorNext")                                   \

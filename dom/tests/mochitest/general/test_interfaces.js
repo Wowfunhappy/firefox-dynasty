@@ -411,6 +411,20 @@ let interfaceNamesInGlobalScope = [
   // IMPORTANT: Do not change this list without review from a DOM peer!
   { name: "DocumentFragment", insecureContext: true },
   // IMPORTANT: Do not change this list without review from a DOM peer!
+  {
+    name: "DocumentPictureInPicture",
+    insecureContext: false,
+    nightly: true,
+    android: false,
+  },
+  // IMPORTANT: Do not change this list without review from a DOM peer!
+  {
+    name: "DocumentPictureInPictureEvent",
+    insecureContext: false,
+    nightly: true,
+    android: false,
+  },
+  // IMPORTANT: Do not change this list without review from a DOM peer!
   { name: "DocumentTimeline", insecureContext: true },
   // IMPORTANT: Do not change this list without review from a DOM peer!
   { name: "DocumentType", insecureContext: true },
@@ -1445,7 +1459,7 @@ let interfaceNamesInGlobalScope = [
   // IMPORTANT: Do not change this list without review from a DOM peer!
   { name: "SVGViewElement", insecureContext: true },
   // IMPORTANT: Do not change this list without review from a DOM peer!
-  { name: "Sanitizer", insecureContext: true, earlyBetaOrEarlier: true },
+  { name: "Sanitizer", insecureContext: true },
   // IMPORTANT: Do not change this list without review from a DOM peer!
   { name: "Scheduler", insecureContext: true },
   // IMPORTANT: Do not change this list without review from a DOM peer!
@@ -1746,6 +1760,13 @@ let interfaceNamesInGlobalScope = [
   { name: "devicePixelRatio", insecureContext: true },
   // IMPORTANT: Do not change this list without review from a DOM peer!
   { name: "document", insecureContext: true },
+  // IMPORTANT: Do not change this list without review from a DOM peer!
+  {
+    name: "documentPictureInPicture",
+    insecureContext: false,
+    nightly: true,
+    android: false,
+  },
   // IMPORTANT: Do not change this list without review from a DOM peer!
   { name: "dump", insecureContext: true },
   // IMPORTANT: Do not change this list without review from a DOM peer!

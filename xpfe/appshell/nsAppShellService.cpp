@@ -522,9 +522,15 @@ nsresult nsAppShellService::JustCreateTopWindow(
                      nsIWebBrowserChrome::CHROME_STATUSBAR;
   if (widgetInitData.mWindowType == widget::WindowType::Dialog &&
       ((aChromeMask & pipMask) == pipMask) && !(aChromeMask & barMask)) {
-    widgetInitData.mPIPWindow = true;
+    widgetInitData.mPiPType = mozilla::widget::PiPType::MediaPiP;
   }
 #endif
+
+  if (widgetInitData.mWindowType == widget::WindowType::TopLevel &&
+      (aChromeMask & nsIWebBrowserChrome::CHROME_DOCUMENT_PICTURE_IN_PICTURE) ==
+          nsIWebBrowserChrome::CHROME_DOCUMENT_PICTURE_IN_PICTURE) {
+    widgetInitData.mPiPType = mozilla::widget::PiPType::DocumentPiP;
+  }
 
   // alert=yes is expected to be used along with dialogs, not other window
   // types.

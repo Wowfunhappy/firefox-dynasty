@@ -2645,18 +2645,6 @@
   value: true
   mirror: always
 
-# Enable cookie-store manager API
-- name: dom.cookieStore.manager.enabled
-  type: RelaxedAtomicBool
-  value: true
-  mirror: always
-
-# Enable extra cookie-store properties
-- name: dom.cookieStore.extra.enabled
-  type: RelaxedAtomicBool
-  value: false
-  mirror: always
-
 # Is support for CSSPseudoElement enabled?
 - name: dom.css_pseudo_element.enabled
   type: bool
@@ -3061,6 +3049,21 @@
   type: RelaxedAtomicBool
   value: true
   mirror: always
+
+# Whether the Document PictureInPicture API is enabled
+# https://wicg.github.io/document-picture-in-picture/#api
+- name: dom.documentpip.enabled
+  type: RelaxedAtomicBool
+#ifdef ANDROID
+# Always disable on android (unsupported) so that webpages aren't
+# confused by the webidl bindings being exposed
+  value: false
+#else
+# Probably only enable by default after bug 543435
+  value: @IS_NIGHTLY_BUILD@
+#endif
+  mirror: always
+  rust: true
 
 # Allow the content process to create a File from a path. This is allowed just
 # on parent process, on 'file' Content process, or for testing.
@@ -4650,13 +4653,7 @@
 # https://wicg.github.io/sanitizer-api/
 - name: dom.security.sanitizer.enabled
   type: bool
-  value: @IS_EARLY_BETA_OR_EARLIER@
-  mirror: always
-
-# Logs elements and attributes removed by the Sanitizer API to the console.
-- name: dom.security.sanitizer.logging
-  type: bool
-  value: false
+  value: true
   mirror: always
 
 # pref controls credential chooser UI for testing. When true, UI is not shown and
@@ -8160,7 +8157,7 @@
 - name: gfx.webrender.precise-linear-gradients-swgl
   type: bool
   rust: true
-  value: false
+  value: true
   mirror: once
 
 # Use a more precise method for sampling gradients when *not* using SWGL .
@@ -9265,7 +9262,7 @@
 -   name: javascript.options.wasm_branch_hinting
     type: bool
 #if defined(ENABLE_WASM_BRANCH_HINTING)
-    value: @IS_NIGHTLY_BUILD@
+    value: true
 #else
     value: false
 #endif
@@ -10015,13 +10012,6 @@
   value: false
   mirror: always
 
-# This pref controls whether the `prefers-color-scheme` value of iframes images
-# reacts to the embedder `color-scheme` in content.
-- name: layout.css.iframe-embedder-prefers-color-scheme.content.enabled
-  type: RelaxedAtomicBool
-  value: true
-  mirror: always
-
 # Controls the transparency of the initial about:blank document. Generally you
 # don't ever want a white flash in dark mode, but due to backwards compat we
 # have some extra control over this, for now at least.
@@ -10117,7 +10107,7 @@
 # Is support for shape() enabled?
 - name: layout.css.basic-shape-shape.enabled
   type: RelaxedAtomicBool
-  value: @IS_NIGHTLY_BUILD@
+  value: true
   mirror: always
   rust: true
 
@@ -14976,7 +14966,7 @@
 # Use GET (rather than POST)
 - name: network.trr.useGET
   type: RelaxedAtomicBool
-  value: false
+  value: @IS_NIGHTLY_BUILD@
   mirror: always
 
 # Allow RFC1918 address in responses?

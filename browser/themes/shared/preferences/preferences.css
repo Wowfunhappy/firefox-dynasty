@@ -792,6 +792,16 @@ button#noFxaSignIn {
   margin-inline: 4px 8px;
 }
 
+#fxaLoginVerified {
+  --box-icon-size: calc(var(--icon-size-xlarge) * 2);
+  --box-icon-border-radius: var(--border-radius-circle);
+
+  &[description] {
+    --box-label-alignment: end;
+    --box-description-alignment: start;
+  }
+}
+
 #syncStatusContainer {
   margin-top: 32px;
 }
@@ -1396,6 +1406,13 @@ richlistitem .text-link:hover {
 }
 /** SRD web-appearance-chooser control END **/
 
+/** SRD rows control for Homepage START **/
+setting-group[groupid="homepage"] {
+  --select-max-width: fit-content;
+  --select-min-width: 15em;
+}
+/** SRD rows control for Homepage END **/
+
 /** SRD rows control for New Tab START **/
 setting-group[groupid="home"] {
   --select-max-width: 17rem;
@@ -1528,4 +1545,9 @@ setting-group[groupid="home"] {
 
 #etpLevelWarning {
   --promo-image-position: top;
+}
+
+#addresses-list-header,
+#payments-list-header {
+  --box-label-font-weight: var(--heading-font-weight);
 }

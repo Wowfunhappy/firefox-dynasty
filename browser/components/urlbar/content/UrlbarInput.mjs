@@ -364,6 +364,10 @@ export class UrlbarInput extends HTMLElement {
       this.#initOnce();
     }
 
+    if (this.sapName == "searchbar") {
+      this.parentNode.setAttribute("overflows", "false");
+    }
+
     // Don't attach event listeners if the toolbar is not visible
     // in this window or the urlbar is readonly.
     if (
@@ -454,6 +458,10 @@ export class UrlbarInput extends HTMLElement {
   }
 
   #uninit() {
+    if (this.sapName == "searchbar") {
+      this.parentNode.removeAttribute("overflows");
+    }
+
     if (this._copyCutController) {
       this.inputField.controllers.removeController(this._copyCutController);
       delete this._copyCutController;
@@ -708,6 +716,14 @@ export class UrlbarInput extends HTMLElement {
       throw new Error(
         "Cannot set URI for UrlbarInput that is not an address bar"
       );
+    }
+    if (
+      this.window.browsingContext.isDocumentPiP &&
+      uri.spec.startsWith("about:blank")
+    ) {
+      // If this is a Document PiP, its url will be about:blank while
+      // the opener will be a secure context, i.e. no about:blank
+      throw new Error("Document PiP should show its opener URL");
     }
     // We only need to update the searchModeUI on tab switch conditionally
     // as we only persist searchMode with ScotchBonnet enabled.
@@ -3533,6 +3549,7 @@ export class UrlbarInput extends HTMLElement {
     // Only add the suffix when the URL bar value isn't already "URL-like",
     // and only if we get a keyboard event, to match user expectations.
     if (
+      this.sapName == "searchbar" ||
       !this.#isCanonizeKeyboardEvent(event) ||
       !/^\s*[^.:\/\s]+(?:\/.*|\s*)$/i.test(value)
     ) {
@@ -3849,7 +3866,7 @@ export class UrlbarInput extends HTMLElement {
       this.inputField.setSelectionRange(0, 0);
     }
 
-    if (openUILinkWhere != "current") {
+    if (openUILinkWhere != "current" && this.sapName != "searchbar") {
       this.handleRevert();
     }
 

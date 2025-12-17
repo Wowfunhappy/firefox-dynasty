@@ -126,6 +126,7 @@ def set_test_manifests(config, tasks):
             remaining_manifests = []
 
             # if we have web-platform tests incoming, just yield task
+            found_wpt = False
             for m in input_paths:
                 if m.startswith("testing/web-platform/tests/"):
                     found_subsuite = [
@@ -141,7 +142,10 @@ def set_test_manifests(config, tasks):
                         if not isinstance(loader, DefaultLoader):
                             task["chunks"] = "dynamic"
                         yield task
+                    found_wpt = True
                     break
+            if found_wpt:
+                continue
 
             # input paths can exist in other directories (i.e. [../../dir/test.js])
             # we need to look for all [active] manifests that include tests in the path
@@ -282,12 +286,12 @@ def split_chunks(config, tasks):
                 chunked_manifests[0].extend(
                     [m for m in manifests["skipped"] if not m.endswith(".list")]
                 )
-
+        last_chunk = task["chunks"]
         for i in range(task["chunks"]):
             this_chunk = i + 1
 
             # copy the test and update with the chunk number
-            chunked = deepcopy(task)
+            chunked = deepcopy(task) if this_chunk != last_chunk else task
             chunked["this-chunk"] = this_chunk
 
             if chunked_manifests is not None:

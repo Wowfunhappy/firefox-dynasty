@@ -7,8 +7,9 @@
 //! This module contains types and logic for tracking dirty regions and
 //! dependencies used to determine what needs to be redrawn each frame.
 
-pub mod dependency;
+pub mod compare;
 pub mod quadtree;
+pub mod cached_surface;
 
 use api::units::*;
 use crate::spatial_tree::{SpatialTree, SpatialNodeIndex};
@@ -129,30 +130,4 @@ pub enum PrimitiveCompareResult {
     OpacityBinding,
     /// The value of a color binding changed
     ColorBinding,
-}
-
-/// Optional extra information returned by is_same when
-/// logging is enabled.
-#[derive(Debug, Copy, Clone, PartialEq)]
-#[cfg_attr(feature = "capture", derive(Serialize))]
-#[cfg_attr(feature = "replay", derive(Deserialize))]
-pub enum CompareHelperResult<T> {
-    /// Primitives match
-    Equal,
-    /// Counts differ
-    Count {
-        prev_count: u8,
-        curr_count: u8,
-    },
-    /// Sentinel
-    Sentinel,
-    /// Two items are not equal
-    NotEqual {
-        prev: T,
-        curr: T,
-    },
-    /// User callback returned true on item
-    PredicateTrue {
-        curr: T
-    },
 }

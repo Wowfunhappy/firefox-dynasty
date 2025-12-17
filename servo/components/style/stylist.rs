@@ -10,6 +10,7 @@ use crate::applicable_declarations::{
 use crate::computed_value_flags::ComputedValueFlags;
 use crate::context::{CascadeInputs, QuirksMode};
 use crate::custom_properties::ComputedCustomProperties;
+use crate::derives::*;
 use crate::dom::TElement;
 #[cfg(feature = "gecko")]
 use crate::gecko_bindings::structs::{ServoStyleSetSizes, StyleRuleInclusion};
@@ -84,7 +85,7 @@ use servo_arc::{Arc, ArcBorrow, ThinArc};
 use smallvec::SmallVec;
 use std::cmp::Ordering;
 use std::hash::{Hash, Hasher};
-use std::sync::Mutex;
+use std::sync::{LazyLock, Mutex};
 use std::{mem, ops};
 
 /// The type of the stylesheets that the stylist contains.
@@ -276,11 +277,9 @@ pub fn add_size_of_ua_cache(ops: &mut MallocSizeOfOps, sizes: &mut ServoStyleSet
         .add_size_of(ops, sizes);
 }
 
-lazy_static! {
-    /// A cache of computed user-agent data, to be shared across documents.
-    static ref UA_CASCADE_DATA_CACHE: Mutex<UserAgentCascadeDataCache> =
-        Mutex::new(UserAgentCascadeDataCache::new());
-}
+/// A cache of computed user-agent data, to be shared across documents.
+static UA_CASCADE_DATA_CACHE: LazyLock<Mutex<UserAgentCascadeDataCache>> =
+    LazyLock::new(|| Mutex::new(UserAgentCascadeDataCache::new()));
 
 impl CascadeDataCacheEntry for UserAgentCascadeData {
     fn rebuild<S>(
@@ -342,14 +341,12 @@ struct UserAgentCascadeData {
     precomputed_pseudo_element_decls: PrecomputedPseudoElementDeclarations,
 }
 
-lazy_static! {
-    /// The empty UA cascade data for un-filled stylists.
-    static ref EMPTY_UA_CASCADE_DATA: Arc<UserAgentCascadeData> = {
-        let arc = Arc::new(UserAgentCascadeData::default());
-        arc.mark_as_intentionally_leaked();
-        arc
-    };
-}
+/// The empty UA cascade data for un-filled stylists.
+static EMPTY_UA_CASCADE_DATA: LazyLock<Arc<UserAgentCascadeData>> = LazyLock::new(|| {
+    let arc = Arc::new(UserAgentCascadeData::default());
+    arc.mark_as_intentionally_leaked();
+    arc
+});
 
 /// All the computed information for all the stylesheets that apply to the
 /// document.
@@ -3181,16 +3178,14 @@ pub struct CascadeData {
     num_declarations: usize,
 }
 
-lazy_static! {
-    static ref IMPLICIT_SCOPE: SelectorList<SelectorImpl> = {
-        // Implicit scope, as per https://github.com/w3c/csswg-drafts/issues/10196
-        // Also, `&` is `:where(:scope)`, as per https://github.com/w3c/csswg-drafts/issues/9740
-        // ``:where(:scope)` effectively behaves the same as the implicit scope.
-        let list = SelectorList::implicit_scope();
-        list.mark_as_intentionally_leaked();
-        list
-    };
-}
+static IMPLICIT_SCOPE: LazyLock<SelectorList<SelectorImpl>> = LazyLock::new(|| {
+    // Implicit scope, as per https://github.com/w3c/csswg-drafts/issues/10196
+    // Also, `&` is `:where(:scope)`, as per https://github.com/w3c/csswg-drafts/issues/9740
+    // ``:where(:scope)` effectively behaves the same as the implicit scope.
+    let list = SelectorList::implicit_scope();
+    list.mark_as_intentionally_leaked();
+    list
+});
 
 fn scope_start_matches_shadow_host(start: &SelectorList<SelectorImpl>) -> bool {
     // TODO(emilio): Should we carry a MatchesFeaturelessHost rather than a bool around?
@@ -3820,8 +3815,9 @@ impl CascadeData {
                     let ancestor_selectors = containing_rule_state.ancestor_selector_lists.last();
                     let collect_replaced_selectors =
                         has_nested_rules && ancestor_selectors.is_some();
-                    let mut inner_dependencies: Option<Vec<Dependency>> =
-                        containing_rule_state.scope_is_effective().then(|| Vec::new());
+                    let mut inner_dependencies: Option<Vec<Dependency>> = containing_rule_state
+                        .scope_is_effective()
+                        .then(|| Vec::new());
                     self.add_styles(
                         &style_rule.selectors,
                         &style_rule.block,
@@ -3862,8 +3858,9 @@ impl CascadeData {
                             NestedDeclarationsContext::Style => ancestor_selectors,
                             NestedDeclarationsContext::Scope => &*IMPLICIT_SCOPE,
                         };
-                        let mut inner_dependencies: Option<Vec<Dependency>> =
-                            containing_rule_state.scope_is_effective().then(|| Vec::new());
+                        let mut inner_dependencies: Option<Vec<Dependency>> = containing_rule_state
+                            .scope_is_effective()
+                            .then(|| Vec::new());
                         self.add_styles(
                             selectors,
                             decls,
