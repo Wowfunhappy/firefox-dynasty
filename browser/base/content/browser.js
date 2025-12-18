@@ -2230,7 +2230,7 @@ var XULBrowserWindow = {
 
     // Ensure we close any remaining open locationspecific panels
     if (!isSameDocument) {
-      closeOpenPanels("panel[locationspecific='true']");
+      closeOpenPanels(":is(panel, menupopup)[locationspecific='true']");
     }
 
     gPermissionPanel.onLocationChange();
