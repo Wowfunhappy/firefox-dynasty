@@ -7,9 +7,6 @@ package org.mozilla.fenix.components.toolbar
 import android.view.View
 import android.view.ViewGroup
 import androidx.annotation.VisibleForTesting
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.ui.platform.ComposeView
 import androidx.coordinatorlayout.widget.CoordinatorLayout
 import androidx.core.view.isVisible
 import mozilla.components.browser.state.state.CustomTabSessionState
@@ -17,12 +14,11 @@ import mozilla.components.browser.state.state.ExternalAppType
 import mozilla.components.concept.engine.EngineView
 import mozilla.components.concept.toolbar.ScrollableToolbar
 import mozilla.components.support.ktx.android.view.findViewInHierarchy
+import mozilla.components.support.utils.ext.isKeyboardVisible
 import mozilla.components.ui.widgets.behavior.DependencyGravity.Bottom
 import mozilla.components.ui.widgets.behavior.DependencyGravity.Top
 import mozilla.components.ui.widgets.behavior.EngineViewScrollingBehavior
 import mozilla.components.ui.widgets.behavior.EngineViewScrollingBehaviorFactory
-import org.mozilla.fenix.compose.utils.KeyboardState
-import org.mozilla.fenix.compose.utils.keyboardAsState
 import org.mozilla.fenix.utils.Settings
 
 /**
@@ -37,10 +33,6 @@ abstract class FenixBrowserToolbarView(
     private val settings: Settings,
     private val customTabSession: CustomTabSessionState?,
 ) : ScrollableToolbar {
-
-    init {
-        setupShowingToolbarsAfterKeyboardHidden()
-    }
 
     abstract val layout: View
 
@@ -79,8 +71,10 @@ abstract class FenixBrowserToolbarView(
     }
 
     override fun enableScrolling() {
-        (layout.layoutParams as CoordinatorLayout.LayoutParams).apply {
-            (behavior as? EngineViewScrollingBehavior)?.enableScrolling()
+        if (!parent.isKeyboardVisible()) {
+            (layout.layoutParams as CoordinatorLayout.LayoutParams).apply {
+                (behavior as? EngineViewScrollingBehavior)?.enableScrolling()
+            }
         }
     }
 
@@ -162,19 +156,4 @@ abstract class FenixBrowserToolbarView(
     }
 
     protected fun shouldShowTabStrip() = customTabSession == null && settings.isTabStripEnabled
-
-    private fun setupShowingToolbarsAfterKeyboardHidden() {
-        parent.addView(
-            ComposeView(parent.context).apply {
-                setContent {
-                    val keyboardState by keyboardAsState()
-                    LaunchedEffect(keyboardState) {
-                        if (keyboardState == KeyboardState.Closed) {
-                            expand()
-                        }
-                    }
-                }
-            },
-        )
-    }
 }

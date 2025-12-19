@@ -125,17 +125,17 @@ class StoreTest {
 
     @Test
     fun `Middleware chain gets executed in order`() {
-        val incrementMiddleware: Middleware<TestState, TestAction> = { middlewareContext, next, action ->
+        val incrementMiddleware: Middleware<TestState, TestAction> = { store, next, action ->
             if (action == TestAction.DoNothingAction) {
-                middlewareContext.store.dispatch(TestAction.IncrementAction)
+                store.dispatch(TestAction.IncrementAction)
             }
 
             next(action)
         }
 
-        val doubleMiddleware: Middleware<TestState, TestAction> = { middlewareContext, next, action ->
+        val doubleMiddleware: Middleware<TestState, TestAction> = { store, next, action ->
             if (action == TestAction.DoNothingAction) {
-                middlewareContext.store.dispatch(TestAction.DoubleAction)
+                store.dispatch(TestAction.DoubleAction)
             }
 
             next(action)
@@ -213,9 +213,9 @@ class StoreTest {
 
     @Test
     fun `Middleware can intercept and dispatch other action instead`() {
-        val rewritingMiddleware: Middleware<TestState, TestAction> = { middlewareContext, next, action ->
+        val rewritingMiddleware: Middleware<TestState, TestAction> = { store, next, action ->
             if (action == TestAction.IncrementAction) {
-                middlewareContext.store.dispatch(TestAction.DecrementAction)
+                store.dispatch(TestAction.DecrementAction)
             } else {
                 next(action)
             }
@@ -302,14 +302,14 @@ class StoreTest {
         val storeDispatcher = Executors.newSingleThreadExecutor().asCoroutineDispatcher()
         val middleware = object : Middleware<TestState, TestAction> {
             override fun invoke(
-                context: MiddlewareContext<TestState, TestAction>,
+                store: Store<TestState, TestAction>,
                 next: (TestAction) -> Unit,
                 action: TestAction,
             ) {
                 if (action is TestAction.DecrementAction) {
                     middlewareJobs += this@runTest.launch(middlewareDispatcher) {
                         delay(5)
-                        context.store.dispatch(TestAction.IncrementAction)
+                        store.dispatch(TestAction.IncrementAction)
                     }
                 }
                 next(action)

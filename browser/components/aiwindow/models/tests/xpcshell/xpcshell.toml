@@ -14,6 +14,8 @@ support-files = []
 
 ["test_InsightsChatSource.js"]
 
+["test_InsightsConversationScheduler.js"]
+
 ["test_InsightsDriftDetector.js"]
 
 ["test_InsightsHistoryScheduler.js"]
@@ -27,6 +29,8 @@ support-files = []
 ["test_TitleGeneration.js"]
 
 ["test_Tools_GetOpenTabs.js"]
+
+["test_Tools_GetPageContent.js"]
 
 ["test_Tools_SearchBrowsingHistory.js"]
 

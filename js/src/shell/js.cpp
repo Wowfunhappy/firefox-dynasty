@@ -12958,7 +12958,7 @@ bool InitOptionParser(OptionParser& op) {
                        -1) ||
       !op.addBoolOption('\0', "only-inline-selfhosted",
                         "Only inline selfhosted functions") ||
-      !op.addBoolOption('\0', "no-asmjs", "Disable asm.js compilation") ||
+      !op.addBoolOption('\0', "asmjs", "Enable asm.js compilation") ||
       !op.addStringOption(
           '\0', "wasm-compiler", "[option]",
           "Choose to enable a subset of the wasm compilers, valid options are "
@@ -13425,6 +13425,9 @@ bool SetGlobalOptionsPreJSInit(const OptionParser& op) {
   }
   JS::Prefs::setAtStartup_experimental_symbols_as_weakmap_keys(
       symbolsAsWeakMapKeys);
+  if (op.getBoolOption("enable-joint-iteration")) {
+    JS::Prefs::setAtStartup_experimental_joint_iteration(true);
+  }
 
 #ifdef NIGHTLY_BUILD
   if (op.getBoolOption("enable-async-iterator-helpers")) {
@@ -13435,9 +13438,6 @@ bool SetGlobalOptionsPreJSInit(const OptionParser& op) {
   }
   if (op.getBoolOption("enable-iterator-range")) {
     JS::Prefs::setAtStartup_experimental_iterator_range(true);
-  }
-  if (op.getBoolOption("enable-joint-iteration")) {
-    JS::Prefs::setAtStartup_experimental_joint_iteration(true);
   }
   if (op.getBoolOption("enable-upsert")) {
     JS::Prefs::setAtStartup_experimental_upsert(true);
@@ -13756,7 +13756,7 @@ bool SetContextOptions(JSContext* cx, const OptionParser& op) {
 }
 
 bool SetContextWasmOptions(JSContext* cx, const OptionParser& op) {
-  enableAsmJS = !op.getBoolOption("no-asmjs");
+  enableAsmJS = op.getBoolOption("asmjs");
 
   enableWasm = true;
   enableWasmBaseline = true;

@@ -2206,6 +2206,11 @@ JS_PUBLIC_API bool js::ShouldIgnorePropertyDefinition(JSContext* cx,
         id == NameToId(cx->names().concat)) {
       return true;
     }
+    if (!JS::Prefs::experimental_joint_iteration() &&
+        (id == NameToId(cx->names().zip) ||
+         id == NameToId(cx->names().zipKeyed))) {
+      return true;
+    }
   }
 
 #ifdef JS_HAS_INTL_API
@@ -2224,9 +2229,9 @@ JS_PUBLIC_API bool js::ShouldIgnorePropertyDefinition(JSContext* cx,
         (id == NameToId(cx->names().range))) {
       return true;
     }
-    if (!JS::Prefs::experimental_joint_iteration() &&
-        (id == NameToId(cx->names().zip) ||
-         id == NameToId(cx->names().zipKeyed))) {
+    if (!JS::Prefs::experimental_promise_allkeyed() &&
+        (id == NameToId(cx->names().allKeyed) ||
+         id == NameToId(cx->names().allSettledKeyed))) {
       return true;
     }
   }
@@ -2253,12 +2258,6 @@ JS_PUBLIC_API bool js::ShouldIgnorePropertyDefinition(JSContext* cx,
   }
   if (key == JSProto_Iterator && !JS::Prefs::experimental_iterator_join()) {
     if (id == NameToId(cx->names().join)) {
-      return true;
-    }
-  }
-  if (key == JSProto_Promise && !JS::Prefs::experimental_promise_allkeyed()) {
-    if (id == NameToId(cx->names().allKeyed) ||
-        id == NameToId(cx->names().allSettledKeyed)) {
       return true;
     }
   }

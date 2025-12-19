@@ -797,7 +797,8 @@ Sync11Service.prototype = {
         "No config or incomplete config in getMaxRecordPayloadSize." +
           " Are we running tests?"
       );
-      return 256 * 1024;
+      // should stay in sync with MAX_PAYLOAD_SIZE in the Rust tabs engine.
+      return 2 * 1024 * 1024;
     }
     let payloadMax = config.max_record_payload_bytes;
     if (config.max_post_bytes && payloadMax <= config.max_post_bytes) {
@@ -964,22 +965,6 @@ Sync11Service.prototype = {
     );
     if (keysChanged) {
       this._log.info("Downloaded keys differed, as expected.");
-    }
-  },
-
-  // Checks if sync can be configured for the current FxA user.
-  // Returns true if there is a signed-in user with sync keys available.
-  async canConfigure() {
-    let user = await fxAccounts.getSignedInUser();
-    if (!user) {
-      return false;
-    }
-    try {
-      let hasKeys = await fxAccounts.keys.hasKeysForScope(SCOPE_APP_SYNC);
-      return hasKeys;
-    } catch (err) {
-      this._log.error("Failed to check for sync keys", err);
-      return false;
     }
   },
 

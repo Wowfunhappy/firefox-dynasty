@@ -1003,14 +1003,13 @@
           child.labelElement.elementIndex = elementIndex++;
           dragAndDropElements.push(child.labelElement);
 
-          let visibleChildren = Array.from(child.children).filter(
-            ele => ele.visible || ele.tagName == "tab-split-view-wrapper"
+          let tabsAndSplitViews = child.tabsAndSplitViews.filter(
+            node => node.visible
           );
-
-          visibleChildren.forEach(tab => {
-            tab.elementIndex = elementIndex++;
+          tabsAndSplitViews.forEach(ele => {
+            ele.elementIndex = elementIndex++;
           });
-          dragAndDropElements.push(...visibleChildren);
+          dragAndDropElements.push(...tabsAndSplitViews);
         } else {
           child.elementIndex = elementIndex++;
           dragAndDropElements.push(child);
@@ -1065,6 +1064,15 @@
 
     #isMovingTab() {
       return this.hasAttribute("movingtab");
+    }
+
+    isContainerVerticalPinnedGrid(tab) {
+      return (
+        tab.pinned &&
+        this.verticalMode &&
+        this.hasAttribute("expanded") &&
+        !this.expandOnHover
+      );
     }
 
     /**

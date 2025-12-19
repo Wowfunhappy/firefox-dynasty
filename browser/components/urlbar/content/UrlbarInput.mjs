@@ -339,13 +339,6 @@ export class UrlbarInput extends HTMLElement {
     // The engine name is not known yet, but update placeholder anyway to
     // reflect value of keyword.enabled or set the searchbar placeholder.
     this._setPlaceholder(null);
-
-    if (this.#isAddressbar) {
-      let searchContainersPref = lazy.UrlbarPrefs.get(
-        "switchTabs.searchAllContainers"
-      );
-      Glean.urlbar.prefSwitchTabsSearchAllContainers.set(searchContainersPref);
-    }
   }
 
   connectedCallback() {
@@ -460,6 +453,11 @@ export class UrlbarInput extends HTMLElement {
   #uninit() {
     if (this.sapName == "searchbar") {
       this.parentNode.removeAttribute("overflows");
+
+      // Exit search mode to make sure it doesn't become stale while the
+      // searchbar is invisible. Otherwise, the engine might get deleted
+      // but we don't notice because the search service observer is inactive.
+      this.searchMode = null;
     }
 
     if (this._copyCutController) {
@@ -793,7 +791,7 @@ export class UrlbarInput extends HTMLElement {
       // identity yet. See Bug 1746383.
       valid =
         !dueToSessionRestore &&
-        (!this.window.isBlankPageURL(uri.spec) ||
+        (!this.#canHandleAsBlankPage(uri.spec) ||
           lazy.ExtensionUtils.isExtensionUrl(uri) ||
           isInitialPageControlledByWebContent);
     } else if (
@@ -940,7 +938,7 @@ export class UrlbarInput extends HTMLElement {
 
     if (
       browser != this.window.gBrowser.selectedBrowser &&
-      !this.window.isBlankPageURL(locationURI.spec)
+      !this.#canHandleAsBlankPage(locationURI.spec)
     ) {
       // If the page is loaded on background tab, make Unified Search Button
       // unavailable when back to the tab.
@@ -4233,7 +4231,11 @@ export class UrlbarInput extends HTMLElement {
    */
   _searchModeForResult(result, entry = null) {
     // Search mode is determined by the result's keyword or engine.
-    if (!result.payload.keyword && !result.payload.engine) {
+    if (
+      !result.payload.keyword &&
+      !result.payload.engine &&
+      !this.view.selectedElement.dataset?.engine
+    ) {
       return null;
     }
 
@@ -4247,6 +4249,8 @@ export class UrlbarInput extends HTMLElement {
         result.payload.engine == result.payload.originalEngine)
     ) {
       searchMode = { engineName: result.payload.engine };
+    } else if (this.view.selectedElement?.dataset.engine) {
+      searchMode = { engineName: this.view.selectedElement.dataset.engine };
     }
 
     if (searchMode) {
@@ -5642,6 +5646,10 @@ export class UrlbarInput extends HTMLElement {
         event.keyCode == KeyEvent.DOM_VK_META &&
         this._isKeyDownWithMetaAndLeft)
     );
+  }
+
+  #canHandleAsBlankPage(spec) {
+    return this.window.isBlankPageURL(spec) || spec == "about:privatebrowsing";
   }
 }
 

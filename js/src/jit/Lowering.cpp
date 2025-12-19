@@ -4207,6 +4207,15 @@ void LIRGenerator::visitLoadDynamicSlot(MLoadDynamicSlot* ins) {
   }
 }
 
+void LIRGenerator::visitLoadDynamicSlotFromOffset(
+    MLoadDynamicSlotFromOffset* ins) {
+  MOZ_ASSERT(ins->slots()->type() == MIRType::Slots);
+
+  auto* lir = new (alloc()) LLoadDynamicSlotFromOffset(
+      useRegisterAtStart(ins->slots()), useRegisterAtStart(ins->offset()));
+  defineBox(lir, ins);
+}
+
 void LIRGenerator::visitFunctionEnvironment(MFunctionEnvironment* ins) {
   define(new (alloc())
              LFunctionEnvironment(useRegisterAtStart(ins->function())),
@@ -5480,6 +5489,16 @@ void LIRGenerator::visitLoadFixedSlot(MLoadFixedSlot* ins) {
   }
 }
 
+void LIRGenerator::visitLoadFixedSlotFromOffset(MLoadFixedSlotFromOffset* ins) {
+  MDefinition* obj = ins->object();
+  MOZ_ASSERT(obj->type() == MIRType::Object);
+  MOZ_ASSERT(ins->type() == MIRType::Value);
+
+  auto* lir = new (alloc()) LLoadFixedSlotFromOffset(
+      useRegisterAtStart(obj), useRegisterAtStart(ins->offset()));
+  defineBox(lir, ins);
+}
+
 void LIRGenerator::visitLoadFixedSlotAndUnbox(MLoadFixedSlotAndUnbox* ins) {
   MDefinition* obj = ins->object();
   MOZ_ASSERT(obj->type() == MIRType::Object);
@@ -5600,6 +5619,40 @@ void LIRGenerator::visitStoreFixedSlot(MStoreFixedSlot* ins) {
   } else {
     LStoreFixedSlotT* lir = new (alloc()) LStoreFixedSlotT(
         useRegister(ins->object()), useRegisterOrConstant(ins->value()));
+    add(lir, ins);
+  }
+}
+
+void LIRGenerator::visitStoreFixedSlotFromOffset(
+    MStoreFixedSlotFromOffset* ins) {
+  MOZ_ASSERT(ins->object()->type() == MIRType::Object);
+
+  if (ins->value()->type() == MIRType::Value) {
+    LStoreFixedSlotFromOffsetV* lir = new (alloc()) LStoreFixedSlotFromOffsetV(
+        useRegister(ins->object()), useRegister(ins->offset()),
+        useBox(ins->value()), temp());
+    add(lir, ins);
+  } else {
+    LStoreFixedSlotFromOffsetT* lir = new (alloc()) LStoreFixedSlotFromOffsetT(
+        useRegister(ins->object()), useRegister(ins->offset()),
+        useRegisterOrConstant(ins->value()), temp());
+    add(lir, ins);
+  }
+}
+
+void LIRGenerator::visitStoreDynamicSlotFromOffset(
+    MStoreDynamicSlotFromOffset* ins) {
+  MOZ_ASSERT(ins->slots()->type() == MIRType::Slots);
+
+  if (ins->value()->type() == MIRType::Value) {
+    auto* lir = new (alloc()) LStoreDynamicSlotFromOffsetV(
+        useRegister(ins->slots()), useRegister(ins->offset()),
+        useBox(ins->value()), temp());
+    add(lir, ins);
+  } else {
+    auto* lir = new (alloc()) LStoreDynamicSlotFromOffsetT(
+        useRegister(ins->slots()), useRegister(ins->offset()),
+        useRegisterOrConstant(ins->value()), temp());
     add(lir, ins);
   }
 }
@@ -5807,6 +5860,33 @@ void LIRGenerator::visitGuardShapeList(MGuardShapeList* ins) {
     addUnchecked(lir, ins);
     redefine(ins, ins->object());
   }
+}
+
+void LIRGenerator::visitGuardShapeListToOffset(MGuardShapeListToOffset* ins) {
+  MOZ_ASSERT(ins->object()->type() == MIRType::Object);
+
+  if (JitOptions.spectreObjectMitigations) {
+    auto* lir = new (alloc())
+        LGuardShapeListToOffset(useRegister(ins->object()), temp(), temp());
+    assignSnapshot(lir, ins->bailoutKind());
+    define(lir, ins);
+  } else {
+    auto* lir = new (alloc()) LGuardShapeListToOffset(
+        useRegister(ins->object()), temp(), LDefinition::BogusTemp());
+    assignSnapshot(lir, ins->bailoutKind());
+    define(lir, ins);
+  }
+}
+
+void LIRGenerator::visitGuardMultipleShapesToOffset(
+    MGuardMultipleShapesToOffset* ins) {
+  MOZ_ASSERT(ins->object()->type() == MIRType::Object);
+
+  auto* lir = new (alloc()) LGuardMultipleShapesToOffset(
+      useRegister(ins->object()), useRegister(ins->shapeList()), temp(), temp(),
+      temp());
+  assignSnapshot(lir, ins->bailoutKind());
+  define(lir, ins);
 }
 
 void LIRGenerator::visitGuardProto(MGuardProto* ins) {
@@ -7176,9 +7256,9 @@ void LIRGenerator::visitWasmFloatRegisterResult(MWasmFloatRegisterResult* ins) {
   addUnchecked(lir, ins);
 }
 
-void LIRGenerator::visitWasmBuiltinFloatRegisterResult(
-    MWasmBuiltinFloatRegisterResult* ins) {
-  auto* lir = new (alloc()) LWasmBuiltinFloatRegisterResult();
+void LIRGenerator::visitWasmSystemFloatRegisterResult(
+    MWasmSystemFloatRegisterResult* ins) {
+  auto* lir = new (alloc()) LWasmSystemFloatRegisterResult();
   uint32_t vreg = getVirtualRegister();
   auto type = LDefinition::TypeFrom(ins->type());
   lir->setDef(0, LDefinition(vreg, type, LFloatReg(ins->loc())));
@@ -7255,6 +7335,7 @@ void LIRGenerator::visitWasmStackSwitchToSuspendable(
     MWasmStackSwitchToSuspendable* ins) {
 #ifdef ENABLE_WASM_JSPI
   auto* lir = new (alloc()) LWasmStackSwitchToSuspendable(
+      useFixedAtStart(ins->instance(), InstanceReg),
       useFixedAtStart(ins->suspender(), ABINonArgReg0),
       useFixedAtStart(ins->fn(), ABINonArgReg1),
       useFixedAtStart(ins->data(), ABINonArgReg2));
@@ -7269,7 +7350,8 @@ void LIRGenerator::visitWasmStackSwitchToSuspendable(
 void LIRGenerator::visitWasmStackSwitchToMain(MWasmStackSwitchToMain* ins) {
 #ifdef ENABLE_WASM_JSPI
   auto* lir = new (alloc())
-      LWasmStackSwitchToMain(useFixedAtStart(ins->suspender(), ABINonArgReg0),
+      LWasmStackSwitchToMain(useFixedAtStart(ins->instance(), InstanceReg),
+                             useFixedAtStart(ins->suspender(), ABINonArgReg0),
                              useFixedAtStart(ins->fn(), ABINonArgReg1),
                              useFixedAtStart(ins->data(), ABINonArgReg2));
 
@@ -7284,8 +7366,9 @@ void LIRGenerator::visitWasmStackContinueOnSuspendable(
     MWasmStackContinueOnSuspendable* ins) {
 #ifdef ENABLE_WASM_JSPI
   auto* lir = new (alloc()) LWasmStackContinueOnSuspendable(
-      useFixedAtStart(ins->suspender(), ABINonArgReg0),
-      useFixedAtStart(ins->result(), ABINonArgReg2));
+      useFixedAtStart(ins->instance(), InstanceReg),
+      useRegisterAtStart(ins->suspender()), useRegisterAtStart(ins->result()),
+      tempFixed(ABINonArgReturnReg0), tempFixed(ReturnReg));
 
   add(lir, ins);
   assignWasmSafepoint(lir);

@@ -1216,8 +1216,6 @@ skip-if = [
 
 ["test_post.js"]
 
-["test_predictor.js"]
-
 ["test_prio_header_override_forbid.js"]
 
 ["test_private_cookie_changed.js"]
@@ -1256,6 +1254,7 @@ skip-if = [
 skip-if = [
   "os == 'win' && os_version == '11.26100' && arch == 'x86' && socketprocess_networking",
   "os == 'win' && os_version == '11.26100' && arch == 'x86_64' && socketprocess_networking",
+  "os == 'win' && os_version == '10.2009' && arch == 'x86_64'", # Bug 2006847
 ]
 
 ["test_proxy_cancel.js"]

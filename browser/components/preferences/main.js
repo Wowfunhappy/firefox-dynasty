@@ -204,6 +204,9 @@ Preferences.addAll([
 
   // Appearance
   { id: "layout.css.prefers-color-scheme.content-override", type: "int" },
+
+  // Translations
+  { id: "browser.translations.automaticallyPopup", type: "bool" },
 ]);
 
 if (AppConstants.HAVE_SHELL_SERVICE) {
@@ -644,6 +647,116 @@ Preferences.addSetting({
   },
 });
 Preferences.addSetting({ id: "containersPlaceholder" });
+
+Preferences.addSetting({
+  id: "offerTranslations",
+  pref: "browser.translations.automaticallyPopup",
+});
+
+function createNeverTranslateSitesDescription() {
+  const description = document.createElement("span");
+  description.dataset.l10nId =
+    "settings-translations-subpage-never-translate-sites-description";
+
+  for (const [name, src] of [
+    ["translations-icon", "chrome://browser/skin/translations.svg"],
+    ["settings-icon", "chrome://global/skin/icons/settings.svg"],
+  ]) {
+    const icon = document.createElement("img");
+    icon.src = src;
+
+    icon.dataset.l10nName = name;
+    icon.style.verticalAlign = "middle";
+
+    icon.setAttribute("role", "presentation");
+    icon.setAttribute("width", "16");
+    icon.setAttribute("height", "16");
+
+    description.appendChild(icon);
+  }
+
+  return description;
+}
+
+Preferences.addSetting({
+  id: "translationsDownloadLanguagesGroup",
+});
+
+Preferences.addSetting({
+  id: "translationsDownloadLanguagesRow",
+});
+
+Preferences.addSetting({
+  id: "translationsDownloadLanguagesSelect",
+});
+
+Preferences.addSetting({
+  id: "translationsDownloadLanguagesButton",
+});
+
+Preferences.addSetting({
+  id: "translationsDownloadLanguagesNoneRow",
+});
+
+Preferences.addSetting({
+  id: "translationsAlwaysTranslateLanguagesGroup",
+});
+
+Preferences.addSetting({
+  id: "translationsAlwaysTranslateLanguagesRow",
+});
+
+Preferences.addSetting({
+  id: "translationsAlwaysTranslateLanguagesSelect",
+});
+
+Preferences.addSetting({
+  id: "translationsAlwaysTranslateLanguagesNoneRow",
+});
+
+Preferences.addSetting({
+  id: "translationsAlwaysTranslateLanguagesButton",
+});
+
+Preferences.addSetting({
+  id: "translationsNeverTranslateLanguagesNoneRow",
+});
+
+Preferences.addSetting({
+  id: "translationsNeverTranslateLanguagesButton",
+});
+
+Preferences.addSetting({
+  id: "translationsNeverTranslateLanguagesGroup",
+});
+
+Preferences.addSetting({
+  id: "translationsNeverTranslateLanguagesRow",
+});
+
+Preferences.addSetting({
+  id: "translationsNeverTranslateLanguagesSelect",
+});
+
+Preferences.addSetting({
+  id: "translationsNeverTranslateSitesGroup",
+});
+
+Preferences.addSetting({
+  id: "translationsNeverTranslateSitesRow",
+});
+
+Preferences.addSetting({
+  id: "translationsNeverTranslateSitesNoneRow",
+});
+
+Preferences.addSetting({
+  id: "translationsManageButton",
+  onUserClick(e) {
+    e.preventDefault();
+    gotoPref("paneTranslations");
+  },
+});
 
 Preferences.addSetting({
   id: "data-migration",
@@ -1329,11 +1442,13 @@ Preferences.addSetting({
 
 Preferences.addSetting({
   id: "add-payment-button",
+  deps: ["saveAndFillPayments"],
   onUserClick: ({ target }) => {
     target.ownerGlobal.gSubDialog.open(
       "chrome://formautofill/content/editCreditCard.xhtml"
     );
   },
+  disabled: ({ saveAndFillPayments }) => !saveAndFillPayments.value,
 });
 
 Preferences.addSetting({
@@ -2245,6 +2360,24 @@ SettingGroupManager.registerGroups({
       },
     ],
   },
+  translations: {
+    inProgress: true,
+    l10nId: "settings-translations-header",
+    iconSrc: "chrome://browser/skin/translations.svg",
+    supportPage: "website-translation",
+    headingLevel: 2,
+    items: [
+      {
+        id: "offerTranslations",
+        l10nId: "settings-translations-offer-to-translate-label",
+      },
+      {
+        id: "translationsManageButton",
+        l10nId: "settings-translations-more-settings-button",
+        control: "moz-box-button",
+      },
+    ],
+  },
   appearance: {
     l10nId: "web-appearance-group",
     items: [
@@ -2803,6 +2936,11 @@ SettingGroupManager.registerGroups({
       {
         id: "requireOSAuthForPasswords",
         l10nId: "forms-os-reauth",
+      },
+      {
+        id: "allowWindowSSO",
+        l10nId: "forms-windows-sso",
+        supportPage: "windows-sso",
       },
       {
         id: "manageSavedPasswords",
@@ -3378,7 +3516,7 @@ SettingGroupManager.registerGroups({
     supportPage: "enhanced-tracking-protection",
     items: [
       {
-        id: "contentBlockingCategory",
+        id: "contentBlockingCategoryRadioGroup",
         control: "moz-radio-group",
         options: [
           {
@@ -3440,6 +3578,148 @@ SettingGroupManager.registerGroups({
         id: "etpManageExceptionsButton",
         l10nId: "preferences-etp-manage-exceptions-button",
         control: "moz-box-button",
+      },
+    ],
+  },
+  etpReset: {
+    inProgress: true,
+    headingLevel: 2,
+    l10nId: "preferences-etp-reset",
+    items: [
+      {
+        id: "etpResetButtonGroup",
+        control: "div",
+        items: [
+          {
+            id: "etpResetStandardButton",
+            control: "moz-button",
+            l10nId: "preferences-etp-reset-standard-button",
+          },
+          {
+            id: "etpResetStrictButton",
+            control: "moz-button",
+            l10nId: "preferences-etp-reset-strict-button",
+          },
+        ],
+      },
+    ],
+  },
+  etpCustomize: {
+    inProgress: true,
+    headingLevel: 2,
+    l10nId: "preferences-etp-custom-control-group",
+    items: [
+      {
+        id: "etpAllowListBaselineEnabledCustom",
+        l10nId: "content-blocking-baseline-exceptions-3",
+        supportPage: "manage-enhanced-tracking-protection-exceptions",
+        control: "moz-checkbox",
+        items: [
+          {
+            id: "etpAllowListConvenienceEnabledCustom",
+            l10nId: "content-blocking-convenience-exceptions-3",
+            control: "moz-checkbox",
+          },
+        ],
+      },
+      {
+        id: "etpCustomCookiesEnabled",
+        l10nId: "preferences-etp-custom-cookies-enabled",
+        control: "moz-toggle",
+        items: [
+          {
+            id: "cookieBehavior",
+            l10nId: "preferences-etp-custom-cookie-behavior",
+            control: "moz-select",
+            options: [
+              {
+                value: Ci.nsICookieService.BEHAVIOR_ACCEPT.toString(),
+                l10nId: "preferences-etpc-custom-cookie-behavior-accept-all",
+              },
+              {
+                value: Ci.nsICookieService.BEHAVIOR_REJECT_TRACKER.toString(),
+                l10nId: "sitedata-option-block-cross-site-trackers",
+              },
+              {
+                value:
+                  Ci.nsICookieService.BEHAVIOR_REJECT_TRACKER_AND_PARTITION_FOREIGN.toString(),
+                l10nId: "sitedata-option-block-cross-site-cookies2",
+              },
+              {
+                value: Ci.nsICookieService.BEHAVIOR_LIMIT_FOREIGN.toString(),
+                l10nId: "sitedata-option-block-unvisited",
+              },
+              {
+                value: Ci.nsICookieService.BEHAVIOR_REJECT_FOREIGN.toString(),
+                l10nId: "sitedata-option-block-all-cross-site-cookies",
+              },
+              {
+                value: Ci.nsICookieService.BEHAVIOR_REJECT.toString(),
+                l10nId: "sitedata-option-block-all",
+              },
+            ],
+          },
+        ],
+      },
+      {
+        id: "etpCustomTrackingProtectionEnabled",
+        l10nId: "preferences-etp-custom-tracking-protection-enabled",
+        control: "moz-toggle",
+        items: [
+          {
+            id: "etpCustomTrackingProtectionEnabledContext",
+            l10nId:
+              "preferences-etp-custom-tracking-protection-enabled-context",
+            control: "moz-select",
+            options: [
+              {
+                value: "all",
+                l10nId:
+                  "content-blocking-tracking-protection-option-all-windows",
+              },
+              {
+                value: "pbmOnly",
+                l10nId: "content-blocking-option-private",
+              },
+            ],
+          },
+        ],
+      },
+      {
+        id: "etpCustomCryptominingProtectionEnabled",
+        l10nId: "preferences-etp-custom-crypto-mining-protection-enabled",
+        control: "moz-toggle",
+      },
+      {
+        id: "etpCustomKnownFingerprintingProtectionEnabled",
+        l10nId:
+          "preferences-etp-custom-known-fingerprinting-protection-enabled",
+        control: "moz-toggle",
+      },
+      {
+        id: "etpCustomSuspectFingerprintingProtectionEnabled",
+        l10nId:
+          "preferences-etp-custom-suspect-fingerprinting-protection-enabled",
+        control: "moz-toggle",
+        items: [
+          {
+            id: "etpCustomSuspectFingerprintingProtectionEnabledContext",
+            l10nId:
+              "preferences-etp-custom-suspect-fingerprinting-protection-enabled-context",
+            control: "moz-select",
+            options: [
+              {
+                value: "all",
+                l10nId:
+                  "content-blocking-tracking-protection-option-all-windows",
+              },
+              {
+                value: "pbmOnly",
+                l10nId: "content-blocking-option-private",
+              },
+            ],
+          },
+        ],
       },
     ],
   },
@@ -3659,6 +3939,198 @@ SettingGroupManager.registerGroups({
       },
     ],
   },
+  translationsAutomaticTranslation: {
+    inProgress: true,
+    headingLevel: 2,
+    l10nId: "settings-translations-subpage-automatic-translation-header",
+    items: [
+      {
+        id: "translationsAlwaysTranslateLanguagesGroup",
+        control: "moz-box-group",
+        controlAttrs: {
+          type: "list",
+        },
+        items: [
+          {
+            id: "translationsAlwaysTranslateLanguagesRow",
+            l10nId: "settings-translations-subpage-always-translate-header",
+            control: "moz-box-item",
+            slot: "header",
+            controlAttrs: {
+              class: "box-header-bold",
+            },
+            items: [
+              {
+                id: "translationsAlwaysTranslateLanguagesSelect",
+                slot: "actions",
+                control: "moz-select",
+                options: [
+                  {
+                    value: "",
+                    l10nId:
+                      "settings-translations-subpage-language-select-option",
+                  },
+                ],
+              },
+              {
+                id: "translationsAlwaysTranslateLanguagesButton",
+                l10nId: "settings-translations-subpage-language-add-button",
+                control: "moz-button",
+                slot: "actions",
+                controlAttrs: {
+                  type: "icon",
+                  iconsrc: "chrome://global/skin/icons/plus.svg",
+                },
+              },
+            ],
+          },
+          {
+            id: "translationsAlwaysTranslateLanguagesNoneRow",
+            l10nId: "settings-translations-subpage-no-languages-added",
+            control: "moz-box-item",
+            controlAttrs: {
+              class: "description-deemphasized",
+            },
+          },
+        ],
+      },
+      {
+        id: "translationsNeverTranslateLanguagesGroup",
+        control: "moz-box-group",
+        controlAttrs: {
+          type: "list",
+        },
+        items: [
+          {
+            id: "translationsNeverTranslateLanguagesRow",
+            l10nId: "settings-translations-subpage-never-translate-header",
+            control: "moz-box-item",
+            slot: "header",
+            controlAttrs: {
+              class: "box-header-bold",
+            },
+            items: [
+              {
+                id: "translationsNeverTranslateLanguagesSelect",
+                slot: "actions",
+                control: "moz-select",
+                options: [
+                  {
+                    value: "",
+                    l10nId:
+                      "settings-translations-subpage-language-select-option",
+                  },
+                ],
+              },
+              {
+                id: "translationsNeverTranslateLanguagesButton",
+                l10nId: "settings-translations-subpage-language-add-button",
+                control: "moz-button",
+                slot: "actions",
+                controlAttrs: {
+                  type: "icon",
+                  iconsrc: "chrome://global/skin/icons/plus.svg",
+                },
+              },
+            ],
+          },
+          {
+            id: "translationsNeverTranslateLanguagesNoneRow",
+            l10nId: "settings-translations-subpage-no-languages-added",
+            control: "moz-box-item",
+            controlAttrs: {
+              class: "description-deemphasized",
+            },
+          },
+        ],
+      },
+      {
+        id: "translationsNeverTranslateSitesGroup",
+        control: "moz-box-group",
+        controlAttrs: {
+          type: "list",
+        },
+        items: [
+          {
+            id: "translationsNeverTranslateSitesRow",
+            l10nId:
+              "settings-translations-subpage-never-translate-sites-header",
+            control: "moz-box-item",
+            controlAttrs: {
+              class: "box-header-bold",
+              ".description": createNeverTranslateSitesDescription(),
+            },
+          },
+          {
+            id: "translationsNeverTranslateSitesNoneRow",
+            l10nId: "settings-translations-subpage-no-sites-added",
+            control: "moz-box-item",
+            controlAttrs: {
+              class: "description-deemphasized",
+            },
+          },
+        ],
+      },
+    ],
+  },
+  translationsDownloadLanguages: {
+    inProgress: true,
+    headingLevel: 2,
+    l10nId: "settings-translations-subpage-speed-up-translation-header",
+    items: [
+      {
+        id: "translationsDownloadLanguagesGroup",
+        control: "moz-box-group",
+        controlAttrs: {
+          type: "list",
+        },
+        items: [
+          {
+            id: "translationsDownloadLanguagesRow",
+            l10nId: "settings-translations-subpage-download-languages-header",
+            control: "moz-box-item",
+            slot: "header",
+            controlAttrs: {
+              class: "box-header-bold",
+            },
+            items: [
+              {
+                id: "translationsDownloadLanguagesSelect",
+                slot: "actions",
+                control: "moz-select",
+                options: [
+                  {
+                    value: "",
+                    l10nId:
+                      "settings-translations-subpage-download-languages-select-option",
+                  },
+                ],
+              },
+              {
+                id: "translationsDownloadLanguagesButton",
+                l10nId:
+                  "settings-translations-subpage-download-languages-button",
+                control: "moz-button",
+                slot: "actions",
+                controlAttrs: {
+                  type: "icon",
+                  iconsrc: "chrome://browser/skin/downloads/downloads.svg",
+                },
+              },
+            ],
+          },
+          {
+            id: "translationsDownloadLanguagesNoneRow",
+            l10nId: "settings-translations-subpage-no-languages-downloaded",
+            control: "moz-box-item",
+            controlAttrs: {
+              class: "description-deemphasized",
+            },
+          },
+        ],
+      },
+    ],
+  },
 });
 
 /**
@@ -3776,6 +4248,7 @@ var gMainPane = {
     initSettingGroup("browsing");
     initSettingGroup("zoom");
     initSettingGroup("support");
+    initSettingGroup("translations");
     initSettingGroup("performance");
     initSettingGroup("startup");
     initSettingGroup("importBrowserData");
@@ -4918,20 +5391,9 @@ var gMainPane = {
   },
 
   showTranslationsSettings() {
-    if (
-      Services.prefs.getBoolPref("browser.translations.newSettingsUI.enable")
-    ) {
-      const translationsSettings = document.getElementById(
-        "translations-settings-page"
-      );
-      translationsSettings.setAttribute("data-hidden-from-search", "false");
-      translationsSettings.hidden = false;
-      gotoPref("translations");
-    } else {
-      gSubDialog.open(
-        "chrome://browser/content/preferences/dialogs/translations.xhtml"
-      );
-    }
+    gSubDialog.open(
+      "chrome://browser/content/preferences/dialogs/translations.xhtml"
+    );
   },
 
   /**

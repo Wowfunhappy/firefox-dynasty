@@ -3338,8 +3338,7 @@ void MacroAssembler::callWithABIPre(uint32_t* stackAdjust, bool callFromWasm) {
   assertStackAlignment(ABIStackAlignment);
 }
 
-void MacroAssembler::callWithABIPost(uint32_t stackAdjust, ABIType result,
-                                     bool callFromWasm) {
+void MacroAssembler::callWithABIPost(uint32_t stackAdjust, ABIType result) {
   // Restore ra value (as stored in callWithABIPre()).
   loadPtr(Address(StackPointer, stackAdjust - sizeof(intptr_t)), ra);
 
@@ -4680,8 +4679,22 @@ const int32_t SlowCallMarker = 0x8093;  // addi ra, ra, 0
 void MacroAssembler::wasmCheckSlowCallsite(Register ra_, Label* notSlow,
                                            Register temp1, Register temp2) {
   MOZ_ASSERT(ra_ != temp2);
+
+  UseScratchRegisterScope temps(*this);
+  // temp1 aliases ra_, so allocating a new register.
+  const Register scratchMarker = temps.Acquire();
+  move32(Imm32(SlowCallMarker), scratchMarker);
+
+  Label slow;
+  // Handle `jalr; (ra_ here) marker`.
   load32(Address(ra_, 0), temp2);
-  branch32(Assembler::NotEqual, temp2, Imm32(SlowCallMarker), notSlow);
+  branch32(Assembler::Equal, temp2, scratchMarker, &slow);
+  // Handle `jal; (ra_ here) nop; marker`.
+  // See also: AssemblerRISCVI::jal(Register rd, int32_t imm21); Bug 1996840
+  branch32(Assembler::NotEqual, temp2, Imm32(kNopByte), notSlow);
+  load32(Address(ra_, 4), temp2);
+  branch32(Assembler::NotEqual, temp2, scratchMarker, notSlow);
+  bind(&slow);
 }
 
 CodeOffset MacroAssembler::wasmMarkedSlowCall(const wasm::CallSiteDesc& desc,

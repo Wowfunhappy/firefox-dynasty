@@ -833,6 +833,11 @@ bool BaseCompiler::endFunction() {
 
 void BaseCompiler::insertBreakablePoint(CallSiteKind kind) {
   MOZ_ASSERT(!deadCode_);
+
+  // A sync() must happen before this. The debug stub does not save all live
+  // registers.
+  MOZ_ASSERT(!hasLiveRegsOnStk());
+
 #ifndef RABALDR_PIN_INSTANCE
   fr.loadInstancePtr(InstanceReg);
 #endif
@@ -1199,6 +1204,10 @@ Maybe<CodeOffset> BaseCompiler::addHotnessCheck() {
   // hotness-counting purposes.
 
   AutoCreatedBy acb(masm, "BC::addHotnessCheck");
+
+  // A sync() must happen before this. The request tier-up stub does not save
+  // all live registers.
+  MOZ_ASSERT(!hasLiveRegsOnStk());
 
 #ifdef RABALDR_PIN_INSTANCE
   Register instance(InstanceReg);
@@ -1999,7 +2008,6 @@ void BaseCompiler::popStackResultsAfterWasmCall(const StackResultsLoc& results,
 
 void BaseCompiler::pushBuiltinCallResult(const FunctionCall& call,
                                          MIRType type) {
-  MOZ_ASSERT(call.abiKind == ABIKind::System);
   switch (type) {
     case MIRType::Int32: {
       RegI32 rv = captureReturnedI32();
@@ -4049,8 +4057,12 @@ bool BaseCompiler::emitLoop() {
     }
     masm.nopAlign(CodeAlignment);
     masm.bind(&controlItem(0).label);
-    // The interrupt check barfs if there are live registers.
+
+    // The interrupt check barfs if there are live registers. The hotness check
+    // also can call the request tier-up stub, which assumes that no registers
+    // are live.
     sync();
+
     if (!addInterruptCheck()) {
       return false;
     }
@@ -5783,7 +5795,7 @@ bool BaseCompiler::emitUnaryMathBuiltinCall(SymbolicAddress callee,
   uint32_t numArgs = signature.length();
   size_t stackSpace = stackConsumed(numArgs);
 
-  FunctionCall baselineCall(ABIKind::System, RestoreState::None);
+  FunctionCall baselineCall(ABIForBuiltin(callee), RestoreState::None);
   beginCall(baselineCall);
 
   if (!emitCallArgs(signature, NoCallResults(), &baselineCall,
@@ -5828,7 +5840,7 @@ bool BaseCompiler::emitDivOrModI64BuiltinCall(SymbolicAddress callee,
     checkDivideSignedOverflow(rhs, srcDest, &done, ZeroOnOverflow(true));
   }
 
-  masm.setupWasmABICall();
+  masm.setupWasmABICall(callee);
   masm.passABIArg(srcDest.high);
   masm.passABIArg(srcDest.low);
   masm.passABIArg(rhs.high);
@@ -5857,7 +5869,7 @@ bool BaseCompiler::emitConvertInt64ToFloatingCallout(SymbolicAddress callee,
 
   FunctionCall call(ABIKind::Wasm, RestoreState::None);
 
-  masm.setupWasmABICall();
+  masm.setupWasmABICall(callee);
 #  ifdef JS_PUNBOX64
   MOZ_CRASH("BaseCompiler platform hook: emitConvertInt64ToFloatingCallout");
 #  else
@@ -5907,7 +5919,7 @@ bool BaseCompiler::emitConvertFloatingToInt64Callout(SymbolicAddress callee,
 
   FunctionCall call(ABIKind::Wasm, RestoreState::None);
 
-  masm.setupWasmABICall();
+  masm.setupWasmABICall(callee);
   masm.passABIArg(doubleInput, ABIType::Float64);
   CodeOffset raOffset = masm.callWithABI(
       bytecodeOffset(), callee, mozilla::Some(fr.getInstancePtrOffset()));
@@ -6534,7 +6546,8 @@ bool BaseCompiler::emitInstanceCall(const SymbolicAddressSignature& builtin) {
   uint32_t numNonInstanceArgs = builtin.numArgs - 1 /* instance */;
   size_t stackSpace = stackConsumed(numNonInstanceArgs);
 
-  FunctionCall baselineCall(ABIKind::System, RestoreState::PinnedRegs);
+  FunctionCall baselineCall(ABIForBuiltin(builtin.identity),
+                            RestoreState::PinnedRegs);
   beginCall(baselineCall);
 
   ABIArg instanceArg = reservePointerArgument(&baselineCall);
@@ -10505,6 +10518,9 @@ bool BaseCompiler::emitBody() {
           // TODO sync only registers that can be clobbered by the exit
           // prologue/epilogue or disable these registers for use in
           // baseline compiler when compilerEnv_.debugEnabled() is set.
+          //
+          // This will require the debug stub to save/restore allocatable
+          // registers.
           sync();
 
           insertBreakablePoint(CallSiteKind::Breakpoint);

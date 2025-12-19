@@ -3468,7 +3468,7 @@
 # This being true is necessary to type check messages.
 - name: dom.jsipc.send_typed
   type: bool
-  value: false
+  value: true
   mirror: always
 
 # Support for input type=month, type=week. By default, disabled.
@@ -9020,11 +9020,18 @@
   set_spidermonkey_pref: startup
 
   # Experimental support for Iterator Sequencing in JavaScript.
--   name: javascript.options.experimental.iterator_sequencing
-    type: bool
-    value: true
-    mirror: always
-    set_spidermonkey_pref: startup
+- name: javascript.options.experimental.iterator_sequencing
+  type: bool
+  value: true
+  mirror: always
+  set_spidermonkey_pref: startup
+
+  # Experimental support for Joint Iteration in JavaScript.
+- name: javascript.options.experimental.joint_iteration
+  type: bool
+  value: true
+  mirror: always
+  set_spidermonkey_pref: startup
 
 #ifdef NIGHTLY_BUILD
   # Experimental support for Async Iterator Helpers in JavaScript.
@@ -9036,13 +9043,6 @@
 
   # Experimental support for Iterator.range in JavaScript.
 -   name: javascript.options.experimental.iterator_range
-    type: bool
-    value: false
-    mirror: always
-    set_spidermonkey_pref: startup
-
-  # Experimental support for Joint Iteration in JavaScript.
--   name: javascript.options.experimental.joint_iteration
     type: bool
     value: false
     mirror: always
@@ -9513,7 +9513,7 @@
 # asm.js
 - name: javascript.options.asmjs
   type: bool
-  value: true
+  value: false
   mirror: always
 
 # Whether to throw a TypeError if asm.js code hits validation failure.
@@ -13885,12 +13885,6 @@
   value: false
   mirror: always
 
-# Enables the predictive service.
-- name: network.predictor.enabled
-  type: bool
-  value: false
-  mirror: always
-
 # Disable requests to 0.0.0.0
 # See Bug 1889130
 - name: network.socket.ip_addr_any.disabled
@@ -13933,94 +13927,6 @@
   mirror: always
 
 - name: network.predictor.enable-hover-on-ssl
-  type: bool
-  value: false
-  mirror: always
-
-- name: network.predictor.enable-prefetch
-  type: bool
-  value: false
-  mirror: always
-
-- name: network.predictor.page-degradation.day
-  type: int32_t
-  value: 0
-  mirror: always
-- name: network.predictor.page-degradation.week
-  type: int32_t
-  value: 5
-  mirror: always
-- name: network.predictor.page-degradation.month
-  type: int32_t
-  value: 10
-  mirror: always
-- name: network.predictor.page-degradation.year
-  type: int32_t
-  value: 25
-  mirror: always
-- name: network.predictor.page-degradation.max
-  type: int32_t
-  value: 50
-  mirror: always
-
-- name: network.predictor.subresource-degradation.day
-  type: int32_t
-  value: 1
-  mirror: always
-- name: network.predictor.subresource-degradation.week
-  type: int32_t
-  value: 10
-  mirror: always
-- name: network.predictor.subresource-degradation.month
-  type: int32_t
-  value: 25
-  mirror: always
-- name: network.predictor.subresource-degradation.year
-  type: int32_t
-  value: 50
-  mirror: always
-- name: network.predictor.subresource-degradation.max
-  type: int32_t
-  value: 100
-  mirror: always
-
-- name: network.predictor.prefetch-rolling-load-count
-  type: int32_t
-  value: 10
-  mirror: always
-
-- name: network.predictor.prefetch-min-confidence
-  type: int32_t
-  value: 100
-  mirror: always
-- name: network.predictor.preconnect-min-confidence
-  type: int32_t
-  value: 90
-  mirror: always
-- name: network.predictor.preresolve-min-confidence
-  type: int32_t
-  value: 60
-  mirror: always
-
-- name: network.predictor.prefetch-force-valid-for
-  type: int32_t
-  value: 10
-  mirror: always
-
-- name: network.predictor.max-resources-per-entry
-  type: int32_t
-  value: 100
-  mirror: always
-
-# This is selected in concert with max-resources-per-entry to keep memory
-# usage low-ish. The default of the combo of the two is ~50k.
-- name: network.predictor.max-uri-length
-  type: uint32_t
-  value: 500
-  mirror: always
-
-# A testing flag.
-- name: network.predictor.doing-tests
   type: bool
   value: false
   mirror: always
@@ -17491,6 +17397,16 @@
   type: RelaxedAtomicBool
   value: true
   mirror: always
+
+#if defined(NIGHTLY_BUILD) && !defined(MOZ_NO_SMART_CARDS)
+# If true, load PKCS#11 third-party modules in a dedicated utility process
+# rather than the main process. (Well, that's the long-term goal for the code
+# paths behind this pref, but right now this is still work in progress!)
+- name: security.utility_pkcs11_module_process.enabled
+  type: bool
+  value: false
+  mirror: once
+#endif  // NIGHTLY_BUILD && !MOZ_NO_SMART_CARDS
 
 - name: security.pki.cert_short_lifetime_in_days
   type: RelaxedAtomicUint32

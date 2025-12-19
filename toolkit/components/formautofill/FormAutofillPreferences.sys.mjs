@@ -91,14 +91,6 @@ export class FormAutofillPreferences {
    */
   init(document) {
     this.createPreferenceGroup(document);
-    return this.refs.formAutofillFragment;
-  }
-
-  /**
-   * Remove event listeners and the preference group.
-   */
-  uninit() {
-    this.refs.formAutofillGroup.remove();
   }
 
   /**
@@ -108,18 +100,6 @@ export class FormAutofillPreferences {
    */
   createPreferenceGroup(document) {
     const win = document.ownerGlobal;
-    this.refs = {};
-    this.refs.formAutofillGroup = document.querySelector(
-      "#formAutofillGroupBox"
-    );
-
-    let showAddressUI = FormAutofill.isAutofillAddressesAvailable;
-    let showCreditCardUI = FormAutofill.isAutofillCreditCardsAvailable;
-
-    if (!showAddressUI && !showCreditCardUI) {
-      return;
-    }
-
     win.Preferences.addAll([
       // Credit cards and addresses
       { id: ENABLED_AUTOFILL_ADDRESSES_PREF, type: "bool" },
@@ -257,7 +237,7 @@ export class FormAutofillPreferences {
           l10nId: "payment-moz-box-item",
           iconSrc: "chrome://formautofill/content/icon-credit-card-generic.svg",
           l10nArgs: {
-            cardNumber: record["cc-number"].replace(/^(\*+)(\d+)$/, "$2$1"),
+            cardNumber: record["cc-number"].replace(/^(\*+)(\d+)$/, "$1 $2"),
             expDate: record["cc-exp"].replace(/^(\d{4})-\d{2}$/, "XX/$1"),
           },
           options: [

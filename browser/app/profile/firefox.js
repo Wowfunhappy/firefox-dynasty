@@ -887,7 +887,11 @@ pref("browser.search.serpMetricsRecordedCounter", 0);
 // days
 pref("browser.search.widget.removeAfterDaysUnused", 120);
 
+#ifdef NIGHTLY_BUILD
+pref("browser.search.widget.new", true);
+#else
 pref("browser.search.widget.new", false);
+#endif
 
 // The number of times the search function in the URL bar has been used,
 // capped at 100.
@@ -2084,9 +2088,6 @@ pref("browser.newtabpage.activity-stream.discoverystream.publisherFavicon.enable
 // User pref to show stories on newtab (feeds.system.topstories has to be set to true as well)
 pref("browser.newtabpage.activity-stream.feeds.section.topstories", true);
 
-// The pref controls if search hand-off is enabled for Activity Stream.
-pref("browser.newtabpage.activity-stream.improvesearch.handoffToAwesomebar", true);
-
 pref("browser.newtabpage.activity-stream.logowordmark.alwaysVisible", true);
 
 // URLs from the user's history that contain this search param will be hidden
@@ -2248,10 +2249,13 @@ pref("browser.ml.smartAssist.model", "");
 pref("browser.ml.smartAssist.overrideNewTab", false);
 
 // AI Window Feature
-pref("browser.aiwindow.enabled", false);
+pref("browser.aiwindow.apiKey", '');
 pref("browser.aiwindow.chatStore.loglevel", "Error");
+pref("browser.aiwindow.enabled", false);
+pref("browser.aiwindow.endpoint", "https://mlpa-prod-prod-mozilla.global.ssl.fastly.net/v1");
 pref("browser.aiwindow.insights", false);
 pref("browser.aiwindow.insightsLogLevel", "Warn");
+pref("browser.aiwindow.model", "");
 
 // Block insecure active content on https pages
 pref("security.mixed_content.block_active_content", true);
@@ -2370,9 +2374,6 @@ pref("browser.translation.neverForLanguages", "");
 // Enable Firefox translations powered by the Bergamot translations
 // engine https://browser.mt/.
 pref("browser.translations.enable", true);
-
-// Enable the new Firefox Translations Settings UI Design
-pref("browser.translations.newSettingsUI.enable", false);
 
 // Enable Firefox Select translations powered by Bergamot translations
 // engine https://browser.mt/.
@@ -3318,6 +3319,7 @@ pref("devtools.popup.disable_autohide", false);
 
 // FirstStartup service time-out in ms
 pref("first-startup.timeout", 30000);
+pref("first-startup.category-tasks-enabled", true);
 
 // Enable the default browser agent.
 // The agent still runs as scheduled if this pref is disabled,
@@ -3482,7 +3484,7 @@ pref("browser.backup.template.fallback-download.aurora", "https://www.firefox.co
 pref("browser.backup.template.fallback-download.nightly", "https://www.firefox.com/channel/desktop/?utm_medium=firefox-desktop&utm_source=html-backup");
 pref("browser.backup.template.fallback-download.esr", " https://www.firefox.com/download/all/desktop-esr/?utm_medium=firefox-desktop&utm_source=html-backup");
 pref("browser.backup.errorCode", 0);
-pref("browser.backup.backup-retry-limit", 100);
+pref("browser.backup.backup-retry-limit", 10);
 pref("browser.backup.disabled-on-idle-backup-retry", false);
 // Limit of number of unremovable staging directories and archives that are
 // permitted before backup will stop making additional backups.  Unremovable

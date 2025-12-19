@@ -194,10 +194,11 @@ IPDL_SOURCES += [
     "PVerifySSLServerCert.ipdl",
 ]
 
-# Required by OSClientCerts and CredentialManagerSecret.
+# Required by OSClientCerts, IPCClientCerts and CredentialManagerSecret.
 if CONFIG["OS_ARCH"] == "WINNT":
     OS_LIBS += [
         "advapi32",
+        "bcrypt",
         "credui",
         "crypt32",
         "kernel32",
@@ -212,6 +213,20 @@ if CONFIG["OS_ARCH"] == "WINNT":
         "CredentialManagerSecret.cpp",
     ]
 
+if not CONFIG["MOZ_NO_SMART_CARDS"]:
+    EXPORTS.mozilla.psm += [
+        "PKCS11ModuleChild.h",
+        "PKCS11ModuleParent.h",
+    ]
+
+    UNIFIED_SOURCES += [
+        "PKCS11ModuleChild.cpp",
+        "PKCS11ModuleParent.cpp",
+    ]
+
+    IPDL_SOURCES += [
+        "PPKCS11Module.ipdl",
+    ]
 
 FINAL_LIBRARY = "xul"
 

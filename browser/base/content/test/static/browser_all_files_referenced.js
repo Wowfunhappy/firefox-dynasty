@@ -339,18 +339,9 @@ var allowlist = [
   {
     file: "moz-src:///browser/components/aiwindow/ui/modules/ChatStore.sys.mjs",
   },
-  //  Bug 2003598 - Add Chat service with fetch with history  (backed out due to unused file)
-  {
-    file: "moz-src:///browser/components/aiwindow/models/Chat.sys.mjs",
-  },
   // Bug 2002840 - add function to return real time info injection message & tests (backed out due to unused file)
   {
     file: "moz-src:///browser/components/aiwindow/models/ChatUtils.sys.mjs",
-  },
-  // Bug 2003328 - Implement createOpenAIEngine and prompt rendering (backed out due to unused file)
-  // Bug 2003832 - Change .mjs files to .sys.mjs (backed out due to unused file)
-  {
-    file: "moz-src:///browser/components/aiwindow/models/Utils.sys.mjs",
   },
   // Bug 2003623 - Add assistant system prompt
   {
@@ -371,10 +362,14 @@ var allowlist = [
   // Bug 2000987 - get user messages from chat source
   {
     file: "moz-src:///browser/components/aiwindow/models/InsightsChatSource.sys.mjs",
-    // Bug 2003303 - Implement Title Generation (backed out due to unused file)
   },
+  // Bug 2003303 - Implement Title Generation (backed out due to unused file)
   {
     file: "moz-src:///browser/components/aiwindow/models/TitleGeneration.sys.mjs",
+  },
+  // Bug 2006090 - Insight updation - Day 0 and incremental updates from Chat history
+  {
+    file: "moz-src:///browser/components/aiwindow/models/InsightsConversationScheduler.sys.mjs",
   },
 ];
 

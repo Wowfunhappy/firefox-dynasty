@@ -20,7 +20,9 @@
 #include "gfxCrashReporterUtils.h"
 #include "js/PropertyAndElement.h"  // JS_DefineElement
 #include "js/ScalarType.h"          // js::Scalar::Type
+#include "mozilla/Base64.h"
 #include "mozilla/EnumeratedRange.h"
+#include "mozilla/RandomNum.h"
 #include "mozilla/ResultVariant.h"
 #include "mozilla/ScopeExit.h"
 #include "mozilla/StaticPrefs_webgl.h"
@@ -49,6 +51,7 @@ namespace mozilla {
 
 namespace webgl {
 std::string SanitizeRenderer(const std::string&);
+std::string SanitizeVendor(const std::string&);
 }  // namespace webgl
 
 // -
@@ -2403,7 +2406,8 @@ void ClientWebGLContext::GetParameter(JSContext* cx, GLenum pname,
 
       case LOCAL_GL_RENDERER: {
         bool allowRenderer = StaticPrefs::webgl_enable_renderer_query();
-        if (ShouldResistFingerprinting(RFPTarget::WebGLRenderInfo)) {
+        if (ShouldResistFingerprinting(RFPTarget::WebGLRenderInfo) ||
+            ShouldResistFingerprinting(RFPTarget::WebGLRendererConstant)) {
           allowRenderer = false;
         }
         if (allowRenderer) {
@@ -2443,7 +2447,8 @@ void ClientWebGLContext::GetParameter(JSContext* cx, GLenum pname,
 
         switch (pname) {
           case dom::WEBGL_debug_renderer_info_Binding::UNMASKED_RENDERER_WEBGL:
-            if (ShouldResistFingerprinting(RFPTarget::WebGLRenderInfo)) {
+            if (ShouldResistFingerprinting(RFPTarget::WebGLRenderInfo) ||
+                ShouldResistFingerprinting(RFPTarget::WebGLRendererConstant)) {
               ret = Some("Mozilla"_ns);
             } else {
               ret = GetUnmaskedRenderer();
@@ -2454,9 +2459,36 @@ void ClientWebGLContext::GetParameter(JSContext* cx, GLenum pname,
             break;
 
           case dom::WEBGL_debug_renderer_info_Binding::UNMASKED_VENDOR_WEBGL:
-            ret = ShouldResistFingerprinting(RFPTarget::WebGLRenderInfo)
-                      ? Some("Mozilla"_ns)
-                      : GetUnmaskedVendor();
+            if (ShouldResistFingerprinting(RFPTarget::WebGLRenderInfo)) {
+              ret = Some("Mozilla"_ns);
+            } else if (ShouldResistFingerprinting(
+                           RFPTarget::WebGLVendorRandomize)) {
+              // Generate "Mozilla <Base64(uint64)>"
+              auto randomValue = RandomUint64();
+              if (randomValue.isSome()) {
+                uint64_t value = randomValue.value();
+                nsCString base64;
+                nsresult rv =
+                    Base64Encode(reinterpret_cast<const char*>(&value),
+                                 sizeof(value), base64);
+                if (NS_SUCCEEDED(rv)) {
+                  ret = Some(std::string("Mozilla ") + base64.get());
+                } else {
+                  ret = Some("Mozilla"_ns);
+                }
+              } else {
+                ret = Some("Mozilla"_ns);
+              }
+            } else if (ShouldResistFingerprinting(
+                           RFPTarget::WebGLVendorConstant)) {
+              ret = Some("Mozilla"_ns);
+            } else {
+              ret = GetUnmaskedVendor();
+              if (ret &&
+                  ShouldResistFingerprinting(RFPTarget::WebGLVendorSanitize)) {
+                ret = Some(webgl::SanitizeVendor(*ret));
+              }
+            }
             break;
 
           default:

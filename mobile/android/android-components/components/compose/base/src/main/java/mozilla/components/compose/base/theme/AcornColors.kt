@@ -29,20 +29,14 @@ class AcornColors(
     layerGradientStart: Color,
     layerGradientEnd: Color,
     layerWarning: Color,
-    layerSuccess: Color,
     layerCritical: Color,
     layerInformation: Color,
-    actionSecondary: Color,
     actionWarning: Color,
-    actionSuccess: Color,
     actionCritical: Color,
     actionInformation: Color,
     formDefault: Color,
     textOnColorPrimary: Color,
-    textActionSecondary: Color,
-    iconPrimary: Color,
     iconPrimaryInactive: Color,
-    iconSecondary: Color,
     iconActive: Color,
     iconOnColor: Color,
     iconOnColorDisabled: Color,
@@ -84,10 +78,6 @@ class AcornColors(
     var layerWarning by mutableStateOf(layerWarning)
         private set
 
-    // Confirmation background
-    var layerSuccess by mutableStateOf(layerSuccess)
-        private set
-
     // Error Background
     var layerCritical by mutableStateOf(layerCritical)
         private set
@@ -98,16 +88,8 @@ class AcornColors(
 
     // Actions
 
-    // Secondary button
-    var actionSecondary by mutableStateOf(actionSecondary)
-        private set
-
     // Warning button
     var actionWarning by mutableStateOf(actionWarning)
-        private set
-
-    // Confirmation button
-    var actionSuccess by mutableStateOf(actionSuccess)
         private set
 
     // Error button
@@ -128,22 +110,10 @@ class AcornColors(
     var textOnColorPrimary by mutableStateOf(textOnColorPrimary)
         private set
 
-    // Action Secondary text
-    var textActionSecondary by mutableStateOf(textActionSecondary)
-        private set
-
     // Icon
-
-    // Primary icon
-    var iconPrimary by mutableStateOf(iconPrimary)
-        private set
 
     // Inactive tab
     var iconPrimaryInactive by mutableStateOf(iconPrimaryInactive)
-        private set
-
-    // Secondary icon
-    var iconSecondary by mutableStateOf(iconSecondary)
         private set
 
     // Active tab
@@ -210,20 +180,14 @@ class AcornColors(
         layerGradientStart = other.layerGradientStart
         layerGradientEnd = other.layerGradientEnd
         layerWarning = other.layerWarning
-        layerSuccess = other.layerSuccess
         layerCritical = other.layerCritical
         layerInformation = other.layerInformation
-        actionSecondary = other.actionSecondary
         actionWarning = other.actionWarning
-        actionSuccess = other.actionSuccess
         actionCritical = other.actionCritical
         actionInformation = other.actionInformation
         formDefault = other.formDefault
         textOnColorPrimary = other.textOnColorPrimary
-        textActionSecondary = other.textActionSecondary
-        iconPrimary = other.iconPrimary
         iconPrimaryInactive = other.iconPrimaryInactive
-        iconSecondary = other.iconSecondary
         iconActive = other.iconActive
         iconOnColor = other.iconOnColor
         iconOnColorDisabled = other.iconOnColorDisabled
@@ -248,20 +212,14 @@ class AcornColors(
         layerGradientStart: Color = this.layerGradientStart,
         layerGradientEnd: Color = this.layerGradientEnd,
         layerWarning: Color = this.layerWarning,
-        layerSuccess: Color = this.layerSuccess,
         layerCritical: Color = this.layerCritical,
         layerInformation: Color = this.layerInformation,
-        actionSecondary: Color = this.actionSecondary,
         actionWarning: Color = this.actionWarning,
-        actionSuccess: Color = this.actionSuccess,
         actionCritical: Color = this.actionCritical,
         actionInformation: Color = this.actionInformation,
         formDefault: Color = this.formDefault,
         textOnColorPrimary: Color = this.textOnColorPrimary,
-        textActionSecondary: Color = this.textActionSecondary,
-        iconPrimary: Color = this.iconPrimary,
         iconPrimaryInactive: Color = this.iconPrimaryInactive,
-        iconSecondary: Color = this.iconSecondary,
         iconActive: Color = this.iconActive,
         iconOnColor: Color = this.iconOnColor,
         iconOnColorDisabled: Color = this.iconOnColorDisabled,
@@ -280,20 +238,14 @@ class AcornColors(
         layerGradientStart = layerGradientStart,
         layerGradientEnd = layerGradientEnd,
         layerWarning = layerWarning,
-        layerSuccess = layerSuccess,
         layerCritical = layerCritical,
         layerInformation = layerInformation,
-        actionSecondary = actionSecondary,
         actionWarning = actionWarning,
-        actionSuccess = actionSuccess,
         actionCritical = actionCritical,
         actionInformation = actionInformation,
         formDefault = formDefault,
         textOnColorPrimary = textOnColorPrimary,
-        textActionSecondary = textActionSecondary,
-        iconPrimary = iconPrimary,
         iconPrimaryInactive = iconPrimaryInactive,
-        iconSecondary = iconSecondary,
         iconActive = iconActive,
         iconOnColor = iconOnColor,
         iconOnColorDisabled = iconOnColorDisabled,
@@ -315,20 +267,14 @@ val darkColorPalette = AcornColors(
     layerGradientStart = PhotonColors.Violet70,
     layerGradientEnd = PhotonColors.Violet60,
     layerWarning = PhotonColors.Yellow70A77,
-    layerSuccess = PhotonColors.Green80,
     layerCritical = PhotonColors.Pink80,
     layerInformation = PhotonColors.Blue50,
-    actionSecondary = PhotonColors.DarkGrey05,
     actionWarning = PhotonColors.Yellow40A41,
-    actionSuccess = PhotonColors.Green70,
     actionCritical = PhotonColors.Pink70A69,
     actionInformation = PhotonColors.Blue60,
     formDefault = PhotonColors.LightGrey05,
     textOnColorPrimary = PhotonColors.LightGrey05,
-    textActionSecondary = PhotonColors.LightGrey05,
-    iconPrimary = PhotonColors.LightGrey05,
     iconPrimaryInactive = PhotonColors.LightGrey05A60,
-    iconSecondary = PhotonColors.LightGrey40,
     iconActive = PhotonColors.Violet40,
     iconOnColor = PhotonColors.LightGrey05,
     iconOnColorDisabled = PhotonColors.LightGrey05A40,
@@ -349,20 +295,14 @@ val lightColorPalette = AcornColors(
     layerGradientStart = PhotonColors.Violet70,
     layerGradientEnd = PhotonColors.Violet60,
     layerWarning = PhotonColors.Yellow20,
-    layerSuccess = PhotonColors.Green20,
     layerCritical = PhotonColors.Red10,
     layerInformation = PhotonColors.Blue50A44,
-    actionSecondary = PhotonColors.LightGrey30,
     actionWarning = PhotonColors.Yellow60A40,
-    actionSuccess = PhotonColors.Green60,
     actionCritical = PhotonColors.Red30,
     actionInformation = PhotonColors.Blue50,
     formDefault = PhotonColors.DarkGrey90,
     textOnColorPrimary = PhotonColors.LightGrey05,
-    textActionSecondary = PhotonColors.DarkGrey90,
-    iconPrimary = PhotonColors.DarkGrey90,
     iconPrimaryInactive = PhotonColors.DarkGrey90A60,
-    iconSecondary = PhotonColors.DarkGrey05,
     iconActive = PhotonColors.Ink20,
     iconOnColor = PhotonColors.LightGrey05,
     iconOnColorDisabled = PhotonColors.LightGrey05A40,

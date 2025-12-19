@@ -406,7 +406,7 @@
   -->
   <string name="search_scan_button_2">סריקת קוד QR</string>
   <!-- Button in the search view when shortcuts are displayed that takes a user to the search engine settings -->
-  <string name="search_shortcuts_engine_settings">הגדרות מנוע חיפוש</string>
+  <string name="search_shortcuts_engine_settings">הגדרות מנועי חיפוש</string>
   <!-- Button in the search view that lets a user navigate to the site in their clipboard -->
   <string name="awesomebar_clipboard_title">מילוי קישור מהלוח</string>
   <!-- Button in the search suggestions onboarding that allows search suggestions in private sessions -->
@@ -1908,6 +1908,8 @@
   <string name="bookmark_delete_folder_content_description">מחיקת תיקייה</string>
   <!-- Content description for bookmark search floating action button -->
   <string name="bookmark_search_button_content_description">חיפוש בסימניות</string>
+  <!-- Content description for select folder screen search action button ("search" is a verb) -->
+  <string name="select_bookmark_search_button_content_description">חיפוש בתיקיות</string>
   <!-- Content description for the overflow menu for a bookmark item. %s is a folder name or bookmark title. -->
   <string name="bookmark_item_menu_button_content_description">תפריט הפריט עבור %s</string>
   <!-- Content description for the "close" button in bookmarks screen. -->
@@ -1926,6 +1928,8 @@
   <string name="bookmark_empty_list_folder_description">ניתן להוסיף סימניות תוך כדי גלישה כדי שיהיה באפשרותך למצוא את האתרים המועדפים עליך מאוחר יותר.</string>
   <!-- Description for the add new folder button when selecting a folder. -->
   <string name="bookmark_select_folder_new_folder_button_title">תיקייה חדשה</string>
+  <!-- Bookmark snackbar message for moving a single item. %1$s is the title of the item being moved and %2$s is the new parent folder of the bookmark -->
+  <string name="bookmark_moved_single_item">‏%1$s הועבר אל %2$s</string>
   <!--
     Site Permissions
 
@@ -3229,7 +3233,7 @@
   <!-- The title of the warning card informs the user that a translation could not be completed. -->
   <string name="translation_error_could_not_translate_warning_text">אירעה שגיאה בתרגום. נא לנסות שוב.</string>
   <!-- The title of the warning card informs the user that the list of languages cannot be loaded. -->
-  <string name="translation_error_could_not_load_languages_warning_text">לא ניתן היה לטעון שפות. נא לבדוק את חיבור האינטרנט שלך ולנסות שוב.</string>
+  <string name="translation_error_could_not_load_languages_warning_text">לא ניתן היה לטעון שפות. נא לבדוק את החיבור שלך לאינטרנט ולנסות שוב.</string>
   <!-- The title of the warning card informs the user that a language is not supported. %1$s is the name of the language that is not supported. -->
   <string name="translation_error_language_not_supported_warning_text">איננו תומכים ב%1$s עדיין, עמך הסליחה.</string>
   <!-- Snackbar title shown if the user closes the Translation Request dialogue and a translation is in progress. -->

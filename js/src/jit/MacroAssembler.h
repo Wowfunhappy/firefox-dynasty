@@ -772,7 +772,7 @@ class MacroAssembler : public MacroAssemblerSpecific {
   // As setupAlignedABICall, but for WebAssembly native ABI calls, which pass
   // through a builtin thunk that uses the wasm ABI. All the wasm ABI calls
   // can be native, since we always know the stack alignment a priori.
-  void setupWasmABICall();
+  void setupWasmABICall(wasm::SymbolicAddress builtin);
 
   // Setup an ABI call for when the alignment is not known. This may need a
   // scratch register.
@@ -831,8 +831,7 @@ class MacroAssembler : public MacroAssemblerSpecific {
   void callWithABINoProfiler(const Address& fun, ABIType result) PER_ARCH;
 
   // Restore the stack to its state before the setup function call.
-  void callWithABIPost(uint32_t stackAdjust, ABIType result,
-                       bool callFromWasm = false) PER_ARCH;
+  void callWithABIPost(uint32_t stackAdjust, ABIType result) PER_ARCH;
 
 #ifdef JS_CHECK_UNSAFE_CALL_WITH_ABI
   // Set the JSContext::inUnsafeCallWithABI flag using InstanceReg.
@@ -1843,10 +1842,21 @@ class MacroAssembler : public MacroAssemblerSpecific {
                                                      const Shape* shape,
                                                      Label* label);
 
-  void branchTestObjShapeList(Condition cond, Register obj,
-                              Register shapeElements, Register shapeScratch,
-                              Register endScratch, Register spectreScratch,
-                              Label* label);
+ private:
+  void branchTestObjShapeListImpl(Register obj, Register shapeElements,
+                                  size_t itemSize, Register shapeScratch,
+                                  Register endScratch, Register spectreScratch,
+                                  Label* fail);
+
+ public:
+  void branchTestObjShapeList(Register obj, Register shapeElements,
+                              Register shapeScratch, Register endScratch,
+                              Register spectreScratch, Label* fail);
+
+  void branchTestObjShapeListSetOffset(Register obj, Register shapeElements,
+                                       Register offset, Register shapeScratch,
+                                       Register endScratch,
+                                       Register spectreScratch, Label* fail);
 
   inline void branchTestClassIsFunction(Condition cond, Register clasp,
                                         Label* label);
@@ -5911,6 +5921,15 @@ class MacroAssembler : public MacroAssemblerSpecific {
   template <typename T>
   void storeStackPtr(T t) {
     storePtr(getStackPointer(), t);
+  }
+
+  template <typename T>
+  void loadStackPtrFromPrivateValue(T t) {
+    loadStackPtr(t);
+  }
+  template <typename T>
+  void storeStackPtrToPrivateValue(T t) {
+    storeStackPtr(t);
   }
 
   // StackPointer testing functions.

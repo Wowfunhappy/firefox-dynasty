@@ -7,9 +7,11 @@
   flex-direction: column;
 }
 
+/* TODO update height styles - this is a place holder size. */
 #browser-container,
 #aichat-browser {
   display: flex;
   flex: 1;
-  min-height: var(--size-item-xlarge);
+  /* stylelint-disable-next-line stylelint-plugin-mozilla/use-size-tokens */
+  min-height: 400px;
 }

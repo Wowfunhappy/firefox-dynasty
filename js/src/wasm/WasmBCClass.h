@@ -156,10 +156,6 @@ struct FunctionCall {
     MOZ_ASSERT_IF(abiKind == ABIKind::System,
                   restoreState == RestoreState::None ||
                       restoreState == RestoreState::PinnedRegs);
-    // Our uses of the wasm ABI either preserves everything or nothing.
-    MOZ_ASSERT_IF(abiKind == ABIKind::Wasm,
-                  restoreState == RestoreState::None ||
-                      restoreState == RestoreState::All);
     if (abiKind == ABIKind::System) {
       // Builtin calls use the system hardFP setting on ARM32.
 #if defined(JS_CODEGEN_ARM)
@@ -649,6 +645,9 @@ struct BaseCompiler final {
 
   // Count the number of memory references on the value stack.
   inline size_t countMemRefsOnStk();
+
+  // Check if there are any live registers on the value stack.
+  inline bool hasLiveRegsOnStk();
 
   // Print the stack to stderr.
   void showStack(const char* who) const;

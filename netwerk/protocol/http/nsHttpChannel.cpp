@@ -115,7 +115,6 @@
 #include "nsCORSListenerProxy.h"
 #include "nsISocketProvider.h"
 #include "mozilla/extensions/StreamFilterParent.h"
-#include "mozilla/net/Predictor.h"
 #include "mozilla/net/SFVService.h"
 #include "mozilla/NullPrincipal.h"
 #include "CacheControlParser.h"
@@ -1416,8 +1415,8 @@ nsresult nsHttpChannel::Connect() {
   // Step 8.18 of HTTP-network-or-cache fetch
   // https://fetch.spec.whatwg.org/#http-network-or-cache-fetch
   nsAutoCString rangeVal;
-  if (NS_SUCCEEDED(mRequestHead.GetHeader(nsHttp::Range, rangeVal))) {
-    SetRequestHeader("Accept-Encoding"_ns, "identity"_ns, true);
+  if (NS_SUCCEEDED(GetRequestHeader("Range"_ns, rangeVal))) {
+    SetRequestHeader("Accept-Encoding"_ns, "identity"_ns, false);
   }
 
   if (mRequestHead.IsPost() || mRequestHead.IsPatch()) {
@@ -3029,26 +3028,9 @@ nsresult nsHttpChannel::ProcessResponse(nsHttpConnectionInfo* aConnInfo) {
     }
   }
 
-  // Let the predictor know whether this was a cacheable response or not so
-  // that it knows whether or not to possibly prefetch this resource in the
-  // future.
   // We use GetReferringPage because mReferrerInfo may not be set at all(this is
   // especially useful in xpcshell tests, where we don't have an actual pageload
   // to get a referrer from).
-  if (StaticPrefs::network_predictor_enabled()) {
-    nsCOMPtr<nsIURI> referrer = GetReferringPage();
-    if (!referrer && mReferrerInfo) {
-      referrer = mReferrerInfo->GetOriginalReferrer();
-    }
-
-    if (referrer) {
-      nsCOMPtr<nsILoadContextInfo> lci = GetLoadContextInfo(this);
-      mozilla::net::Predictor::UpdateCacheability(
-          referrer, mURI, httpStatus, mRequestHead, mResponseHead.get(), lci,
-          IsThirdPartyTrackingResource());
-    }
-  }
-
   // Only allow 407 (authentication required) to continue
   if (mTransaction && mTransaction->ProxyConnectFailed() && httpStatus != 407) {
     return ProcessFailedProxyConnect(httpStatus);
@@ -5190,7 +5172,6 @@ nsHttpChannel::OnCacheEntryCheck(nsICacheEntry* entry, uint32_t* aResult) {
 
   bool isForcedValid = false;
   entry->GetIsForcedValid(&isForcedValid);
-  auto prefetchStatus = glean::predictor::PrefetchUseStatusLabel::eUsed;
 
   bool weaklyFramed, isImmutable;
   nsHttp::DetermineFramingAndImmutability(entry, mCachedResponseHead.get(),
@@ -5201,11 +5182,9 @@ nsHttpChannel::OnCacheEntryCheck(nsICacheEntry* entry, uint32_t* aResult) {
     LOG(("Validating based on Vary headers returning TRUE\n"));
     canAddImsHeader = false;
     doValidation = true;
-    prefetchStatus = glean::predictor::PrefetchUseStatusLabel::eWouldvary;
   } else {
     if (mCachedResponseHead->ExpiresInPast() ||
         mCachedResponseHead->MustValidateIfExpired()) {
-      prefetchStatus = glean::predictor::PrefetchUseStatusLabel::eExpired;
     }
     doValidation = nsHttp::ValidationRequired(
         isForcedValid, mCachedResponseHead.get(), mLoadFlags,
@@ -5248,9 +5227,6 @@ nsHttpChannel::OnCacheEntryCheck(nsICacheEntry* entry, uint32_t* aResult) {
     doValidation =
         (fromPreviousSession && !buf.IsEmpty()) ||
         (buf.IsEmpty() && mRequestHead.HasHeader(nsHttp::Authorization));
-    if (doValidation) {
-      prefetchStatus = glean::predictor::PrefetchUseStatusLabel::eAuth;
-    }
   }
 
   // Bug #561276: We maintain a chain of cache-keys which returns cached
@@ -5278,8 +5254,6 @@ nsHttpChannel::OnCacheEntryCheck(nsICacheEntry* entry, uint32_t* aResult) {
     // Append cacheKey if not in the chain already
     if (!doValidation) {
       ref->AppendElement(cacheKey);
-    } else {
-      prefetchStatus = glean::predictor::PrefetchUseStatusLabel::eRedirect;
     }
   }
 
@@ -5291,11 +5265,8 @@ nsHttpChannel::OnCacheEntryCheck(nsICacheEntry* entry, uint32_t* aResult) {
     if (!doValidation) {
       // Could have gotten to a funky state with some of the if chain above
       // and in nsHttp::ValidationRequired. Make sure we get it right here.
-      prefetchStatus = glean::predictor::PrefetchUseStatusLabel::eUsed;
-
       entry->MarkForcedValidUse();
     }
-    glean::predictor::prefetch_use_status.EnumGet(prefetchStatus).Add();
   }
 
   if (doValidation) {
@@ -6559,9 +6530,8 @@ nsresult nsHttpChannel::SetupReplacementChannel(nsIURI* newURI,
         mURI, requestMethod, priority, mChannelId,
         NetworkLoadType::LOAD_REDIRECT, mLastStatusReported, TimeStamp::Now(),
         size, mCacheDisposition, mLoadInfo->GetInnerWindowID(),
-        mLoadInfo->GetOriginAttributes().IsPrivateBrowsing(),
-        mClassOfService.Flags(), mStatus, &timings, std::move(mSource),
-        httpVersion, responseStatus,
+        mLoadInfo->GetOriginAttributes().IsPrivateBrowsing(), this, mStatus,
+        &timings, std::move(mSource), httpVersion, responseStatus,
         Some(nsDependentCString(contentType.get())), newURI, redirectFlags,
         channelId);
   }
@@ -7228,9 +7198,8 @@ nsresult nsHttpChannel::CancelInternal(nsresult status) {
         mURI, requestMethod, priority, mChannelId, NetworkLoadType::LOAD_CANCEL,
         mLastStatusReported, TimeStamp::Now(), size, mCacheDisposition,
         mLoadInfo->GetInnerWindowID(),
-        mLoadInfo->GetOriginAttributes().IsPrivateBrowsing(),
-        mClassOfService.Flags(), mStatus, &mTransactionTimings,
-        std::move(mSource));
+        mLoadInfo->GetOriginAttributes().IsPrivateBrowsing(), this, mStatus,
+        &mTransactionTimings, std::move(mSource));
   }
 
   // If we don't have mTransactionPump and mCachePump, we need to call
@@ -7621,8 +7590,7 @@ void nsHttpChannel::AsyncOpenFinal(TimeStamp aTimeStamp) {
         mURI, requestMethod, mPriority, mChannelId, NetworkLoadType::LOAD_START,
         mChannelCreationTimestamp, mLastStatusReported, 0, mCacheDisposition,
         mLoadInfo->GetInnerWindowID(),
-        mLoadInfo->GetOriginAttributes().IsPrivateBrowsing(),
-        mClassOfService.Flags(), mStatus);
+        mLoadInfo->GetOriginAttributes().IsPrivateBrowsing(), this, mStatus);
   }
 
   // Added due to PauseTask/DelayHttpChannel
@@ -10362,9 +10330,8 @@ nsresult nsHttpChannel::ContinueOnStopRequest(nsresult aStatus, bool aIsFromNet,
         mURI, requestMethod, priority, mChannelId, NetworkLoadType::LOAD_STOP,
         mLastStatusReported, TimeStamp::Now(), size, mCacheDisposition,
         mLoadInfo->GetInnerWindowID(),
-        mLoadInfo->GetOriginAttributes().IsPrivateBrowsing(),
-        mClassOfService.Flags(), mStatus, &mTransactionTimings,
-        std::move(mSource), httpVersion, responseStatus,
+        mLoadInfo->GetOriginAttributes().IsPrivateBrowsing(), this, mStatus,
+        &mTransactionTimings, std::move(mSource), httpVersion, responseStatus,
         Some(nsDependentCString(contentType.get())));
   }
 

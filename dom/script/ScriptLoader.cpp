@@ -49,6 +49,7 @@
 #include "mozilla/Utf8.h"  // mozilla::Utf8Unit
 #include "mozilla/dom/AutoEntryScript.h"
 #include "mozilla/dom/DocGroup.h"
+#include "mozilla/dom/DocumentInlines.h"  // Document::GetPresContext
 #include "mozilla/dom/Element.h"
 #include "mozilla/dom/FetchPriority.h"
 #include "mozilla/dom/JSExecutionUtils.h"  // mozilla::dom::Compile, mozilla::dom::InstantiateStencil, mozilla::dom::EvaluationExceptionToNSResult
@@ -81,7 +82,6 @@
 #include "nsIDocShell.h"
 #include "nsIHttpChannel.h"
 #include "nsIHttpChannelInternal.h"
-#include "nsINetworkPredictor.h"
 #include "nsIPrincipal.h"
 #include "nsIScriptContext.h"
 #include "nsIScriptElement.h"
@@ -93,6 +93,7 @@
 #include "nsJSPrincipals.h"
 #include "nsJSUtils.h"
 #include "nsNetUtil.h"
+#include "nsPresContext.h"  // nsPresContext
 #include "nsProxyRelease.h"
 #include "nsQueryObject.h"
 #include "nsThreadUtils.h"
@@ -207,6 +208,7 @@ ScriptLoader::ScriptLoader(Document* aDocument)
       mLoadEventFired(false),
       mGiveUpDiskCaching(false),
       mContinueParsingDocumentAfterCurrentScript(false),
+      mHadFCPDoNotUseDirectly(false),
       mReporter(new ConsoleReportCollector()) {
   LOG(("ScriptLoader::ScriptLoader %p", this));
 
@@ -1004,11 +1006,6 @@ nsresult ScriptLoader::StartLoadInternal(
   rv =
       PrepareHttpRequestAndInitiatorType(channel, aRequest, aCharsetForPreload);
   NS_ENSURE_SUCCESS(rv, rv);
-
-  mozilla::net::PredictorLearn(
-      aRequest->URI(), mDocument->GetDocumentURI(),
-      nsINetworkPredictor::LEARN_LOAD_SUBRESOURCE,
-      mDocument->NodePrincipal()->OriginAttributesRef());
 
   nsCOMPtr<nsIIncrementalStreamLoader> loader;
   rv =
@@ -3087,9 +3084,14 @@ static void InstantiateStencil(
     JS::MutableHandle<JSScript*> aScript,
     JS::Handle<JS::Value> aDebuggerPrivateValue,
     JS::Handle<JSScript*> aDebuggerIntroductionScript, ErrorResult& aRv,
+    const nsAutoCString& aProfilerLabelString,
     JS::InstantiationStorage* aStorage = nullptr,
     CollectDelazifications aCollectDelazifications =
         CollectDelazifications::No) {
+  AUTO_PROFILER_MARKER_TEXT("ScriptInstantiation", JS,
+                            MarkerInnerWindowIdFromJSContext(aCx),
+                            aProfilerLabelString);
+
   JS::InstantiateOptions instantiateOptions(aCompileOptions);
   JS::Rooted<JSScript*> script(
       aCx, JS::InstantiateGlobalStencil(aCx, instantiateOptions, aStencil,
@@ -3146,22 +3148,25 @@ void ScriptLoader::InstantiateClassicScriptFromMaybeEncodedSource(
 
       InstantiateStencil(aCx, aCompileOptions, stencil, aScript,
                          aDebuggerPrivateValue, aDebuggerIntroductionScript,
-                         aRv, &storage);
+                         aRv, profilerLabelString, &storage);
     } else {
       LOG(("ScriptLoadRequest (%p): Decode and Execute", aRequest));
-      AUTO_PROFILER_MARKER_TEXT("DecodeStencilMainThread", JS,
-                                MarkerInnerWindowIdFromJSContext(aCx),
-                                profilerLabelString);
 
       RefPtr<JS::Stencil> stencil;
-      Decode(aCx, aCompileOptions, aRequest->SerializedStencil(), stencil, aRv);
+      {
+        AUTO_PROFILER_MARKER_TEXT("DecodeStencilMainThread", JS,
+                                  MarkerInnerWindowIdFromJSContext(aCx),
+                                  profilerLabelString);
+        Decode(aCx, aCompileOptions, aRequest->SerializedStencil(), stencil,
+               aRv);
+      }
 
       if (stencil) {
         aRequest->SetStencil(stencil);
 
         InstantiateStencil(aCx, aCompileOptions, stencil, aScript,
                            aDebuggerPrivateValue, aDebuggerIntroductionScript,
-                           aRv);
+                           aRv, profilerLabelString);
       }
     }
 
@@ -3197,7 +3202,7 @@ void ScriptLoader::InstantiateClassicScriptFromMaybeEncodedSource(
 
     InstantiateStencil(aCx, aCompileOptions, stencil, aScript,
                        aDebuggerPrivateValue, aDebuggerIntroductionScript, aRv,
-                       &storage, collectDelazifications);
+                       profilerLabelString, &storage, collectDelazifications);
   } else {
     // Main thread parsing (inline and small scripts)
     LOG(("ScriptLoadRequest (%p): Compile And Exec", aRequest));
@@ -3206,13 +3211,13 @@ void ScriptLoader::InstantiateClassicScriptFromMaybeEncodedSource(
     aRv = aRequest->GetScriptSource(aCx, &maybeSource,
                                     aRequest->mLoadContext.get());
     if (!aRv.Failed()) {
-      AUTO_PROFILER_MARKER_TEXT("ScriptCompileMainThread", JS,
-                                MarkerInnerWindowIdFromJSContext(aCx),
-                                profilerLabelString);
-
       RefPtr<JS::Stencil> stencil;
       ErrorResult erv;
       auto compile = [&](auto& source) {
+        AUTO_PROFILER_MARKER_TEXT("ScriptCompileMainThread", JS,
+                                  MarkerInnerWindowIdFromJSContext(aCx),
+                                  profilerLabelString);
+
         stencil = CompileGlobalScriptToStencil(aCx, aCompileOptions, source);
         if (!stencil) {
           erv.NoteJSContextException(aCx);
@@ -3227,7 +3232,7 @@ void ScriptLoader::InstantiateClassicScriptFromMaybeEncodedSource(
 
         InstantiateStencil(aCx, aCompileOptions, stencil, aScript,
                            aDebuggerPrivateValue, aDebuggerIntroductionScript,
-                           erv, /* aStorage = */ nullptr,
+                           erv, profilerLabelString, /* aStorage = */ nullptr,
                            collectDelazifications);
       }
 
@@ -3242,6 +3247,9 @@ void ScriptLoader::InstantiateClassicScriptFromCachedStencil(
     JS::MutableHandle<JSScript*> aScript,
     JS::Handle<JS::Value> aDebuggerPrivateValue,
     JS::Handle<JSScript*> aDebuggerIntroductionScript, ErrorResult& aRv) {
+  nsAutoCString profilerLabelString;
+  aRequest->GetScriptLoadContext()->GetProfilerLabel(profilerLabelString);
+
   CalculateCacheFlag(aRequest);
 
   MOZ_ASSERT(aRequest->PassedConditionForMemoryCache());
@@ -3257,6 +3265,7 @@ void ScriptLoader::InstantiateClassicScriptFromCachedStencil(
   // queued multiple times.
   InstantiateStencil(aCx, aCompileOptions, aStencil, aScript,
                      aDebuggerPrivateValue, aDebuggerIntroductionScript, aRv,
+                     profilerLabelString,
                      /* aStorage = */ nullptr, CollectDelazifications::Yes);
 }
 
@@ -3514,7 +3523,18 @@ nsresult ScriptLoader::EvaluateScript(nsIGlobalObject* aGlobalObject,
 
     MOZ_ASSERT(options.noScriptRval);
     TRACE_FOR_TEST(aRequest, "evaluate:classic");
+
+    auto start = TimeStamp::Now();
+
     ExecuteCompiledScript(cx, classicScript, script, erv);
+
+    auto end = TimeStamp::Now();
+    auto duration = (end - start).ToMilliseconds();
+
+    static constexpr double LongScriptThresholdInMilliseconds = 1.0;
+    if (duration > LongScriptThresholdInMilliseconds) {
+      aRequest->SetTookLongInPreviousRuns();
+    }
   }
   rv = EvaluationExceptionToNSResult(erv);
 
@@ -3907,6 +3927,13 @@ void ScriptLoader::ProcessPendingRequests(bool aAllowBypassingParserBlocking) {
   if (mDeferCheckpointReached && mXSLTRequests.isEmpty()) {
     while (ReadyToExecuteScripts() && !mDeferRequests.isEmpty() &&
            mDeferRequests.getFirst()->IsFinished()) {
+      if (mDeferRequests.getFirst()->TookLongInPreviousRuns() &&
+          !mDeferRequests.getFirst()->HadPostponed() && IsBeforeFCP()) {
+        mDeferRequests.getFirst()->SetHadPostponed();
+        ProcessPendingRequestsAsync();
+        return;
+      }
+
       request = mDeferRequests.StealFirst();
       ProcessRequest(request);
     }
@@ -3936,6 +3963,32 @@ void ScriptLoader::ProcessPendingRequests(bool aAllowBypassingParserBlocking) {
     mDeferCheckpointReached = false;
     mDocument->UnblockOnload(true);
   }
+}
+
+bool ScriptLoader::IsBeforeFCP() {
+  if (mHadFCPDoNotUseDirectly) {
+    return false;
+  }
+
+  if (mLoadEventFired) {
+    return false;
+  }
+
+  if (!mDocument) {
+    return false;
+  }
+
+  nsPresContext* context = mDocument->GetPresContext();
+  if (!context) {
+    return false;
+  }
+
+  if (context->HadFirstContentfulPaint()) {
+    mHadFCPDoNotUseDirectly = true;
+    return false;
+  }
+
+  return true;
 }
 
 bool ScriptLoader::ReadyToExecuteParserBlockingScripts() {
