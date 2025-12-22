@@ -228,7 +228,8 @@ enum CanvasFingerprinterAlias {
   eSignifyd = 5,
   eClaydar = 6,
   eForter = 7,
-  // Unknown but distinct types of fingerprinters
+
+  // Variants are unknown but distinct types of fingerprinters
   eVariant1 = 8,
   eVariant2 = 9,
   eVariant3 = 10,
@@ -237,7 +238,10 @@ enum CanvasFingerprinterAlias {
   eVariant6 = 13,
   eVariant7 = 14,
   eVariant8 = 15,
-  eLastAlias = eVariant8
+
+  eClientGear = 16,
+  eImperva = 17,
+  eLastAlias = eImperva
 };
 
 enum CanvasExtractionAPI : uint8_t {
@@ -300,6 +304,12 @@ enum CanvasUsageSource : uint64_t {
 
   Worker_OffscreenCanvas_WebGPU_toBlob = 1llu << 36,
   Worker_OffscreenCanvas_WebGPU_getImageData = 1llu << 37,
+
+  // --- New entires added here to preserve original values (no reordering!)
+  MainThread_Canvas_OffscreenCanvas2D_getImageData = 1llu << 38,
+  MainThread_Canvas_OffscreenCanvas2D_toBlob = 1llu << 39,
+
+  // After you go past 40 - metrics.yaml will need to be updated
 
 };
 MOZ_MAKE_ENUM_CLASS_BITWISE_OPERATORS(CanvasUsageSource);

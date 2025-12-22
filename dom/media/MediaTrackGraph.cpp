@@ -3266,10 +3266,7 @@ MediaTrackGraphImpl* MediaInputPort::GraphImpl() const {
   return mGraph;
 }
 
-MediaTrackGraph* MediaInputPort::Graph() const {
-  mGraph->AssertOnGraphThreadOrNotRunning();
-  return mGraph;
-}
+MediaTrackGraph* MediaInputPort::Graph() const { return mGraph; }
 
 void MediaInputPort::SetGraphImpl(MediaTrackGraphImpl* aGraph) {
   MOZ_ASSERT(!mGraph || !aGraph, "Should only be set once");

@@ -1115,6 +1115,8 @@ skip-if = [
 
 ["test_local_network_access.js"]
 
+["test_lna_captive_portal.js"]
+
 ["test_localhost_offline.js"]
 
 ["test_localstreams.js"]
@@ -1254,7 +1256,6 @@ skip-if = [
 skip-if = [
   "os == 'win' && os_version == '11.26100' && arch == 'x86' && socketprocess_networking",
   "os == 'win' && os_version == '11.26100' && arch == 'x86_64' && socketprocess_networking",
-  "os == 'win' && os_version == '10.2009' && arch == 'x86_64'", # Bug 2006847
 ]
 
 ["test_proxy_cancel.js"]

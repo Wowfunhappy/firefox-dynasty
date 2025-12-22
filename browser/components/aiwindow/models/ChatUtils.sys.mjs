@@ -24,17 +24,11 @@ ChromeUtils.defineESModuleGetters(lazy, {
 export function getLocalIsoTime() {
   try {
     const date = new Date();
-    const tzOffsetMinutes = date.getTimezoneOffset();
-    const adjusted = new Date(date.getTime() - tzOffsetMinutes * 60000)
-      .toISOString()
-      .slice(0, 19); // Keep up to seconds
-    const sign = tzOffsetMinutes <= 0 ? "+" : "-";
-    const hours = String(Math.floor(Math.abs(tzOffsetMinutes) / 60)).padStart(
-      2,
-      "0"
+    const pad = n => String(n).padStart(2, "0");
+    return (
+      `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}` +
+      `T${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`
     );
-    const minutes = String(Math.abs(tzOffsetMinutes) % 60).padStart(2, "0");
-    return `${adjusted}${sign}${hours}:${minutes}`;
   } catch {
     return null;
   }
@@ -90,6 +84,7 @@ export async function constructRealTimeInfoInjectionMessage(depsOverride) {
   const isoTimestamp = getLocalIsoTime();
   const datePart = isoTimestamp?.split("T")[0] ?? "";
   const locale = Services.locale.appLocaleAsBCP47;
+  const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
   const hasTabInfo = Boolean(url || title || description);
   const tabSection = hasTabInfo
     ? [
@@ -103,6 +98,7 @@ export async function constructRealTimeInfoInjectionMessage(depsOverride) {
   const content = [
     `Below are some real-time context details you can use to inform your response:`,
     `Locale: ${locale}`,
+    `Timezone: ${timezone}`,
     `Current date & time in ISO format: ${isoTimestamp}`,
     `Today's date: ${datePart || "Unavailable"}`,
     ``,
@@ -148,4 +144,76 @@ export async function constructRelevantInsightsContextMessage(message) {
   }
   // If there aren't any relevant insights, return null
   return null;
+}
+
+/**
+ * Response parsing funtions to detect special tagged information like insights and search terms.
+ * Also return the cleaned content after removing all the taggings.
+ *
+ * @param {string} content
+ * @returns {Promise<object>}
+ */
+export async function parseContentWithTokens(content) {
+  const searchRegex = /§search:\s*([^§]+)§/gi;
+  const insightsRegex = /§existing_insight:\s*([^§]+)§/gi;
+
+  const searchTokens = detectTokens(content, searchRegex, "query");
+  const insightsTokens = detectTokens(content, insightsRegex, "insights");
+  // Sort all tokens in reverse index order for easier removal
+  const allTokens = [...searchTokens, ...insightsTokens].sort(
+    (a, b) => b.startIndex - a.startIndex
+  );
+
+  if (allTokens.length === 0) {
+    return {
+      cleanContent: content,
+      searchQueries: [],
+      usedInsights: [],
+    };
+  }
+
+  // Clean content by removing tagged information
+  let cleanContent = content;
+  const searchQueries = [];
+  const usedInsights = [];
+
+  for (const token of allTokens) {
+    if (token.query) {
+      searchQueries.unshift(token.query);
+    } else if (token.insights) {
+      usedInsights.unshift(token.insights);
+      // TODO: do we need customEvent to dispatch used insights as we iterate?
+    }
+    cleanContent =
+      cleanContent.slice(0, token.startIndex) +
+      cleanContent.slice(token.endIndex);
+  }
+
+  return {
+    cleanContent: cleanContent.trim(),
+    searchQueries,
+    usedInsights,
+  };
+}
+
+/**
+ * Given the content and the regex pattern to search, find all occurrence of matches.
+ *
+ * @param {string} content
+ * @param {RegExp} regexPattern
+ * @param {string} key
+ * @returns {Array<object>}
+ */
+export function detectTokens(content, regexPattern, key) {
+  const matches = [];
+  let match;
+  while ((match = regexPattern.exec(content)) !== null) {
+    matches.push({
+      fullMatch: match[0],
+      [key]: match[1].trim(),
+      startIndex: match.index,
+      endIndex: match.index + match[0].length,
+    });
+  }
+  return matches;
 }

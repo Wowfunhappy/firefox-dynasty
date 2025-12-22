@@ -207,10 +207,8 @@ class MessageLogger:
             raise ValueError
 
     def _fix_subtest_name(self, message):
-        """Ensure test_status messages have a subtest field and convert it to a string"""
-        if message.get("action") == "test_status" and "subtest" not in message:
-            message["subtest"] = None
-        elif message.get("subtest") is not None:
+        """Make sure subtest name is a string"""
+        if "subtest" in message and not isinstance(message["subtest"], str):
             message["subtest"] = str(message["subtest"])
 
     def _fix_test_name(self, message):
@@ -716,7 +714,7 @@ class SSLTunnel:
         self.webServer = options.webServer
         self.webSocketPort = options.webSocketPort
 
-        self.customCertRE = re.compile("^cert=(?P<nickname>[0-9a-zA-Z_ ]+)")
+        self.customCertRE = re.compile("^cert=(?P<nickname>[0-9a-zA-Z_ -]+)")
         self.clientAuthRE = re.compile("^clientauth=(?P<clientauth>[a-z]+)")
         self.redirRE = re.compile("^redir=(?P<redirhost>[0-9a-zA-Z_ .]+)")
 
@@ -4257,8 +4255,9 @@ toolbar#nav-bar {
             ):
                 key = message["test"].split("/")[-1].strip()
                 if key not in self.harness.expectedError:
-                    error_msg = message.get("message") or message.get("subtest") or ""
-                    self.harness.expectedError[key] = error_msg.strip()
+                    self.harness.expectedError[key] = message.get(
+                        "message", message["subtest"]
+                    ).strip()
             return message
 
         def countline(self, message):
@@ -4304,7 +4303,6 @@ toolbar#nav-bar {
                 and self.dump_screen_on_timeout
                 and message["action"] == "test_status"
                 and "expected" in message
-                and message["subtest"] is not None
                 and "Test timed out" in message["subtest"]
             ):
                 self.harness.dumpScreen(self.utilityPath)

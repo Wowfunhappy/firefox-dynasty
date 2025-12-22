@@ -13028,6 +13028,12 @@ bool InitOptionParser(OptionParser& op) {
                           "call to enable work-in-progress call ICs)") ||
       !op.addStringOption('\0', "ion-shared-stubs", "on/off",
                           "Use shared stubs (default: on, off to disable)") ||
+      !op.addStringOption(
+          '\0', "stub-folding", "on/off",
+          "Enable stub folding (default: on, off to disable)") ||
+      !op.addStringOption('\0', "stub-folding-loads-and-stores", "on/off",
+                          "Enable stub folding for load and stores (default: "
+                          "on, off to disable)") ||
       !op.addStringOption('\0', "ion-scalar-replacement", "on/off",
                           "Scalar Replacement (default: on, off to disable)") ||
       !op.addStringOption('\0', "ion-gvn", "[mode]",
@@ -13369,7 +13375,9 @@ bool InitOptionParser(OptionParser& op) {
                         "Enable immutable ArrayBuffers") ||
       !op.addBoolOption('\0', "enable-iterator-chunking",
                         "Enable Iterator Chunking") ||
-      !op.addBoolOption('\0', "enable-iterator-join", "Enable Iterator.join")) {
+      !op.addBoolOption('\0', "enable-iterator-join", "Enable Iterator.join") ||
+      !op.addBoolOption('\0', "enable-legacy-regexp",
+                        "Enable Legacy RegExp features")) {
     return false;
   }
 
@@ -13429,6 +13437,9 @@ bool SetGlobalOptionsPreJSInit(const OptionParser& op) {
     JS::Prefs::setAtStartup_experimental_joint_iteration(true);
   }
 
+  if (op.getBoolOption("enable-legacy-regexp")) {
+    JS::Prefs::set_experimental_legacy_regexp(true);
+  }
 #ifdef NIGHTLY_BUILD
   if (op.getBoolOption("enable-async-iterator-helpers")) {
     JS::Prefs::setAtStartup_experimental_async_iterator_helpers(true);
@@ -13859,6 +13870,26 @@ bool SetContextJITOptions(JSContext* cx, const OptionParser& op) {
       jit::JitOptions.disableCacheIR = true;
     } else {
       return OptionFailure("cache-ir-stubs", str);
+    }
+  }
+
+  if (const char* str = op.getStringOption("stub-folding")) {
+    if (strcmp(str, "on") == 0) {
+      jit::JitOptions.disableStubFolding = false;
+    } else if (strcmp(str, "off") == 0) {
+      jit::JitOptions.disableStubFolding = true;
+    } else {
+      return OptionFailure("stub-folding", str);
+    }
+  }
+
+  if (const char* str = op.getStringOption("stub-folding-loads-and-stores")) {
+    if (strcmp(str, "on") == 0) {
+      jit::JitOptions.disableStubFoldingLoadsAndStores = false;
+    } else if (strcmp(str, "off") == 0) {
+      jit::JitOptions.disableStubFoldingLoadsAndStores = true;
+    } else {
+      return OptionFailure("stub-folding-loads-and-stores", str);
     }
   }
 
