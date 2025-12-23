@@ -203,7 +203,7 @@ index 8488cf0818..14d1caaa01 100644
      }
  
 diff --git a/api/BUILD.gn b/api/BUILD.gn
-index ef8b69c53b..3e68f21457 100644
+index 3c696f5711..a0171b4651 100644
 --- a/api/BUILD.gn
 +++ b/api/BUILD.gn
 @@ -44,6 +44,9 @@ rtc_library("enable_media") {
@@ -311,7 +311,7 @@ index ef8b69c53b..3e68f21457 100644
  
  rtc_library("frame_generator_api") {
    visibility = [ "*" ]
-@@ -796,6 +827,7 @@ rtc_library("create_frame_generator") {
+@@ -797,6 +828,7 @@ rtc_library("create_frame_generator") {
    ]
  }
  
@@ -319,7 +319,7 @@ index ef8b69c53b..3e68f21457 100644
  rtc_library("create_peer_connection_quality_test_frame_generator") {
    visibility = [ "*" ]
    testonly = true
-@@ -813,6 +845,7 @@ rtc_library("create_peer_connection_quality_test_frame_generator") {
+@@ -814,6 +846,7 @@ rtc_library("create_peer_connection_quality_test_frame_generator") {
      "units:time_delta",
    ]
  }
@@ -327,7 +327,7 @@ index ef8b69c53b..3e68f21457 100644
  
  rtc_source_set("data_channel_event_observer_interface") {
    visibility = [ "*" ]
-@@ -1005,6 +1038,7 @@ rtc_source_set("refcountedbase") {
+@@ -1006,6 +1039,7 @@ rtc_source_set("refcountedbase") {
  }
  
  rtc_library("ice_transport_factory") {
@@ -335,7 +335,7 @@ index ef8b69c53b..3e68f21457 100644
    visibility = [ "*" ]
    sources = [
      "ice_transport_factory.cc",
-@@ -1028,6 +1062,7 @@ rtc_library("ice_transport_factory") {
+@@ -1029,6 +1063,7 @@ rtc_library("ice_transport_factory") {
      "rtc_event_log",
    ]
  }
@@ -1258,7 +1258,7 @@ index 0c7ce99ac0..1873e67f52 100644
  rtc_library("call_config_utils") {
    testonly = true
 diff --git a/video/BUILD.gn b/video/BUILD.gn
-index c8d3201a45..94be2ef995 100644
+index 8adbcf52f8..ba7ec50c10 100644
 --- a/video/BUILD.gn
 +++ b/video/BUILD.gn
 @@ -17,7 +17,7 @@ rtc_library("video_stream_encoder_interface") {
