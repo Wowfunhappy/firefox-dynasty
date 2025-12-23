@@ -53,7 +53,7 @@ tasks:
                 ./mach update-test
 
     linux64-firefox:
-        worker-type: t-linux-xlarge-source
+        worker-type: t-linux-docker
         worker:
             docker-image: {in-tree: ubuntu2404-test}
         description: Test updates on Linux

@@ -643,11 +643,36 @@ taskgraph:
 
 workers:
     aliases:
-        b-linux.*:
+        b-linux-gcp:
             provisioner: '{trust-domain}-{level}'
             implementation: docker-worker
             os: linux
-            worker-type: '{alias}'
+            worker-type: b-linux
+        b-linux-gcp-aarch64:
+            provisioner: '{trust-domain}-{level}'
+            implementation: docker-worker
+            os: linux
+            worker-type: b-linux-aarch64
+        b-linux-kvm-gcp:
+            provisioner: '{trust-domain}-{level}'
+            implementation: docker-worker
+            os: linux
+            worker-type: b-linux-kvm
+        b-linux-medium-gcp:
+            provisioner: '{trust-domain}-{level}'
+            implementation: docker-worker
+            os: linux
+            worker-type: b-linux-medium
+        b-linux-large-gcp:
+            provisioner: '{trust-domain}-{level}'
+            implementation: docker-worker
+            os: linux
+            worker-type: b-linux-large
+        b-linux-xlarge-gcp:
+            provisioner: '{trust-domain}-{level}'
+            implementation: docker-worker
+            os: linux
+            worker-type: b-linux-xlarge
         b-win2012:
             provisioner: '{trust-domain}-{level}'
             implementation: generic-worker
@@ -677,12 +702,12 @@ workers:
             provisioner: '{trust-domain}-{level}'
             implementation: docker-worker
             os: linux
-            worker-type: '{alias}'
+            worker-type: images
         images-gcp-aarch64:
             provisioner: '{trust-domain}-{level}'
             implementation: docker-worker
             os: linux
-            worker-type: '{alias}'
+            worker-type: images-aarch64
         addon:
             provisioner: scriptworker-k8s
             implementation: push-addons
@@ -838,16 +863,6 @@ workers:
             implementation: docker-worker
             os: linux
             worker-type: '{alias}'
-        t-linux(-large|-xlarge|-xlarge-source):
-            provisioner: '{trust-domain}-t'
-            implementation: docker-worker
-            os: linux
-            worker-type: '{alias}-gcp'
-        t-linux(-large|-xlarge|-xlarge-source)-noscratch:
-            provisioner: '{trust-domain}-t'
-            implementation: docker-worker
-            os: linux
-            worker-type: '{alias}-gcp'
         t-linux-kvm:
             provisioner: '{trust-domain}-t'
             implementation: docker-worker
@@ -983,7 +998,7 @@ workers:
             provisioner: '{trust-domain}-t'
             implementation: docker-worker
             os: linux
-            worker-type: misc-gcp
+            worker-type: misc
 
 
 mac-signing:
