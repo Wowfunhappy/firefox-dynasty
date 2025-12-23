@@ -324,6 +324,35 @@ rtc_library("rtp_sender_setparameters_callback") {
   ]
 }
 
+rtc_library("jsep") {
+  visibility = [ "*" ]
+  cflags = []
+  sources = [
+    "jsep.cc",
+    "jsep.h",
+    "jsep_ice_candidate.cc",
+    "jsep_ice_candidate.h",
+    "jsep_session_description.h",
+  ]
+  deps = [
+    ":candidate",
+    ":ref_count",
+    ":rtc_error",
+    ":sequence_checker",
+    "../rtc_base:checks",
+    "../rtc_base:logging",
+    "../rtc_base:macromagic",
+    "../rtc_base/system:no_unique_address",
+    "../rtc_base/system:rtc_export",
+    "//third_party/abseil-cpp/absl/algorithm:container",
+    "//third_party/abseil-cpp/absl/base:nullability",
+    "//third_party/abseil-cpp/absl/memory",
+    "//third_party/abseil-cpp/absl/strings",
+    "//third_party/abseil-cpp/absl/strings:str_format",
+    "//third_party/abseil-cpp/absl/strings:string_view",
+  ]
+}
+
 rtc_library("libjingle_peerconnection_api") {
 if (!build_with_mozilla) {
   visibility = [ "*" ]
@@ -331,11 +360,6 @@ if (!build_with_mozilla) {
   sources = [
     "data_channel_interface.cc",
     "data_channel_interface.h",
-    "jsep.cc",
-    "jsep.h",
-    "jsep_ice_candidate.cc",
-    "jsep_ice_candidate.h",
-    "jsep_session_description.h",
     "legacy_stats_types.cc",
     "legacy_stats_types.h",
     "peer_connection_interface.cc",
@@ -353,11 +377,13 @@ if (!build_with_mozilla) {
 
     # Remove when downstream has been updated
     "dtmf_sender_interface.h",
+    "jsep.h",
     "rtp_sender_interface.h",
   ]
   public_deps += [  # no-presubmit-check TODO(webrtc:8603)
     # Remove when downstream has been updated
     ":dtmf_sender_interface",
+    ":jsep",
     ":rtp_sender_interface",
   ]
   deps = [
@@ -447,8 +473,6 @@ if (!build_with_mozilla) {
     # file, really. All these should arguably go away in time.
     "../media:rtc_media_config",
     "../rtc_base:checks",
-    "../rtc_base:ip_address",
-    "../rtc_base:socket_address",
     "../rtc_base:threading",
     "../rtc_base/system:rtc_export",
   ]
