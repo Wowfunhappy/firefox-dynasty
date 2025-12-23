@@ -14,7 +14,7 @@ Mercurial Revision: https://hg.mozilla.org/mozilla-central/rev/8b5653392e88ccd0c
  2 files changed, 5 insertions(+)
 
 diff --git a/video/config/video_encoder_config.h b/video/config/video_encoder_config.h
-index e647cd6beb..d1cc8c05cc 100644
+index cbb3bf1ce9..06dcbf8a6d 100644
 --- a/video/config/video_encoder_config.h
 +++ b/video/config/video_encoder_config.h
 @@ -26,6 +26,7 @@
