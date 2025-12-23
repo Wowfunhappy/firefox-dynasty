@@ -248,7 +248,7 @@ index 0ce9a494d9..7d26e9d2b0 100644
 -
  }  // namespace webrtc
 diff --git a/pc/BUILD.gn b/pc/BUILD.gn
-index 38b152340f..f83218111d 100644
+index acd0895db1..721709e2ad 100644
 --- a/pc/BUILD.gn
 +++ b/pc/BUILD.gn
 @@ -994,6 +994,7 @@ rtc_library("rtc_stats_collector") {
