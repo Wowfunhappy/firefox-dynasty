@@ -3065,4 +3065,10 @@ var browserTests = [
     "<table><tbody><tr><th>a</th><th><br></th><th><br></th><th><br></th><th>e</th></tr></tbody></table>",
     [true],
     {}],
+
+["<p>abc{}<br> </p><p><br></p>",
+    [["forwarddelete",""]],
+    "<p>abc</p>",
+    [true],
+    {}],
 ]

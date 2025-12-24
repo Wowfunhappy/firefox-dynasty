@@ -3503,8 +3503,10 @@ WhiteSpaceVisibilityKeeper::DeleteContentNodeAndJoinTextNodesAroundIt(
               WSRunScanner::ScanInclusiveNextVisibleNodeOrBlockBoundary(
                   Scan::All, pointToPutCaret,
                   BlockInlineCheck::UseComputedDisplayOutsideStyle);
-          if (nextThingOfCaretPoint.ReachedBRElement() ||
-              nextThingOfCaretPoint.ReachedPreformattedLineBreak()) {
+          Maybe<EditorLineBreak> lineBreak;
+          if (nextThingOfCaretPoint.ReachedLineBreak()) {
+            lineBreak.emplace(
+                nextThingOfCaretPoint.CreateEditorLineBreak<EditorLineBreak>());
             nextThingOfCaretPoint =
                 WSRunScanner::ScanInclusiveNextVisibleNodeOrBlockBoundary(
                     Scan::All,
@@ -3529,6 +3531,26 @@ WhiteSpaceVisibilityKeeper::DeleteContentNodeAndJoinTextNodesAroundIt(
             }
             if (NS_WARN_IF(!aContentToDelete.IsInComposedDoc())) {
               return Err(NS_ERROR_EDITOR_UNEXPECTED_DOM_TREE);
+            }
+            // If the previous content ends with an invisible line break, let's
+            // delete it.
+            if (lineBreak.isSome() && lineBreak->IsInComposedDoc()) {
+              const WSScanResult prevThing =
+                  WSRunScanner::ScanPreviousVisibleNodeOrBlockBoundary(
+                      WSRunScanner::Scan::All,
+                      lineBreak->To<EditorRawDOMPoint>(),
+                      BlockInlineCheck::UseComputedDisplayStyle, &aEditingHost);
+              if (!prevThing.ReachedLineBoundary()) {
+                Result<EditorDOMPoint, nsresult> pointOrError =
+                    aHTMLEditor.DeleteLineBreakWithTransaction(
+                        lineBreak.ref(), nsIEditor::eStrip, aEditingHost);
+                if (MOZ_UNLIKELY(pointOrError.isErr())) {
+                  NS_WARNING(
+                      "HTMLEditor::DeleteLineBreakWithTransaction() failed");
+                  return pointOrError.propagateErr();
+                }
+                trackPointToPutCaret->Flush(StopTracking::No);
+              }
             }
           }
         }
