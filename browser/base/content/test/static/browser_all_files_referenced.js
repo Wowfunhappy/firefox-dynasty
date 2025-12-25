@@ -347,10 +347,6 @@ var allowlist = [
   {
     file: "moz-src:///browser/components/aiwindow/models/prompts/AssistantPrompts.sys.mjs",
   },
-  // Bug 2002638 - Move search browsing history to AI-window r?mardak (backed out due to unused file)
-  {
-    file: "moz-src:///browser/components/aiwindow/models/Tools.sys.mjs",
-  },
   // Bug 2004888 - [FirstRun] Create Firstrun.html opening firstrun welcome screen
   {
     file: "chrome://browser/content/aiwindow/firstrun.html",
@@ -370,6 +366,10 @@ var allowlist = [
   // Bug 2006090 - Insight updation - Day 0 and incremental updates from Chat history
   {
     file: "moz-src:///browser/components/aiwindow/models/InsightsConversationScheduler.sys.mjs",
+  },
+  // Bug 2006433 - Implement conversation starter/followup inference
+  {
+    file: "moz-src:///browser/components/aiwindow/models/ConversationSuggestions.sys.mjs",
   },
 ];
 

@@ -600,6 +600,12 @@ class Settings(
         },
     )
 
+    var isTermsOfUsePublishedDebugDateEnabled by booleanPreference(
+        appContext.getPreferenceKey(R.string.pref_key_terms_latest_date),
+        default = false,
+        persistDefaultIfNotExists = true,
+    )
+
     var privacyNoticeBannerLastDisplayedTimeInMillis by longPreference(
         key = appContext.getPreferenceKey(R.string.pref_key_privacy_notice_banner_last_displayed_time),
         default = 0,
@@ -717,11 +723,6 @@ class Settings(
 
     val shouldShowSecurityPinWarning: Boolean
         get() = secureWarningCount.underMaxCount()
-
-    var shouldShowPrivacyPopWindow by booleanPreference(
-        appContext.getPreferenceKey(R.string.pref_key_privacy_pop_window),
-        default = true,
-    )
 
     var shouldUseLightTheme by booleanPreference(
         appContext.getPreferenceKey(R.string.pref_key_light_theme),
@@ -2416,11 +2417,6 @@ class Settings(
         key = appContext.getPreferenceKey(R.string.pref_key_growth_early_search),
         default = false,
     )
-
-    /**
-     * Indicates if the new Search settings UI is enabled.
-     */
-    var enableUnifiedSearchSettingsUI: Boolean = showUnifiedSearchFeature && FeatureFlags.UNIFIED_SEARCH_SETTINGS
 
     /**
      * Indicates if hidden engines were restored due to migration to unified search settings UI.

@@ -24,6 +24,10 @@ support-files = [
   "translations-text-cleaning.html",
 ]
 
+["browser_about_translations_copy_button_enabled_states.js"]
+
+["browser_about_translations_copy_button_functionality.js"]
+
 ["browser_about_translations_debounce.js"]
 skip-if = [
   "os == 'linux' && os_version == '24.04' && arch == 'x86_64' && display == 'x11'", # Bug 1821461
@@ -36,6 +40,10 @@ skip-if = [
 ["browser_about_translations_enabling.js"]
 
 ["browser_about_translations_flip_lexical_shortlist.js"]
+
+["browser_about_translations_source_clear_button_functionality.js"]
+
+["browser_about_translations_source_clear_button_visibility.js"]
 
 ["browser_about_translations_swap_languages_button_detected.js"]
 

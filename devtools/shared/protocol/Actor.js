@@ -30,7 +30,7 @@ exports.actorSpecs = actorSpecs;
  *   Either a DevToolsServerConnection or a DevToolsClient.  Must have
  *   addActorPool, removeActorPool, and poolFor.
  *   conn can be null if the subclass provides a conn property.
- * @constructor
+ * @class
  */
 
 class Actor extends Pool {
@@ -174,7 +174,7 @@ exports.Actor = Actor;
  * When a RDP packet is received for calling an actor method, this lookup for
  * the method name in this object and call the function holded on this attribute.
  *
- * @params {object} actorSpec
+ * @param {object} actorSpec
  *         The procotol-js actor specific coming from devtools/shared/specs/*.js files
  *         This describes the types for methods and events implemented by all actors.
  * @return {object} requestTypes

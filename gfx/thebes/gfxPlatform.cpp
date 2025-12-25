@@ -3055,12 +3055,23 @@ void gfxPlatform::InitHardwareVideoConfig() {
   gfxVars::SetCanUseHardwareVideoDecoding(featureDec.IsEnabled());
   gfxVars::SetCanUseHardwareVideoEncoding(featureEnc.IsEnabled());
 
+#ifdef MOZ_WIDGET_ANDROID
+#  define CODEC_HW_FEATURE_SETUP_PLATFORM(name, type, encoder)             \
+    feature##type##name.SetDefault(gfxAndroidPlatform::IsHwCodecSupported( \
+                                       media::MediaCodec::name, encoder),  \
+                                   FeatureStatus::Unavailable,             \
+                                   "Hardware codec not available");
+#else
+#  define CODEC_HW_FEATURE_SETUP_PLATFORM(name, type, encoder) \
+    feature##type##name.EnableByDefault();
+#endif
+
 #define CODEC_HW_FEATURE_SETUP(name)                                           \
   FeatureState& featureDec##name =                                             \
       gfxConfig::GetFeature(Feature::name##_HW_DECODE);                        \
   featureDec##name.Reset();                                                    \
   if (featureDec.IsEnabled()) {                                                \
-    featureDec##name.EnableByDefault();                                        \
+    CODEC_HW_FEATURE_SETUP_PLATFORM(name, Dec, false)                          \
     if (!IsGfxInfoStatusOkay(nsIGfxInfo::FEATURE_##name##_HW_DECODE, &message, \
                              failureId)) {                                     \
       featureDec##name.Disable(FeatureStatus::Blocklisted, message.get(),      \
@@ -3072,7 +3083,7 @@ void gfxPlatform::InitHardwareVideoConfig() {
       gfxConfig::GetFeature(Feature::name##_HW_ENCODE);                        \
   featureEnc##name.Reset();                                                    \
   if (featureEnc.IsEnabled()) {                                                \
-    featureEnc##name.EnableByDefault();                                        \
+    CODEC_HW_FEATURE_SETUP_PLATFORM(name, Enc, true)                           \
     if (!IsGfxInfoStatusOkay(nsIGfxInfo::FEATURE_##name##_HW_ENCODE, &message, \
                              failureId)) {                                     \
       featureEnc##name.Disable(FeatureStatus::Blocklisted, message.get(),      \
@@ -3091,11 +3102,7 @@ void gfxPlatform::InitHardwareVideoConfig() {
   CODEC_HW_FEATURE_SETUP(HEVC)
 #endif
 
-#ifdef MOZ_WIDGET_ANDROID
-  gfxVars::SetVP9HwDecodeIsAccelerated(
-      java::HardwareCodecCapabilityUtils::HasHWVP9(false /* aIsEncoder */));
-#endif
-
+#undef CODEC_HW_FEATURE_SETUP_PLATFORM
 #undef CODEC_HW_FEATURE_SETUP
 }
 
