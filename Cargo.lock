@@ -7314,7 +7314,6 @@ name = "unic-langid-ffi"
 version = "0.1.0"
 dependencies = [
  "nsstring",
- "thin-vec",
  "unic-langid",
 ]
 
