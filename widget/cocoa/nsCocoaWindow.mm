@@ -8603,7 +8603,7 @@ static bool MaybeDropEventForModalWindow(NSEvent* aEvent, id aDelegate) {
       self.titlebarSeparatorStyle = NSTitlebarSeparatorStyleNone;
     }
 
-    if(@available(macOS 10.10, *)) {
+    if(@available(macOS 10.11, *)) {
       mFullscreenTitlebarTracker = [[FullscreenTitlebarTracker alloc] init];
       // revealAmount is an undocumented property of
       // NSTitlebarAccessoryViewController that updates whenever the menubar
@@ -8625,7 +8625,7 @@ static bool MaybeDropEventForModalWindow(NSEvent* aEvent, id aDelegate) {
 
 }
 - (void)dealloc {
-  if(@available(macOS 10.10, *)) {
+  if(@available(macOS 10.11, *)) {
     [mFullscreenTitlebarTracker removeObserver:self forKeyPath:@"revealAmount"];
     [mFullscreenTitlebarTracker removeFromParentViewController];
     [mFullscreenTitlebarTracker release];
