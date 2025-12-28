@@ -38,32 +38,31 @@ std::unique_ptr<RtpPacketizer> RtpPacketizer::Create(
     PayloadSizeLimits limits,
     // Codec-specific details.
     const RTPVideoHeader& rtp_video_header) {
-  using enum PacketizationFormat;
   switch (format) {
-    case kRaw: {
+    case PacketizationFormat::kRaw: {
       return std::make_unique<RtpPacketizerGeneric>(payload, limits);
     }
-    case kH264: {
+    case PacketizationFormat::kH264: {
       const auto& h264 =
           std::get<RTPVideoHeaderH264>(rtp_video_header.video_type_header);
       return std::make_unique<RtpPacketizerH264>(payload, limits,
                                                  h264.packetization_mode);
     }
-    case kVP8: {
+    case PacketizationFormat::kVP8: {
       const auto& vp8 =
           std::get<RTPVideoHeaderVP8>(rtp_video_header.video_type_header);
       return std::make_unique<RtpPacketizerVp8>(payload, limits, vp8);
     }
-    case kVP9: {
+    case PacketizationFormat::kVP9: {
       const auto& vp9 =
           std::get<RTPVideoHeaderVP9>(rtp_video_header.video_type_header);
       return std::make_unique<RtpPacketizerVp9>(payload, limits, vp9);
     }
-    case kAV1:
+    case PacketizationFormat::kAV1:
       return std::make_unique<RtpPacketizerAv1>(
           payload, limits, rtp_video_header.frame_type,
           rtp_video_header.is_last_frame_in_picture);
-    case kH265: {
+    case PacketizationFormat::kH265: {
 #ifdef RTC_ENABLE_H265
       return std::make_unique<RtpPacketizerH265>(payload, limits);
 #else
@@ -71,7 +70,7 @@ std::unique_ptr<RtpPacketizer> RtpPacketizer::Create(
                                                     rtp_video_header);
 #endif
     }
-    case kGeneric: {
+    case PacketizationFormat::kGeneric: {
       return std::make_unique<RtpPacketizerGeneric>(payload, limits,
                                                     rtp_video_header);
     }
