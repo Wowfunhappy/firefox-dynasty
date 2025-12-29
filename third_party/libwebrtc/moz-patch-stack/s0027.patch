@@ -203,7 +203,7 @@ index 5bbc5b79a2..8312d006c9 100644
      }
  
 diff --git a/api/BUILD.gn b/api/BUILD.gn
-index 0a2da7458d..803b960bf6 100644
+index 6dfb63ca49..8fcc4304bb 100644
 --- a/api/BUILD.gn
 +++ b/api/BUILD.gn
 @@ -44,6 +44,9 @@ rtc_library("enable_media") {
@@ -282,9 +282,9 @@ index 0a2da7458d..803b960bf6 100644
 +  ]
 +}
  
- rtc_library("jsep") {
+ rtc_library("sctp_transport_interface") {
    visibility = [ "*" ]
-@@ -327,6 +354,7 @@ rtc_library("jsep") {
+@@ -341,6 +368,7 @@ rtc_library("jsep") {
  }
  
  rtc_library("libjingle_peerconnection_api") {
@@ -292,7 +292,7 @@ index 0a2da7458d..803b960bf6 100644
    visibility = [ "*" ]
    cflags = []
    sources = [
-@@ -449,6 +477,7 @@ rtc_library("libjingle_peerconnection_api") {
+@@ -463,6 +491,7 @@ rtc_library("libjingle_peerconnection_api") {
      "../rtc_base/system:rtc_export",
    ]
  }
@@ -300,7 +300,7 @@ index 0a2da7458d..803b960bf6 100644
  
  rtc_library("frame_transformer_interface") {
    visibility = [ "*" ]
-@@ -674,6 +703,7 @@ rtc_source_set("peer_network_dependencies") {
+@@ -688,6 +717,7 @@ rtc_source_set("peer_network_dependencies") {
  }
  
  rtc_source_set("peer_connection_quality_test_fixture_api") {
@@ -308,7 +308,7 @@ index 0a2da7458d..803b960bf6 100644
    visibility = [ "*" ]
    testonly = true
    sources = [ "test/peerconnection_quality_test_fixture.h" ]
-@@ -718,6 +748,7 @@ rtc_source_set("peer_connection_quality_test_fixture_api") {
+@@ -732,6 +762,7 @@ rtc_source_set("peer_connection_quality_test_fixture_api") {
      "//third_party/abseil-cpp/absl/strings:string_view",
    ]
  }
@@ -316,7 +316,7 @@ index 0a2da7458d..803b960bf6 100644
  
  rtc_library("frame_generator_api") {
    visibility = [ "*" ]
-@@ -825,6 +856,7 @@ rtc_library("create_frame_generator") {
+@@ -839,6 +870,7 @@ rtc_library("create_frame_generator") {
    ]
  }
  
@@ -324,7 +324,7 @@ index 0a2da7458d..803b960bf6 100644
  rtc_library("create_peer_connection_quality_test_frame_generator") {
    visibility = [ "*" ]
    testonly = true
-@@ -842,6 +874,7 @@ rtc_library("create_peer_connection_quality_test_frame_generator") {
+@@ -856,6 +888,7 @@ rtc_library("create_peer_connection_quality_test_frame_generator") {
      "units:time_delta",
    ]
  }
@@ -332,7 +332,7 @@ index 0a2da7458d..803b960bf6 100644
  
  rtc_source_set("data_channel_event_observer_interface") {
    visibility = [ "*" ]
-@@ -1035,6 +1068,7 @@ rtc_source_set("refcountedbase") {
+@@ -1049,6 +1082,7 @@ rtc_source_set("refcountedbase") {
  }
  
  rtc_library("ice_transport_factory") {
@@ -340,7 +340,7 @@ index 0a2da7458d..803b960bf6 100644
    visibility = [ "*" ]
    sources = [
      "ice_transport_factory.cc",
-@@ -1057,6 +1091,7 @@ rtc_library("ice_transport_factory") {
+@@ -1071,6 +1105,7 @@ rtc_library("ice_transport_factory") {
      "rtc_event_log",
    ]
  }
@@ -549,7 +549,7 @@ index 88890be798..c9aefc297b 100644
  #include "rtc_base/memory/aligned_malloc.h"
  
 diff --git a/media/BUILD.gn b/media/BUILD.gn
-index af61a8844c..2bb2607875 100644
+index 01e309520e..cfe922d72e 100644
 --- a/media/BUILD.gn
 +++ b/media/BUILD.gn
 @@ -77,7 +77,7 @@ rtc_library("rtc_media_base") {

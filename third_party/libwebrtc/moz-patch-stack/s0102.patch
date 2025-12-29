@@ -126,7 +126,7 @@ index 862f22e41d..12d21030c5 100644
              "Generated during 'gn gen' by //BUILD.gn.",
              "",
 diff --git a/api/BUILD.gn b/api/BUILD.gn
-index 803b960bf6..587f95a58b 100644
+index 8fcc4304bb..0195daf365 100644
 --- a/api/BUILD.gn
 +++ b/api/BUILD.gn
 @@ -8,8 +8,8 @@
@@ -427,7 +427,7 @@ index 291287350a..f61cab5e1e 100644
  
  group("logging") {
 diff --git a/media/BUILD.gn b/media/BUILD.gn
-index b1ca1bf836..8daf1a325f 100644
+index efe04dfec0..65382e8449 100644
 --- a/media/BUILD.gn
 +++ b/media/BUILD.gn
 @@ -6,7 +6,7 @@
@@ -601,7 +601,7 @@ index 934c044827..f274e79e74 100644
  import("../../webrtc.gni")
  
 diff --git a/pc/BUILD.gn b/pc/BUILD.gn
-index 65cd5db692..1461ec29a7 100644
+index e911ad2251..32da887950 100644
 --- a/pc/BUILD.gn
 +++ b/pc/BUILD.gn
 @@ -30,8 +30,8 @@
