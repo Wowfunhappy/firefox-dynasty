@@ -5650,7 +5650,11 @@
 # Is support for the Web GPU API enabled on service workers?
 - name: dom.webgpu.service-workers.enabled
   type: RelaxedAtomicBool
+#if defined(XP_WIN) || defined(XP_MACOSX) && defined(MOZ_AARCH64)
+  value: true
+#else
   value: @IS_EARLY_BETA_OR_EARLIER@
+#endif
   mirror: always
 
 # Comma-separated list of wgpu backend names to permit in WebGPU adapters.
@@ -9950,7 +9954,7 @@
 # Whether to enable position-try-order
 - name: layout.css.anchor-positioning.position-try-order.enabled
   type: RelaxedAtomicBool
-  value: false
+  value: true
   mirror: always
   rust: true
 
@@ -14847,12 +14851,6 @@
 - name: network.trr.confirmation_timeout_ms
   type: RelaxedAtomicUint32
   value: 6000
-  mirror: always
-
-# The timeout of the TRR confirmation request
-- name: network.trr.confirmation_telemetry_enabled
-  type: RelaxedAtomicBool
-  value: true
   mirror: always
 
 # Whether to send the Accept-Language header for TRR requests

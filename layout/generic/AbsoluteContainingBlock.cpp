@@ -1176,22 +1176,61 @@ void AbsoluteContainingBlock::ReflowAbsoluteFrame(
   AutoNoisyIndenter indent(nsBlockFrame::gNoisy);
 #endif  // DEBUG
 
+  const WritingMode outerWM = aReflowInput.GetWritingMode();
+  const WritingMode wm = aKidFrame->GetWritingMode();
+
   const bool isGrid = aFlags.contains(AbsPosReflowFlag::IsGridContainerCB);
-  // TODO(bug 1989059): position-try-order.
   auto fallbacks =
       aKidFrame->StylePosition()->mPositionTryFallbacks._0.AsSpan();
   Maybe<uint32_t> currentFallbackIndex;
   const StylePositionTryFallbacksItem* currentFallback = nullptr;
   RefPtr<ComputedStyle> currentFallbackStyle;
+  RefPtr<ComputedStyle> firstTryStyle;
+  Maybe<uint32_t> firstTryIndex;
+  // If non-'normal' position-try-order is in effect, we keep track of the
+  // index of the "best" option seen, and its size in the relevant axis, so
+  // that once all fallbacks have been considered we can reset to the one
+  // that provided the most space.
+  Maybe<uint32_t> bestIndex;
+  nscoord bestSize = -1;
+  // Flag to indicate that we've determined which fallback to use and should
+  // exit the loop.
+  bool finalizing = false;
 
-  auto SeekFallbackTo = [&](uint32_t aIndex) -> bool {
-    if (aIndex >= fallbacks.Length()) {
+  auto tryOrder = aKidFrame->StylePosition()->mPositionTryOrder;
+  // If position-try-order is a logical value, resolve to physical using
+  // the containing block's writing mode.
+  switch (tryOrder) {
+    case StylePositionTryOrder::MostInlineSize:
+      tryOrder = outerWM.IsVertical() ? StylePositionTryOrder::MostHeight
+                                      : StylePositionTryOrder::MostWidth;
+      break;
+    case StylePositionTryOrder::MostBlockSize:
+      tryOrder = outerWM.IsVertical() ? StylePositionTryOrder::MostWidth
+                                      : StylePositionTryOrder::MostHeight;
+      break;
+    default:
+      break;
+  }
+
+  // Set the current fallback to the given index, or reset to the base position
+  // if Nothing() is passed.
+  auto SeekFallbackTo = [&](Maybe<uint32_t> aIndex) -> bool {
+    if (!aIndex) {
+      currentFallbackIndex = Nothing();
+      currentFallback = nullptr;
+      currentFallbackStyle = nullptr;
+      return true;
+    }
+    uint32_t index = *aIndex;
+    if (index >= fallbacks.Length()) {
       return false;
     }
+
     const StylePositionTryFallbacksItem* nextFallback;
     RefPtr<ComputedStyle> nextFallbackStyle;
     while (true) {
-      nextFallback = &fallbacks[aIndex];
+      nextFallback = &fallbacks[index];
       nextFallbackStyle = aPresContext->StyleSet()->ResolvePositionTry(
           *aKidFrame->GetContent()->AsElement(), *aKidFrame->Style(),
           *nextFallback);
@@ -1200,35 +1239,47 @@ void AbsoluteContainingBlock::ReflowAbsoluteFrame(
       }
       // No @position-try rule for this name was found, per spec we should
       // skip it.
-      aIndex++;
-      if (aIndex >= fallbacks.Length()) {
+      index++;
+      if (index >= fallbacks.Length()) {
         return false;
       }
     }
-    currentFallbackIndex = Some(aIndex);
+    currentFallbackIndex = Some(index);
     currentFallback = nextFallback;
     currentFallbackStyle = std::move(nextFallbackStyle);
     return true;
   };
 
+  // Advance to the next fallback to be tried. Normally this is simply the next
+  // index in the position-try-fallbacks list, but we have some special cases:
+  // - if we're currently at the last-successful fallback (recorded as
+  //   firstTryIndex), we "advance" to the base position
+  // - we skip the last-successful fallback when we reach its position again
   auto TryAdvanceFallback = [&]() -> bool {
     if (fallbacks.IsEmpty()) {
       return false;
     }
+    if (firstTryIndex && currentFallbackIndex == firstTryIndex) {
+      return SeekFallbackTo(Nothing());
+    }
     uint32_t nextFallbackIndex =
         currentFallbackIndex ? *currentFallbackIndex + 1 : 0;
-    return SeekFallbackTo(nextFallbackIndex);
+    if (firstTryIndex && nextFallbackIndex == *firstTryIndex) {
+      ++nextFallbackIndex;
+    }
+    return SeekFallbackTo(Some(nextFallbackIndex));
   };
 
-  Maybe<uint32_t> firstTryIndex;
   Maybe<nsPoint> firstTryNormalPosition;
-  const auto* lastSuccessfulPosition =
-      aKidFrame->GetProperty(nsIFrame::LastSuccessfulPositionFallback());
-  if (lastSuccessfulPosition) {
-    if (!SeekFallbackTo(lastSuccessfulPosition->mIndex)) {
-      aKidFrame->RemoveProperty(nsIFrame::LastSuccessfulPositionFallback());
-    } else {
+  if (auto* lastSuccessfulPosition =
+          aKidFrame->GetProperty(nsIFrame::LastSuccessfulPositionFallback())) {
+    if (SeekFallbackTo(Some(lastSuccessfulPosition->mIndex))) {
+      // Remember which fallback we're trying first; also record its style,
+      // in case we need to restore it later.
       firstTryIndex = Some(lastSuccessfulPosition->mIndex);
+      firstTryStyle = currentFallbackStyle;
+    } else {
+      aKidFrame->RemoveProperty(nsIFrame::LastSuccessfulPositionFallback());
     }
   }
 
@@ -1331,8 +1382,6 @@ void AbsoluteContainingBlock::ReflowAbsoluteFrame(
       aAnchorPosResolutionCache->mReferenceData->mAdjustedContainingBlock =
           cb.mFinalRect;
     }
-    const WritingMode outerWM = aReflowInput.GetWritingMode();
-    const WritingMode wm = aKidFrame->GetWritingMode();
     const LogicalSize cbSize(outerWM, cb.mFinalRect.Size());
 
     ReflowInput::InitFlags initFlags;
@@ -1634,17 +1683,49 @@ void AbsoluteContainingBlock::ReflowAbsoluteFrame(
     // containing-block, see:
     // https://drafts.csswg.org/css-anchor-position-1/#fallback-apply
     const auto fits = aStatus.IsComplete() && FitsInContainingBlock();
-    if (fallbacks.IsEmpty() || fits) {
+    if (fallbacks.IsEmpty() || finalizing ||
+        (fits && (tryOrder == StylePositionTryOrder::Normal ||
+                  currentFallbackIndex == firstTryIndex))) {
       // We completed the reflow - Either we had a fallback that fit, or we
       // didn't have any to try in the first place.
       isOverflowingCB = !fits;
       fallback.CommitCurrentFallback();
+      if (currentFallbackIndex == Nothing()) {
+        aKidFrame->RemoveProperty(nsIFrame::LastSuccessfulPositionFallback());
+      }
       break;
+    }
+
+    if (fits) {
+      auto imcbSize = cb.mFinalRect.Size();
+      imcbSize -= nsSize{insets.LeftRight(), insets.TopBottom()};
+      switch (tryOrder) {
+        case StylePositionTryOrder::MostWidth:
+          if (imcbSize.Width() > bestSize) {
+            bestSize = imcbSize.Width();
+            bestIndex = currentFallbackIndex;
+          }
+          break;
+        case StylePositionTryOrder::MostHeight:
+          if (imcbSize.Height() > bestSize) {
+            bestSize = imcbSize.Height();
+            bestIndex = currentFallbackIndex;
+          }
+          break;
+        default:
+          MOZ_ASSERT_UNREACHABLE("unexpected try-order value");
+          break;
+      }
     }
 
     if (!TryAdvanceFallback()) {
       // If there are no further fallbacks, we're done.
-      break;
+      if (bestSize >= 0) {
+        finalizing = true;
+        SeekFallbackTo(bestIndex);
+      } else {
+        break;
+      }
     }
 
     // Try with the next  fallback.
@@ -1657,8 +1738,11 @@ void AbsoluteContainingBlock::ReflowAbsoluteFrame(
         !firstTryNormalPosition) {
       return;
     }
-    // We gave up applying fallbacks. Recover previous values, if changed.
+    // We gave up applying fallbacks. Recover previous values, if changed, and
+    // reset currentFallbackIndex/Style to match.
     // Because we rolled back to first try data, our cache should be up-to-date.
+    currentFallbackIndex = firstTryIndex;
+    currentFallbackStyle = firstTryStyle;
     const auto normalPosition = *firstTryNormalPosition;
     const auto oldNormalPosition = aKidFrame->GetNormalPosition();
     if (normalPosition != oldNormalPosition) {
