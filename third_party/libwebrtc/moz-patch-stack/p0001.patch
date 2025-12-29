@@ -1,83 +1,139 @@
 From: Michael Froman <mfroman@mozilla.com>
-Date: Mon, 29 Dec 2025 16:31:20 -0600
-Subject: (tmp-cherry-pick) Revert "Default enable
- WebRTC-HeaderExtensionNegotiateMemory" (4e31d1a1ff)
+Date: Mon, 29 Dec 2025 17:39:54 -0600
+Subject: (tmp-cherry-pick) Revert "Passing video codec settings to lower
+ layers" (02a26f1700)
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
 
-This reverts commit 4ecf297a4c0af68ff8af8c3a8e6b0832bddd14d5.
+This reverts commit 365e00b56f39accd8cf160dbdf4810b0c777d114.
 
-Reason for revert: Impacted unexpected application usages
+Reason for revert: breaks downstream
 
 Original change's description:
-> Default enable WebRTC-HeaderExtensionNegotiateMemory
+> Passing video codec settings to lower layers
 >
-> Spec change: https://github.com/w3c/webrtc-extensions/pull/238
+> In the CL at https://webrtc-review.googlesource.com/c/src/+/387320
+> I added `SimulcastStream::video_format`, but I forgot to set this value
+> in the upper layer.
 >
-> Chromestatus entry for change: https://chromestatus.com/feature/5135528638939136
->
-> Bug: webrtc:439514253
-> Change-Id: I296f2f06dd69b4e30be419b44c926acfd2722e2d
-> Reviewed-on: https://webrtc-review.googlesource.com/c/src/+/407821
-> Commit-Queue: Harald Alvestrand <hta@webrtc.org>
-> Reviewed-by: Guido Urdaneta <guidou@webrtc.org>
-> Cr-Commit-Position: refs/heads/main@{#45993}
+> Bug: webrtc:362277533
+> Change-Id: I16fa78e99c1998d3fbc7aca03a83e74fa8278d7d
+> Reviewed-on: https://webrtc-review.googlesource.com/c/src/+/412641
+> Commit-Queue: Henrik Boström <hbos@webrtc.org>
+> Reviewed-by: Erik Språng <sprang@webrtc.org>
+> Reviewed-by: Harald Alvestrand <hta@webrtc.org>
+> Reviewed-by: Henrik Boström <hbos@webrtc.org>
+> Cr-Commit-Position: refs/heads/main@{#46020}
 
-(cherry picked from commit 74d988fd57f8f1b6722d8ac6f49c686b9f2bc196)
-
-Bug: webrtc:439514253, chromium:467164231
-Change-Id: I95dbc8cbaf1b769ffaea291801684bc26e4b9ccb
-Reviewed-on: https://webrtc-review.googlesource.com/c/src/+/433102
-Reviewed-by: Guido Urdaneta <guidou@webrtc.org>
-Commit-Queue: Harald Alvestrand <hta@webrtc.org>
-Cr-Original-Commit-Position: refs/heads/main@{#46456}
-No-Try: True
-Reviewed-on: https://webrtc-review.googlesource.com/c/src/+/433485
-Commit-Queue: Guido Urdaneta <guidou@webrtc.org>
+Bug: webrtc:362277533
+Change-Id: I2b2ea7492a4e0caeba6c0e8ec7aaac94483e0457
+Reviewed-on: https://webrtc-review.googlesource.com/c/src/+/420440
+Owners-Override: Jeremy Leconte <jleconte@google.com>
 Reviewed-by: Harald Alvestrand <hta@webrtc.org>
-Cr-Commit-Position: refs/branch-heads/7499@{#3}
-Cr-Branched-From: 1dfd30cf31a029cd127674a11e65c54c07afaf5d-refs/heads/main@{#46046}
+Commit-Queue: Jeremy Leconte <jleconte@google.com>
+Bot-Commit: Rubber Stamper <rubber-stamper@appspot.gserviceaccount.com>
+Cr-Commit-Position: refs/heads/main@{#46035}
 ---
- pc/rtp_transceiver.cc          | 6 +++---
- pc/rtp_transmission_manager.cc | 3 +--
- 2 files changed, 4 insertions(+), 5 deletions(-)
+ media/engine/webrtc_video_engine.cc          |  5 --
+ media/engine/webrtc_video_engine_unittest.cc | 71 --------------------
+ 2 files changed, 76 deletions(-)
 
-diff --git a/pc/rtp_transceiver.cc b/pc/rtp_transceiver.cc
-index b0383671cd..72e6ee21df 100644
---- a/pc/rtp_transceiver.cc
-+++ b/pc/rtp_transceiver.cc
-@@ -869,19 +869,19 @@ void RtpTransceiver::OnNegotiationUpdate(
-   RTC_DCHECK(content);
-   if (sdp_type == SdpType::kAnswer || sdp_type == SdpType::kPrAnswer) {
-     negotiated_header_extensions_ = content->rtp_header_extensions();
--    if (!env_.field_trials().IsDisabled(
-+    if (env_.field_trials().IsEnabled(
-             "WebRTC-HeaderExtensionNegotiateMemory")) {
-       header_extensions_to_negotiate_ = GetNegotiatedHeaderExtensions();
+diff --git a/media/engine/webrtc_video_engine.cc b/media/engine/webrtc_video_engine.cc
+index 61c61fbf7e..fec832e906 100644
+--- a/media/engine/webrtc_video_engine.cc
++++ b/media/engine/webrtc_video_engine.cc
+@@ -2347,11 +2347,6 @@ WebRtcVideoSendChannel::WebRtcVideoSendStream::CreateVideoEncoderConfig(
+       encoder_config.simulcast_layers[i].num_temporal_layers =
+           *rtp_parameters_.encodings[i].num_temporal_layers;
      }
-   } else if (sdp_type == SdpType::kOffer) {
--    if (!env_.field_trials().IsDisabled(
-+    if (env_.field_trials().IsEnabled(
-             "WebRTC-HeaderExtensionNegotiateMemory")) {
-       header_extensions_for_rollback_ = header_extensions_to_negotiate_;
-       header_extensions_to_negotiate_ =
-           GetOfferedAndImplementedHeaderExtensions(content);
-     }
-   } else if (sdp_type == SdpType::kRollback) {
--    if (!env_.field_trials().IsDisabled(
-+    if (env_.field_trials().IsEnabled(
-             "WebRTC-HeaderExtensionNegotiateMemory")) {
-       RTC_CHECK(!header_extensions_for_rollback_.empty());
-       header_extensions_to_negotiate_ = header_extensions_for_rollback_;
-diff --git a/pc/rtp_transmission_manager.cc b/pc/rtp_transmission_manager.cc
-index 3ca54aa166..31f9a76054 100644
---- a/pc/rtp_transmission_manager.cc
-+++ b/pc/rtp_transmission_manager.cc
-@@ -323,8 +323,7 @@ RtpTransmissionManager::CreateAndAddTransceiver(
-   // could be invalid, but should not cause a crash).
-   RTC_DCHECK(!FindSenderById(sender->id()));
-   std::vector<RtpHeaderExtensionCapability> header_extensions;
--  if (!env_.field_trials().IsDisabled(
--          "WebRTC-HeaderExtensionNegotiateMemory")) {
-+  if (env_.field_trials().IsEnabled("WebRTC-HeaderExtensionNegotiateMemory")) {
-     // If we have already negotiated header extensions for this type,
-     // reuse the negotiated state for new transceivers of the same type.
-     for (const auto& transceiver : transceivers()->List()) {
+-    if (rtp_parameters_.encodings[i].codec) {
+-      encoder_config.simulcast_layers[i].video_format =
+-          SdpVideoFormat(rtp_parameters_.encodings[i].codec->name,
+-                         rtp_parameters_.encodings[i].codec->parameters);
+-    }
+     encoder_config.simulcast_layers[i].scale_resolution_down_to =
+         rtp_parameters_.encodings[i].scale_resolution_down_to;
+   }
+diff --git a/media/engine/webrtc_video_engine_unittest.cc b/media/engine/webrtc_video_engine_unittest.cc
+index c29a5f8993..653649b61f 100644
+--- a/media/engine/webrtc_video_engine_unittest.cc
++++ b/media/engine/webrtc_video_engine_unittest.cc
+@@ -9101,77 +9101,6 @@ TEST_F(WebRtcVideoChannelWithMixedCodecSimulcastTest,
+   EXPECT_EQ(config.rtp.stream_configs[2].payload_type, vp9.id);
+ }
+ 
+-// Verify that RtpEncodingParameters::codec propagates to
+-// VideoEncoderConfig::video_format.
+-TEST_F(WebRtcVideoChannelWithMixedCodecSimulcastTest,
+-       CodecSettingsPropagatedToEncoder) {
+-  FakeVideoSendStream* stream = SetUpSimulcast(true, /*with_rtx=*/false);
+-
+-  // Send a full size frame so all simulcast layers are used when reconfiguring.
+-  FrameForwarder frame_forwarder;
+-  VideoOptions options;
+-  EXPECT_TRUE(
+-      send_channel_->SetVideoSend(last_ssrc_, &options, &frame_forwarder));
+-  send_channel_->SetSend(true);
+-  frame_forwarder.IncomingCapturedFrame(frame_source_.GetFrame());
+-
+-  // Get and set the rtp encoding parameters.
+-  RtpParameters parameters = send_channel_->GetRtpSendParameters(last_ssrc_);
+-  EXPECT_EQ(kNumSimulcastStreams, parameters.encodings.size());
+-
+-  // Verify that the initial value is nullopt.
+-  VideoEncoderConfig encoder_config = stream->GetEncoderConfig().Copy();
+-  EXPECT_EQ(kNumSimulcastStreams, encoder_config.number_of_streams);
+-  EXPECT_EQ(kNumSimulcastStreams, encoder_config.simulcast_layers.size());
+-  EXPECT_FALSE(encoder_config.simulcast_layers[0].video_format);
+-  EXPECT_FALSE(encoder_config.simulcast_layers[1].video_format);
+-  EXPECT_FALSE(encoder_config.simulcast_layers[2].video_format);
+-
+-  // Set single-codec simulcast
+-  parameters.encodings[0].codec.emplace(
+-      GetEngineCodec("VP8").ToCodecParameters());
+-  parameters.encodings[1].codec.emplace(
+-      GetEngineCodec("VP8").ToCodecParameters());
+-  parameters.encodings[2].codec.emplace(
+-      GetEngineCodec("VP8").ToCodecParameters());
+-  EXPECT_TRUE(send_channel_->SetRtpSendParameters(last_ssrc_, parameters).ok());
+-
+-  // Verify that the new value propagated down to the encoder.
+-  stream = fake_call_->GetVideoSendStreams()[0];
+-  encoder_config = stream->GetEncoderConfig().Copy();
+-  EXPECT_EQ(kNumSimulcastStreams, encoder_config.number_of_streams);
+-  EXPECT_EQ(kNumSimulcastStreams, encoder_config.simulcast_layers.size());
+-  EXPECT_TRUE(encoder_config.simulcast_layers[0].video_format);
+-  EXPECT_TRUE(encoder_config.simulcast_layers[1].video_format);
+-  EXPECT_TRUE(encoder_config.simulcast_layers[2].video_format);
+-  EXPECT_EQ("VP8", encoder_config.simulcast_layers[0].video_format->name);
+-  EXPECT_EQ("VP8", encoder_config.simulcast_layers[1].video_format->name);
+-  EXPECT_EQ("VP8", encoder_config.simulcast_layers[2].video_format->name);
+-
+-  // Set mixed-codec simulcast
+-  parameters.encodings[0].codec.emplace(
+-      GetEngineCodec("VP8").ToCodecParameters());
+-  parameters.encodings[1].codec.emplace(
+-      GetEngineCodec("VP8").ToCodecParameters());
+-  parameters.encodings[2].codec.emplace(
+-      GetEngineCodec("VP9").ToCodecParameters());
+-  EXPECT_TRUE(send_channel_->SetRtpSendParameters(last_ssrc_, parameters).ok());
+-
+-  // Verify that the new value propagated down to the encoder.
+-  stream = fake_call_->GetVideoSendStreams()[0];
+-  encoder_config = stream->GetEncoderConfig().Copy();
+-  EXPECT_EQ(kNumSimulcastStreams, encoder_config.number_of_streams);
+-  EXPECT_EQ(kNumSimulcastStreams, encoder_config.simulcast_layers.size());
+-  EXPECT_TRUE(encoder_config.simulcast_layers[0].video_format);
+-  EXPECT_TRUE(encoder_config.simulcast_layers[1].video_format);
+-  EXPECT_TRUE(encoder_config.simulcast_layers[2].video_format);
+-  EXPECT_EQ("VP8", encoder_config.simulcast_layers[0].video_format->name);
+-  EXPECT_EQ("VP8", encoder_config.simulcast_layers[1].video_format->name);
+-  EXPECT_EQ("VP9", encoder_config.simulcast_layers[2].video_format->name);
+-
+-  EXPECT_TRUE(send_channel_->SetVideoSend(last_ssrc_, nullptr, nullptr));
+-}
+-
+ #if RTC_DCHECK_IS_ON && GTEST_HAS_DEATH_TEST && !defined(WEBRTC_ANDROID)
+ TEST_F(WebRtcVideoChannelWithMixedCodecSimulcastTest,
+        SetMixedCodecSimulcastWithDifferentConfigSettingsSizes) {
