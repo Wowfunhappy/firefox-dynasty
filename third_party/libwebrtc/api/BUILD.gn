@@ -377,13 +377,12 @@ if (!build_with_mozilla) {
 
     # Remove when downstream has been updated
     "dtmf_sender_interface.h",
-    "jsep.h",
+    "jsep.h",  # allow to be included from peer_connection_interface.h
     "rtp_sender_interface.h",
   ]
   public_deps += [  # no-presubmit-check TODO(webrtc:8603)
     # Remove when downstream has been updated
     ":dtmf_sender_interface",
-    ":jsep",
     ":rtp_sender_interface",
   ]
   deps = [
@@ -1072,7 +1071,6 @@ if (!build_with_mozilla) {
   ]
   deps = [
     ":ice_transport_interface",
-    ":libjingle_peerconnection_api",
     ":make_ref_counted",
     ":packet_socket_factory",
     ":scoped_refptr",
@@ -1330,7 +1328,6 @@ if (rtc_include_tests) {
       ":rtp_parameters",
 
       # For api/crypto/frame_encryptor_interface.h
-      ":libjingle_peerconnection_api",
       "../test:test_support",
       "crypto:frame_encryptor_interface",
     ]
@@ -1342,7 +1339,6 @@ if (rtc_include_tests) {
     sources = [ "test/mock_frame_decryptor.h" ]
     deps = [
       ":array_view",
-      ":libjingle_peerconnection_api",
       ":rtp_parameters",
       "../test:test_support",
       "crypto:frame_decryptor_interface",
@@ -1365,7 +1361,6 @@ if (rtc_include_tests) {
     testonly = true
     sources = [ "test/mock_encoder_selector.h" ]
     deps = [
-      ":libjingle_peerconnection_api",
       "../api/video_codecs:video_codecs_api",
       "../test:test_support",
       "units:data_rate",
@@ -1382,7 +1377,6 @@ if (rtc_include_tests) {
     ]
     deps = [
       ":array_view",
-      ":libjingle_peerconnection_api",
       ":make_ref_counted",
       ":ref_count",
       ":rtp_parameters",
@@ -1401,7 +1395,6 @@ if (rtc_include_tests) {
     ]
     deps = [
       ":array_view",
-      ":libjingle_peerconnection_api",
       ":make_ref_counted",
       ":rtp_parameters",
       "../rtc_base:checks",
@@ -1447,6 +1440,7 @@ if (rtc_include_tests) {
       ":candidate",
       ":data_channel_event_observer_interface",
       ":dtls_transport_interface",
+      ":jsep",
       ":libjingle_logging_api",
       ":libjingle_peerconnection_api",
       ":make_ref_counted",
@@ -1720,6 +1714,7 @@ if (rtc_include_tests) {
       ":field_trials",
       ":field_trials_view",
       ":function_view",
+      ":jsep",
       ":libjingle_peerconnection_api",
       ":rtc_error",
       ":rtc_event_log_output_file",

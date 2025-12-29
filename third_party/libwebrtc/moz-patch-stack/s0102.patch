@@ -126,7 +126,7 @@ index 862f22e41d..12d21030c5 100644
              "Generated during 'gn gen' by //BUILD.gn.",
              "",
 diff --git a/api/BUILD.gn b/api/BUILD.gn
-index 418ce3dba6..7ba10d6ee1 100644
+index 0e520679b7..3bf468001e 100644
 --- a/api/BUILD.gn
 +++ b/api/BUILD.gn
 @@ -8,8 +8,8 @@
@@ -326,7 +326,7 @@ index 589142b014..2ee80ded55 100644
      }
    }
 diff --git a/examples/BUILD.gn b/examples/BUILD.gn
-index 2fa1b295ed..dc476c9c68 100644
+index 1878046cc2..79ce9f1e54 100644
 --- a/examples/BUILD.gn
 +++ b/examples/BUILD.gn
 @@ -9,15 +9,15 @@
@@ -359,7 +359,7 @@ index 2fa1b295ed..dc476c9c68 100644
            "//third_party/ocmock",
          ]
        }
-@@ -735,7 +735,7 @@ if (is_linux || is_chromeos || is_win) {
+@@ -736,7 +736,7 @@ if (is_linux || is_chromeos || is_win) {
          "peerconnection/client/main_wnd.cc",
          "peerconnection/client/main_wnd.h",
        ]
@@ -382,7 +382,7 @@ index b671239bae..e545b2cde3 100644
    android_java_prebuilt("autobanh_java") {
      jar_path = "lib/autobanh.jar"
 diff --git a/examples/androidnativeapi/BUILD.gn b/examples/androidnativeapi/BUILD.gn
-index 26d136a1d8..1b3d2f3884 100644
+index 8620a0073b..65a793b8b9 100644
 --- a/examples/androidnativeapi/BUILD.gn
 +++ b/examples/androidnativeapi/BUILD.gn
 @@ -41,8 +41,8 @@ if (is_android) {
@@ -601,7 +601,7 @@ index 934c044827..f274e79e74 100644
  import("../../webrtc.gni")
  
 diff --git a/pc/BUILD.gn b/pc/BUILD.gn
-index 721709e2ad..41eee41ac7 100644
+index 22c08f5820..b2311210d8 100644
 --- a/pc/BUILD.gn
 +++ b/pc/BUILD.gn
 @@ -30,8 +30,8 @@
@@ -702,7 +702,7 @@ index fd98be799b..fe30e9ece9 100644
      output_extension = "so"
    }
 diff --git a/sdk/BUILD.gn b/sdk/BUILD.gn
-index 90389a59fc..b430795605 100644
+index 51f5b42b58..66de35d581 100644
 --- a/sdk/BUILD.gn
 +++ b/sdk/BUILD.gn
 @@ -9,12 +9,12 @@
@@ -731,7 +731,7 @@ index 90389a59fc..b430795605 100644
      }
    }
  
-@@ -1281,7 +1281,7 @@ if (is_ios || is_mac) {
+@@ -1283,7 +1283,7 @@ if (is_ios || is_mac) {
            }
  
            public_deps = [
@@ -756,7 +756,7 @@ index 2823625062..fdd5474c33 100644
  import("../webrtc.gni")
  
 diff --git a/test/BUILD.gn b/test/BUILD.gn
-index b24e6d2957..329313d232 100644
+index 43a6efe9ad..627c0fded5 100644
 --- a/test/BUILD.gn
 +++ b/test/BUILD.gn
 @@ -6,10 +6,10 @@
@@ -772,7 +772,7 @@ index b24e6d2957..329313d232 100644
    import("//third_party/jni_zero/jni_zero.gni")
  }
  
-@@ -436,7 +436,7 @@ if (is_ios && !build_with_chromium) {
+@@ -435,7 +435,7 @@ if (is_ios && !build_with_chromium) {
      testonly = true
      visibility = [ "*" ]
      sources = [ "ios/google_test_runner.mm" ]
@@ -782,7 +782,7 @@ index b24e6d2957..329313d232 100644
      deps = [ ":google_test_runner_delegate" ]
    }
 diff --git a/test/fuzzers/BUILD.gn b/test/fuzzers/BUILD.gn
-index 5611c78d40..7591f0189c 100644
+index 6d9ebd1b94..66943b6c29 100644
 --- a/test/fuzzers/BUILD.gn
 +++ b/test/fuzzers/BUILD.gn
 @@ -6,7 +6,7 @@
