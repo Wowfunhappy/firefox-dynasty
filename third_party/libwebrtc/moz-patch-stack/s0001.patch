@@ -413,7 +413,7 @@ index 2476077a09..119c8d16c3 100644
  
  bool RtpExtension::IsSupportedForVideo(absl::string_view uri) {
 diff --git a/call/BUILD.gn b/call/BUILD.gn
-index ab59e5b12b..517e481e6e 100644
+index 1d4d1bb70c..ca2d76454e 100644
 --- a/call/BUILD.gn
 +++ b/call/BUILD.gn
 @@ -20,6 +20,7 @@ rtc_library("call_interfaces") {
