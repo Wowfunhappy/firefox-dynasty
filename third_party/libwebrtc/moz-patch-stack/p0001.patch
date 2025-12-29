@@ -1,140 +1,83 @@
 From: Michael Froman <mfroman@mozilla.com>
-Date: Mon, 29 Dec 2025 16:48:33 -0600
-Subject: (tmp-cherry-pick) Revert "Make signals in PortAllocatorSession
- private" (705e647f87)
+Date: Mon, 29 Dec 2025 16:31:20 -0600
+Subject: (tmp-cherry-pick) Revert "Default enable
+ WebRTC-HeaderExtensionNegotiateMemory" (4e31d1a1ff)
 
-This reverts commit b5f0781b9e69da23d8ede8b4b51a056fc56b41d6.
+This reverts commit 4ecf297a4c0af68ff8af8c3a8e6b0832bddd14d5.
 
-Reason for revert: Missed updating a signal in Chromium.
+Reason for revert: Impacted unexpected application usages
 
 Original change's description:
-> Make signals in PortAllocatorSession private
+> Default enable WebRTC-HeaderExtensionNegotiateMemory
 >
-> This is a preliminary step to deleting them -it flushes out
-> downstream usages.
+> Spec change: https://github.com/w3c/webrtc-extensions/pull/238
 >
-> Bug: webrtc:42222066
-> Change-Id: I15e8b46d8d6324f98845f92dee52f7cfd72ef14b
-> Reviewed-on: https://webrtc-review.googlesource.com/c/src/+/418861
-> Reviewed-by: Tomas Gunnarsson <tommi@webrtc.org>
+> Chromestatus entry for change: https://chromestatus.com/feature/5135528638939136
+>
+> Bug: webrtc:439514253
+> Change-Id: I296f2f06dd69b4e30be419b44c926acfd2722e2d
+> Reviewed-on: https://webrtc-review.googlesource.com/c/src/+/407821
 > Commit-Queue: Harald Alvestrand <hta@webrtc.org>
-> Cr-Commit-Position: refs/heads/main@{#45999}
+> Reviewed-by: Guido Urdaneta <guidou@webrtc.org>
+> Cr-Commit-Position: refs/heads/main@{#45993}
 
-Bug: webrtc:42222066
-No-Presubmit: true
-No-Tree-Checks: true
-No-Try: true
-Change-Id: I40f4f05b9efac2ca2a0761c5b5e1fe8cd4021204
-Reviewed-on: https://webrtc-review.googlesource.com/c/src/+/419260
-Bot-Commit: Rubber Stamper <rubber-stamper@appspot.gserviceaccount.com>
+(cherry picked from commit 74d988fd57f8f1b6722d8ac6f49c686b9f2bc196)
+
+Bug: webrtc:439514253, chromium:467164231
+Change-Id: I95dbc8cbaf1b769ffaea291801684bc26e4b9ccb
+Reviewed-on: https://webrtc-review.googlesource.com/c/src/+/433102
+Reviewed-by: Guido Urdaneta <guidou@webrtc.org>
 Commit-Queue: Harald Alvestrand <hta@webrtc.org>
-Cr-Commit-Position: refs/heads/main@{#46003}
+Cr-Original-Commit-Position: refs/heads/main@{#46456}
+No-Try: True
+Reviewed-on: https://webrtc-review.googlesource.com/c/src/+/433485
+Commit-Queue: Guido Urdaneta <guidou@webrtc.org>
+Reviewed-by: Harald Alvestrand <hta@webrtc.org>
+Cr-Commit-Position: refs/branch-heads/7499@{#3}
+Cr-Branched-From: 1dfd30cf31a029cd127674a11e65c54c07afaf5d-refs/heads/main@{#46046}
 ---
- p2p/base/port_allocator.h | 27 ++++++++++++---------------
- 1 file changed, 12 insertions(+), 15 deletions(-)
+ pc/rtp_transceiver.cc          | 6 +++---
+ pc/rtp_transmission_manager.cc | 3 +--
+ 2 files changed, 4 insertions(+), 5 deletions(-)
 
-diff --git a/p2p/base/port_allocator.h b/p2p/base/port_allocator.h
-index 9f31267309..658e174ea9 100644
---- a/p2p/base/port_allocator.h
-+++ b/p2p/base/port_allocator.h
-@@ -266,6 +266,7 @@ class RTC_EXPORT PortAllocatorSession : public sigslot::has_slots<> {
-   // destroyed if no connection is using them.
-   virtual void PruneAllPorts() {}
- 
-+  sigslot::signal2<PortAllocatorSession*, PortInterface*> SignalPortReady;
-   void SubscribePortReady(absl::AnyInvocable<void(PortAllocatorSession*,
-                                                   PortInterface*)> callback) {
-     port_ready_trampoline_.Subscribe(std::move(callback));
-@@ -278,6 +279,8 @@ class RTC_EXPORT PortAllocatorSession : public sigslot::has_slots<> {
-   // interface is down, or because there is no connection on the interface),
-   // or when TURN ports are pruned because a higher-priority TURN port becomes
-   // ready(pairable).
-+  sigslot::signal2<PortAllocatorSession*, const std::vector<PortInterface*>&>
-+      SignalPortsPruned;
-   void SubscribePortsPruned(
-       absl::AnyInvocable<void(PortAllocatorSession*,
-                               const std::vector<PortInterface*>&)> callback) {
-@@ -288,6 +291,8 @@ class RTC_EXPORT PortAllocatorSession : public sigslot::has_slots<> {
-     SignalPortsPruned(session, ports);
-   }
- 
-+  sigslot::signal2<PortAllocatorSession*, const std::vector<Candidate>&>
-+      SignalCandidatesReady;
-   void SubscribeCandidatesReady(
-       absl::AnyInvocable<void(PortAllocatorSession*,
-                               const std::vector<Candidate>&)> callback) {
-@@ -298,6 +303,8 @@ class RTC_EXPORT PortAllocatorSession : public sigslot::has_slots<> {
-     SignalCandidatesReady(session, candidates);
-   }
- 
-+  sigslot::signal2<PortAllocatorSession*, const IceCandidateErrorEvent&>
-+      SignalCandidateError;
-   void SubscribeCandidateError(
-       absl::AnyInvocable<void(PortAllocatorSession*,
-                               const IceCandidateErrorEvent&)> callback) {
-@@ -309,6 +316,8 @@ class RTC_EXPORT PortAllocatorSession : public sigslot::has_slots<> {
-   }
-   // Candidates should be signaled to be removed when the port that generated
-   // the candidates is removed.
-+  sigslot::signal2<PortAllocatorSession*, const std::vector<Candidate>&>
-+      SignalCandidatesRemoved;
-   void SubscribeCandidatesRemoved(
-       absl::AnyInvocable<void(PortAllocatorSession*,
-                               const std::vector<Candidate>&)> callback) {
-@@ -318,6 +327,7 @@ class RTC_EXPORT PortAllocatorSession : public sigslot::has_slots<> {
-                                const std::vector<Candidate>& candidates) {
-     SignalCandidatesRemoved(session, candidates);
-   }
-+  sigslot::signal1<PortAllocatorSession*> SignalCandidatesAllocationDone;
-   void SubscribeCandidatesAllocationDone(
-       absl::AnyInvocable<void(PortAllocatorSession*)> callback) {
-     candidates_allocation_done_trampoline_.Subscribe(std::move(callback));
-@@ -326,6 +336,8 @@ class RTC_EXPORT PortAllocatorSession : public sigslot::has_slots<> {
-     SignalCandidatesAllocationDone(session);
-   }
- 
-+  sigslot::signal2<PortAllocatorSession*, IceRegatheringReason>
-+      SignalIceRegathering;
-   void SubscribeIceRegathering(
-       absl::AnyInvocable<void(PortAllocatorSession*, IceRegatheringReason)>
-           callback) {
-@@ -387,39 +399,24 @@ class RTC_EXPORT PortAllocatorSession : public sigslot::has_slots<> {
-   // SetIceParameters is an implementation detail which only PortAllocator
-   // should be able to call.
-   friend class PortAllocator;
--
--  // Signals and trampolines.
--  // TODO: issues.webrtc.org/42222066 - Change to just CallbackList
--  sigslot::signal2<PortAllocatorSession*, PortInterface*> SignalPortReady;
-   SignalTrampoline<PortAllocatorSession, &PortAllocatorSession::SignalPortReady>
-       port_ready_trampoline_;
--  sigslot::signal2<PortAllocatorSession*, const std::vector<PortInterface*>&>
--      SignalPortsPruned;
-   SignalTrampoline<PortAllocatorSession,
-                    &PortAllocatorSession::SignalPortsPruned>
-       ports_pruned_trampoline_;
--  sigslot::signal2<PortAllocatorSession*, const std::vector<Candidate>&>
--      SignalCandidatesReady;
-   SignalTrampoline<PortAllocatorSession,
-                    &PortAllocatorSession::SignalCandidatesReady>
-       candidates_ready_trampoline_;
--  sigslot::signal2<PortAllocatorSession*, const IceCandidateErrorEvent&>
--      SignalCandidateError;
-   SignalTrampoline<PortAllocatorSession,
-                    &PortAllocatorSession::SignalCandidateError>
-       candidate_error_trampoline_;
--  sigslot::signal2<PortAllocatorSession*, const std::vector<Candidate>&>
--      SignalCandidatesRemoved;
-   SignalTrampoline<PortAllocatorSession,
-                    &PortAllocatorSession::SignalCandidatesRemoved>
-       candidates_removed_trampoline_;
--  sigslot::signal1<PortAllocatorSession*> SignalCandidatesAllocationDone;
-   SignalTrampoline<PortAllocatorSession,
-                    &PortAllocatorSession::SignalCandidatesAllocationDone>
-       candidates_allocation_done_trampoline_;
- 
--  sigslot::signal2<PortAllocatorSession*, IceRegatheringReason>
--      SignalIceRegathering;
-   SignalTrampoline<PortAllocatorSession,
-                    &PortAllocatorSession::SignalIceRegathering>
-       ice_regathering_trampoline_;
+diff --git a/pc/rtp_transceiver.cc b/pc/rtp_transceiver.cc
+index b0383671cd..72e6ee21df 100644
+--- a/pc/rtp_transceiver.cc
++++ b/pc/rtp_transceiver.cc
+@@ -869,19 +869,19 @@ void RtpTransceiver::OnNegotiationUpdate(
+   RTC_DCHECK(content);
+   if (sdp_type == SdpType::kAnswer || sdp_type == SdpType::kPrAnswer) {
+     negotiated_header_extensions_ = content->rtp_header_extensions();
+-    if (!env_.field_trials().IsDisabled(
++    if (env_.field_trials().IsEnabled(
+             "WebRTC-HeaderExtensionNegotiateMemory")) {
+       header_extensions_to_negotiate_ = GetNegotiatedHeaderExtensions();
+     }
+   } else if (sdp_type == SdpType::kOffer) {
+-    if (!env_.field_trials().IsDisabled(
++    if (env_.field_trials().IsEnabled(
+             "WebRTC-HeaderExtensionNegotiateMemory")) {
+       header_extensions_for_rollback_ = header_extensions_to_negotiate_;
+       header_extensions_to_negotiate_ =
+           GetOfferedAndImplementedHeaderExtensions(content);
+     }
+   } else if (sdp_type == SdpType::kRollback) {
+-    if (!env_.field_trials().IsDisabled(
++    if (env_.field_trials().IsEnabled(
+             "WebRTC-HeaderExtensionNegotiateMemory")) {
+       RTC_CHECK(!header_extensions_for_rollback_.empty());
+       header_extensions_to_negotiate_ = header_extensions_for_rollback_;
+diff --git a/pc/rtp_transmission_manager.cc b/pc/rtp_transmission_manager.cc
+index 3ca54aa166..31f9a76054 100644
+--- a/pc/rtp_transmission_manager.cc
++++ b/pc/rtp_transmission_manager.cc
+@@ -323,8 +323,7 @@ RtpTransmissionManager::CreateAndAddTransceiver(
+   // could be invalid, but should not cause a crash).
+   RTC_DCHECK(!FindSenderById(sender->id()));
+   std::vector<RtpHeaderExtensionCapability> header_extensions;
+-  if (!env_.field_trials().IsDisabled(
+-          "WebRTC-HeaderExtensionNegotiateMemory")) {
++  if (env_.field_trials().IsEnabled("WebRTC-HeaderExtensionNegotiateMemory")) {
+     // If we have already negotiated header extensions for this type,
+     // reuse the negotiated state for new transceivers of the same type.
+     for (const auto& transceiver : transceivers()->List()) {
