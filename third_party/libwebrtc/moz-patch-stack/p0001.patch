@@ -1,0 +1,83 @@
+From: Michael Froman <mfroman@mozilla.com>
+Date: Mon, 29 Dec 2025 16:31:20 -0600
+Subject: (tmp-cherry-pick) Revert "Default enable
+ WebRTC-HeaderExtensionNegotiateMemory" (4e31d1a1ff)
+
+This reverts commit 4ecf297a4c0af68ff8af8c3a8e6b0832bddd14d5.
+
+Reason for revert: Impacted unexpected application usages
+
+Original change's description:
+> Default enable WebRTC-HeaderExtensionNegotiateMemory
+>
+> Spec change: https://github.com/w3c/webrtc-extensions/pull/238
+>
+> Chromestatus entry for change: https://chromestatus.com/feature/5135528638939136
+>
+> Bug: webrtc:439514253
+> Change-Id: I296f2f06dd69b4e30be419b44c926acfd2722e2d
+> Reviewed-on: https://webrtc-review.googlesource.com/c/src/+/407821
+> Commit-Queue: Harald Alvestrand <hta@webrtc.org>
+> Reviewed-by: Guido Urdaneta <guidou@webrtc.org>
+> Cr-Commit-Position: refs/heads/main@{#45993}
+
+(cherry picked from commit 74d988fd57f8f1b6722d8ac6f49c686b9f2bc196)
+
+Bug: webrtc:439514253, chromium:467164231
+Change-Id: I95dbc8cbaf1b769ffaea291801684bc26e4b9ccb
+Reviewed-on: https://webrtc-review.googlesource.com/c/src/+/433102
+Reviewed-by: Guido Urdaneta <guidou@webrtc.org>
+Commit-Queue: Harald Alvestrand <hta@webrtc.org>
+Cr-Original-Commit-Position: refs/heads/main@{#46456}
+No-Try: True
+Reviewed-on: https://webrtc-review.googlesource.com/c/src/+/433485
+Commit-Queue: Guido Urdaneta <guidou@webrtc.org>
+Reviewed-by: Harald Alvestrand <hta@webrtc.org>
+Cr-Commit-Position: refs/branch-heads/7499@{#3}
+Cr-Branched-From: 1dfd30cf31a029cd127674a11e65c54c07afaf5d-refs/heads/main@{#46046}
+---
+ pc/rtp_transceiver.cc          | 6 +++---
+ pc/rtp_transmission_manager.cc | 3 +--
+ 2 files changed, 4 insertions(+), 5 deletions(-)
+
+diff --git a/pc/rtp_transceiver.cc b/pc/rtp_transceiver.cc
+index b0383671cd..72e6ee21df 100644
+--- a/pc/rtp_transceiver.cc
++++ b/pc/rtp_transceiver.cc
+@@ -869,19 +869,19 @@ void RtpTransceiver::OnNegotiationUpdate(
+   RTC_DCHECK(content);
+   if (sdp_type == SdpType::kAnswer || sdp_type == SdpType::kPrAnswer) {
+     negotiated_header_extensions_ = content->rtp_header_extensions();
+-    if (!env_.field_trials().IsDisabled(
++    if (env_.field_trials().IsEnabled(
+             "WebRTC-HeaderExtensionNegotiateMemory")) {
+       header_extensions_to_negotiate_ = GetNegotiatedHeaderExtensions();
+     }
+   } else if (sdp_type == SdpType::kOffer) {
+-    if (!env_.field_trials().IsDisabled(
++    if (env_.field_trials().IsEnabled(
+             "WebRTC-HeaderExtensionNegotiateMemory")) {
+       header_extensions_for_rollback_ = header_extensions_to_negotiate_;
+       header_extensions_to_negotiate_ =
+           GetOfferedAndImplementedHeaderExtensions(content);
+     }
+   } else if (sdp_type == SdpType::kRollback) {
+-    if (!env_.field_trials().IsDisabled(
++    if (env_.field_trials().IsEnabled(
+             "WebRTC-HeaderExtensionNegotiateMemory")) {
+       RTC_CHECK(!header_extensions_for_rollback_.empty());
+       header_extensions_to_negotiate_ = header_extensions_for_rollback_;
+diff --git a/pc/rtp_transmission_manager.cc b/pc/rtp_transmission_manager.cc
+index 3ca54aa166..31f9a76054 100644
+--- a/pc/rtp_transmission_manager.cc
++++ b/pc/rtp_transmission_manager.cc
+@@ -323,8 +323,7 @@ RtpTransmissionManager::CreateAndAddTransceiver(
+   // could be invalid, but should not cause a crash).
+   RTC_DCHECK(!FindSenderById(sender->id()));
+   std::vector<RtpHeaderExtensionCapability> header_extensions;
+-  if (!env_.field_trials().IsDisabled(
+-          "WebRTC-HeaderExtensionNegotiateMemory")) {
++  if (env_.field_trials().IsEnabled("WebRTC-HeaderExtensionNegotiateMemory")) {
+     // If we have already negotiated header extensions for this type,
+     // reuse the negotiated state for new transceivers of the same type.
+     for (const auto& transceiver : transceivers()->List()) {
