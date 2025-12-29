@@ -30,13 +30,13 @@ index fdfcc347db..862f22e41d 100644
  if (rtc_use_perfetto) {
    rtc_library("webrtc_libperfetto") {
 diff --git a/modules/video_coding/generic_decoder.cc b/modules/video_coding/generic_decoder.cc
-index 2cb8db695f..2db0a4d381 100644
+index 613e77397e..109faa945e 100644
 --- a/modules/video_coding/generic_decoder.cc
 +++ b/modules/video_coding/generic_decoder.cc
 @@ -120,9 +120,9 @@ void VCMDecodedFrameCallback::Decoded(VideoFrame& decodedImage,
                                        std::optional<int32_t> decode_time_ms,
                                        std::optional<uint8_t> qp) {
-   RTC_DCHECK(_receiveCallback) << "Callback must not be null at this point";
+   RTC_DCHECK(receive_callback_) << "Callback must not be null at this point";
 -  TRACE_EVENT(
 -      "webrtc", "VCMDecodedFrameCallback::Decoded",
 -      perfetto::TerminatingFlow::ProcessScoped(decodedImage.rtp_timestamp()));
