@@ -1,0 +1,428 @@
+From: Michael Froman <mfroman@mozilla.com>
+Date: Mon, 29 Dec 2025 11:56:29 -0600
+Subject: (tmp-cherry-pick) Revert "Rename DISABLED to
+ MAINTAIN_FRAMERATE_AND_RESOLUTION" (4a106aecad)
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+This reverts commit 68d333d007ad1042dfe9c7a8859fcc91730ae638.
+
+Reason for revert: Breaks downstream projects
+
+Original change's description:
+> Rename DISABLED to MAINTAIN_FRAMERATE_AND_RESOLUTION
+>
+> The existing functionality of the DISABLED mode is identical to what's
+> required for MAINTAIN_FRAMERATE_AND_RESOLUTION. Since DISABLED isn't
+> exposed to JavaScript, renaming it to MAINTAIN_FRAMERATE_AND_RESOLUTION
+> seems correct and safe.
+>
+> Bug: webrtc:450044904
+> Change-Id: I087ebf22199ffe46ea2005ea6b5618ff7ddb7089
+> Reviewed-on: https://webrtc-review.googlesource.com/c/src/+/415200
+> Commit-Queue: Sergey Silkin <ssilkin@webrtc.org>
+> Reviewed-by: Harald Alvestrand <hta@webrtc.org>
+> Reviewed-by: Henrik Boström <hbos@webrtc.org>
+> Cr-Commit-Position: refs/heads/main@{#45890}
+
+Bug: webrtc:450044904
+No-Presubmit: true
+No-Tree-Checks: true
+No-Try: true
+Change-Id: I42dfd4e64ab8cbca710c402b412d878f63e1e404
+Reviewed-on: https://webrtc-review.googlesource.com/c/src/+/415800
+Bot-Commit: Rubber Stamper <rubber-stamper@appspot.gserviceaccount.com>
+Commit-Queue: Sergey Silkin <ssilkin@webrtc.org>
+Reviewed-by: Harald Alvestrand <hta@webrtc.org>
+Cr-Commit-Position: refs/heads/main@{#45891}
+---
+ api/rtp_parameters.cc                         |  4 ++--
+ api/rtp_parameters.h                          | 10 +++-------
+ .../resource_adaptation_processor_unittest.cc |  2 +-
+ call/adaptation/video_stream_adapter.cc       | 11 +++++-----
+ .../video_stream_adapter_unittest.cc          |  8 +++-----
+ media/engine/fake_webrtc_call.cc              |  3 ++-
+ media/engine/webrtc_video_engine.cc           |  5 ++---
+ sdk/android/api/org/webrtc/RtpParameters.java |  2 +-
+ .../src/org/webrtc/RtpSenderTest.java         |  5 ++---
+ sdk/android/src/jni/pc/rtp_parameters.cc      |  6 +++---
+ .../api/peerconnection/RTCRtpParameters.h     |  7 +------
+ .../api/peerconnection/RTCRtpParameters.mm    |  8 ++++----
+ .../video_stream_encoder_resource_manager.cc  |  3 +--
+ video/cpu_scaling_tests.cc                    |  3 +--
+ video/video_stream_encoder.cc                 |  6 ++----
+ video/video_stream_encoder_unittest.cc        | 20 ++++++++-----------
+ 16 files changed, 41 insertions(+), 62 deletions(-)
+
+diff --git a/api/rtp_parameters.cc b/api/rtp_parameters.cc
+index 8f6598f88b..7bd443f711 100644
+--- a/api/rtp_parameters.cc
++++ b/api/rtp_parameters.cc
+@@ -27,8 +27,8 @@ namespace webrtc {
+ const char* DegradationPreferenceToString(
+     DegradationPreference degradation_preference) {
+   switch (degradation_preference) {
+-    case DegradationPreference::MAINTAIN_FRAMERATE_AND_RESOLUTION:
+-      return "maintain-framerate-and-resolution";
++    case DegradationPreference::DISABLED:
++      return "disabled";
+     case DegradationPreference::MAINTAIN_FRAMERATE:
+       return "maintain-framerate";
+     case DegradationPreference::MAINTAIN_RESOLUTION:
+diff --git a/api/rtp_parameters.h b/api/rtp_parameters.h
+index a76d48166d..45e64eedc9 100644
+--- a/api/rtp_parameters.h
++++ b/api/rtp_parameters.h
+@@ -121,13 +121,9 @@ enum class DtxStatus {
+ // maintain-framerate option.
+ // TODO(deadbeef): Default to "balanced", as the spec indicates?
+ enum class DegradationPreference {
+-  // Maintain framerate and resolution regardless of video quality. Frames may
+-  // be dropped before encoding if necessary not to overuse network and encoder
+-  // resources.
+-  MAINTAIN_FRAMERATE_AND_RESOLUTION,
+-  // TODO(webrtc:450044904): Switch downstream projects to
+-  // MAINTAIN_FRAMERATE_AND_RESOLUTION and remove DISABLED.
+-  DISABLED = MAINTAIN_FRAMERATE_AND_RESOLUTION,
++  // Don't take any actions based on over-utilization signals. Not part of the
++  // web API.
++  DISABLED,
+   // On over-use, request lower resolution, possibly causing down-scaling.
+   MAINTAIN_FRAMERATE,
+   // On over-use, request lower frame rate, possibly causing frame drops.
+diff --git a/call/adaptation/resource_adaptation_processor_unittest.cc b/call/adaptation/resource_adaptation_processor_unittest.cc
+index 4f6396082b..9d5a68b714 100644
+--- a/call/adaptation/resource_adaptation_processor_unittest.cc
++++ b/call/adaptation/resource_adaptation_processor_unittest.cc
+@@ -667,7 +667,7 @@ TEST_F(ResourceAdaptationProcessorTest,
+   EXPECT_EQ(2, restrictions_listener_.adaptation_counters().Total());
+ 
+   video_stream_adapter_->SetDegradationPreference(
+-      DegradationPreference::MAINTAIN_FRAMERATE_AND_RESOLUTION);
++      DegradationPreference::DISABLED);
+ 
+   // Revert to `other_resource_` when removing `resource_` even though the
+   // current degradataion preference is disabled.
+diff --git a/call/adaptation/video_stream_adapter.cc b/call/adaptation/video_stream_adapter.cc
+index 595f167f3a..e296a36ab8 100644
+--- a/call/adaptation/video_stream_adapter.cc
++++ b/call/adaptation/video_stream_adapter.cc
+@@ -132,7 +132,7 @@ VideoSourceRestrictions FilterRestrictionsByDegradationPreference(
+       source_restrictions.set_max_pixels_per_frame(std::nullopt);
+       source_restrictions.set_target_pixels_per_frame(std::nullopt);
+       break;
+-    case DegradationPreference::MAINTAIN_FRAMERATE_AND_RESOLUTION:
++    case DegradationPreference::DISABLED:
+       source_restrictions.set_max_pixels_per_frame(std::nullopt);
+       source_restrictions.set_target_pixels_per_frame(std::nullopt);
+       source_restrictions.set_max_frame_rate(std::nullopt);
+@@ -218,8 +218,7 @@ VideoStreamAdapter::VideoStreamAdapter(
+       encoder_stats_observer_(encoder_stats_observer),
+       balanced_settings_(field_trials),
+       adaptation_validation_id_(0),
+-      degradation_preference_(
+-          DegradationPreference::MAINTAIN_FRAMERATE_AND_RESOLUTION),
++      degradation_preference_(DegradationPreference::DISABLED),
+       awaiting_frame_size_change_(std::nullopt) {
+   sequence_checker_.Detach();
+   RTC_DCHECK(input_state_provider_);
+@@ -397,7 +396,7 @@ VideoStreamAdapter::RestrictionsOrState VideoStreamAdapter::GetAdaptationUpStep(
+       // Scale up framerate.
+       return IncreaseFramerate(input_state, current_restrictions_);
+     }
+-    case DegradationPreference::MAINTAIN_FRAMERATE_AND_RESOLUTION:
++    case DegradationPreference::DISABLED:
+       return Adaptation::Status::kAdaptationDisabled;
+   }
+   RTC_CHECK_NOTREACHED();
+@@ -477,7 +476,7 @@ VideoStreamAdapter::GetAdaptationDownStep(
+     case DegradationPreference::MAINTAIN_RESOLUTION: {
+       return DecreaseFramerate(input_state, current_restrictions);
+     }
+-    case DegradationPreference::MAINTAIN_FRAMERATE_AND_RESOLUTION:
++    case DegradationPreference::DISABLED:
+       return Adaptation::Status::kAdaptationDisabled;
+   }
+   RTC_CHECK_NOTREACHED();
+@@ -620,7 +619,7 @@ Adaptation VideoStreamAdapter::GetAdaptDownResolution() {
+   RTC_DCHECK_RUN_ON(&sequence_checker_);
+   VideoStreamInputState input_state = input_state_provider_->InputState();
+   switch (degradation_preference_) {
+-    case DegradationPreference::MAINTAIN_FRAMERATE_AND_RESOLUTION:
++    case DegradationPreference::DISABLED:
+       return RestrictionsOrStateToAdaptation(
+           Adaptation::Status::kAdaptationDisabled, input_state);
+     case DegradationPreference::MAINTAIN_RESOLUTION:
+diff --git a/call/adaptation/video_stream_adapter_unittest.cc b/call/adaptation/video_stream_adapter_unittest.cc
+index a491644869..763ad2fc80 100644
+--- a/call/adaptation/video_stream_adapter_unittest.cc
++++ b/call/adaptation/video_stream_adapter_unittest.cc
+@@ -796,8 +796,7 @@ TEST_F(VideoStreamAdapterTest,
+ 
+ TEST_F(VideoStreamAdapterTest,
+        GetAdaptDownResolutionReturnsWithStatusInDisabledAndMaintainResolution) {
+-  adapter_.SetDegradationPreference(
+-      DegradationPreference::MAINTAIN_FRAMERATE_AND_RESOLUTION);
++  adapter_.SetDegradationPreference(DegradationPreference::DISABLED);
+   input_state_provider_.SetInputState(1280 * 720, 30,
+                                       kDefaultMinPixelsPerFrame);
+   EXPECT_EQ(Adaptation::Status::kAdaptationDisabled,
+@@ -859,9 +858,8 @@ TEST_F(VideoStreamAdapterTest,
+ }
+ 
+ TEST_F(VideoStreamAdapterTest,
+-       AdaptationDisabledStatusWhenPreferenceIsMaintainFramerateAndResolution) {
+-  adapter_.SetDegradationPreference(
+-      DegradationPreference::MAINTAIN_FRAMERATE_AND_RESOLUTION);
++       AdaptationDisabledStatusAlwaysWhenDegradationPreferenceDisabled) {
++  adapter_.SetDegradationPreference(DegradationPreference::DISABLED);
+   input_state_provider_.SetInputState(1280 * 720, 30,
+                                       kDefaultMinPixelsPerFrame);
+   EXPECT_EQ(Adaptation::Status::kAdaptationDisabled,
+diff --git a/media/engine/fake_webrtc_call.cc b/media/engine/fake_webrtc_call.cc
+index b8a28858a9..392035745b 100644
+--- a/media/engine/fake_webrtc_call.cc
++++ b/media/engine/fake_webrtc_call.cc
+@@ -10,6 +10,7 @@
+ 
+ #include "media/engine/fake_webrtc_call.h"
+ 
++#include <cstddef>
+ #include <cstdint>
+ #include <map>
+ #include <string>
+@@ -389,7 +390,7 @@ void FakeVideoSendStream::SetSource(
+       resolution_scaling_enabled_ = true;
+       framerate_scaling_enabled_ = true;
+       break;
+-    case DegradationPreference::MAINTAIN_FRAMERATE_AND_RESOLUTION:
++    case DegradationPreference::DISABLED:
+       resolution_scaling_enabled_ = false;
+       framerate_scaling_enabled_ = false;
+       break;
+diff --git a/media/engine/webrtc_video_engine.cc b/media/engine/webrtc_video_engine.cc
+index ec22071955..3d7c4bf1d8 100644
+--- a/media/engine/webrtc_video_engine.cc
++++ b/media/engine/webrtc_video_engine.cc
+@@ -1900,8 +1900,7 @@ bool WebRtcVideoSendChannel::WebRtcVideoSendStream::SetVideoSend(
+   }
+ 
+   if (source_ && stream_) {
+-    stream_->SetSource(
+-        nullptr, DegradationPreference::MAINTAIN_FRAMERATE_AND_RESOLUTION);
++    stream_->SetSource(nullptr, DegradationPreference::DISABLED);
+     if (source && source != source_) {
+       reconfiguration_needed = true;
+     }
+@@ -1927,7 +1926,7 @@ WebRtcVideoSendChannel::WebRtcVideoSendStream::GetDegradationPreference()
+   // `this` acts like a VideoSource to make sure SinkWants are handled on the
+   // correct thread.
+   if (!enable_cpu_overuse_detection_) {
+-    return DegradationPreference::MAINTAIN_FRAMERATE_AND_RESOLUTION;
++    return DegradationPreference::DISABLED;
+   }
+ 
+   DegradationPreference degradation_preference;
+diff --git a/sdk/android/api/org/webrtc/RtpParameters.java b/sdk/android/api/org/webrtc/RtpParameters.java
+index b4035ad63f..9ca8311610 100644
+--- a/sdk/android/api/org/webrtc/RtpParameters.java
++++ b/sdk/android/api/org/webrtc/RtpParameters.java
+@@ -29,7 +29,7 @@ import org.webrtc.MediaStreamTrack;
+ public class RtpParameters {
+   public enum DegradationPreference {
+     /** Does not degrade resolution or framerate. */
+-    MAINTAIN_FRAMERATE_AND_RESOLUTION,
++    DISABLED,
+     /** Degrade resolution in order to maintain framerate. */
+     MAINTAIN_FRAMERATE,
+     /** Degrade framerate in order to maintain resolution. */
+diff --git a/sdk/android/instrumentationtests/src/org/webrtc/RtpSenderTest.java b/sdk/android/instrumentationtests/src/org/webrtc/RtpSenderTest.java
+index 9b67a8913b..602ccce196 100644
+--- a/sdk/android/instrumentationtests/src/org/webrtc/RtpSenderTest.java
++++ b/sdk/android/instrumentationtests/src/org/webrtc/RtpSenderTest.java
+@@ -69,10 +69,9 @@ public class RtpSenderTest {
+     parameters = sender.getParameters();
+     assertEquals(DegradationPreference.BALANCED, parameters.degradationPreference);
+ 
+-    parameters.degradationPreference = DegradationPreference.MAINTAIN_FRAMERATE_AND_RESOLUTION;
++    parameters.degradationPreference = DegradationPreference.DISABLED;
+     assertTrue(sender.setParameters(parameters));
+     parameters = sender.getParameters();
+-    assertEquals(DegradationPreference.MAINTAIN_FRAMERATE_AND_RESOLUTION,
+-        parameters.degradationPreference);
++    assertEquals(DegradationPreference.DISABLED, parameters.degradationPreference);
+   }
+ }
+diff --git a/sdk/android/src/jni/pc/rtp_parameters.cc b/sdk/android/src/jni/pc/rtp_parameters.cc
+index 8afd86ebfe..3259f6840c 100644
+--- a/sdk/android/src/jni/pc/rtp_parameters.cc
++++ b/sdk/android/src/jni/pc/rtp_parameters.cc
+@@ -32,8 +32,8 @@ DegradationPreference JavaToNativeDegradationPreference(
+     const JavaRef<jobject>& j_degradation_preference) {
+   std::string enum_name = GetJavaEnumName(jni, j_degradation_preference);
+ 
+-  if (enum_name == "MAINTAIN_FRAMERATE_AND_RESOLUTION")
+-    return DegradationPreference::MAINTAIN_FRAMERATE_AND_RESOLUTION;
++  if (enum_name == "DISABLED")
++    return DegradationPreference::DISABLED;
+ 
+   if (enum_name == "MAINTAIN_FRAMERATE")
+     return DegradationPreference::MAINTAIN_FRAMERATE;
+@@ -46,7 +46,7 @@ DegradationPreference JavaToNativeDegradationPreference(
+ 
+   RTC_CHECK(false) << "Unexpected DegradationPreference enum_name "
+                    << enum_name;
+-  return DegradationPreference::MAINTAIN_FRAMERATE_AND_RESOLUTION;
++  return DegradationPreference::DISABLED;
+ }
+ 
+ ScopedJavaLocalRef<jobject> NativeToJavaRtpEncodingParameter(
+diff --git a/sdk/objc/api/peerconnection/RTCRtpParameters.h b/sdk/objc/api/peerconnection/RTCRtpParameters.h
+index de623f7bf4..ee1c540829 100644
+--- a/sdk/objc/api/peerconnection/RTCRtpParameters.h
++++ b/sdk/objc/api/peerconnection/RTCRtpParameters.h
+@@ -20,12 +20,7 @@ NS_ASSUME_NONNULL_BEGIN
+ 
+ /** Corresponds to webrtc::DegradationPreference. */
+ typedef NS_ENUM(NSInteger, RTCDegradationPreference) {
+-  RTCDegradationPreferenceMaintainFramerateAndResolution,
+-  // TODO(webrtc:450044904): Switch downstream projects to
+-  // RTCDegradationPreferenceMaintainFramerateAndResolution and remove
+-  // RTCDegradationPreferenceDisabled.
+-  RTCDegradationPreferenceDisabled =
+-      RTCDegradationPreferenceMaintainFramerateAndResolution,
++  RTCDegradationPreferenceDisabled,
+   RTCDegradationPreferenceMaintainFramerate,
+   RTCDegradationPreferenceMaintainResolution,
+   RTCDegradationPreferenceBalanced
+diff --git a/sdk/objc/api/peerconnection/RTCRtpParameters.mm b/sdk/objc/api/peerconnection/RTCRtpParameters.mm
+index 2d192abd1c..dd7b0deab5 100644
+--- a/sdk/objc/api/peerconnection/RTCRtpParameters.mm
++++ b/sdk/objc/api/peerconnection/RTCRtpParameters.mm
+@@ -94,8 +94,8 @@
+     nativeDegradationPreferenceFromDegradationPreference:
+         (RTCDegradationPreference)degradationPreference {
+   switch (degradationPreference) {
+-    case RTCDegradationPreferenceMaintainFramerateAndResolution:
+-      return webrtc::DegradationPreference::MAINTAIN_FRAMERATE_AND_RESOLUTION;
++    case RTCDegradationPreferenceDisabled:
++      return webrtc::DegradationPreference::DISABLED;
+     case RTCDegradationPreferenceMaintainFramerate:
+       return webrtc::DegradationPreference::MAINTAIN_FRAMERATE;
+     case RTCDegradationPreferenceMaintainResolution:
+@@ -112,8 +112,8 @@
+   }
+ 
+   switch (*nativeDegradationPreference) {
+-    case webrtc::DegradationPreference::MAINTAIN_FRAMERATE_AND_RESOLUTION:
+-      return @(RTCDegradationPreferenceMaintainFramerateAndResolution);
++    case webrtc::DegradationPreference::DISABLED:
++      return @(RTCDegradationPreferenceDisabled);
+     case webrtc::DegradationPreference::MAINTAIN_FRAMERATE:
+       return @(RTCDegradationPreferenceMaintainFramerate);
+     case webrtc::DegradationPreference::MAINTAIN_RESOLUTION:
+diff --git a/video/adaptation/video_stream_encoder_resource_manager.cc b/video/adaptation/video_stream_encoder_resource_manager.cc
+index c90ef65b4e..99ddaf72f5 100644
+--- a/video/adaptation/video_stream_encoder_resource_manager.cc
++++ b/video/adaptation/video_stream_encoder_resource_manager.cc
+@@ -284,8 +284,7 @@ VideoStreamEncoderResourceManager::VideoStreamEncoderResourceManager(
+       input_state_provider_(input_state_provider),
+       adaptation_processor_(nullptr),
+       encoder_stats_observer_(encoder_stats_observer),
+-      degradation_preference_(
+-          DegradationPreference::MAINTAIN_FRAMERATE_AND_RESOLUTION),
++      degradation_preference_(DegradationPreference::DISABLED),
+       video_source_restrictions_(),
+       balanced_settings_(field_trials),
+       clock_(clock),
+diff --git a/video/cpu_scaling_tests.cc b/video/cpu_scaling_tests.cc
+index 3a171b8a27..6dcfd31650 100644
+--- a/video/cpu_scaling_tests.cc
++++ b/video/cpu_scaling_tests.cc
+@@ -140,7 +140,6 @@ TEST_F(CpuOveruseTest, AdaptsDownInResolutionOrFpsOnOveruse) {
+ }
+ 
+ TEST_F(CpuOveruseTest, NoAdaptDownOnOveruse) {
+-  RunTestAndCheckForAdaptation(
+-      DegradationPreference::MAINTAIN_FRAMERATE_AND_RESOLUTION, false);
++  RunTestAndCheckForAdaptation(DegradationPreference::DISABLED, false);
+ }
+ }  // namespace webrtc
+diff --git a/video/video_stream_encoder.cc b/video/video_stream_encoder.cc
+index 8e878c5146..a3a20911ad 100644
+--- a/video/video_stream_encoder.cc
++++ b/video/video_stream_encoder.cc
+@@ -647,11 +647,9 @@ class VideoStreamEncoder::DegradationPreferenceManager
+  public:
+   explicit DegradationPreferenceManager(
+       VideoStreamAdapter* video_stream_adapter)
+-      : degradation_preference_(
+-            DegradationPreference::MAINTAIN_FRAMERATE_AND_RESOLUTION),
++      : degradation_preference_(DegradationPreference::DISABLED),
+         is_screenshare_(false),
+-        effective_degradation_preference_(
+-            DegradationPreference::MAINTAIN_FRAMERATE_AND_RESOLUTION),
++        effective_degradation_preference_(DegradationPreference::DISABLED),
+         video_stream_adapter_(video_stream_adapter) {
+     RTC_DCHECK(video_stream_adapter_);
+     sequence_checker_.Detach();
+diff --git a/video/video_stream_encoder_unittest.cc b/video/video_stream_encoder_unittest.cc
+index fdee23e452..83a2352ef0 100644
+--- a/video/video_stream_encoder_unittest.cc
++++ b/video/video_stream_encoder_unittest.cc
+@@ -3260,8 +3260,7 @@ TEST_F(VideoStreamEncoderTest, SinkWantsStoredByDegradationPreference) {
+ 
+   // Turn off degradation completely.
+   video_stream_encoder_->SetSourceAndWaitForRestrictionsUpdated(
+-      &new_video_source,
+-      DegradationPreference::MAINTAIN_FRAMERATE_AND_RESOLUTION);
++      &new_video_source, DegradationPreference::DISABLED);
+   // Give the encoder queue time to process the change in degradation preference
+   // by waiting for an encoded frame.
+   new_video_source.IncomingCapturedFrame(
+@@ -3413,9 +3412,8 @@ TEST_F(VideoStreamEncoderTest, SwitchingSourceKeepsCpuAdaptation) {
+   EXPECT_EQ(1, stats.number_of_cpu_adapt_changes);
+ 
+   // Set adaptation disabled.
+-  video_stream_encoder_->SetSource(
+-      &new_video_source,
+-      DegradationPreference::MAINTAIN_FRAMERATE_AND_RESOLUTION);
++  video_stream_encoder_->SetSource(&new_video_source,
++                                   DegradationPreference::DISABLED);
+ 
+   new_video_source.IncomingCapturedFrame(CreateFrame(4, kWidth, kHeight));
+   WaitForEncodedFrame(4);
+@@ -3697,9 +3695,8 @@ TEST_F(VideoStreamEncoderTest,
+   EXPECT_EQ(2, stats.number_of_cpu_adapt_changes);
+ 
+   // Disable CPU adaptation.
+-  video_stream_encoder_->SetSource(
+-      &new_video_source,
+-      DegradationPreference::MAINTAIN_FRAMERATE_AND_RESOLUTION);
++  video_stream_encoder_->SetSource(&new_video_source,
++                                   DegradationPreference::DISABLED);
+   new_video_source.IncomingCapturedFrame(
+       CreateFrame(sequence, kWidth, kHeight));
+   WaitForEncodedFrame(sequence++);
+@@ -4223,8 +4220,7 @@ TEST_F(VideoStreamEncoderTest, NoChangeForInitialNormalUsage_DisabledMode) {
+ 
+   // Enable DISABLED preference, no initial limitation.
+   test::FrameForwarder source;
+-  video_stream_encoder_->SetSource(
+-      &source, DegradationPreference::MAINTAIN_FRAMERATE_AND_RESOLUTION);
++  video_stream_encoder_->SetSource(&source, DegradationPreference::DISABLED);
+ 
+   source.IncomingCapturedFrame(CreateFrame(1, kWidth, kHeight));
+   sink_.WaitForEncodedFrame(kWidth, kHeight);
+@@ -5057,8 +5053,8 @@ TEST_F(VideoStreamEncoderTest,
+   const int kHeight = 360;
+   int64_t ntp_timestamp_ms = 123;
+ 
+-  video_stream_encoder_->SetSource(
+-      &video_source_, DegradationPreference::MAINTAIN_FRAMERATE_AND_RESOLUTION);
++  video_stream_encoder_->SetSource(&video_source_,
++                                   DegradationPreference::DISABLED);
+ 
+   for (int i = 1; i <= SendStatisticsProxy::kMinRequiredMetricsSamples; ++i) {
+     video_source_.IncomingCapturedFrame(
