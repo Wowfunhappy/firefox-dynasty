@@ -203,7 +203,7 @@ index 5bbc5b79a2..8312d006c9 100644
      }
  
 diff --git a/api/BUILD.gn b/api/BUILD.gn
-index 9579cec770..0f062f5d8e 100644
+index 4d5de03691..f72867e88c 100644
 --- a/api/BUILD.gn
 +++ b/api/BUILD.gn
 @@ -44,6 +44,9 @@ rtc_library("enable_media") {
@@ -284,7 +284,7 @@ index 9579cec770..0f062f5d8e 100644
  
  rtc_library("sctp_transport_interface") {
    visibility = [ "*" ]
-@@ -366,6 +393,7 @@ rtc_library("jsep") {
+@@ -365,6 +392,7 @@ rtc_library("jsep") {
  }
  
  rtc_library("libjingle_peerconnection_api") {
