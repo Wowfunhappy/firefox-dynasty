@@ -399,7 +399,7 @@ index 6ba3292fca..5d3a731864 100644
    RTPHeader();
    RTPHeader(const RTPHeader& other);
 diff --git a/api/rtp_parameters.cc b/api/rtp_parameters.cc
-index 22d8e403c1..7363a34c59 100644
+index 2476077a09..119c8d16c3 100644
 --- a/api/rtp_parameters.cc
 +++ b/api/rtp_parameters.cc
 @@ -223,7 +223,8 @@ bool RtpExtension::IsSupportedForAudio(absl::string_view uri) {
