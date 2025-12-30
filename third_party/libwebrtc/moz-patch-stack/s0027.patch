@@ -1258,7 +1258,7 @@ index 0c7ce99ac0..1873e67f52 100644
  rtc_library("call_config_utils") {
    testonly = true
 diff --git a/video/BUILD.gn b/video/BUILD.gn
-index 79b0e8e040..2e408d56c0 100644
+index c8d3201a45..94be2ef995 100644
 --- a/video/BUILD.gn
 +++ b/video/BUILD.gn
 @@ -17,7 +17,7 @@ rtc_library("video_stream_encoder_interface") {
