@@ -1,134 +1,83 @@
 From: Michael Froman <mfroman@mozilla.com>
-Date: Mon, 29 Dec 2025 17:54:15 -0600
-Subject: (tmp-cherry-pick) Revert "Switch to use 32 kHz processing inside APM"
- (ddb627e555)
-MIME-Version: 1.0
-Content-Type: text/plain; charset=UTF-8
-Content-Transfer-Encoding: 8bit
+Date: Mon, 29 Dec 2025 16:31:20 -0600
+Subject: (tmp-cherry-pick) Revert "Default enable
+ WebRTC-HeaderExtensionNegotiateMemory" (4e31d1a1ff)
 
-This reverts commit 179be29133c50285dcbb4e273a0b6a42d265886c.
+This reverts commit 4ecf297a4c0af68ff8af8c3a8e6b0832bddd14d5.
 
-Reason for revert: Broke Chromium roll.
-
-Error: https://ci.chromium.org/ui/p/chromium/builders/try/linux-rel/2423056/overview
+Reason for revert: Impacted unexpected application usages
 
 Original change's description:
-> Switch to use 32 kHz processing inside APM
+> Default enable WebRTC-HeaderExtensionNegotiateMemory
 >
-> This CL switches to using 32 kHz processing internally inside WebRTC APM
-> to avoid using the current 3-band split filter which has been shown to
-> have issues with aliasing impacting the speech quality.
+> Spec change: https://github.com/w3c/webrtc-extensions/pull/238
 >
-> The intention is to revert this change once the issues in the 3-band
-> split filter have been addressed.
+> Chromestatus entry for change: https://chromestatus.com/feature/5135528638939136
 >
-> Bug: webrtc:454695115
-> Change-Id: Id87e7f8d2ba37a915b3640f7eeb5c996037c59aa
-> Reviewed-on: https://webrtc-review.googlesource.com/c/src/+/419860
-> Commit-Queue: Per Åhgren <peah@webrtc.org>
-> Reviewed-by: Henrik Lundin <henrik.lundin@webrtc.org>
-> Cr-Commit-Position: refs/heads/main@{#46026}
+> Bug: webrtc:439514253
+> Change-Id: I296f2f06dd69b4e30be419b44c926acfd2722e2d
+> Reviewed-on: https://webrtc-review.googlesource.com/c/src/+/407821
+> Commit-Queue: Harald Alvestrand <hta@webrtc.org>
+> Reviewed-by: Guido Urdaneta <guidou@webrtc.org>
+> Cr-Commit-Position: refs/heads/main@{#45993}
 
-Bug: webrtc:454695115
-Change-Id: I599adf846217f0cb81588e84f541277465ef856a
-Reviewed-on: https://webrtc-review.googlesource.com/c/src/+/420580
-Bot-Commit: Rubber Stamper <rubber-stamper@appspot.gserviceaccount.com>
+(cherry picked from commit 74d988fd57f8f1b6722d8ac6f49c686b9f2bc196)
+
+Bug: webrtc:439514253, chromium:467164231
+Change-Id: I95dbc8cbaf1b769ffaea291801684bc26e4b9ccb
+Reviewed-on: https://webrtc-review.googlesource.com/c/src/+/433102
+Reviewed-by: Guido Urdaneta <guidou@webrtc.org>
 Commit-Queue: Harald Alvestrand <hta@webrtc.org>
-Reviewed-by: Per Åhgren <peah@webrtc.org>
-Cr-Commit-Position: refs/heads/main@{#46037}
+Cr-Original-Commit-Position: refs/heads/main@{#46456}
+No-Try: True
+Reviewed-on: https://webrtc-review.googlesource.com/c/src/+/433485
+Commit-Queue: Guido Urdaneta <guidou@webrtc.org>
+Reviewed-by: Harald Alvestrand <hta@webrtc.org>
+Cr-Commit-Position: refs/branch-heads/7499@{#3}
+Cr-Branched-From: 1dfd30cf31a029cd127674a11e65c54c07afaf5d-refs/heads/main@{#46046}
 ---
- api/audio/audio_processing.h                    |  2 +-
- experiments/field_trials.py                     |  3 ---
- .../audio_processing/audio_processing_impl.cc   | 17 +++++++----------
- .../audio_processing/audio_processing_impl.h    |  8 ++------
- 4 files changed, 10 insertions(+), 20 deletions(-)
+ pc/rtp_transceiver.cc          | 6 +++---
+ pc/rtp_transmission_manager.cc | 3 +--
+ 2 files changed, 4 insertions(+), 5 deletions(-)
 
-diff --git a/api/audio/audio_processing.h b/api/audio/audio_processing.h
-index 66267d0821..d9d2407d39 100644
---- a/api/audio/audio_processing.h
-+++ b/api/audio/audio_processing.h
-@@ -145,7 +145,7 @@ class RTC_EXPORT AudioProcessing : public RefCountInterface {
- 
-       // Maximum allowed processing rate used internally. May only be set to
-       // 32000 or 48000 and any differing values will be treated as 48000.
--      int maximum_internal_processing_rate = 32000;
-+      int maximum_internal_processing_rate = 48000;
-       // Allow multi-channel processing of render audio.
-       bool multi_channel_render = false;
-       // Allow multi-channel processing of capture audio when AEC3 is active
-diff --git a/experiments/field_trials.py b/experiments/field_trials.py
-index 6f854080ad..6ebd297829 100755
---- a/experiments/field_trials.py
-+++ b/experiments/field_trials.py
-@@ -47,9 +47,6 @@ ACTIVE_FIELD_TRIALS: FrozenSet[FieldTrial] = frozenset([
-     FieldTrial('WebRTC-Aec3BufferingMaxAllowedExcessRenderBlocksOverride',
-                337900458,
-                date(2024, 9, 1)),
--    FieldTrial('WebRTC-ApmEnforce48kHzProcessingRate',
--               454695115,
--               date(2026, 6, 1)),
-     FieldTrial('WebRTC-Audio-GainController2',
-                42232605,
-                date(2024, 4, 1)),
-diff --git a/modules/audio_processing/audio_processing_impl.cc b/modules/audio_processing/audio_processing_impl.cc
-index 999b011e7f..7b7f49702d 100644
---- a/modules/audio_processing/audio_processing_impl.cc
-+++ b/modules/audio_processing/audio_processing_impl.cc
-@@ -487,14 +487,12 @@ AudioProcessingImpl::AudioProcessingImpl(
-                   std::move(echo_detector),
-                   std::move(capture_analyzer),
-                   std::move(neural_residual_echo_estimator)),
--      constants_(
--          !env.field_trials().IsEnabled(
--              "WebRTC-ApmExperimentalMultiChannelRenderKillSwitch"),
--          !env.field_trials().IsEnabled(
--              "WebRTC-ApmExperimentalMultiChannelCaptureKillSwitch"),
--          EnforceSplitBandHpf(env.field_trials()),
--          MinimizeProcessingForUnusedOutput(env.field_trials()),
--          env.field_trials().IsEnabled("WebRTC-ApmEnforce48kHzProcessingRate")),
-+      constants_(!env.field_trials().IsEnabled(
-+                     "WebRTC-ApmExperimentalMultiChannelRenderKillSwitch"),
-+                 !env.field_trials().IsEnabled(
-+                     "WebRTC-ApmExperimentalMultiChannelCaptureKillSwitch"),
-+                 EnforceSplitBandHpf(env.field_trials()),
-+                 MinimizeProcessingForUnusedOutput(env.field_trials())),
-       capture_(),
-       capture_nonlocked_(),
-       applied_input_volume_stats_reporter_(
-@@ -637,8 +635,7 @@ void AudioProcessingImpl::InitializeLocked(const ProcessingConfig& config) {
-   RTC_DCHECK(config_.pipeline.maximum_internal_processing_rate == 48000 ||
-              config_.pipeline.maximum_internal_processing_rate == 32000);
-   int max_splitting_rate = 48000;
--  if (config_.pipeline.maximum_internal_processing_rate == 32000 &&
--      !constants_.enforce_48_khz_max_internal_processing_rate) {
-+  if (config_.pipeline.maximum_internal_processing_rate == 32000) {
-     max_splitting_rate = config_.pipeline.maximum_internal_processing_rate;
-   }
- 
-diff --git a/modules/audio_processing/audio_processing_impl.h b/modules/audio_processing/audio_processing_impl.h
-index 36abae2fca..ee36a8cb84 100644
---- a/modules/audio_processing/audio_processing_impl.h
-+++ b/modules/audio_processing/audio_processing_impl.h
-@@ -426,20 +426,16 @@ class AudioProcessingImpl : public AudioProcessing {
-     ApmConstants(bool multi_channel_render_support,
-                  bool multi_channel_capture_support,
-                  bool enforce_split_band_hpf,
--                 bool minimize_processing_for_unused_output,
--                 bool enforce_48_khz_max_internal_processing_rate)
-+                 bool minimize_processing_for_unused_output)
-         : multi_channel_render_support(multi_channel_render_support),
-           multi_channel_capture_support(multi_channel_capture_support),
-           enforce_split_band_hpf(enforce_split_band_hpf),
-           minimize_processing_for_unused_output(
--              minimize_processing_for_unused_output),
--          enforce_48_khz_max_internal_processing_rate(
--              enforce_48_khz_max_internal_processing_rate) {}
-+              minimize_processing_for_unused_output) {}
-     bool multi_channel_render_support;
-     bool multi_channel_capture_support;
-     bool enforce_split_band_hpf;
-     bool minimize_processing_for_unused_output;
--    bool enforce_48_khz_max_internal_processing_rate;
-   } constants_;
- 
-   struct ApmCaptureState {
+diff --git a/pc/rtp_transceiver.cc b/pc/rtp_transceiver.cc
+index b0383671cd..72e6ee21df 100644
+--- a/pc/rtp_transceiver.cc
++++ b/pc/rtp_transceiver.cc
+@@ -869,19 +869,19 @@ void RtpTransceiver::OnNegotiationUpdate(
+   RTC_DCHECK(content);
+   if (sdp_type == SdpType::kAnswer || sdp_type == SdpType::kPrAnswer) {
+     negotiated_header_extensions_ = content->rtp_header_extensions();
+-    if (!env_.field_trials().IsDisabled(
++    if (env_.field_trials().IsEnabled(
+             "WebRTC-HeaderExtensionNegotiateMemory")) {
+       header_extensions_to_negotiate_ = GetNegotiatedHeaderExtensions();
+     }
+   } else if (sdp_type == SdpType::kOffer) {
+-    if (!env_.field_trials().IsDisabled(
++    if (env_.field_trials().IsEnabled(
+             "WebRTC-HeaderExtensionNegotiateMemory")) {
+       header_extensions_for_rollback_ = header_extensions_to_negotiate_;
+       header_extensions_to_negotiate_ =
+           GetOfferedAndImplementedHeaderExtensions(content);
+     }
+   } else if (sdp_type == SdpType::kRollback) {
+-    if (!env_.field_trials().IsDisabled(
++    if (env_.field_trials().IsEnabled(
+             "WebRTC-HeaderExtensionNegotiateMemory")) {
+       RTC_CHECK(!header_extensions_for_rollback_.empty());
+       header_extensions_to_negotiate_ = header_extensions_for_rollback_;
+diff --git a/pc/rtp_transmission_manager.cc b/pc/rtp_transmission_manager.cc
+index 3ca54aa166..31f9a76054 100644
+--- a/pc/rtp_transmission_manager.cc
++++ b/pc/rtp_transmission_manager.cc
+@@ -323,8 +323,7 @@ RtpTransmissionManager::CreateAndAddTransceiver(
+   // could be invalid, but should not cause a crash).
+   RTC_DCHECK(!FindSenderById(sender->id()));
+   std::vector<RtpHeaderExtensionCapability> header_extensions;
+-  if (!env_.field_trials().IsDisabled(
+-          "WebRTC-HeaderExtensionNegotiateMemory")) {
++  if (env_.field_trials().IsEnabled("WebRTC-HeaderExtensionNegotiateMemory")) {
+     // If we have already negotiated header extensions for this type,
+     // reuse the negotiated state for new transceivers of the same type.
+     for (const auto& transceiver : transceivers()->List()) {
