@@ -203,7 +203,7 @@ index 8488cf0818..14d1caaa01 100644
      }
  
 diff --git a/api/BUILD.gn b/api/BUILD.gn
-index fde0768a1a..10ca96a7bf 100644
+index ef8b69c53b..3e68f21457 100644
 --- a/api/BUILD.gn
 +++ b/api/BUILD.gn
 @@ -44,6 +44,9 @@ rtc_library("enable_media") {
@@ -225,7 +225,7 @@ index fde0768a1a..10ca96a7bf 100644
    rtc_library("create_peerconnection_factory") {
      visibility = [ "*" ]
      allow_poison = [ "environment_construction" ]
-@@ -245,6 +248,10 @@ rtc_source_set("ice_transport_interface") {
+@@ -246,6 +249,10 @@ rtc_source_set("ice_transport_interface") {
  }
  
  rtc_library("dtls_transport_interface") {
@@ -236,7 +236,7 @@ index fde0768a1a..10ca96a7bf 100644
    visibility = [ "*" ]
  
    sources = [
-@@ -261,6 +268,7 @@ rtc_library("dtls_transport_interface") {
+@@ -262,6 +269,7 @@ rtc_library("dtls_transport_interface") {
      "//third_party/abseil-cpp/absl/base:core_headers",
    ]
  }
@@ -244,7 +244,7 @@ index fde0768a1a..10ca96a7bf 100644
  
  rtc_library("dtmf_sender_interface") {
    visibility = [ "*" ]
-@@ -273,6 +281,10 @@ rtc_library("dtmf_sender_interface") {
+@@ -274,6 +282,10 @@ rtc_library("dtmf_sender_interface") {
  }
  
  rtc_library("rtp_sender_interface") {
@@ -255,7 +255,7 @@ index fde0768a1a..10ca96a7bf 100644
    visibility = [ "*" ]
  
    sources = [
-@@ -287,6 +299,7 @@ rtc_library("rtp_sender_interface") {
+@@ -288,6 +300,7 @@ rtc_library("rtp_sender_interface") {
      ":ref_count",
      ":rtc_error",
      ":rtp_parameters",
@@ -263,7 +263,7 @@ index fde0768a1a..10ca96a7bf 100644
      ":scoped_refptr",
      "../rtc_base:checks",
      "../rtc_base/system:rtc_export",
-@@ -295,8 +308,23 @@ rtc_library("rtp_sender_interface") {
+@@ -296,8 +309,23 @@ rtc_library("rtp_sender_interface") {
      "//third_party/abseil-cpp/absl/functional:any_invocable",
    ]
  }
@@ -287,7 +287,7 @@ index fde0768a1a..10ca96a7bf 100644
    visibility = [ "*" ]
    cflags = []
    sources = [
-@@ -424,6 +452,7 @@ rtc_library("libjingle_peerconnection_api") {
+@@ -425,6 +453,7 @@ rtc_library("libjingle_peerconnection_api") {
      "../rtc_base/system:rtc_export",
    ]
  }
@@ -295,7 +295,7 @@ index fde0768a1a..10ca96a7bf 100644
  
  rtc_library("frame_transformer_interface") {
    visibility = [ "*" ]
-@@ -646,6 +675,7 @@ rtc_source_set("peer_network_dependencies") {
+@@ -647,6 +676,7 @@ rtc_source_set("peer_network_dependencies") {
  }
  
  rtc_source_set("peer_connection_quality_test_fixture_api") {
@@ -303,7 +303,7 @@ index fde0768a1a..10ca96a7bf 100644
    visibility = [ "*" ]
    testonly = true
    sources = [ "test/peerconnection_quality_test_fixture.h" ]
-@@ -690,6 +720,7 @@ rtc_source_set("peer_connection_quality_test_fixture_api") {
+@@ -691,6 +721,7 @@ rtc_source_set("peer_connection_quality_test_fixture_api") {
      "//third_party/abseil-cpp/absl/strings:string_view",
    ]
  }
@@ -311,7 +311,7 @@ index fde0768a1a..10ca96a7bf 100644
  
  rtc_library("frame_generator_api") {
    visibility = [ "*" ]
-@@ -795,6 +826,7 @@ rtc_library("create_frame_generator") {
+@@ -796,6 +827,7 @@ rtc_library("create_frame_generator") {
    ]
  }
  
@@ -319,7 +319,7 @@ index fde0768a1a..10ca96a7bf 100644
  rtc_library("create_peer_connection_quality_test_frame_generator") {
    visibility = [ "*" ]
    testonly = true
-@@ -812,6 +844,7 @@ rtc_library("create_peer_connection_quality_test_frame_generator") {
+@@ -813,6 +845,7 @@ rtc_library("create_peer_connection_quality_test_frame_generator") {
      "units:time_delta",
    ]
  }
@@ -327,7 +327,7 @@ index fde0768a1a..10ca96a7bf 100644
  
  rtc_source_set("data_channel_event_observer_interface") {
    visibility = [ "*" ]
-@@ -1004,6 +1037,7 @@ rtc_source_set("refcountedbase") {
+@@ -1005,6 +1038,7 @@ rtc_source_set("refcountedbase") {
  }
  
  rtc_library("ice_transport_factory") {
@@ -335,7 +335,7 @@ index fde0768a1a..10ca96a7bf 100644
    visibility = [ "*" ]
    sources = [
      "ice_transport_factory.cc",
-@@ -1027,6 +1061,7 @@ rtc_library("ice_transport_factory") {
+@@ -1028,6 +1062,7 @@ rtc_library("ice_transport_factory") {
      "rtc_event_log",
    ]
  }
