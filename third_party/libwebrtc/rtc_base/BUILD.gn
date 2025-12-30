@@ -1288,7 +1288,7 @@ if (!build_with_mozilla) {
   ]
   deps = [
     "system:rtc_export",
-    "//third_party/abseil-cpp/absl/strings:string_view",
+    "//third_party/abseil-cpp/absl/strings",
   ]
 }
 }

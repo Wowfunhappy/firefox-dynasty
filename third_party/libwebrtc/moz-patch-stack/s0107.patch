@@ -116,7 +116,7 @@ index 35a2d46444..0990000a73 100644
    public_configs = []
    if (!build_with_chromium) {
 diff --git a/rtc_base/BUILD.gn b/rtc_base/BUILD.gn
-index 0636a52339..a97c3c297e 100644
+index 21f61ba39d..db644365d8 100644
 --- a/rtc_base/BUILD.gn
 +++ b/rtc_base/BUILD.gn
 @@ -1574,6 +1574,7 @@ rtc_source_set("ssl_header") {
