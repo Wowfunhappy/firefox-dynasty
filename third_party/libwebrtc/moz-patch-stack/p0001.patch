@@ -65,7 +65,7 @@ index 218c9b1328..b48a9aa46f 100644
 -  ]
 -}
 diff --git a/api/DEPS b/api/DEPS
-index 558cc3bb3d..51421a4e23 100644
+index 5a3fc3d917..62f4918fc1 100644
 --- a/api/DEPS
 +++ b/api/DEPS
 @@ -111,11 +111,6 @@ specific_include_rules = {
