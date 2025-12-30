@@ -41,10 +41,10 @@ Cr-Commit-Position: refs/heads/main@{#45783}
  delete mode 100644 api/ice_server_parsing.h
 
 diff --git a/api/BUILD.gn b/api/BUILD.gn
-index 218c9b1328..b48a9aa46f 100644
+index fde0768a1a..b2d61f4b44 100644
 --- a/api/BUILD.gn
 +++ b/api/BUILD.gn
-@@ -1804,19 +1804,3 @@ rtc_library("frame_transformer_factory") {
+@@ -1809,19 +1809,3 @@ rtc_library("frame_transformer_factory") {
      "video:video_frame_metadata",
    ]
  }
@@ -65,10 +65,10 @@ index 218c9b1328..b48a9aa46f 100644
 -  ]
 -}
 diff --git a/api/DEPS b/api/DEPS
-index 5a3fc3d917..62f4918fc1 100644
+index 2d3296eab1..25b188fcd9 100644
 --- a/api/DEPS
 +++ b/api/DEPS
-@@ -111,11 +111,6 @@ specific_include_rules = {
+@@ -112,11 +112,6 @@ specific_include_rules = {
      "+modules/include/module_fec_types.h",
    ],
  
