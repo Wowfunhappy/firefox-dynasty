@@ -3,4 +3,6 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 with Files("**"):
-    BUG_COMPONENT = ("Core", "Machine Learning: Frontend")
+    BUG_COMPONENT = ("Firefox", "Address Bar")
+
+MOCHITEST_CHROME_MANIFESTS += ["chrome/chrome.toml"]

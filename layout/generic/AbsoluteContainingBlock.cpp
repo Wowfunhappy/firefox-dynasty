@@ -110,6 +110,27 @@ nsFrameList AbsoluteContainingBlock::StealPushedChildList() {
   return std::move(mPushedAbsoluteFrames);
 }
 
+void AbsoluteContainingBlock::DrainPushedChildList(
+    const nsIFrame* aDelegatingFrame) {
+  MOZ_ASSERT(aDelegatingFrame->GetAbsoluteContainingBlock() == this,
+             "aDelegatingFrame's absCB should be us!");
+
+  // Our pushed absolute child list might be non-empty if our next-in-flow
+  // hasn't reflowed yet. Move any child in that list that is a first-in-flow,
+  // or whose prev-in-flow is not in our absolute child list, into our absolute
+  // child list.
+  for (auto iter = mPushedAbsoluteFrames.begin();
+       iter != mPushedAbsoluteFrames.end();) {
+    // Advance the iterator first, so it's safe to move |child|.
+    nsIFrame* const child = *iter++;
+    if (!child->GetPrevInFlow() ||
+        child->GetPrevInFlow()->GetParent() != aDelegatingFrame) {
+      mPushedAbsoluteFrames.RemoveFrame(child);
+      mAbsoluteFrames.AppendFrame(nullptr, child);
+    }
+  }
+}
+
 bool AbsoluteContainingBlock::PrepareAbsoluteFrames(
     nsContainerFrame* aDelegatingFrame) {
   if (!aDelegatingFrame->PresContext()
@@ -133,23 +154,28 @@ bool AbsoluteContainingBlock::PrepareAbsoluteFrames(
     }
   }
 
-  // Our pushed absolute child list might be non-empty if our next-in-flow
-  // hasn't reflowed yet. Move any child in that list that is a first-in-flow,
-  // or whose prev-in-flow is not in our absolute child list, into our absolute
-  // child list.
-  nsIFrame* child = mPushedAbsoluteFrames.FirstChild();
-  while (child) {
-    nsIFrame* next = child->GetNextInFlow();
-    if (!child->GetPrevInFlow() ||
-        child->GetPrevInFlow()->GetParent() != aDelegatingFrame) {
-      mPushedAbsoluteFrames.RemoveFrame(child);
-      mAbsoluteFrames.AppendFrame(nullptr, child);
-    }
-    child = next;
-  }
+  DrainPushedChildList(aDelegatingFrame);
 
-  // TODO (Bug 1994346 or Bug 1997696): Consider stealing absolute frames from
-  // our next-in-flow's absolute child list.
+  // Steal absolute frame's first-in-flow from our next-in-flow's child lists.
+  for (const nsIFrame* nextInFlow = aDelegatingFrame->GetNextInFlow();
+       nextInFlow; nextInFlow = nextInFlow->GetNextInFlow()) {
+    AbsoluteContainingBlock* nextAbsCB =
+        nextInFlow->GetAbsoluteContainingBlock();
+    MOZ_ASSERT(nextAbsCB,
+               "If this delegating frame has an absCB, its next-in-flow must "
+               "have one, too!");
+
+    nextAbsCB->DrainPushedChildList(nextInFlow);
+
+    for (auto iter = nextAbsCB->GetChildList().begin();
+         iter != nextAbsCB->GetChildList().end();) {
+      nsIFrame* const child = *iter++;
+      if (!child->GetPrevInFlow()) {
+        nextAbsCB->StealFrame(child);
+        mAbsoluteFrames.AppendFrame(aDelegatingFrame, child);
+      }
+    }
+  }
 
   return HasAbsoluteFrames();
 }
@@ -348,7 +374,7 @@ void AbsoluteContainingBlock::Reflow(nsContainerFrame* aDelegatingFrame,
                      aDelegatingFrame->GetNextInFlow()) {
             nextFrame->GetParent()->GetAbsoluteContainingBlock()->StealFrame(
                 nextFrame);
-            mPushedAbsoluteFrames.AppendFrame(nullptr, nextFrame);
+            mPushedAbsoluteFrames.AppendFrame(aDelegatingFrame, nextFrame);
           }
           reflowStatus.MergeCompletionStatusFrom(kidStatus);
         } else if (nextFrame) {
@@ -1270,7 +1296,7 @@ void AbsoluteContainingBlock::ReflowAbsoluteFrame(
     return SeekFallbackTo(Some(nextFallbackIndex));
   };
 
-  Maybe<nsPoint> firstTryNormalPosition;
+  Maybe<nsRect> firstTryNormalRect;
   if (auto* lastSuccessfulPosition =
           aKidFrame->GetProperty(nsIFrame::LastSuccessfulPositionFallback())) {
     if (SeekFallbackTo(Some(lastSuccessfulPosition->mIndex))) {
@@ -1634,9 +1660,9 @@ void AbsoluteContainingBlock::ReflowAbsoluteFrame(
     aKidFrame->DidReflow(aPresContext, &kidReflowInput);
 
     [&]() {
-      const auto position = aKidFrame->GetPosition();
-      if (!firstTryNormalPosition) {
-        firstTryNormalPosition = Some(position);
+      const auto rect = aKidFrame->GetRect();
+      if (!firstTryNormalRect) {
+        firstTryNormalRect = Some(rect);
       }
       if (!aAnchorPosResolutionCache) {
         return;
@@ -1659,9 +1685,10 @@ void AbsoluteContainingBlock::ReflowAbsoluteFrame(
       // Apply the hypothetical scroll offset.
       // Set initial scroll position. TODO(dshin, bug 1987962): Need
       // additional work for remembered scroll offset here.
-      aKidFrame->SetProperty(nsIFrame::NormalPositionProperty(), position);
+      aKidFrame->SetProperty(nsIFrame::NormalPositionProperty(),
+                             rect.TopLeft());
       if (offset != nsPoint{}) {
-        aKidFrame->SetPosition(position - offset);
+        aKidFrame->SetPosition(rect.TopLeft() - offset);
         // Ensure that the positioned frame's overflow is updated. Absolutely
         // containing block's overflow will be updated shortly below.
         aKidFrame->UpdateOverflow();
@@ -1721,11 +1748,22 @@ void AbsoluteContainingBlock::ReflowAbsoluteFrame(
     if (!TryAdvanceFallback()) {
       // If there are no further fallbacks, we're done.
       if (bestSize >= 0) {
-        finalizing = true;
         SeekFallbackTo(bestIndex);
       } else {
-        break;
+        // If we're going to roll back to the first try position, and the
+        // target's size was different, we need to do a "finalizing" reflow
+        // to ensure the inner layout is correct. If the size is unchanged,
+        // we can just break the fallback loop now.
+        if (isOverflowingCB && firstTryNormalRect &&
+            firstTryNormalRect->Size() != aKidFrame->GetSize()) {
+          SeekFallbackTo(firstTryIndex);
+        } else {
+          break;
+        }
       }
+      // The fallback we've just selected is the final choice, regardless of
+      // whether it overflows.
+      finalizing = true;
     }
 
     // Try with the next fallback.
@@ -1734,7 +1772,7 @@ void AbsoluteContainingBlock::ReflowAbsoluteFrame(
   } while (true);
 
   [&]() {
-    if (!isOverflowingCB || !firstTryNormalPosition) {
+    if (!isOverflowingCB || !firstTryNormalRect) {
       return;
     }
     // We gave up applying fallbacks. Recover previous values, if changed, and
@@ -1742,22 +1780,42 @@ void AbsoluteContainingBlock::ReflowAbsoluteFrame(
     // Because we rolled back to first try data, our cache should be up-to-date.
     currentFallbackIndex = firstTryIndex;
     currentFallbackStyle = firstTryStyle;
-    const auto normalPosition = *firstTryNormalPosition;
+    const auto normalRect = *firstTryNormalRect;
     const auto oldNormalPosition = aKidFrame->GetNormalPosition();
-    if (normalPosition != oldNormalPosition) {
+    if (normalRect.TopLeft() != oldNormalPosition) {
       aKidFrame->SetProperty(nsIFrame::NormalPositionProperty(),
-                             normalPosition);
+                             normalRect.TopLeft());
     }
-    auto position = normalPosition;
+    auto rect = normalRect;
     if (aAnchorPosResolutionCache) {
-      position -=
-          aAnchorPosResolutionCache->mReferenceData->mDefaultScrollShift;
+      rect.MoveBy(
+          -aAnchorPosResolutionCache->mReferenceData->mDefaultScrollShift);
     }
+
+    if (isOverflowingCB &&
+        !aKidFrame->StylePosition()->mPositionArea.IsNone()) {
+      // The anchored element overflows the IMCB of its position-area. Would it
+      // have fit within the original CB? If so, shift it to stay within that.
+      if (rect.width <= aOriginalContainingBlockRect.width &&
+          rect.height <= aOriginalContainingBlockRect.height) {
+        if (rect.x < aOriginalContainingBlockRect.x) {
+          rect.x = aOriginalContainingBlockRect.x;
+        } else if (rect.XMost() > aOriginalContainingBlockRect.XMost()) {
+          rect.x = aOriginalContainingBlockRect.XMost() - rect.width;
+        }
+        if (rect.y < aOriginalContainingBlockRect.y) {
+          rect.y = aOriginalContainingBlockRect.y;
+        } else if (rect.YMost() > aOriginalContainingBlockRect.YMost()) {
+          rect.y = aOriginalContainingBlockRect.YMost() - rect.height;
+        }
+      }
+    }
+
     const auto oldPosition = aKidFrame->GetPosition();
-    if (position == oldPosition) {
+    if (rect.TopLeft() == oldPosition) {
       return;
     }
-    aKidFrame->SetPosition(position);
+    aKidFrame->SetPosition(rect.TopLeft());
     aKidFrame->UpdateOverflow();
   }();
 
