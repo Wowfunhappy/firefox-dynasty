@@ -4644,7 +4644,7 @@
 
 - name: dom.workers.timeoutmanager
   type: bool
-  value: true
+  value: false
   mirror: once
 
 - name: dom.workers.serialized-sab-access

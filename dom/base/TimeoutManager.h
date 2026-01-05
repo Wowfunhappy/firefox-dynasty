@@ -30,8 +30,7 @@ class TimeoutManager final {
 
  public:
   TimeoutManager(nsIGlobalObject& aHandle, uint32_t aMaxIdleDeferMS,
-                 nsISerialEventTarget* aEventTarget,
-                 bool aIsChromeWorker = false);
+                 nsISerialEventTarget* aEventTarget);
   ~TimeoutManager();
   TimeoutManager(const TimeoutManager& rhs) = delete;
   void operator=(const TimeoutManager& rhs) = delete;
@@ -270,8 +269,6 @@ class TimeoutManager final {
   nsCOMPtr<nsISerialEventTarget> mEventTarget;
 
   const bool mIsWindow;
-
-  const bool mIsChromeWorker;
 
   uint32_t mNestingLevel{0};
 

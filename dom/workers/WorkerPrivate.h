@@ -1332,7 +1332,11 @@ class WorkerPrivate final
 
   void NotifyWorkerRefs(WorkerStatus aStatus);
 
-  bool HasActiveWorkerRefs();
+  bool HasActiveWorkerRefs() {
+    auto data = mWorkerThreadAccessible.Access();
+    return !(data->mChildWorkers.IsEmpty() && data->mTimeouts.IsEmpty() &&
+             data->mWorkerRefs.IsEmpty());
+  }
 
   friend class WorkerEventTarget;
 
