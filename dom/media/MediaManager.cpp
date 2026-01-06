@@ -243,7 +243,7 @@ struct DeviceState {
   bool mOperationInProgress = false;
 
   // true if we are allowed to turn off the underlying source while all tracks
-  // are disabled. Only affects disabling; always turns off on user-agent mute.
+  // are disabled or muted.
   // MainThread only.
   bool mOffWhileDisabled = false;
 
@@ -4518,8 +4518,9 @@ already_AddRefed<DeviceListener> DeviceListener::Clone() const {
       [thisDevice = RefPtr(thisDevice), device, prefs = mgr->mPrefs,
        windowId = mWindowListener->WindowID(), listener,
        principal = GetPrincipalHandle(), track,
-       startDevice = !listener->mDeviceState->mDeviceMuted &&
-                     listener->mDeviceState->mDeviceEnabled] {
+       startDevice = !listener->mDeviceState->mOffWhileDisabled ||
+                     (!listener->mDeviceState->mDeviceMuted &&
+                      listener->mDeviceState->mDeviceEnabled)] {
         const char* outBadConstraint{};
         nsresult rv = device->Source()->Allocate(
             thisDevice->Constraints(), prefs, windowId, &outBadConstraint);

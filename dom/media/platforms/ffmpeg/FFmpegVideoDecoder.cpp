@@ -602,7 +602,7 @@ bool FFmpegVideoDecoder<LIBAV_VER>::UploadSWDecodeToDMABuf() const {
 #endif
 
 FFmpegVideoDecoder<LIBAV_VER>::FFmpegVideoDecoder(
-    FFmpegLibWrapper* aLib, const VideoInfo& aConfig,
+    const FFmpegLibWrapper* aLib, const VideoInfo& aConfig,
     KnowsCompositor* aAllocator, ImageContainer* aImageContainer,
     bool aLowLatency, bool aDisableHardwareDecoding, bool a8BitOutput,
     Maybe<TrackingId> aTrackingId, PRemoteCDMActor* aCDM)
@@ -665,7 +665,9 @@ void FFmpegVideoDecoder<LIBAV_VER>::InitHWDecoderIfAllowed() {
 #  endif  // MOZ_ENABLE_D3D11VA
 
 #  ifdef MOZ_WIDGET_ANDROID
-  if (XRE_IsRDDProcess() && NS_SUCCEEDED(InitMediaCodecDecoder())) {
+  if ((XRE_IsRDDProcess() ||
+       (XRE_IsParentProcess() && PR_GetEnv("MOZ_RUN_GTEST"))) &&
+      NS_SUCCEEDED(InitMediaCodecDecoder())) {
     return;
   }
 #  endif
@@ -2427,14 +2429,8 @@ bool FFmpegVideoDecoder<LIBAV_VER>::CanUseZeroCopyVideoFrame() const {
 
 #ifdef MOZ_WIDGET_ANDROID
 MediaResult FFmpegVideoDecoder<LIBAV_VER>::InitMediaCodecDecoder() {
-  MOZ_DIAGNOSTIC_ASSERT(XRE_IsRDDProcess());
   FFMPEG_LOG("Initialising MediaCodec FFmpeg decoder");
   StaticMutexAutoLock mon(sMutex);
-
-  if (!mImageAllocator /* todo check compositor */) {
-    FFMPEG_LOG("  no KnowsCompositor or it doesn't support MediaCodec");
-    return NS_ERROR_DOM_MEDIA_FATAL_ERR;
-  }
 
   if (mInfo.mColorDepth > gfx::ColorDepth::COLOR_10) {
     return MediaResult(NS_ERROR_DOM_MEDIA_FATAL_ERR,
@@ -2604,7 +2600,8 @@ MediaResult FFmpegVideoDecoder<LIBAV_VER>::CreateImageMediaCodec(
 
 #if MOZ_USE_HWDECODE
 /* static */ AVCodec* FFmpegVideoDecoder<LIBAV_VER>::FindVideoHardwareAVCodec(
-    FFmpegLibWrapper* aLib, AVCodecID aCodec, AVHWDeviceType aDeviceType) {
+    const FFmpegLibWrapper* aLib, AVCodecID aCodec,
+    AVHWDeviceType aDeviceType) {
 #  ifdef MOZ_WIDGET_GTK
   if (aDeviceType == AV_HWDEVICE_TYPE_NONE) {
     switch (aCodec) {
