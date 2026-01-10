@@ -299,6 +299,7 @@ Preferences.addAll([
 if (SECURITY_PRIVACY_STATUS_CARD_ENABLED) {
   Preferences.addAll([
     // Security and Privacy Warnings
+    { id: "browser.preferences.config_warning.dismissAll", type: "bool" },
     { id: "privacy.ui.status_card.testing.show_issue", type: "bool" },
     {
       id: "browser.preferences.config_warning.warningTest.dismissed",
@@ -812,6 +813,8 @@ class WarningSettingConfig {
     if (isDismissable) {
       this.dismissedPrefId = `browser.preferences.config_warning.${this.id}.dismissed`;
       this.prefMapping.dismissed = this.dismissedPrefId;
+      this.dismissAllPrefId = `browser.preferences.config_warning.dismissAll`;
+      this.prefMapping.dismissAll = this.dismissAllPrefId;
     }
     this.problematic = problematic;
   }
@@ -823,7 +826,11 @@ class WarningSettingConfig {
    * @returns {boolean} Whether or not to show this configuration as a warning to the user
    */
   visible() {
-    return !this.dismissed?.value && this.problematic(this);
+    return (
+      !this.dismissAll?.value &&
+      !this.dismissed?.value &&
+      this.problematic(this)
+    );
   }
 
   /**
@@ -878,10 +885,12 @@ class WarningSettingConfig {
     switch (event.target.id) {
       case "reset": {
         this.reset();
+        Glean.securityPreferencesWarnings.warningFixed.record();
         break;
       }
       case "dismiss": {
         this.dismiss();
+        Glean.securityPreferencesWarnings.warningDismissed.record();
         break;
       }
     }
@@ -1416,7 +1425,14 @@ if (SECURITY_PRIVACY_STATUS_CARD_ENABLED) {
     id: "warningCard",
     deps: SECURITY_WARNINGS.map(warning => warning.id),
     visible: deps => {
-      return Object.values(deps).some(depSetting => depSetting.visible);
+      const count = Object.values(deps).filter(
+        depSetting => depSetting.visible
+      ).length;
+      if (!this._telemetrySent) {
+        Glean.securityPreferencesWarnings.warningsShown.record({ count });
+        this._telemetrySent = true;
+      }
+      return count > 0;
     },
   });
 }
@@ -1442,6 +1458,22 @@ Preferences.addSetting({
 Preferences.addSetting({
   id: "ipProtectionExceptionAllListButton",
   deps: ["ipProtectionVisible", "ipProtectionSiteExceptionsFeatureEnabled"],
+  setup(emitChange) {
+    let permObserver = {
+      observe(subject, topic, _data) {
+        if (subject && topic === "perm-changed") {
+          let permission = subject.QueryInterface(Ci.nsIPermission);
+          if (permission.type === "ipp-vpn") {
+            emitChange();
+          }
+        }
+      },
+    };
+    Services.obs.addObserver(permObserver, "perm-changed");
+    return () => {
+      Services.obs.removeObserver(permObserver, "perm-changed");
+    };
+  },
   visible: ({
     ipProtectionVisible,
     ipProtectionSiteExceptionsFeatureEnabled,
@@ -1461,6 +1493,24 @@ Preferences.addSetting({
       { features: "resizable=yes" },
       params
     );
+  },
+  getControlConfig(config) {
+    let l10nId = "ip-protection-site-exceptions-all-sites-button";
+
+    let savedExceptions = Services.perms.getAllByTypes(["ipp-vpn"]);
+    let numberOfExclusions = savedExceptions.filter(
+      perm => perm.capability === Ci.nsIPermissionManager.DENY_ACTION
+    ).length;
+
+    let l10nArgs = {
+      count: numberOfExclusions,
+    };
+
+    return {
+      ...config,
+      l10nId,
+      l10nArgs,
+    };
   },
 });
 Preferences.addSetting({
@@ -3265,11 +3315,10 @@ function dataCollectionCheckboxHandler({
     );
 
     if (collectionEnabled && matchPref()) {
-      if (Services.prefs.getBoolPref(pref, false)) {
-        checkbox.setAttribute("checked", "true");
-      } else {
-        checkbox.removeAttribute("checked");
-      }
+      checkbox.toggleAttribute(
+        "checked",
+        Services.prefs.getBoolPref(pref, false)
+      );
       checkbox.setAttribute("preference", pref);
     } else {
       checkbox.removeAttribute("preference");
@@ -3909,7 +3958,7 @@ var gPrivacyPane = {
         let notificationsDoNotDisturb = document.getElementById(
           "notificationsDoNotDisturb"
         );
-        notificationsDoNotDisturb.setAttribute("checked", true);
+        notificationsDoNotDisturb.toggleAttribute("checked", true);
       }
     }
 
@@ -5348,7 +5397,7 @@ var gPrivacyPane = {
       return;
     }
 
-    osReauthCheckbox.setAttribute("checked", LoginHelper.getOSAuthEnabled());
+    osReauthCheckbox.toggleAttribute("checked", LoginHelper.getOSAuthEnabled());
 
     setEventListener(
       "osReauthCheckbox",
@@ -5570,11 +5619,10 @@ var gPrivacyPane = {
         Services.prefs.getBoolPref(PREF_UPLOAD_ENABLED, false) &&
         Services.prefs.getBoolPref(PREF_NORMANDY_ENABLED, false)
       ) {
-        if (Services.prefs.getBoolPref(PREF_OPT_OUT_STUDIES_ENABLED, false)) {
-          checkbox.setAttribute("checked", "true");
-        } else {
-          checkbox.removeAttribute("checked");
-        }
+        checkbox.toggleAttribute(
+          "checked",
+          Services.prefs.getBoolPref(PREF_OPT_OUT_STUDIES_ENABLED, false)
+        );
         checkbox.setAttribute("preference", PREF_OPT_OUT_STUDIES_ENABLED);
         checkbox.removeAttribute("disabled");
       } else {

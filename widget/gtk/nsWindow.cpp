@@ -609,8 +609,8 @@ void nsWindow::DispatchResized() {
 
 #ifdef MOZ_WAYLAND
   if (mSurface) {
-    LOG("  WaylanSurface unscaled size [%d, %d]", mClientArea.Size().width,
-        mClientArea.Size().height);
+    LOG("  WaylandSurface unscaled size [%d, %d]", mClientArea.width,
+        mClientArea.height);
     mSurface->SetSize(mClientArea.Size());
   }
 #endif
@@ -1114,21 +1114,20 @@ DesktopIntRect nsWindow::ToDesktopPixels(const LayoutDeviceIntRect& aRect) {
 void nsWindow::ResizeInt(const Maybe<DesktopIntPoint>& aMove,
                          DesktopIntSize aSize) {
   LOG("nsWindow::ResizeInt w:%d h:%d\n", aSize.width, aSize.height);
-
-  const bool moved =
-      aMove && (*aMove != mLastMoveRequest || mClientArea.TopLeft() != *aMove);
+  auto currentBounds = GetScreenBoundsUnscaled();
+  const bool moved = aMove && (*aMove != mLastMoveRequest ||
+                               currentBounds.TopLeft() != *aMove);
   if (moved) {
     LOG("  with move to left:%d top:%d", aMove->x.value, aMove->y.value);
     mLastMoveRequest = *aMove;
   }
 
-  const bool resized = aSize != mLastSizeRequest || mClientArea.Size() != aSize;
-#if MOZ_LOGGING
+  const bool resized =
+      aSize != mLastSizeRequest || currentBounds.Size() != aSize;
   LOG("  resized %d aSize [%d, %d] mLastSizeRequest [%d, %d] "
-      "mClientArea [%d, %d]",
+      "bounds [%d, %d]",
       resized, aSize.width, aSize.height, mLastSizeRequest.width,
-      mLastSizeRequest.height, mClientArea.width, mClientArea.height);
-#endif
+      mLastSizeRequest.height, currentBounds.width, currentBounds.height);
 
   mLastSizeRequest = aSize;
 
@@ -2081,28 +2080,25 @@ void nsWindow::NativeMoveResizeWaylandPopupCallback(
   // perfectly round-trip. Compare gdk rects to check whether size or positions
   // have changed from what we'd request otherwise, in order to avoid
   // flickering.
-  const GdkRectangle currentGdkRect{mClientArea.x, mClientArea.y,
-                                    mClientArea.width, mClientArea.height};
+  const auto currentRect = mClientArea;
   auto scale = GdkCeiledScaleFactor();
   auto IsSubstantiallyDifferent = [=](gint a, gint b) {
     return std::abs(a - b) > scale;
   };
 
   const bool needsPositionUpdate =
-      IsSubstantiallyDifferent(finalGdkRect.x, currentGdkRect.x) ||
-      IsSubstantiallyDifferent(finalGdkRect.y, currentGdkRect.y);
+      IsSubstantiallyDifferent(finalGdkRect.x, currentRect.x) ||
+      IsSubstantiallyDifferent(finalGdkRect.y, currentRect.y);
   const bool needsSizeUpdate =
-      IsSubstantiallyDifferent(finalGdkRect.width, currentGdkRect.width) ||
-      IsSubstantiallyDifferent(finalGdkRect.height, currentGdkRect.height);
+      IsSubstantiallyDifferent(finalGdkRect.width, currentRect.width) ||
+      IsSubstantiallyDifferent(finalGdkRect.height, currentRect.height);
   const DesktopIntRect newClientArea = DesktopIntRect(
       finalGdkRect.x, finalGdkRect.y, finalGdkRect.width, finalGdkRect.height);
 
-  LOG("  orig gdk [%d, %d] -> [%d x %d]", currentGdkRect.x, currentGdkRect.y,
-      currentGdkRect.width, currentGdkRect.height);
+  LOG("  orig gdk [%d, %d] -> [%d x %d]", currentRect.x, currentRect.y,
+      currentRect.width, currentRect.height);
   LOG("  new gdk [%d, %d] -> [%d x %d]\n", finalGdkRect.x, finalGdkRect.y,
       finalGdkRect.width, finalGdkRect.height);
-  LOG("  orig mClientArea [%d, %d] -> [%d x %d]", mClientArea.x, mClientArea.y,
-      mClientArea.width, mClientArea.height);
   LOG("  new mClientArea [%d, %d] -> [%d x %d]", newClientArea.x,
       newClientArea.y, newClientArea.width, newClientArea.height);
 
@@ -2175,21 +2171,19 @@ bool nsWindow::IsPopupDirectionRTL() {
 // It's used when we position noautihode popup and we don't use xdg_positioner.
 // See Bug 1718867
 void nsWindow::WaylandPopupSetDirectPosition() {
-  GdkRectangle rect{mLastMoveRequest.x, mLastMoveRequest.y,
-                    mLastSizeRequest.width, mLastSizeRequest.height};
+  const DesktopIntRect newRect(mLastMoveRequest, mLastSizeRequest);
 
-  LOG("nsWindow::WaylandPopupSetDirectPosition %d,%d -> %d x %d\n", rect.x,
-      rect.y, rect.width, rect.height);
+  LOG("nsWindow::WaylandPopupSetDirectPosition %s", ToString(newRect).c_str());
 
-  mClientArea.MoveTo(mLastMoveRequest);
-  mClientArea.SizeTo(mLastSizeRequest);
+  mClientArea = newRect;
 
   if (mIsDragPopup) {
-    gtk_window_move(GTK_WINDOW(mShell), rect.x, rect.y);
-    gtk_window_resize(GTK_WINDOW(mShell), rect.width, rect.height);
+    gtk_window_move(GTK_WINDOW(mShell), newRect.x, newRect.y);
+    gtk_window_resize(GTK_WINDOW(mShell), newRect.width, newRect.height);
     // DND window is placed inside container so we need to make hard size
     // request to ensure parent container is resized too.
-    gtk_widget_set_size_request(GTK_WIDGET(mShell), rect.width, rect.height);
+    gtk_widget_set_size_request(GTK_WIDGET(mShell), newRect.width,
+                                newRect.height);
     return;
   }
 
@@ -2204,12 +2198,12 @@ void nsWindow::WaylandPopupSetDirectPosition() {
   }
 
   int parentWidth = gdk_window_get_width(gdkWindow);
-  int popupWidth = rect.width;
+  int popupWidth = newRect.width;
 
   int x;
   gdk_window_get_position(gdkWindow, &x, nullptr);
 
-  auto pos = mClientArea.TopLeft();
+  auto pos = newRect.TopLeft();
   // If popup is bigger than main window just center it.
   if (popupWidth > parentWidth) {
     pos.x = -(parentWidth - popupWidth) / 2 + x;
@@ -2226,12 +2220,11 @@ void nsWindow::WaylandPopupSetDirectPosition() {
   LOG("  set position [%d, %d]\n", pos.x.value, pos.y.value);
   gtk_window_move(GTK_WINDOW(mShell), pos.x, pos.y);
 
-  LOG("  set size [%d, %d]\n", rect.width, rect.height);
-  gtk_window_resize(GTK_WINDOW(mShell), rect.width, rect.height);
+  LOG("  set size [%d, %d]\n", newRect.width, newRect.height);
+  gtk_window_resize(GTK_WINDOW(mShell), newRect.width, newRect.height);
 
-  if (pos.x != rect.x) {
-    mClientArea.MoveTo(pos.x, pos.y);
-    LOG("  setting new client area [%d, %d]\n", mClientArea.x, mClientArea.y);
+  if (pos.x != newRect.x) {
+    mClientArea.MoveTo(pos);
     WaylandPopupPropagateChangesToLayout(/* move */ true, /* resize */ false);
   }
 }
@@ -2337,8 +2330,7 @@ void nsWindow::NativeMoveResizeWaylandPopup(bool aMove, bool aResize) {
   // Mark popup as changed as we're updating position/size.
   mPopupChanged = true;
 
-  mClientArea.MoveTo(mLastMoveRequest);
-  mClientArea.SizeTo(mLastSizeRequest);
+  mClientArea = DesktopIntRect(mLastMoveRequest, mLastSizeRequest);
 
   UpdateWaylandPopupHierarchy();
 }
@@ -3307,10 +3299,10 @@ LayoutDeviceIntCoord GetXWindowBorder(GdkWindow* aWin) {
                           top corner, so matches CSD size - (40,40).
 */
 #ifdef MOZ_X11
-void nsWindow::RecomputeBoundsX11() {
-  LOG("RecomputeBoundsX11()");
+auto nsWindow::Bounds::ComputeX11(const nsWindow* aWindow) -> Bounds {
+  LOG_WIN(aWindow, "Bounds::ComputeX11()");
 
-  auto* toplevel = GetToplevelGdkWindow();
+  auto* toplevel = aWindow->GetToplevelGdkWindow();
 
   // Window position and size with window decoration AND system titlebar.
   auto GetFrameTitlebarBounds = [&](GdkWindow* aWin) {
@@ -3318,12 +3310,13 @@ void nsWindow::RecomputeBoundsX11() {
     gdk_window_get_frame_extents(aWin, &b);
     if (gtk_check_version(3, 24, 35) &&
         gdk_window_get_window_type(aWin) == GDK_WINDOW_TEMP) {
-      LOGVERBOSE(
+      LOG_WIN(
+          aWindow,
           "  GetFrameTitlebarBounds gtk 3.24.35 & GDK_WINDOW_TEMP workaround");
       // Workaround for https://gitlab.gnome.org/GNOME/gtk/-/merge_requests/4820
       // Bug 1775017 Gtk < 3.24.35 returns scaled values for
       // override redirected window on X11.
-      double scale = FractionalScaleFactor();
+      double scale = aWindow->FractionalScaleFactor();
       return DesktopIntRect(int(round(b.x / scale)), int(round(b.y / scale)),
                             int(round(b.width / scale)),
                             int(round(b.height / scale)));
@@ -3331,11 +3324,11 @@ void nsWindow::RecomputeBoundsX11() {
     auto result = DesktopIntRect(b.x, b.y, b.width, b.height);
     if (gtk_check_version(3, 24, 50)) {
       if (auto border = GetXWindowBorder(aWin)) {
-        LOGVERBOSE("  GetFrameTitlebarBounds gtk 3.24.50 workaround");
+        LOG_WIN(aWindow, "  GetFrameTitlebarBounds gtk 3.24.50 workaround");
         // Workaround for
         // https://gitlab.gnome.org/GNOME/gtk/-/merge_requests/8423
         // Bug 1958174 Gtk doesn't account for window border sizes on X11.
-        double scale = FractionalScaleFactor();
+        double scale = aWindow->FractionalScaleFactor();
         result.width += 2 * border / scale;
         result.height += 2 * border / scale;
       }
@@ -3346,7 +3339,7 @@ void nsWindow::RecomputeBoundsX11() {
   // Window position and size with decoration but WITHOUT system titlebar.
   auto GetBounds = [&](GdkWindow* aWin) {
     GdkRectangle b{0};
-    if (IsTopLevelWidget() && aWin == toplevel) {
+    if (aWindow->IsTopLevelWidget() && aWin == toplevel) {
       // We want the up-to-date size from the X server, not the last configure
       // event size, to avoid spurious resizes on e.g. sizemode changes.
       gdk_window_get_geometry(aWin, nullptr, nullptr, &b.width, &b.height);
@@ -3360,11 +3353,17 @@ void nsWindow::RecomputeBoundsX11() {
   };
 
   const auto toplevelBoundsWithTitlebar = GetFrameTitlebarBounds(toplevel);
-  const auto toplevelBounds = GetBounds(toplevel);
+  LOG_WIN(aWindow, "  toplevelBoundsWithTitlebar %s",
+          ToString(toplevelBoundsWithTitlebar).c_str());
 
-  LOGVERBOSE("  toplevelBoundsWithTitlebar %s",
-             ToString(toplevelBoundsWithTitlebar).c_str());
-  LOGVERBOSE("  toplevelBounds %s", ToString(toplevelBounds).c_str());
+  if (aWindow->GetSizeMode() == nsSizeMode_Fullscreen) {
+    // In order to avoid spurious extra resizes during fullscreen transitions,
+    // we assume we're not decorated.
+    return {.mClientArea = toplevelBoundsWithTitlebar, .mClientMargin = {}};
+  }
+
+  const auto toplevelBounds = GetBounds(toplevel);
+  LOG_WIN(aWindow, "  toplevelBounds %s", ToString(toplevelBounds).c_str());
 
   // Offset from system decoration to gtk decoration.
   const auto systemDecorationOffset = [&] {
@@ -3384,31 +3383,35 @@ void nsWindow::RecomputeBoundsX11() {
     return offset;
   }();
 
+  Bounds result;
   // This is relative to our parent window, that is, to topLevelBounds.
-  mClientArea = GetBounds(mGdkWindow);
+  result.mClientArea = GetBounds(aWindow->GetGdkWindow());
   // Make it relative to topLevelBoundsWithTitlebar
-  mClientArea.MoveBy(systemDecorationOffset);
-  LOGVERBOSE("  mClientArea %s", ToString(mClientArea).c_str());
+  result.mClientArea.MoveBy(systemDecorationOffset);
+  LOG_WIN(aWindow, "  mClientArea %s", ToString(result.mClientArea).c_str());
 
-  if (mClientArea.X() < 0 || mClientArea.Y() < 0 || mClientArea.Width() <= 1 ||
-      mClientArea.Height() <= 1) {
+  if (result.mClientArea.X() < 0 || result.mClientArea.Y() < 0 ||
+      result.mClientArea.Width() <= 1 || result.mClientArea.Height() <= 1) {
     // If we don't have gdkwindow bounds, assume we take the whole toplevel
     // except system decorations.
-    mClientArea = DesktopIntRect(systemDecorationOffset, toplevelBounds.Size());
+    result.mClientArea =
+        DesktopIntRect(systemDecorationOffset, toplevelBounds.Size());
   }
 
-  mClientMargin =
+  result.mClientMargin =
       DesktopIntRect(DesktopIntPoint(), toplevelBoundsWithTitlebar.Size()) -
-      mClientArea;
-  mClientMargin.EnsureAtLeast(DesktopIntMargin());
+      result.mClientArea;
+  result.mClientMargin.EnsureAtLeast(DesktopIntMargin());
 
   // We want mClientArea in global coordinates. We derive everything from here,
   // so move it to global coords.
-  mClientArea.MoveBy(toplevelBoundsWithTitlebar.TopLeft());
+  result.mClientArea.MoveBy(toplevelBoundsWithTitlebar.TopLeft());
+  return result;
 }
 #endif
 #ifdef MOZ_WAYLAND
-void nsWindow::RecomputeBoundsWayland() {
+auto nsWindow::Bounds::ComputeWayland(const nsWindow* aWindow) -> Bounds {
+  LOG_WIN(aWindow, "Bounds::ComputeWayland()");
   auto GetBounds = [&](GdkWindow* aWin) {
     GdkRectangle b{0};
     gdk_window_get_position(aWin, &b.x, &b.y);
@@ -3417,26 +3420,45 @@ void nsWindow::RecomputeBoundsWayland() {
     return DesktopIntRect(b.x, b.y, b.width, b.height);
   };
 
-  const auto toplevelBounds = GetBounds(GetToplevelGdkWindow());
-  mClientArea = GetBounds(mGdkWindow);
+  const auto toplevelBounds = GetBounds(aWindow->GetToplevelGdkWindow());
+  LOG_WIN(aWindow, "  toplevelBounds %s", ToString(toplevelBounds).c_str());
 
-  LOG("RecomputeBoundsWayland() GetBounds(mGdkWindow) [%d,%d] -> [%d x %d] "
-      "GetBounds(mShell) [%d,%d] -> [%d x %d]",
-      mClientArea.x, mClientArea.y, mClientArea.width, mClientArea.height,
-      toplevelBounds.x, toplevelBounds.y, toplevelBounds.width,
-      toplevelBounds.height);
-
-  if (mClientArea.X() < 0 || mClientArea.Y() < 0 || mClientArea.Width() <= 1 ||
-      mClientArea.Height() <= 1) {
-    // If we don't have gdkwindow bounds yet, assume we take the whole toplevel.
-    mClientArea = toplevelBounds;
+  if (aWindow->GetSizeMode() == nsSizeMode_Fullscreen) {
+    return {.mClientArea = toplevelBounds, .mClientMargin = {}};
   }
 
-  mClientMargin =
-      DesktopIntRect(DesktopIntPoint(), toplevelBounds.Size()) - mClientArea;
-  mClientMargin.EnsureAtLeast(DesktopIntMargin());
+  Bounds result;
+  result.mClientArea = GetBounds(aWindow->GetGdkWindow());
+  LOG_WIN(aWindow, "  bounds %s", ToString(result.mClientArea).c_str());
+
+  if (result.mClientArea.X() < 0 || result.mClientArea.Y() < 0 ||
+      result.mClientArea.Width() <= 1 || result.mClientArea.Height() <= 1) {
+    // If we don't have gdkwindow bounds yet, assume we take the whole toplevel.
+    result.mClientArea = toplevelBounds;
+  }
+
+  result.mClientMargin =
+      DesktopIntRect(DesktopIntPoint(), toplevelBounds.Size()) -
+      result.mClientArea;
+  result.mClientMargin.EnsureAtLeast(DesktopIntMargin());
+  return result;
 }
 #endif
+
+auto nsWindow::Bounds::Compute(const nsWindow* aWindow) -> Bounds {
+#ifdef MOZ_X11
+  if (GdkIsX11Display()) {
+    return ComputeX11(aWindow);
+  }
+#endif
+#ifdef MOZ_WAYLAND
+  if (GdkIsWaylandDisplay()) {
+    return ComputeWayland(aWindow);
+  }
+#endif
+  MOZ_ASSERT_UNREACHABLE("How?");
+  return {};
+}
 
 void nsWindow::RecomputeBounds(bool aScaleChange) {
   LOG("RecomputeBounds() scale change %d", aScaleChange);
@@ -3447,19 +3469,11 @@ void nsWindow::RecomputeBounds(bool aScaleChange) {
     return;
   }
 
-  const auto oldClientArea = mClientArea;
   const auto oldMargin = mClientMargin;
-
-#ifdef MOZ_X11
-  if (GdkIsX11Display()) {
-    RecomputeBoundsX11();
-  }
-#endif
-#ifdef MOZ_WAYLAND
-  if (GdkIsWaylandDisplay()) {
-    RecomputeBoundsWayland();
-  }
-#endif
+  const auto oldClientArea = mClientArea;
+  const auto newBounds = Bounds::Compute(this);
+  mClientArea = newBounds.mClientArea;
+  mClientMargin = newBounds.mClientMargin;
 
   if (IsPopup()) {
     // Popup windows is not moved by the window manager, and so any change in
@@ -5530,11 +5544,19 @@ void nsWindow::OnWindowStateEvent(GtkWidget* aWidget,
   }();
 
   if (mSizeMode != oldSizeMode) {
+    const bool fullscreenChanging = mSizeMode == nsSizeMode_Fullscreen ||
+                                    oldSizeMode == nsSizeMode_Fullscreen;
+    if (fullscreenChanging) {
+      // As a special-case when going in / out of fullscreen mode we recompute
+      // bounds synchronously. This avoids spurious resizes when going into
+      // fullscreen mode if the relevant configure hasn't happened yet or what
+      // not.
+      RecomputeBounds();
+    }
     if (mWidgetListener) {
       mWidgetListener->SizeModeChanged(mSizeMode);
     }
-    if (mSizeMode == nsSizeMode_Fullscreen ||
-        oldSizeMode == nsSizeMode_Fullscreen) {
+    if (fullscreenChanging) {
       if (mCompositorWidgetDelegate) {
         mCompositorWidgetDelegate->NotifyFullscreenChanged(
             mSizeMode == nsSizeMode_Fullscreen);
@@ -9074,7 +9096,7 @@ gint nsWindow::GdkCeiledScaleFactor() {
   return ScreenHelperGTK::GetGTKMonitorScaleFactor();
 }
 
-double nsWindow::FractionalScaleFactor() {
+double nsWindow::FractionalScaleFactor() const {
 #ifdef MOZ_WAYLAND
   if (mSurface) {
     auto scale = mSurface->GetScale();

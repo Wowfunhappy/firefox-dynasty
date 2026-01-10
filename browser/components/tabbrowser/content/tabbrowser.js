@@ -119,7 +119,7 @@
         TaskbarTabs: "resource:///modules/taskbartabs/TaskbarTabs.sys.mjs",
         UrlbarProviderOpenTabs:
           "moz-src:///browser/components/urlbar/UrlbarProviderOpenTabs.sys.mjs",
-        SVG_DATA_URI_PREFIX: "moz-src:///browser/modules/FaviconUtils.sys.mjs",
+        FaviconUtils: "moz-src:///browser/modules/FaviconUtils.sys.mjs",
       });
       ChromeUtils.defineLazyGetter(this, "tabLocalization", () => {
         return new Localization(
@@ -1153,16 +1153,11 @@
           let url = aIconURL;
           if (
             this._remoteSVGIconDecoding &&
-            url.startsWith(this.SVG_DATA_URI_PREFIX)
+            url.startsWith(this.FaviconUtils.SVG_DATA_URI_PREFIX)
           ) {
             // 16px is hardcoded for .tab-icon-image in tabs.css
             let size = Math.floor(16 * window.devicePixelRatio);
-            let params = new URLSearchParams({
-              url,
-              width: size,
-              height: size,
-            });
-            url = "moz-remote-image://?" + params;
+            url = this.FaviconUtils.getMozRemoteImageURL(url, size);
           }
           aTab.setAttribute("image", url);
         } else {
@@ -3361,7 +3356,7 @@
       if (panelEl) {
         const footer = document.createXULElement("split-view-footer");
         footer.setTab(tab);
-        panelEl.appendChild(footer);
+        panelEl.querySelector(".browserStack").appendChild(footer);
       }
     }
 
@@ -5824,7 +5819,7 @@
       // We should be using the disabled property here instead of the attribute,
       // but some elements that this function is used with don't support it (e.g.
       // menuitem).
-      if (node.getAttribute("disabled") == "true") {
+      if (node.hasAttribute("disabled")) {
         return;
       } // Do nothing
 
@@ -9694,7 +9689,7 @@ var TabContextMenu = {
     let closedCount = SessionStore.getLastClosedTabCount(window);
     document
       .getElementById("History:UndoCloseTab")
-      .setAttribute("disabled", closedCount == 0);
+      .toggleAttribute("disabled", closedCount == 0);
     document.l10n.setArgs(document.getElementById("context_undoCloseTab"), {
       tabCount: closedCount,
     });
@@ -10424,7 +10419,9 @@ var TabContextMenu = {
 
   deleteTabNotes() {
     for (let tab of this.contextTabs) {
-      this.TabNotes.delete(tab);
+      this.TabNotes.delete(tab, {
+        telemetrySource: this.TabNotes.TELEMETRY_SOURCE.TAB_CONTEXT_MENU,
+      });
     }
   },
 };

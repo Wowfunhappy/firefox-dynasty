@@ -949,7 +949,10 @@ function RegExpSplit(string, limit) {
   if (optimizable) {
     // Step 5.
     flags = UnsafeGetInt32FromReservedSlot(rx, REGEXP_FLAGS_SLOT);
-    assert(!!(flags & REGEXP_LEGACY_FEATURES_ENABLED_FLAG), "Legacy features must be enabled in optimized path");
+    #ifdef NIGHTLY_BUILD
+    assert(!!(flags & REGEXP_LEGACY_FEATURES_ENABLED_FLAG),
+           "Legacy features must be enabled in optimized path");
+    #endif
     // Steps 6-7.
     unicodeMatching = !!(flags & REGEXP_UNICODE_FLAG);
 
@@ -1215,7 +1218,10 @@ function RegExpMatchAll(string) {
     // Step 5, 9-12.
     source = UnsafeGetStringFromReservedSlot(rx, REGEXP_SOURCE_SLOT);
     flags = UnsafeGetInt32FromReservedSlot(rx, REGEXP_FLAGS_SLOT);
-    assert(!!(flags & REGEXP_LEGACY_FEATURES_ENABLED_FLAG), "Legacy features must be enabled in optimized path");
+    #ifdef NIGHTLY_BUILD
+    assert(!!(flags & REGEXP_LEGACY_FEATURES_ENABLED_FLAG),
+    "Legacy features must be enabled in optimized path");
+    #endif
 
     // Step 6.
     matcher = rx;
@@ -1238,11 +1244,9 @@ function RegExpMatchAll(string) {
     // Steps 9-12.
     flags =
       (callFunction(std_String_includes, flags, "g") ? REGEXP_GLOBAL_FLAG : 0) |
-      (callFunction(std_String_includes, flags, "u") ? REGEXP_UNICODE_FLAG : 0);
-
-      if (C === builtinCtor) {
-      flags |= REGEXP_LEGACY_FEATURES_ENABLED_FLAG;
-      }
+      (callFunction(std_String_includes, flags, "u") ? REGEXP_UNICODE_FLAG : 0) |
+      (callFunction(std_String_includes, flags, "v") ? REGEXP_UNICODESETS_FLAG : 0);
+    
     // Take the non-optimized path.
     lastIndex = REGEXP_STRING_ITERATOR_LASTINDEX_SLOW;
   }

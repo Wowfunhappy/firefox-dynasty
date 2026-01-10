@@ -2441,7 +2441,7 @@ already_AddRefed<gfxTextRun> BuildTextRunsScanner::BuildTextRunForFrames(
       if (mathFrame) {
         nsPresentationData presData;
         mathFrame->GetPresentationData(presData);
-        if (NS_MATHML_IS_DTLS_SET(presData.flags)) {
+        if (presData.flags.contains(MathMLPresentationFlag::Dtls)) {
           mathFlags |= MathMLTextRunFactory::MATH_FONT_FEATURE_DTLS;
           anyMathMLStyling = true;
         }
@@ -5871,8 +5871,11 @@ static bool ComputeDecorationInset(
     decContainer = aDecFrame;
   } else {
     nsIFrame* const lineContainer = FindLineContainer(aFrame);
+    // If the frame specifies text-combined, then it might have an orthogonal
+    // writing mode to the line container.
     MOZ_ASSERT(
-        lineContainer->GetWritingMode().IsVertical() == wm.IsVertical(),
+        !wm.IsOrthogonalTo(lineContainer->GetWritingMode()) ||
+            aFrame->Style()->IsTextCombined(),
         "Decorating frame and line container must have writing modes in the "
         "same axis");
     if (nsILineIterator* const iter = lineContainer->GetLineIterator()) {
@@ -6290,7 +6293,9 @@ void nsTextFrame::PaintDecorationLine(
   params.color = aParams.overrideColor ? *aParams.overrideColor : aParams.color;
   params.icoordInFrame = Float(aParams.icoordInFrame);
   params.baselineOffset = Float(aParams.baselineOffset);
-  params.allowInkSkipping = aParams.allowInkSkipping;
+  // Disable ink-skipping for frames with text-combine-upright.
+  params.allowInkSkipping =
+      aParams.allowInkSkipping && !Style()->IsTextCombined();
   params.skipInk = aParams.skipInk;
   if (aParams.callbacks) {
     Rect path = nsCSSRendering::DecorationLineToPath(params);

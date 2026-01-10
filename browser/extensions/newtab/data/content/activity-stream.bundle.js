@@ -157,6 +157,7 @@ for (const type of [
   "DISCOVERY_STREAM_SPOCS_UPDATE",
   "DISCOVERY_STREAM_SPOC_BLOCKED",
   "DISCOVERY_STREAM_SPOC_IMPRESSION",
+  "DISCOVERY_STREAM_SPOC_PLACEHOLDER_DURATION",
   "DISCOVERY_STREAM_TOPICS_LOADING",
   "DISCOVERY_STREAM_USER_EVENT",
   "DOWNLOAD_CHANGED",
@@ -210,6 +211,7 @@ for (const type of [
   "PROMO_CARD_CLICK",
   "PROMO_CARD_DISMISS",
   "PROMO_CARD_IMPRESSION",
+  "REFRESH_EXTERNAL_COMPONENTS",
   "REMOVE_DOWNLOAD_FILE",
   "REPORT_AD_OPEN",
   "REPORT_AD_SUBMIT",
@@ -891,7 +893,7 @@ class DiscoveryStreamAdminUI extends (external_React_default()).PureComponent {
   }
   sendConversionEvent() {
     const detail = {
-      partnerId: "demo-partner",
+      partnerId: "295BEEF7-1E3B-4128-B8F8-858E12AA660B",
       lookbackDays: 7,
       impressionType: "default"
     };
@@ -6623,6 +6625,9 @@ const INITIAL_STATE = {
       isRunning: false,
     },
   },
+  ExternalComponents: {
+    components: [],
+  },
 };
 
 function App(prevState = INITIAL_STATE.App, action) {
@@ -7597,6 +7602,18 @@ function ListsWidget(prevState = INITIAL_STATE.ListsWidget, action) {
   }
 }
 
+function ExternalComponents(
+  prevState = INITIAL_STATE.ExternalComponents,
+  action
+) {
+  switch (action.type) {
+    case actionTypes.REFRESH_EXTERNAL_COMPONENTS:
+      return { ...prevState, components: action.data };
+    default:
+      return prevState;
+  }
+}
+
 const reducers = {
   TopSites,
   App,
@@ -7615,6 +7632,7 @@ const reducers = {
   ListsWidget,
   Wallpapers,
   Weather,
+  ExternalComponents,
 };
 
 ;// CONCATENATED MODULE: ./content-src/components/TopSites/TopSiteFormInput.jsx
@@ -11013,6 +11031,13 @@ class _Weather extends (external_React_default()).PureComponent {
     const showDetailedView = Prefs.values["weather.display"] === "detailed";
     const weatherOptIn = Prefs.values["system.showWeatherOptIn"];
     const nimbusWeatherOptInEnabled = Prefs.values.trainhopConfig?.weather?.weatherOptInEnabled;
+    // Bug 2009484: Controls button order in opt-in dialog for A/B testing.
+    // When true, "Not now" gets slot="primary";
+    // when false/undefined, "Yes" gets slot="primary".
+    // Also note the primary button's position varies by platform:
+    // on Windows, it appears on the left,
+    // while on Linux and macOS, it appears on the right.
+    const reverseOptInButtons = Prefs.values.trainhopConfig?.weather?.reverseOptInButtons;
     const optInDisplayed = Prefs.values["weather.optInDisplayed"];
     const optInUserChoice = Prefs.values["weather.optInAccepted"];
     const staticWeather = Prefs.values["weather.staticData.enabled"];
@@ -11129,15 +11154,17 @@ class _Weather extends (external_React_default()).PureComponent {
       }, /*#__PURE__*/external_React_default().createElement("moz-button", {
         size: "small",
         type: "default",
-        "data-l10n-id": "newtab-weather-opt-in-not-now",
-        onClick: this.handleRejectOptIn,
-        id: "reject-opt-in"
+        "data-l10n-id": "newtab-weather-opt-in-yes",
+        onClick: this.handleAcceptOptIn,
+        id: "accept-opt-in",
+        slot: reverseOptInButtons ? "" : "primary"
       }), /*#__PURE__*/external_React_default().createElement("moz-button", {
         size: "small",
         type: "default",
-        "data-l10n-id": "newtab-weather-opt-in-yes",
-        onClick: this.handleAcceptOptIn,
-        id: "accept-opt-in"
+        "data-l10n-id": "newtab-weather-opt-in-not-now",
+        onClick: this.handleRejectOptIn,
+        id: "reject-opt-in",
+        slot: reverseOptInButtons ? "primary" : ""
       }))))));
     }
     return /*#__PURE__*/external_React_default().createElement("div", {
@@ -13047,6 +13074,76 @@ function EditableTimerFields({
     tabIndex: tabIndex
   }, formatTime(props.timeLeft).split(":")[1]));
 }
+;// CONCATENATED MODULE: ./content-src/components/Widgets/WeatherForecast/WeatherForecast.jsx
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
+
+
+function WeatherForecast() {
+  const prefs = (0,external_ReactRedux_namespaceObject.useSelector)(state => state.Prefs.values);
+  const weatherData = (0,external_ReactRedux_namespaceObject.useSelector)(state => state.Weather);
+  const WEATHER_SUGGESTION = weatherData.suggestions?.[0];
+  const showDetailedView = prefs["weather.display"] === "detailed";
+  if (!showDetailedView || !weatherData?.initialized) {
+    return null;
+  }
+  return /*#__PURE__*/React.createElement("article", {
+    className: "weather-forecast-widget"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "city-wrapper"
+  }, /*#__PURE__*/React.createElement("h3", null, weatherData.locationData.city)), /*#__PURE__*/React.createElement("div", {
+    className: "current-weather-wrapper"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "weather-icon-column"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: `weather-icon iconId${WEATHER_SUGGESTION.current_conditions.icon_id}`
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "weather-info-column"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "temperature-unit"
+  }, WEATHER_SUGGESTION.current_conditions.temperature[prefs["weather.temperatureUnits"]], "\xB0", prefs["weather.temperatureUnits"]), /*#__PURE__*/React.createElement("span", {
+    className: "temperature-description"
+  }, WEATHER_SUGGESTION.current_conditions.summary)), /*#__PURE__*/React.createElement("div", {
+    className: "high-low-column"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "high-temperature"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "arrow-icon arrow-up"
+  }), WEATHER_SUGGESTION.forecast.high[prefs["weather.temperatureUnits"]], "\xB0"), /*#__PURE__*/React.createElement("span", {
+    className: "low-temperature"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "arrow-icon arrow-down"
+  }), WEATHER_SUGGESTION.forecast.low[prefs["weather.temperatureUnits"]], "\xB0"))), /*#__PURE__*/React.createElement("hr", null), /*#__PURE__*/React.createElement("div", {
+    className: "forecast-row"
+  }, /*#__PURE__*/React.createElement("p", {
+    className: "today-forecast",
+    "data-l10n-id": "newtab-weather-todays-forecast"
+  }), /*#__PURE__*/React.createElement("ul", {
+    className: "forecast-row-items"
+  }, /*#__PURE__*/React.createElement("li", null, /*#__PURE__*/React.createElement("span", null, "80\xB0"), /*#__PURE__*/React.createElement("span", {
+    className: `weather-icon iconId${WEATHER_SUGGESTION.current_conditions.icon_id}`
+  }), /*#__PURE__*/React.createElement("span", null, "7:00")), /*#__PURE__*/React.createElement("li", null, /*#__PURE__*/React.createElement("span", null, "80\xB0"), /*#__PURE__*/React.createElement("span", {
+    className: `weather-icon iconId${WEATHER_SUGGESTION.current_conditions.icon_id}`
+  }), /*#__PURE__*/React.createElement("span", null, "7:00")), /*#__PURE__*/React.createElement("li", null, /*#__PURE__*/React.createElement("span", null, "80\xB0"), /*#__PURE__*/React.createElement("span", {
+    className: `weather-icon iconId${WEATHER_SUGGESTION.current_conditions.icon_id}`
+  }), /*#__PURE__*/React.createElement("span", null, "7:00")), /*#__PURE__*/React.createElement("li", null, /*#__PURE__*/React.createElement("span", null, "80\xB0"), /*#__PURE__*/React.createElement("span", {
+    className: `weather-icon iconId${WEATHER_SUGGESTION.current_conditions.icon_id}`
+  }), /*#__PURE__*/React.createElement("span", null, "7:00")), /*#__PURE__*/React.createElement("li", null, /*#__PURE__*/React.createElement("span", null, "80\xB0"), /*#__PURE__*/React.createElement("span", {
+    className: `weather-icon iconId${WEATHER_SUGGESTION.current_conditions.icon_id}`
+  }), /*#__PURE__*/React.createElement("span", null, "7:00")))), /*#__PURE__*/React.createElement("div", {
+    className: "weather-forecast-footer"
+  }, /*#__PURE__*/React.createElement("a", {
+    href: "#",
+    className: "full-forecast",
+    "data-l10n-id": "newtab-weather-see-full-forecast"
+  }), /*#__PURE__*/React.createElement("span", {
+    className: "sponsored-text",
+    "data-l10n-id": "newtab-weather-sponsored",
+    "data-l10n-args": "{\"provider\": \"AccuWeather\xAE\"}"
+  })));
+}
+
 ;// CONCATENATED MODULE: ./content-src/components/DiscoveryStreamComponents/FeatureHighlight/WidgetsFeatureHighlight.jsx
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -13100,10 +13197,13 @@ function WidgetsFeatureHighlight({
 
 
 
+
 const PREF_WIDGETS_LISTS_ENABLED = "widgets.lists.enabled";
 const PREF_WIDGETS_SYSTEM_LISTS_ENABLED = "widgets.system.lists.enabled";
 const PREF_WIDGETS_TIMER_ENABLED = "widgets.focusTimer.enabled";
 const PREF_WIDGETS_SYSTEM_TIMER_ENABLED = "widgets.system.focusTimer.enabled";
+const PREF_WIDGETS_WEATHER_FORECAST_ENABLED = "widgets.weatherForecast.enabled";
+const PREF_WIDGETS_SYSTEM_WEATHER_FORECAST_ENABLED = "widgets.system.weatherForecast.enabled";
 const PREF_WIDGETS_MAXIMIZED = "widgets.maximized";
 const PREF_WIDGETS_SYSTEM_MAXIMIZED = "widgets.system.maximized";
 
@@ -13145,10 +13245,13 @@ function Widgets() {
   const dispatch = (0,external_ReactRedux_namespaceObject.useDispatch)();
   const nimbusListsEnabled = prefs.widgetsConfig?.listsEnabled;
   const nimbusTimerEnabled = prefs.widgetsConfig?.timerEnabled;
+  const nimbusWeatherForecastEnabled = prefs.widgetsConfig?.weatherForecastEnabled;
   const nimbusListsTrainhopEnabled = prefs.trainhopConfig?.widgets?.listsEnabled;
   const nimbusTimerTrainhopEnabled = prefs.trainhopConfig?.widgets?.timerEnabled;
+  const nimbusWeatherForecastTrainhopEnabled = prefs.trainhopConfig?.widgets?.weatherForecastEnabled;
   const listsEnabled = (nimbusListsTrainhopEnabled || nimbusListsEnabled || prefs[PREF_WIDGETS_SYSTEM_LISTS_ENABLED]) && prefs[PREF_WIDGETS_LISTS_ENABLED];
   const timerEnabled = (nimbusTimerTrainhopEnabled || nimbusTimerEnabled || prefs[PREF_WIDGETS_SYSTEM_TIMER_ENABLED]) && prefs[PREF_WIDGETS_TIMER_ENABLED];
+  const weatherForecastEnabled = (nimbusWeatherForecastTrainhopEnabled || nimbusWeatherForecastEnabled || prefs[PREF_WIDGETS_SYSTEM_WEATHER_FORECAST_ENABLED]) && prefs[PREF_WIDGETS_WEATHER_FORECAST_ENABLED];
 
   // track previous timerEnabled state to detect when it becomes disabled
   const prevTimerEnabledRef = (0,external_React_namespaceObject.useRef)(timerEnabled);
@@ -13204,7 +13307,7 @@ function Widgets() {
       dispatch(actionCreators.SetPref(prefName, true));
     }
   }
-  if (!(listsEnabled || timerEnabled)) {
+  if (!(listsEnabled || timerEnabled || weatherForecastEnabled)) {
     return null;
   }
   return /*#__PURE__*/external_React_default().createElement("div", {
@@ -13240,6 +13343,10 @@ function Widgets() {
     handleUserInteraction: handleUserInteraction,
     isMaximized: isMaximized
   }), timerEnabled && /*#__PURE__*/external_React_default().createElement(FocusTimer, {
+    dispatch: dispatch,
+    handleUserInteraction: handleUserInteraction,
+    isMaximized: isMaximized
+  }), weatherForecastEnabled && /*#__PURE__*/external_React_default().createElement(WeatherForecast, {
     dispatch: dispatch,
     handleUserInteraction: handleUserInteraction,
     isMaximized: isMaximized
@@ -14861,12 +14968,134 @@ function Logo() {
   })));
 }
 
+;// CONCATENATED MODULE: ./content-src/components/ExternalComponentWrapper/ExternalComponentWrapper.jsx
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+
+
+
+/**
+ * A React component that dynamically loads and embeds external custom elements
+ * into the newtab page.
+ *
+ * This component serves as a bridge between React's declarative rendering and
+ * browser-native custom elements that are registered and managed outside of
+ * React's control. It:
+ *
+ * 1. Looks up the component configuration by type from the ExternalComponents
+ *    registry
+ * 2. Dynamically imports the component's script module (which registers the
+ *    custom element)
+ * 3. Creates an instance of the custom element using imperative DOM APIs
+ * 4. Appends it to a React-managed container div
+ * 5. Cleans up the custom element on unmount
+ *
+ * This approach is necessary because:
+ * - Custom elements have their own lifecycle separate from React
+ * - They need to be created imperatively (document.createElement) rather than
+ *   declaratively (JSX)
+ * - React shouldn't try to diff/reconcile their internal DOM, as they manage
+ *   their own shadow DOM
+ * - We need manual cleanup to prevent memory leaks when the component unmounts
+ *
+ * @param {object} props
+ * @param {string} props.type - The component type to load (e.g., "SEARCH")
+ * @param {string} props.className - CSS class name(s) to apply to the wrapper div
+ * @param {Function} props.importModule - Function to import modules (for testing)
+ */
+function ExternalComponentWrapper({
+  type,
+  className,
+  // importFunction is declared as an arrow function here purely so that we can
+  // override it for testing.
+  // eslint-disable-next-line no-unsanitized/method
+  importModule = url => import(/* webpackIgnore: true */url)
+}) {
+  const containerRef = external_React_default().useRef(null);
+  const customElementRef = external_React_default().useRef(null);
+  const l10nLinksRef = external_React_default().useRef([]);
+  const [error, setError] = external_React_default().useState(null);
+  const {
+    components
+  } = (0,external_ReactRedux_namespaceObject.useSelector)(state => state.ExternalComponents);
+  external_React_default().useEffect(() => {
+    const container = containerRef.current;
+    const loadComponent = async () => {
+      try {
+        const config = components.find(c => c.type === type);
+        if (!config) {
+          console.warn(`No external component configuration found for type: ${type}`);
+          return;
+        }
+        await importModule(config.componentURL);
+        l10nLinksRef.current = [];
+        for (let l10nURL of config.l10nURLs) {
+          const l10nEl = document.createElement("link");
+          l10nEl.rel = "localization";
+          l10nEl.href = l10nURL;
+          document.head.appendChild(l10nEl);
+          l10nLinksRef.current.push(l10nEl);
+        }
+        if (containerRef.current && !customElementRef.current) {
+          const element = document.createElement(config.tagName);
+          if (config.attributes) {
+            for (const [key, value] of Object.entries(config.attributes)) {
+              element.setAttribute(key, value);
+            }
+          }
+          if (config.cssVariables) {
+            for (const [variable, style] of Object.entries(config.cssVariables)) {
+              element.style.setProperty(variable, style);
+            }
+          }
+          customElementRef.current = element;
+          containerRef.current.appendChild(element);
+        }
+      } catch (err) {
+        console.error(`Failed to load external component for type ${type}:`, err);
+        setError(err);
+      }
+    };
+    loadComponent();
+    return () => {
+      if (customElementRef.current && container) {
+        container.removeChild(customElementRef.current);
+        customElementRef.current = null;
+      }
+      for (const link of l10nLinksRef.current) {
+        link.remove();
+      }
+      l10nLinksRef.current = [];
+    };
+  }, [type, components, importModule]);
+  if (error) {
+    return null;
+  }
+  return /*#__PURE__*/external_React_default().createElement("div", {
+    ref: containerRef,
+    className: className
+  });
+}
+
 ;// CONCATENATED MODULE: ./content-src/components/Search/Search.jsx
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 /* globals ContentSearchHandoffUIController */
+
+/**
+ * @backward-compat { version 148 }
+ *
+ * Temporary dual implementation to support train hopping. The old handoff UI
+ * is kept alongside the new contentSearchHandoffUI.mjs custom element until
+ * the module lands on all channels. Controlled by the pref
+ * browser.newtabpage.activity-stream.search.useHandoffComponent.
+ * Remove the old implementation and the pref once this ships to Release.
+ */
+
 
 
 
@@ -14928,17 +15157,37 @@ class _Search extends (external_React_default()).PureComponent {
     }
   }
   componentDidMount() {
-    const caret = this.fakeCaret;
     const {
       caretBlinkCount,
-      caretBlinkTime
+      caretBlinkTime,
+      "search.useHandoffComponent": useHandoffComponent,
+      "externalComponents.enabled": useExternalComponents
     } = this.props.Prefs.values;
-    if (caret) {
-      // If caret blink count isn't defined, use the default infinite behavior for animation
-      caret.style.setProperty("--caret-blink-count", caretBlinkCount > -1 ? caretBlinkCount : "infinite");
+    if (useExternalComponents) {
+      // Nothing to do - the external component will have set the caret
+      // values itself.
+      return;
+    }
+    if (useHandoffComponent) {
+      const {
+        handoffUI
+      } = this;
+      if (handoffUI) {
+        // If caret blink count isn't defined, use the default infinite behavior for animation
+        handoffUI.style.setProperty("--caret-blink-count", caretBlinkCount > -1 ? caretBlinkCount : "infinite");
 
-      // Apply custom blink rate if set, else fallback to default (567ms on/off --> 1134ms total)
-      caret.style.setProperty("--caret-blink-time", caretBlinkTime > 0 ? `${caretBlinkTime * 2}ms` : `${1134}ms`);
+        // Apply custom blink rate if set, else fallback to default (567ms on/off --> 1134ms total)
+        handoffUI.style.setProperty("--caret-blink-time", caretBlinkTime > 0 ? `${caretBlinkTime * 2}ms` : `${1134}ms`);
+      }
+    } else {
+      const caret = this.fakeCaret;
+      if (caret) {
+        // If caret blink count isn't defined, use the default infinite behavior for animation
+        caret.style.setProperty("--caret-blink-count", caretBlinkCount > -1 ? caretBlinkCount : "infinite");
+
+        // Apply custom blink rate if set, else fallback to default (567ms on/off --> 1134ms total)
+        caret.style.setProperty("--caret-blink-time", caretBlinkTime > 0 ? `${caretBlinkTime * 2}ms` : `${1134}ms`);
+      }
     }
   }
   onInputMountHandoff(input) {
@@ -14959,6 +15208,27 @@ class _Search extends (external_React_default()).PureComponent {
    * in order to execute searches in various tests
    */
   render() {
+    const useHandoffComponent = this.props.Prefs.values["search.useHandoffComponent"];
+    const useExternalComponents = this.props.Prefs.values["externalComponents.enabled"];
+    if (useHandoffComponent) {
+      if (useExternalComponents) {
+        return /*#__PURE__*/external_React_default().createElement("div", {
+          className: "search-wrapper"
+        }, this.props.showLogo && /*#__PURE__*/external_React_default().createElement(Logo, null), /*#__PURE__*/external_React_default().createElement(ExternalComponentWrapper, {
+          type: "SEARCH",
+          className: "search-inner-wrapper"
+        }));
+      }
+      return /*#__PURE__*/external_React_default().createElement("div", {
+        className: "search-wrapper"
+      }, this.props.showLogo && /*#__PURE__*/external_React_default().createElement(Logo, null), /*#__PURE__*/external_React_default().createElement("div", {
+        className: "search-inner-wrapper"
+      }, /*#__PURE__*/external_React_default().createElement("content-search-handoff-ui", {
+        ref: el => {
+          this.handoffUI = el;
+        }
+      })));
+    }
     const wrapperClassName = ["search-wrapper", this.props.disable && "search-disabled", this.props.fakeFocus && "fake-focus"].filter(v => v).join(" ");
     return /*#__PURE__*/external_React_default().createElement("div", {
       className: wrapperClassName
@@ -15632,6 +15902,7 @@ class BaseContent extends (external_React_default()).PureComponent {
       visible: false,
       showSectionsMgmtPanel: false
     };
+    this.spocPlaceholderStartTime = null;
   }
   setFirstVisibleTimestamp() {
     if (!this.state.firstVisibleTimestamp) {
@@ -15647,6 +15918,9 @@ class BaseContent extends (external_React_default()).PureComponent {
     this.setFirstVisibleTimestamp();
     this.shouldDisplayTopicSelectionModal();
     this.onVisibilityDispatch();
+    if (this.isSpocsOnDemandExpired && !this.spocPlaceholderStartTime) {
+      this.spocPlaceholderStartTime = Date.now();
+    }
   }
   onVisibilityDispatch() {
     const {
@@ -15705,6 +15979,18 @@ class BaseContent extends (external_React_default()).PureComponent {
     __webpack_require__.g.addEventListener("keydown", this.handleOnKeyDown);
     const prefs = this.props.Prefs.values;
     const wallpapersEnabled = prefs["newtabWallpapers.enabled"];
+    if (!prefs["externalComponents.enabled"]) {
+      if (prefs["search.useHandoffComponent"]) {
+        // Dynamically import the contentSearchHandoffUI module, but don't worry
+        // about webpacking this one.
+        import(/* webpackIgnore: true */"chrome://browser/content/contentSearchHandoffUI.mjs");
+      } else {
+        const scriptURL = "chrome://browser/content/contentSearchHandoffUI.js";
+        const scriptEl = document.createElement("script");
+        scriptEl.src = scriptURL;
+        document.head.appendChild(scriptEl);
+      }
+    }
     if (this.props.document.visibilityState === Base_VISIBLE) {
       this.onVisible();
     } else {
@@ -15796,6 +16082,31 @@ class BaseContent extends (external_React_default()).PureComponent {
       }
     }
     this.spocsOnDemandUpdated();
+    this.trackSpocPlaceholderDuration(prevProps);
+  }
+  trackSpocPlaceholderDuration(prevProps) {
+    // isExpired returns true when the current props have expired spocs (showing placeholders)
+    const isExpired = this.isSpocsOnDemandExpired;
+
+    // Init tracking when placeholders become visible
+    if (isExpired && this.state.visible && !this.spocPlaceholderStartTime) {
+      this.spocPlaceholderStartTime = Date.now();
+    }
+
+    // wasExpired returns true when the previous props had expired spocs (showing placeholders)
+    const wasExpired = prevProps.DiscoveryStream.spocs.onDemand?.enabled && !prevProps.DiscoveryStream.spocs.onDemand?.loaded && Date.now() - prevProps.DiscoveryStream.spocs.lastUpdated >= prevProps.DiscoveryStream.spocs.cacheUpdateTime;
+
+    // Record duration telemetry event when placeholders are replaced with real content
+    if (wasExpired && !isExpired && this.spocPlaceholderStartTime) {
+      const duration = Date.now() - this.spocPlaceholderStartTime;
+      this.props.dispatch(actionCreators.OnlyToMain({
+        type: actionTypes.DISCOVERY_STREAM_SPOC_PLACEHOLDER_DURATION,
+        data: {
+          duration
+        }
+      }));
+      this.spocPlaceholderStartTime = null;
+    }
   }
   handleColorModeChange() {
     const colorMode = this.prefersDarkQuery?.matches ? "dark" : "light";

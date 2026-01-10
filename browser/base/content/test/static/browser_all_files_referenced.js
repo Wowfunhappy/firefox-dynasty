@@ -328,13 +328,10 @@ var allowlist = [
   {
     file: "resource://app/modules/backup/CookiesBackupResource.sys.mjs",
   },
+
   // Bug 2000945 - Move query intent detection to AI-window r?mardak (backed out due to unused file)
   {
     file: "moz-src:///browser/components/aiwindow/models/IntentClassifier.sys.mjs",
-  },
-  // Bug 2004888 - [FirstRun] Create Firstrun.html opening firstrun welcome screen
-  {
-    file: "chrome://browser/content/aiwindow/firstrun.html",
   },
   // Bug 2005768 - Insights scheduler for generation from history
   // Bug 2007939 - Rename "insights" to "memories"
@@ -349,6 +346,13 @@ var allowlist = [
   // Bug 2006433 - Implement conversation starter/followup inference
   {
     file: "moz-src:///browser/components/aiwindow/models/ConversationSuggestions.sys.mjs",
+  },
+  // Bug 1996315: QR code generation modules
+  {
+    file: "moz-src:///browser/components/qrcode/QRCodeGenerator.sys.mjs",
+  },
+  {
+    file: "moz-src:///browser/components/qrcode/QRCodeWorker.sys.mjs",
   },
 ];
 

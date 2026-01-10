@@ -89,6 +89,7 @@
     <string name="pref_key_terms_prompt_enabled" translatable="false">pref_key_terms_prompt_enabled</string>
     <string name="pref_key_terms_prompt_drag_handle_enabled" translatable="false">pref_key_terms_prompt_drag_handle_enabled</string>
     <string name="pref_key_terms_prompt_displayed_count" translatable="false">pref_key_terms_prompt_displayed_count</string>
+    <string name="pref_key_terms_prompt_content_option" translatable="false">pref_key_terms_prompt_content_option</string>
     <string name="pref_key_terms_last_prompt_time" translatable="false">pref_key_terms_last_prompt_time</string>
     <string name="pref_key_terms_postponed" translatable="false">pref_key_terms_postponed</string>
     <string name="pref_key_terms_latest_date" translatable="false">pref_key_terms_latest_date</string>
@@ -512,6 +513,8 @@
     <string name="pref_key_distribution_id" translatable="false">pref_key_distribution_id</string>
 
     <!-- Downloads Settings-->
+    <string name="pref_key_downloads_default_location" translatable="false">pref_key_downloads_default_location</string>
+    <string name="pref_key_downloads_storage_category" translatable="false">pref_key_downloads_storage_category</string>
     <string name="pref_key_downloads" translatable="false">pref_key_downloads</string>
     <string name="pref_key_external_download_manager" translatable="false">pref_key_external_download_manager</string>
     <string name="pref_key_downloads_clean_up_files_automatically" translatable="false">pref_key_downloads_clean_up_files_automatically</string>

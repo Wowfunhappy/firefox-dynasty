@@ -103,7 +103,7 @@ class TabNotesControllerClass {
   }
 
   /**
-   * @param {CanonicalURLIdentifiedEvent|TabNoteCreatedEvent|TabNoteRemovedEvent} event
+   * @param {CanonicalURLIdentifiedEvent|TabNoteCreatedEvent|TabNoteEditedEvent|TabNoteRemovedEvent} event
    */
   handleEvent(event) {
     switch (event.type) {
@@ -126,6 +126,12 @@ class TabNotesControllerClass {
         break;
       case "TabNote:Created":
         {
+          const { telemetrySource } = event.detail;
+          if (telemetrySource) {
+            Glean.tabNotes.added.record({
+              source: telemetrySource,
+            });
+          }
           // A new tab note was created for a specific canonical URL. Ensure that
           // all tabs with the same canonical URL also indicate that there is a
           // tab note.
@@ -140,8 +146,32 @@ class TabNotesControllerClass {
           lazy.logConsole.debug("TabNote:Created", canonicalUrl);
         }
         break;
+      case "TabNote:Edited":
+        {
+          const { canonicalUrl } = event.target;
+          const { telemetrySource } = event.detail;
+          if (telemetrySource) {
+            Glean.tabNotes.edited.record({
+              source: telemetrySource,
+            });
+          }
+          lazy.logConsole.debug("TabNote:Edited", canonicalUrl);
+        }
+        break;
       case "TabNote:Removed":
         {
+          const { telemetrySource, note } = event.detail;
+          const now = Temporal.Now.instant();
+          const noteAgeHours = Math.round(
+            now.since(note.created).total("hours")
+          );
+          if (telemetrySource) {
+            Glean.tabNotes.deleted.record({
+              source: telemetrySource,
+              note_age_hours: noteAgeHours,
+            });
+          }
+
           // A new tab note was removed from a specific canonical URL. Ensure that
           // all tabs with the same canonical URL also indicate that there is no
           // longer a tab note.
@@ -206,15 +236,18 @@ class TabNotesControllerClass {
         // changed.
         /** @type {CanonicalURLParent|undefined} */
         let parent =
-          aBrowser.browsingContext?.currentWindowGlobal.getActor(
+          aBrowser.browsingContext?.currentWindowGlobal.getExistingActor(
             "CanonicalURL"
           );
 
-        parent?.sendAsyncMessage("CanonicalURL:Detect");
-        lazy.logConsole.debug(
-          "requesting CanonicalURL:Detect due to history.pushState",
-          aLocation.spec
-        );
+        if (parent) {
+          parent.sendAsyncMessage("CanonicalURL:Detect");
+          lazy.logConsole.debug(
+            "requesting CanonicalURL:Detect due to history.pushState",
+            aLocation.spec
+          );
+        }
+
         return;
       }
 

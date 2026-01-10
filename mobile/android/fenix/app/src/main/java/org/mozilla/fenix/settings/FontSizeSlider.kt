@@ -21,6 +21,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.derivedStateOf
@@ -34,10 +35,13 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTag
 import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.tooling.preview.PreviewParameter
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import mozilla.components.ui.colors.PhotonColors
 import org.mozilla.fenix.R
+import org.mozilla.fenix.theme.FirefoxTheme
+import org.mozilla.fenix.theme.Theme
+import org.mozilla.fenix.theme.ThemeProvider
 import kotlin.math.roundToInt
 
 private const val HALF_ALPHA = 0.5F
@@ -66,42 +70,44 @@ fun FontSizePreference(
     // The values used to align with the top bar
     val paddingFontSizeSection = PaddingValues(start = 72.dp, top = 16.dp, end = 16.dp, bottom = 16.dp)
 
-    Column(
-        modifier = Modifier
-            .alpha(alpha)
-            .padding(paddingFontSizeSection),
-    ) {
-        Text(
-            text = stringResource(id = R.string.preference_accessibility_font_size_title),
-            modifier = Modifier.semantics {
-                testTagsAsResourceId = true
-                testTag = "fontSizeTitle"
-            },
-            style = MaterialTheme.typography.bodyLarge,
-        )
+    Surface {
+        Column(
+            modifier = Modifier
+                .alpha(alpha)
+                .padding(paddingFontSizeSection),
+        ) {
+            Text(
+                text = stringResource(id = R.string.preference_accessibility_font_size_title),
+                modifier = Modifier.semantics {
+                    testTagsAsResourceId = true
+                    testTag = "fontSizeTitle"
+                },
+                style = MaterialTheme.typography.bodyLarge,
+            )
 
-        Text(
-            text = stringResource(id = R.string.preference_accessibility_text_size_summary),
-            modifier = Modifier.semantics {
-                testTagsAsResourceId = true
-                testTag = "fontSizeSubtitle"
-            },
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+            Text(
+                text = stringResource(id = R.string.preference_accessibility_text_size_summary),
+                modifier = Modifier.semantics {
+                    testTagsAsResourceId = true
+                    testTag = "fontSizeSubtitle"
+                },
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
 
-        Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
-        FontSizeSlider(
-            isEnabled = isEnabled,
-            value = value,
-            onValueChange = onValueChange,
-            onValueChangeFinished = onValueChangeFinished,
-        )
+            FontSizeSlider(
+                isEnabled = isEnabled,
+                value = value,
+                onValueChange = onValueChange,
+                onValueChangeFinished = onValueChangeFinished,
+            )
 
-        Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
-        SampleText(fontSize = value)
+            SampleText(fontSize = value)
+        }
     }
 }
 
@@ -112,7 +118,10 @@ private fun SampleText(fontSize: Float) {
     Box(
         modifier = Modifier
             .wrapContentSize()
-            .background(color = PhotonColors.Violet05)
+            .background(
+                color = MaterialTheme.colorScheme.secondaryContainer,
+                shape = RoundedCornerShape(28.dp),
+            )
             .padding(16.dp),
     ) {
         Text(
@@ -248,30 +257,30 @@ private fun FilledTrack(fraction: Float, isEnabled: Boolean) {
 
 @Preview
 @Composable
-private fun FontSizePreferencePreview() {
-    MaterialTheme {
-        Box(Modifier.background(MaterialTheme.colorScheme.surface)) {
-            FontSizePreference(
-                isEnabled = true,
-                value = 100f,
-                onValueChange = {},
-                onValueChangeFinished = {},
-            )
-        }
+private fun FontSizePreferencePreview(
+    @PreviewParameter(ThemeProvider::class) theme: Theme,
+) {
+    FirefoxTheme(theme) {
+        FontSizePreference(
+            isEnabled = true,
+            value = 100f,
+            onValueChange = {},
+            onValueChangeFinished = {},
+        )
     }
 }
 
 @Preview
 @Composable
-private fun FontSizePreferenceDisabledPreview() {
-    MaterialTheme {
-        Box(Modifier.background(MaterialTheme.colorScheme.surface)) {
-            FontSizePreference(
-                isEnabled = false,
-                value = 200f,
-                onValueChange = {},
-                onValueChangeFinished = {},
-            )
-        }
+private fun FontSizePreferenceDisabledPreview(
+    @PreviewParameter(ThemeProvider::class) theme: Theme,
+) {
+    FirefoxTheme(theme) {
+        FontSizePreference(
+            isEnabled = false,
+            value = 200f,
+            onValueChange = {},
+            onValueChangeFinished = {},
+        )
     }
 }

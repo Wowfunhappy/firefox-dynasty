@@ -1159,13 +1159,14 @@ MOZ_NEVER_INLINE void nsFrameConstructorState::ProcessFrameInsertions(
     } else {
       containingBlock->SetInitialChildList(aChildListID, std::move(aFrameList));
     }
-  } else if (aChildListID == FrameChildListID::Fixed ||
+  } else if (childList.IsEmpty() || aChildListID == FrameChildListID::Fixed ||
              aChildListID == FrameChildListID::Absolute) {
     // The order is not important for abs-pos/fixed-pos frame list, just
     // append the frame items to the list directly.
     mFrameConstructor->AppendFrames(containingBlock, aChildListID,
                                     std::move(aFrameList));
   } else {
+    MOZ_ASSERT(aChildListID == FrameChildListID::Float);
     // Note that whether the frame construction context is doing an append or
     // not is not helpful here, since it could be appending to some frame in
     // the middle of the document, which means we're not necessarily
@@ -1174,34 +1175,32 @@ MOZ_NEVER_INLINE void nsFrameConstructorState::ProcessFrameInsertions(
     // We need to make sure the 'append to the end of document' case is fast.
     // So first test the last child of the containing block
     nsIFrame* lastChild = childList.LastChild();
+    lastChild = lastChild->FirstContinuation()->GetPlaceholderFrame();
 
     // CompareTreePosition uses placeholder hierarchy for out of flow frames,
     // so this will make out-of-flows respect the ordering of placeholders,
     // which is great because it takes care of anonymous content.
     nsIFrame* firstNewFrame = aFrameList.FirstChild();
+    firstNewFrame = firstNewFrame->GetPlaceholderFrame();
 
     // Cache the ancestor chain so that we can reuse it if needed.
     AutoTArray<const nsIFrame*, 20> firstNewFrameAncestors;
-    const nsIFrame* notCommonAncestor = nullptr;
-    if (lastChild) {
-      notCommonAncestor = nsLayoutUtils::FillAncestors(
-          firstNewFrame, containingBlock, &firstNewFrameAncestors);
-    }
+    const nsIFrame* notCommonAncestor = nsLayoutUtils::FillAncestors(
+        firstNewFrame, containingBlock, &firstNewFrameAncestors);
 
-    if (!lastChild || nsLayoutUtils::CompareTreePosition(
-                          lastChild, firstNewFrame, firstNewFrameAncestors,
-                          notCommonAncestor ? containingBlock : nullptr) < 0) {
-      // no lastChild, or lastChild comes before the new children, so just
-      // append
+    if (nsLayoutUtils::CompareTreePosition(
+            lastChild, firstNewFrame, firstNewFrameAncestors,
+            notCommonAncestor ? containingBlock : nullptr) < 0) {
+      // lastChild comes before the new children, so just append
       mFrameConstructor->AppendFrames(containingBlock, aChildListID,
                                       std::move(aFrameList));
     } else {
       // Try the other children. First collect them to an array so that a
       // reasonable fast binary search can be used to find the insertion point.
-      AutoTArray<nsIFrame*, 128> children;
-      for (nsIFrame* f = childList.FirstChild(); f != lastChild;
-           f = f->GetNextSibling()) {
-        children.AppendElement(f);
+      AutoTArray<std::pair<nsIFrame*, nsPlaceholderFrame*>, 128> children;
+      for (nsIFrame* f : childList) {
+        children.AppendElement(
+            std::make_pair(f, f->FirstContinuation()->GetPlaceholderFrame()));
       }
 
       nsIFrame* insertionPoint = nullptr;
@@ -1209,32 +1208,31 @@ MOZ_NEVER_INLINE void nsFrameConstructorState::ProcessFrameInsertions(
       int32_t max = children.Length();
       while (max > imin) {
         int32_t imid = imin + ((max - imin) / 2);
-        nsIFrame* f = children[imid];
+        const auto& pair = children[imid];
         int32_t compare = nsLayoutUtils::CompareTreePosition(
-            f, firstNewFrame, firstNewFrameAncestors,
+            pair.second, firstNewFrame, firstNewFrameAncestors,
             notCommonAncestor ? containingBlock : nullptr);
         if (compare > 0) {
           // f is after the new frame.
           max = imid;
-          insertionPoint = imid > 0 ? children[imid - 1] : nullptr;
+          insertionPoint = imid > 0 ? children[imid - 1].first : nullptr;
         } else if (compare < 0) {
           // f is before the new frame.
           imin = imid + 1;
-          insertionPoint = f;
+          insertionPoint = pair.first;
         } else {
           // This is for the old behavior. Should be removed once it is
           // guaranteed that CompareTreePosition can't return 0!
           // See bug 928645.
           NS_WARNING("Something odd happening???");
           insertionPoint = nullptr;
-          for (uint32_t i = 0; i < children.Length(); ++i) {
-            nsIFrame* f = children[i];
+          for (auto [frame, placeholder] : children) {
             if (nsLayoutUtils::CompareTreePosition(
-                    f, firstNewFrame, firstNewFrameAncestors,
+                    placeholder, firstNewFrame, firstNewFrameAncestors,
                     notCommonAncestor ? containingBlock : nullptr) > 0) {
               break;
             }
-            insertionPoint = f;
+            insertionPoint = frame;
           }
           break;
         }
@@ -3034,8 +3032,7 @@ nsIFrame* nsCSSFrameConstructor::ConstructListBoxSelectFrame(
   nsContainerFrame* listFrame =
       NS_NewListControlFrame(mPresShell, computedStyle);
 
-  nsContainerFrame* scrolledFrame =
-      NS_NewSelectsAreaFrame(mPresShell, computedStyle);
+  nsContainerFrame* scrolledFrame = NS_NewBlockFrame(mPresShell, computedStyle);
 
   // ******* this code stolen from Initialze ScrollFrame ********
   // please adjust this code to use BuildScrollFrame.
@@ -6040,17 +6037,12 @@ nsCSSFrameConstructor::GetRangeInsertionPoint(nsIContent* aStartChild,
                                               nsIContent* aEndChild,
                                               InsertionKind aInsertionKind) {
   MOZ_ASSERT(aStartChild);
-
-  nsIContent* parent = aStartChild->GetParent();
-  if (!parent) {
-    IssueSingleInsertNofications(aStartChild, aEndChild, aInsertionKind);
-    return {};
-  }
+  MOZ_ASSERT(aStartChild->GetParentNode());
 
   // If the children of the container may be distributed to different insertion
   // points, insert them separately and bail out, letting ContentInserted handle
   // the mess.
-  if (parent->GetShadowRoot()) {
+  if (aStartChild->GetParentNode()->GetShadowRoot()) {
     IssueSingleInsertNofications(aStartChild, aEndChild, aInsertionKind);
     return {};
   }
@@ -6231,17 +6223,23 @@ void nsCSSFrameConstructor::ContentRangeInserted(nsIContent* aStartChild,
   }
 #endif
 
-  const bool isSingleInsert = (aStartChild->GetNextSibling() == aEndChild);
-
   // If we have a null parent, then this must be the document element being
-  // inserted, or some other child of the document in the DOM (might be a PI,
-  // say).
+  // inserted, or some other child of the document in the DOM (might be a
+  // processing instruction or comment).
   if (!aStartChild->GetParent()) {
-    MOZ_ASSERT(isSingleInsert,
-               "root node insertion should be a single insertion");
     Element* docElement = mDocument->GetRootElement();
-    if (aStartChild != docElement) {
-      // Not the root element; just bail out
+    const bool foundRoot = [&] {
+      for (nsIContent* cur = aStartChild; cur != aEndChild;
+           cur = cur->GetNextSibling()) {
+        if (cur == docElement) {
+          return true;
+        }
+      }
+      return false;
+    }();
+
+    if (!foundRoot) {
+      // Not the root element (could be e.g. a comment), just bail out
       return;
     }
 
@@ -6254,7 +6252,7 @@ void nsCSSFrameConstructor::ContentRangeInserted(nsIContent* aStartChild,
 
     // Create frames for the document element and its child elements
     if (ConstructDocElementFrame(docElement)) {
-      InvalidateCanvasIfNeeded(mPresShell, aStartChild);
+      InvalidateCanvasIfNeeded(mPresShell, docElement);
 #ifdef DEBUG
       if (gReallyNoisyContentUpdates) {
         printf(
@@ -6270,10 +6268,10 @@ void nsCSSFrameConstructor::ContentRangeInserted(nsIContent* aStartChild,
       accService->ContentRangeInserted(mPresShell, aStartChild, aEndChild);
     }
 #endif
-
     return;
   }
 
+  const bool isSingleInsert = aStartChild->GetNextSibling() == aEndChild;
   InsertionPoint insertion;
   if (isSingleInsert) {
     // See if we have a Shadow DOM insertion point. If so, then that's our real
@@ -6388,21 +6386,6 @@ void nsCSSFrameConstructor::ContentRangeInserted(nsIContent* aStartChild,
       // and creating frames.  We need to reget our prevsibling, parent frame,
       // etc.
       prevSibling = GetInsertionPrevSibling(&insertion, aStartChild, &isAppend);
-
-      // Need check whether a range insert is still safe.
-      if (!isSingleInsert) {
-        // Need to recover the letter frames first.
-        RecoverLetterFrames(state.mFloatedList.mContainingBlock);
-
-        // must fall back to a single ContertInserted for each child in the
-        // range
-        LAYOUT_PHASE_TEMP_EXIT();
-        IssueSingleInsertNofications(aStartChild, aEndChild,
-                                     InsertionKind::Sync);
-        LAYOUT_PHASE_TEMP_REENTER();
-        return;
-      }
-
       frameType = insertion.mParentFrame->Type();
     }
   }

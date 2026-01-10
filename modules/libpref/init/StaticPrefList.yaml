@@ -4349,7 +4349,7 @@
 
 # How many reports should be stored in the report queue before being delivered.
 - name: dom.reporting.delivering.maxReports
-  type: uint32_t
+  type: RelaxedAtomicUint32
   value: 100
   mirror: always
 
@@ -5974,6 +5974,12 @@
   value: ""
   mirror: never
 
+# Whether to include common ancestor when serializing HTML data for clipboard copy.
+- name: dom.serializer.includeCommonAncestor.enabled
+  type: bool
+  value: false
+  mirror: always
+
 #---------------------------------------------------------------------------
 # Prefs starting with "editor"
 #---------------------------------------------------------------------------
@@ -6997,6 +7003,28 @@
   value: true # Match naive behavior, but hopefully we can stop soon!
   mirror: always
 
+# Enable HDR video support.
+- name: gfx.color_management.hdr_video
+  type: RelaxedAtomicBool
+#if defined(XP_MACOSX) || defined(MOZ_WAYLAND)
+  value: true
+#elif defined(XP_WIN)
+  value: @IS_EARLY_BETA_OR_EARLIER@
+#else
+  value: false
+#endif
+  mirror: always
+
+# Pending a better refactor we assume BT2020 colorspace is used with PQ transfer
+# function (HDR) rather than assuming it is BT709/BT1886 transfer function,
+# we've been making this assumption for a while on macOS HDR videos and it seems
+# to be the norm. We should refactor to get mTransferFunction to compositor code
+# instead...
+- name: gfx.color_management.hdr_video_assume_rec2020_uses_pq
+  type: RelaxedAtomicBool
+  value: true
+  mirror: always
+
 #ifdef XP_MACOSX
 # Whether GL contexts can be migrated to a different GPU (to match the one the
 # OS is using for composition).
@@ -7802,6 +7830,11 @@
   mirror: once
 #endif
 
+- name: gfx.webrender.dcomp-texture-overlay-win
+  type: bool
+  value: false
+  mirror: once
+
 - name: gfx.webrender.scissored-cache-clears.enabled
   type: bool
   value: true
@@ -8147,6 +8180,12 @@
 #else
   value: false
 #endif
+  mirror: once
+
+# Enable overlays for HDR content
+- name: gfx.webrender.overlay-hdr
+  type: bool
+  value: true
   mirror: once
 
 # Enable a dedicated arena on frame builder threads.
@@ -11066,6 +11105,8 @@
   type: RelaxedAtomicBool
 #if defined(XP_MACOSX) || defined(MOZ_WAYLAND)
   value: true
+#elif defined(XP_WIN)
+  value: @IS_EARLY_BETA_OR_EARLIER@
 #else
   value: false
 #endif
@@ -15621,6 +15662,13 @@
   type: String
   value: ""
   mirror: never
+
+# When true, placing the most recent used cache entry
+# to the tail of the EvictionQ.
+- name: network.dns.mru_to_tail
+  type: RelaxedAtomicBool
+  value: @IS_NIGHTLY_BUILD@
+  mirror: always
 
 # Whether to add additional record IPs to the cache
 - name: network.trr.add_additional_records

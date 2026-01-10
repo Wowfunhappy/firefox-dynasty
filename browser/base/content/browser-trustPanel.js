@@ -5,6 +5,7 @@
 /* import-globals-from browser-siteProtections.js */
 
 ChromeUtils.defineESModuleGetters(this, {
+  BrowserUtils: "resource://gre/modules/BrowserUtils.sys.mjs",
   ContentBlockingAllowList:
     "resource://gre/modules/ContentBlockingAllowList.sys.mjs",
   E10SUtils: "resource://gre/modules/E10SUtils.sys.mjs",
@@ -324,7 +325,13 @@ class TrustPanel {
   }
 
   async #updatePopup() {
-    this.#host = window.gIdentityHandler.getHostForDisplay();
+    if (this.#uri) {
+      this.#host = BrowserUtils.formatURIForDisplay(this.#uri, {
+        onlyBaseDomain: true,
+      });
+    } else {
+      this.#host = "";
+    }
     this.#popup.setAttribute(
       "connection",
       this.#isSecurePage() ? "secure" : "not-secure"

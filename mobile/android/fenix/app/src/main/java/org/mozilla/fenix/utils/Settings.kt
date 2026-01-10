@@ -10,6 +10,7 @@ import android.content.Context
 import android.content.Context.MODE_PRIVATE
 import android.content.SharedPreferences
 import android.content.pm.ShortcutManager
+import android.os.Environment
 import android.view.accessibility.AccessibilityManager
 import androidx.annotation.VisibleForTesting
 import androidx.annotation.VisibleForTesting.Companion.PRIVATE
@@ -633,6 +634,14 @@ class Settings(
     var shouldShowTermsOfUsePromptDragHandle by booleanPreference(
         key = appContext.getPreferenceKey(R.string.pref_key_terms_prompt_drag_handle_enabled),
         default = { FxNimbus.features.termsOfUsePrompt.value().enableDragToDismiss },
+    )
+
+    /**
+     * The ID of the content option for the Terms of Use prompt.
+     */
+    var termsOfUsePromptContentOptionId by stringPreference(
+        key = appContext.getPreferenceKey(R.string.pref_key_terms_prompt_content_option),
+        default = { FxNimbus.features.termsOfUsePrompt.value().contentOption.name },
     )
 
     /**
@@ -2839,4 +2848,9 @@ class Settings(
         val cleanupPreferenceKey = appContext.getString(R.string.pref_key_downloads_clean_up_files_automatically)
         return sharedPreferences.getBoolean(cleanupPreferenceKey, false)
     }
+
+    var downloadsDefaultLocation by stringPreference(
+        appContext.getPreferenceKey(R.string.pref_key_downloads_default_location),
+        default = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS).path,
+    )
 }

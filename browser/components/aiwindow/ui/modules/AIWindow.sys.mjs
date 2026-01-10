@@ -5,16 +5,22 @@
  */
 import { XPCOMUtils } from "resource://gre/modules/XPCOMUtils.sys.mjs";
 
-const AIWINDOW_URL = "chrome://browser/content/aiwindow/aiWindow.html";
+export const AIWINDOW_URL = "chrome://browser/content/aiwindow/aiWindow.html";
 const AIWINDOW_URI = Services.io.newURI(AIWINDOW_URL);
+const FIRSTRUN_URL = "chrome://browser/content/aiwindow/firstrun.html";
+const FIRSTRUN_URI = Services.io.newURI(FIRSTRUN_URL);
 
 const lazy = {};
 ChromeUtils.defineESModuleGetters(lazy, {
-  ChatStore:
-    "moz-src:///browser/components/aiwindow/ui/modules/ChatStore.sys.mjs",
-
   AIWindowMenu:
     "moz-src:///browser/components/aiwindow/ui/modules/AIWindowMenu.sys.mjs",
+
+  SearchUIUtils: "moz-src:///browser/components/search/SearchUIUtils.sys.mjs",
+  ChatStore:
+    "moz-src:///browser/components/aiwindow/ui/modules/ChatStore.sys.mjs",
+  PanelMultiView:
+    "moz-src:///browser/components/customizableui/PanelMultiView.sys.mjs",
+  PrivateBrowsingUtils: "resource://gre/modules/PrivateBrowsingUtils.sys.mjs",
 });
 
 /**
@@ -23,7 +29,7 @@ ChromeUtils.defineESModuleGetters(lazy, {
 
 export const AIWindow = {
   _initialized: false,
-  _windowStates: new Map(),
+  _windowStates: new WeakMap(),
   _aiWindowMenu: null,
 
   /**
@@ -31,21 +37,37 @@ export const AIWindow = {
    */
 
   init(win) {
+    if (!this._windowStates.has(win)) {
+      this._windowStates.set(win, {});
+      this.initializeAITabsToolbar(win);
+    }
+
     if (this._initialized) {
       return;
     }
 
-    XPCOMUtils.defineLazyPreferenceGetter(
-      this,
-      "AIWindowEnabled",
-      "browser.aiwindow.enabled",
-      false
+    ChromeUtils.defineLazyGetter(
+      AIWindow,
+      "chatStore",
+      () => new lazy.ChatStore()
     );
-
-    ChromeUtils.defineLazyGetter(this, "chatStore", () => new lazy.ChatStore());
-
     this._initialized = true;
-    this._windowStates.set(win, {});
+  },
+
+  _onAIWindowEnabledPrefChange() {
+    ChromeUtils.nondeterministicGetWeakMapKeys(this._windowStates).forEach(
+      win => {
+        this._updateButtonVisibility(win);
+      }
+    );
+  },
+
+  _updateButtonVisibility(win) {
+    const isPrivateWindow = lazy.PrivateBrowsingUtils.isWindowPrivate(win);
+    const modeSwitcherButton = win.document.getElementById("ai-window-toggle");
+    if (modeSwitcherButton) {
+      modeSwitcherButton.hidden = !this.isAIWindowEnabled() || isPrivateWindow;
+    }
   },
 
   /**
@@ -100,6 +122,71 @@ export const AIWindow = {
   },
 
   /**
+   * Show Window Switcher button in tabs toolbar
+   *
+   * @param {object} win caller window
+   */
+  handleAIWindowSwitcher(win) {
+    let view = lazy.PanelMultiView.getViewNode(
+      win.document,
+      "ai-window-toggle-view"
+    );
+
+    const isPrivateWindow = lazy.PrivateBrowsingUtils.isWindowPrivate(win);
+
+    if (!isPrivateWindow) {
+      view.querySelector("#ai-window-switch-classic").hidden = false;
+      view.querySelector("#ai-window-switch-ai").hidden = false;
+    }
+
+    let windowState = this._windowStates.get(win);
+    if (!windowState) {
+      windowState = {};
+      this._windowStates.set(win, windowState);
+    }
+
+    if (windowState.viewInitialized) {
+      return;
+    }
+
+    view.addEventListener("command", event => {
+      switch (event.target.id) {
+        case "ai-window-switch-classic":
+          this.toggleAIWindow(win, false);
+          break;
+        case "ai-window-switch-ai":
+          this.toggleAIWindow(win, true);
+          break;
+      }
+    });
+
+    windowState.viewInitialized = true;
+  },
+
+  /**
+   * Show Window Switcher button in tabs toolbar
+   *
+   * @param {Window} win caller window
+   */
+  initializeAITabsToolbar(win) {
+    const modeSwitcherButton = win.document.getElementById("ai-window-toggle");
+    if (!modeSwitcherButton) {
+      return;
+    }
+
+    this._updateButtonVisibility(win);
+
+    modeSwitcherButton.addEventListener("command", event => {
+      if (win.PanelUI.panel.state == "open") {
+        win.PanelUI.hide();
+      } else if (win.PanelUI.panel.state == "closed") {
+        this.handleAIWindowSwitcher(win);
+        win.PanelUI.showSubView("ai-window-toggle-view", event.target, event);
+      }
+    });
+  },
+
+  /**
    * Is current window an AI Window
    *
    * @param {Window} win current Window
@@ -144,7 +231,9 @@ export const AIWindow = {
    * @returns {boolean} whether AI Window content page is active
    */
   isAIWindowContentPage(uri) {
-    return AIWINDOW_URI.equalsExceptRef(uri);
+    return (
+      AIWINDOW_URI.equalsExceptRef(uri) || FIRSTRUN_URI.equalsExceptRef(uri)
+    );
   },
 
   /**
@@ -166,4 +255,51 @@ export const AIWindow = {
   get newTabURL() {
     return AIWINDOW_URL;
   },
+
+  /**
+   * Performs a search in the default search engine with
+   * passed query in the current tab.
+   *
+   * @param {string} query
+   * @param {Window} window
+   */
+  async performSearch(query, window) {
+    let engine = null;
+    try {
+      engine = await Services.search.getDefault();
+    } catch (error) {
+      console.error(`Failed to get default search engine:`, error);
+    }
+
+    const triggeringPrincipal =
+      Services.scriptSecurityManager.getSystemPrincipal();
+
+    await lazy.SearchUIUtils.loadSearch({
+      window,
+      searchText: query,
+      where: "current",
+      usePrivate: false,
+      triggeringPrincipal,
+      policyContainer: null,
+      engine,
+      searchUrlType: null,
+      sapSource: "aiwindow_assistant",
+    });
+  },
+
+  async toggleAIWindow(win, isTogglingToAIWindow) {
+    let isActive = this.isAIWindowActive(win);
+    if (isActive != isTogglingToAIWindow) {
+      win.document.documentElement.toggleAttribute("ai-window");
+      Services.obs.notifyObservers(win, "ai-window-state-changed");
+    }
+  },
 };
+
+XPCOMUtils.defineLazyPreferenceGetter(
+  AIWindow,
+  "AIWindowEnabled",
+  "browser.aiwindow.enabled",
+  false,
+  AIWindow._onAIWindowEnabledPrefChange.bind(AIWindow)
+);
