@@ -907,6 +907,7 @@ STATIC_ATOMS = [
     Atom("onorientationchange", "onorientationchange"),
     Atom("onoverflow", "onoverflow"),
     Atom("onpagehide", "onpagehide"),
+    Atom("onpagereveal", "onpagereveal"),
     Atom("onpageshow", "onpageshow"),
     Atom("onpaste", "onpaste"),
     Atom("onpayerdetailchange", "onpayerdetailchange"),
