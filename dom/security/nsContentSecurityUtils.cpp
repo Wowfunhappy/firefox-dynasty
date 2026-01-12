@@ -2171,17 +2171,6 @@ bool nsContentSecurityUtils::ValidateScriptFilename(JSContext* cx,
           : "(None)",
       "Blocking a script load %s from file %s");
   MOZ_CRASH_UNSAFE_PRINTF("%s", crashString.get());
-#elif defined(EARLY_BETA_OR_EARLIER)
-  // Cause a crash (if we've never crashed before and we can ensure we won't do
-  // it again.)
-  // The details in the second arg, passed to UNSAFE_PRINTF, are also included
-  // in Event Telemetry and have received data review.
-  if (fileNameTypeAndDetails.second.isSome()) {
-    PossiblyCrash("js_load_1", aFilename,
-                  fileNameTypeAndDetails.second.value());
-  } else {
-    PossiblyCrash("js_load_1", aFilename, "(None)"_ns);
-  }
 #endif
 
   {
@@ -2211,15 +2200,7 @@ bool nsContentSecurityUtils::ValidateScriptFilename(JSContext* cx,
         }));
   }
 
-  // Presently we are only enforcing restrictions for the script filename
-  // on Nightly.  On all channels we are reporting Telemetry. In the future we
-  // will assert in debug builds and return false to prevent execution in
-  // non-debug builds.
-#ifdef NIGHTLY_BUILD
   return false;
-#else
-  return true;
-#endif
 }
 
 /* static */
