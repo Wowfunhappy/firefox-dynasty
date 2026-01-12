@@ -3539,6 +3539,26 @@ SettingGroupManager.registerGroups({
       },
     ],
   },
+  searchShortcuts: {
+    inProgress: true,
+    l10nId: "search-one-click-header-3",
+    headingLevel: 2,
+    items: [
+      {
+        id: "addEngineButton",
+        l10nId: "search-add-engine-2",
+        control: "moz-button",
+        iconSrc: "chrome://global/skin/icons/plus.svg",
+      },
+      {
+        id: "engineList",
+        control: "moz-box-group",
+        controlAttrs: {
+          type: "reorderable-list",
+        },
+      },
+    ],
+  },
   dnsOverHttpsAdvanced: {
     inProgress: true,
     l10nId: "preferences-doh-advanced-section",

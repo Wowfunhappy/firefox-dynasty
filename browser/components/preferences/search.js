@@ -563,6 +563,137 @@ Preferences.addSetting({
   id: "dismissedSuggestionsDescription",
 });
 
+Preferences.addSetting({
+  id: "addEngineButton",
+});
+
+Preferences.addSetting(
+  class extends Preferences.AsyncSetting {
+    static id = "engineList";
+
+    handleDeletionOptions(engine) {
+      let deletionOptions;
+      if (engine.isConfigEngine) {
+        let toggleId = `toggleEngine-${engine.id}`;
+        Preferences.addSetting({
+          id: toggleId,
+          get() {
+            return !engine.hidden;
+          },
+          onUserChange() {
+            engine.hidden = !engine.hidden;
+          },
+        });
+
+        deletionOptions = {
+          id: toggleId,
+          control: "moz-toggle",
+          slot: "actions",
+        };
+      } else {
+        let deletionId = `deleteEngine-${engine.id}`;
+        Preferences.addSetting({
+          id: deletionId,
+          async onUserClick() {
+            let [body, removeLabel] = await document.l10n.formatValues([
+              "remove-engine-confirmation",
+              "remove-engine-remove",
+            ]);
+
+            let button = Services.prompt.confirmExBC(
+              window.browsingContext,
+              Services.prompt.MODAL_TYPE_CONTENT,
+              null,
+              body,
+              (Services.prompt.BUTTON_TITLE_IS_STRING *
+                Services.prompt.BUTTON_POS_0) |
+                (Services.prompt.BUTTON_TITLE_CANCEL *
+                  Services.prompt.BUTTON_POS_1),
+              removeLabel,
+              null,
+              null,
+              null,
+              {}
+            );
+
+            if (button == 0) {
+              await Services.search.removeEngine(
+                engine,
+                Ci.nsISearchService.CHANGE_REASON_USER
+              );
+            }
+          },
+        });
+
+        deletionOptions = {
+          id: deletionId,
+          control: "moz-button",
+          controlAttrs: {
+            iconsrc: "chrome://global/skin/icons/delete.svg",
+          },
+          slot: "actions",
+        };
+      }
+
+      return deletionOptions;
+    }
+
+    async makeEngineList() {
+      let configs = [];
+      for (let engine of await Services.search.getEngines()) {
+        let setting = {
+          get id() {
+            return `engineList-${engine.id}`;
+          },
+        };
+        Preferences.addSetting(setting);
+
+        let config = {
+          id: setting.id,
+          control: "moz-box-item",
+          controlAttrs: {
+            label: engine.name,
+            description: engine.aliases.join(", "),
+            layout: "large-icon",
+            iconsrc: await engine.getIconURL(),
+          },
+        };
+
+        let editId = `editEngine-${engine.id}`;
+        Preferences.addSetting({
+          id: editId,
+          onUserClick() {
+            // TODO: call gSubDialog.open
+          },
+        });
+
+        config.items = [
+          {
+            id: editId,
+            control: "moz-button",
+            iconSrc: "chrome://global/skin/icons/edit-outline.svg",
+            slot: "actions",
+          },
+        ];
+
+        // Addon search engines do need an edit button to edit the alias names,
+        // but they should not have a toggle or a delete button.
+        if (!engine.loadPath.startsWith("[addon]")) {
+          config.items.push(this.handleDeletionOptions(engine));
+        }
+
+        configs.push(config);
+      }
+
+      return configs;
+    }
+
+    async getControlConfig() {
+      return { items: await this.makeEngineList() };
+    }
+  }
+);
+
 const ENGINE_FLAVOR = "text/x-moz-search-engine";
 const SEARCH_TYPE = "default_search";
 const SEARCH_KEY = "defaultSearch";
@@ -576,6 +707,7 @@ var gSearchPane = {
     initSettingGroup("defaultEngine");
     initSettingGroup("searchSuggestions");
     initSettingGroup("firefoxSuggest");
+    initSettingGroup("searchShortcuts");
     this._engineStore = new EngineStore();
     gEngineView = new EngineView(this._engineStore);
 
