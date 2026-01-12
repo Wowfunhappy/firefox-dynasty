@@ -11,6 +11,7 @@
  */
 
 import { type PipelineOptions } from "chrome://global/content/ml/EngineProcess.sys.mjs";
+import { MLEngine } from "./actors/MLEngineParent.sys.mjs";
 
 export type EngineStatus =
   // The engine is waiting for a previous one to shut down.
@@ -26,32 +27,133 @@ export type EngineStatus =
   // The engine has been fully terminated and removed.
   | "TERMINATED";
 
-export interface EngineRunRequest {
-  /**
-   * The identifier for tracking this request. If not provided, an id will be
-   * auto-generated. Each inference callback will reference this id.
-   */
-  id: string;
+type UntypedEngineRequest = {
+  args: unknown;
+  options: {};
+};
 
-  /**
-   * The arguments to pass to the pipeline. The required arguments depend on your model.
-   * See Hugging Face Transformers documentation]() for more details.
-   * @see https://huggingface.co/docs/transformers.js/en/api/models
-   */
-  args: any[];
+export type EngineRequests = EnsureAllFeatures<{
+  "about-inference": UntypedEngineRequest;
+  "link-preview": UntypedEngineRequest;
+  "pdfjs-alt-text": UntypedEngineRequest;
+  "simple-text-embedder": UntypedEngineRequest;
+  "smart-intent": UntypedEngineRequest;
+  "smart-tab-embedding": UntypedEngineRequest;
+  "smart-tab-topic": UntypedEngineRequest;
 
-  /**
-   * The generation options to pass to the model. Refer to the `GenerationConfigType`
-   * for available options.
-   * @see https://huggingface.co/docs/transformers.js/en/api/utils/generation#module_utils/generation..GenerationConfigType
-   */
-  options: any;
+  "suggest-intent-classification": {
+    /**
+     * The list of classification requests. Often just one.
+     */
+    args: string[];
+    /**
+     * If any options are use, type them here. Currently this just passed as a blank object.
+     */
+    options: {};
+  };
 
-  /**
-   * For the imagetoText model, this is the array containing the image data.
-   */
-  data?: Uint8Array;
+  "suggest-NER": {
+    /**
+     * All of the requests for running named entity recognition.
+     */
+    args: string[];
+    /**
+     * If any options are use, type them here. Currently this just passed as a blank object.
+     */
+    options: {};
+  };
+}>;
+
+/**
+ * We key the @see {MLEngine#run} method off of the featureId and the `MLEngine` create
+ * options.
+ */
+export type EngineFeatureIds =
+  | "about-inference"
+  | "link-preview"
+  | "pdfjs-alt-text"
+  | "simple-text-embedder"
+  | "smart-intent"
+  | "smart-tab-embedding"
+  | "smart-tab-topic"
+  | "suggest-intent-classification"
+  | "suggest-NER";
+
+/**
+ * If a feature is missing, this will turn the type into a `never` and cause type issues.
+ */
+type EnsureAllFeatures<T> =
+  Exclude<EngineFeatureIds, keyof T> extends never ? T : never;
+
+type BasicEngineOptions = Partial<{
+  taskName: string;
+  featureId: EngineFeatureIds;
+  timeoutMS: number;
+  numThreads: number;
+  backend: string;
+}>;
+
+/**
+ * A map of the featureId to the engine create options.
+ */
+export type EngineCreateOptions = EnsureAllFeatures<{
+  "about-inference": BasicEngineOptions;
+  "link-preview": BasicEngineOptions;
+  "pdfjs-alt-text": BasicEngineOptions;
+  "simple-text-embedder": BasicEngineOptions;
+  "smart-intent": BasicEngineOptions;
+  "smart-tab-embedding": BasicEngineOptions;
+  "smart-tab-topic": BasicEngineOptions;
+  "suggest-intent-classification": BasicEngineOptions;
+  "suggest-NER": BasicEngineOptions;
+}>;
+
+/**
+ * This is a type-friendly way to pass around engine options keyed off of the FeatureId.
+ */
+export type EngineOptions<FeatureId extends EngineFeatureIds> =
+  EngineRequests[FeatureId]["options"];
+
+type UntypedEngineResponse = {};
+
+/**
+ * Base metrics common to all pipeline runs.
+ */
+interface BaseMetrics {
+  preprocessingTime: number;
+  inferenceTime: number;
+  decodingTime: number;
+  runTimestamps: Array<{ name: string; when: number }>;
 }
+
+/**
+ * Metrics for classification tasks (text-classification, token-classification).
+ */
+interface ClassificationMetrics extends BaseMetrics {
+  tokenizingTime: number;
+  inputTokens: number;
+  outputTokens: number;
+}
+
+export type EngineResponses = EnsureAllFeatures<{
+  "about-inference": UntypedEngineResponse;
+  "link-preview": UntypedEngineResponse;
+  "pdfjs-alt-text": UntypedEngineResponse;
+  "simple-text-embedder": UntypedEngineResponse;
+  "smart-intent": UntypedEngineResponse;
+  "smart-tab-embedding": UntypedEngineResponse;
+  "smart-tab-topic": UntypedEngineResponse;
+  "suggest-intent-classification": Array<{
+    label: string;
+    score: number;
+  }> & { metrics?: ClassificationMetrics };
+  "suggest-NER": Array<{
+    label: string;
+    score: number;
+    entity: string;
+    word: string;
+  }> & { metrics?: ClassificationMetrics };
+}>;
 
 /**
  * The EngineId is used to identify a unique engine that can be shared across multiple

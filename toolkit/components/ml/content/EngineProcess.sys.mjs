@@ -1152,9 +1152,12 @@ export class EngineProcess {
 /**
  * Creates a new `MLEngine` instance with the provided options.
  *
+ * @template {EngineFeatureIds} FeatureID
+ *
  * @param {object} options - Configuration options for the ML engine.
  * @param {?function(ProgressAndStatusCallbackParams):void} [notificationsCallback] - A function to call to indicate notifications.
  * @param {?AbortSignal} [abortSignal] - AbortSignal to cancel the download.
+ * @returns {MLEngine<FeatureID>}
  */
 export async function createEngine(
   options,

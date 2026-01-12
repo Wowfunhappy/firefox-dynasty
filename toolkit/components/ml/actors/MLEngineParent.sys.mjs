@@ -9,8 +9,9 @@ import { MLTelemetry } from "chrome://global/content/ml/MLTelemetry.sys.mjs";
  * @import { RemoteSettingsClient } from "resource://services-settings/RemoteSettingsClient.sys.mjs"
  * @import {
  *   ChunkResponse,
- *   EngineNames,
- *   EngineRunRequest,
+ *   EngineFeatureIds,
+ *   EngineResponses,
+ *   EngineRequests,
  *   ParsedModelHubUrl,
  *   RecordsML,
  *   RemoteSettingsInferenceOptions,
@@ -227,15 +228,15 @@ export class MLEngineParent extends JSProcessActorParent {
   /**
    * Creates a new MLEngine.
    *
-   * If there's an existing engine with the same pipelineOptions, it will be reused.
+   * @template {EngineFeatureIds} FeatureId
    *
-   * @template EngineRunResponse
+   * If there's an existing engine with the same pipelineOptions, it will be reused.
    *
    * @param {object} params Parameters object.
    * @param {PipelineOptions} params.pipelineOptions
    * @param {?function(ProgressAndStatusCallbackParams):void} params.notificationsCallback A function to call to indicate progress status.
    * @param {?AbortSignal} params.abortSignal - AbortSignal to cancel the download.
-   * @returns {Promise<MLEngine<EngineRunResponse>>}
+   * @returns {Promise<MLEngine<FeatureId>>}
    */
   async getEngine({ pipelineOptions, notificationsCallback, abortSignal }) {
     if (
@@ -274,7 +275,8 @@ export class MLEngineParent extends JSProcessActorParent {
           currentEngine.engineStatus === "ready"
         ) {
           lazy.console.debug(`Reusing existing engine for ${engineId}`);
-          return currentEngine;
+          // Coerce the return type since we can't key off of the engineId here.
+          return /** @type {MLEngine<FeatureId>} */ (currentEngine);
         }
         lazy.console.debug(`Replacing existing engine for ${engineId}`);
         try {
@@ -290,10 +292,10 @@ export class MLEngineParent extends JSProcessActorParent {
         );
       }
 
-      var engine;
       const start = ChromeUtils.now();
 
-      engine = await MLEngine.initialize({
+      /** @type {MLEngine<any>} */
+      const engine = await MLEngine.initialize({
         mlEngineParent: this,
         pipelineOptions,
         notificationsCallback,
@@ -972,22 +974,6 @@ class ResponseOrChunkResolvers {
 }
 
 /**
- * @typedef {object} EngineRunRequest
- * @property {?string} [id] - The identifier for tracking this request. If not provided, an id will be auto-generated. Each inference callback will reference this id.
- * @property {any[]} args - The arguments to pass to the pipeline. The required arguments depend on your model. See [Hugging Face Transformers documentation](https://huggingface.co/docs/transformers.js/en/api/models) for more details.
- * @property {?object} [options] - The generation options to pass to the model. Refer to the [GenerationConfigType documentation](https://huggingface.co/docs/transformers.js/en/api/utils/generation#module_utils/generation..GenerationConfigType) for available options.
- * @property {?Uint8Array} [data] - For the imagetoText model, this is the array containing the image data.
- *
- * @typedef {object} MLEntry
- *
- * @typedef {object} MetricsResponse
- *   The metrics of the query
- * @property {{name: string, when: number}[]} metrics
- *
- * @typedef {MLEntry[] & MetricsResponse} EngineRunResponse
- */
-
-/**
  * The interface to communicate to an MLEngine in the parent process. The engine manages
  * its own lifetime, and is kept alive with a timeout. A reference to this engine can
  * be retained, but once idle, the engine will be destroyed. If a new request to run
@@ -995,7 +981,7 @@ class ResponseOrChunkResolvers {
  * potentially large amounts of memory to run models, with the speed and ease of running
  * the engine.
  *
- * @template EngineRunResponse
+ * @template {EngineFeatureIds} FeatureID
  */
 export class MLEngine {
   /**
@@ -1015,7 +1001,7 @@ export class MLEngine {
   /**
    * Tie together a message id to a resolved response.
    *
-   * @type {Map<number, PromiseWithResolvers<EngineRunResponse> | ResponseOrChunkResolvers<EngineRunResponse>>}
+   * @type {Map<number, PromiseWithResolvers<EngineResponses[FeatureID]> | ResponseOrChunkResolvers<EngineResponses[keyof EngineResponses]>>}
    */
   #requests = new Map();
 
@@ -1069,7 +1055,7 @@ export class MLEngine {
    * Retrieves an instance of the MLEngine with the given engineId.
    *
    * @param {string} engineId - The ID of the engine instance to retrieve.
-   * @returns {MLEngine<any> | null} The engine instance with the given ID, or null if not found.
+   * @returns {MLEngine<unknown> | null} The engine instance with the given ID, or null if not found.
    */
   static getInstance(engineId) {
     return MLEngine.#instances.get(engineId) || null;
@@ -1163,10 +1149,13 @@ export class MLEngine {
   /**
    * Initialize the MLEngine.
    *
+   * @template {EngineFeatureIds} FeatureId
+   *
    * @param {object} config - The configuration object for the instance.
    * @param {MLEngineParent} config.mlEngineParent - The parent machine learning engine associated with this instance.
    * @param {PipelineOptions} config.pipelineOptions - The options for configuring the pipeline associated with this instance.
    * @param {?function(ProgressAndStatusCallbackParams):void} config.notificationsCallback - The initialization progress callback function to call.
+   * @returns {Promise<MLEngine<FeatureId>>}
    */
   static async initialize({
     mlEngineParent,
@@ -1175,6 +1164,7 @@ export class MLEngine {
   }) {
     lazy.console.debug("Initializing ML engine", pipelineOptions);
 
+    /** @type {MLEngine<FeatureId>} */
     const mlEngine = new MLEngine({
       mlEngineParent,
       pipelineOptions,
@@ -1225,7 +1215,7 @@ export class MLEngine {
    * Registers an event listener for the specified event.
    *
    * @param {string} event - The name of the event.
-   * @param {(...args: unknown[]) => void} listener - The callback function to execute when the event is triggered.
+   * @param {(...args: any[]) => void} listener - The callback function to execute when the event is triggered.
    */
   on(event, listener) {
     if (!this.events[event]) {
@@ -1541,11 +1531,11 @@ export class MLEngine {
   /**
    * Run the inference request
    *
-   * @param {EngineRunRequest} request
-   * @returns {Promise<EngineRunResponse>}
+   * @param {EngineRequests[FeatureID]} request
+   * @returns {Promise<EngineResponses[FeatureID]>}
    */
   async run(request) {
-    /** @type {PromiseWithResolvers<EngineRunResponse>} */
+    /** @type {PromiseWithResolvers<EngineResponses[FeatureID]>} */
     const resolvers = Promise.withResolvers();
     const requestId = this.#nextRequestId++;
     this.#requests.set(requestId, resolvers);
@@ -1630,7 +1620,7 @@ export class MLEngine {
   /**
    * Run the inference request using an async generator function.
    *
-   * @param {EngineRunRequest} request - The inference request containing the input data.
+   * @param {EngineRequests[FeatureID]} request - The inference request containing the input data.
    * @returns {AsyncGenerator<ChunkResponse>} An async generator yielding chunks of generated responses.
    */
   async *runWithGenerator(request) {
