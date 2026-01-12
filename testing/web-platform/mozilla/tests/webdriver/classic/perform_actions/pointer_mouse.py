@@ -1,51 +1,59 @@
+from copy import deepcopy
+
 import pytest
+from support.context import using_context
+from tests.classic.perform_actions.support.refine import wait_for_events
+from tests.support.helpers import center_point
 
 pytestmark = pytest.mark.asyncio
 
 
-async def test_click_in_display_none_frame(session, inline):
-    frame_url = inline(
-        """
-        <button>click to hide</button>
-        <script type="text/javascript">
-            const btn = document.querySelector('button');
-            btn.addEventListener('click', ev => {
-                window.parent.postMessage("test");
-            });
-        </script>
-        """
-    )
+@pytest.mark.parametrize("full_zoom", [0.5, 1.0, 2.0])
+@pytest.mark.parametrize("devPixelsPerPx", [1.0, 2.0])
+async def test_position_with_different_scaling(
+    configuration, url, geckodriver, devPixelsPerPx, full_zoom
+):
+    config = deepcopy(configuration)
 
-    url = inline(
-        f"""
-        <div id="content">
-            <iframe src='{frame_url}'></iframe>
-        </div>
-        <script>
-            window.addEventListener("message", ev => {{
-                document.querySelector("iframe").style.display = "none";
-            }}, false);
-        </script>
-        """
-    )
+    prefs = config["capabilities"]["moz:firefoxOptions"].get("prefs", {})
+    prefs.update({"layout.css.devPixelsPerPx": str(devPixelsPerPx)})
+    config["capabilities"]["moz:firefoxOptions"]["prefs"] = prefs
 
-    session.url = url
+    try:
+        driver = geckodriver(config=config, extra_args=["--allow-system-access"])
+        driver.new_session()
 
-    frame = session.find.css("iframe", all=False)
-    session.switch_to_frame(frame)
-    button = session.find.css("button", all=False)
+        driver.session.url = url("/webdriver/tests/support/html/test_actions.html")
 
-    mouse_chain = session.actions.sequence(
-        "pointer", "pointer_id", {"pointerType": "mouse"}
-    )
+        with using_context(driver.session, "chrome"):
+            driver.session.execute_script(
+                """
+                const [full_zoom] = arguments;
 
-    # Firefox bug:
-    # - the click will hide the iframe via display none
-    # - the last bit of performActions tries to wait for animationFrame in the
-    #   iframe browsing context, but since it's hidden there won't be any and
-    #   we never resolve
-    # Note that the pause(100) is not strictly necessary to reproduce the issue
-    # but it makes it fail consistently. Otherwise it's very much intermittent.
-    mouse_chain.pointer_move(0, 0, origin=button).pointer_down().pointer_up().pause(
-        100
-    ).perform()
+                const { TabManager } = ChromeUtils.importESModule(
+                    "chrome://remote/content/shared/TabManager.sys.mjs"
+                );
+
+                const tabBrowser = TabManager.getTabBrowser(window);
+                tabBrowser.selectedBrowser.browsingContext.fullZoom = full_zoom;
+            """,
+                args=[full_zoom],
+            )
+
+        target = driver.session.find.css("#outer", all=False)
+        expected_position = center_point(target)
+
+        mouse_chain = driver.session.actions.sequence(
+            "pointer", "pointer_id", {"pointerType": "mouse"}
+        )
+        mouse_chain.pointer_move(0, 0, origin=target).perform()
+
+        events = wait_for_events(driver.session, 1)
+        assert len(events) == 1
+
+        assert events[0]["type"] == "mousemove"
+        assert events[0]["pageX"] == pytest.approx(expected_position[0], abs=1.0)
+        assert events[0]["pageY"] == pytest.approx(expected_position[1], abs=1.0)
+        assert events[0]["target"] == "outer"
+    finally:
+        await driver.stop()
