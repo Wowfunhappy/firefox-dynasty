@@ -16,7 +16,6 @@
 #include <string.h>
 
 #include "jsapi.h"
-#include "jsexn.h"
 #include "jsfriendapi.h"
 #include "jstypes.h"
 
@@ -53,6 +52,7 @@
 #include "vm/BytecodeUtil.h"
 #include "vm/Compartment.h"
 #include "vm/DateObject.h"
+#include "vm/ErrorObject.h"
 #include "vm/Interpreter.h"
 #include "vm/Iteration.h"
 #include "vm/JSAtomUtils.h"  // Atomize

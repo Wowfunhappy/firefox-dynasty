@@ -11,7 +11,6 @@
 #include "mozilla/TimeStamp.h"
 
 #include "jsapi.h"
-#include "jsexn.h"
 #include "jsfriendapi.h"
 
 #include "js/CallAndConstruct.h"      // JS::Construct, JS::IsCallable

@@ -23,7 +23,6 @@
 #include <stdarg.h>
 #include <string.h>
 
-#include "jsexn.h"
 #include "jsfriendapi.h"
 #include "jstypes.h"
 
