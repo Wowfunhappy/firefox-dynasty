@@ -18,6 +18,7 @@ remote.jar:
   content/webdriver-bidi/modules/RootBiDiModule.sys.mjs (modules/RootBiDiModule.sys.mjs)
 
   # WebDriver BiDi root modules
+  content/webdriver-bidi/modules/root/_configuration.sys.mjs (modules/root/_configuration.sys.mjs)
   content/webdriver-bidi/modules/root/browser.sys.mjs (modules/root/browser.sys.mjs)
   content/webdriver-bidi/modules/root/browsingContext.sys.mjs (modules/root/browsingContext.sys.mjs)
   content/webdriver-bidi/modules/root/emulation.sys.mjs (modules/root/emulation.sys.mjs)
