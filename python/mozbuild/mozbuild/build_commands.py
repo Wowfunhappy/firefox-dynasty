@@ -3,6 +3,7 @@
 # file, # You can obtain one at http://mozilla.org/MPL/2.0/.
 
 import argparse
+import logging
 import os
 import subprocess
 from urllib.parse import quote
@@ -21,7 +22,7 @@ OF THE TREE CAN RESULT IN BAD TREE STATE. USE AT YOUR OWN RISK.
 """.strip()
 
 
-def _set_priority(priority, verbose):
+def _set_priority(command_context, priority, verbose):
     # Choose the Windows API structure to standardize on.
     PRIO_CLASS_BY_KEY = {
         "idle": "IDLE_PRIORITY_CLASS",
@@ -48,7 +49,9 @@ def _set_priority(priority, verbose):
 
         os.nice(niceness)
         if verbose:
-            print(f"os.nice({niceness})")
+            command_context.log(
+                logging.INFO, "priority", {"niceness": niceness}, "os.nice({niceness})"
+            )
         return True
 
     try:
@@ -62,7 +65,12 @@ def _set_priority(priority, verbose):
 
     psutil.Process().nice(prio_class_val)
     if verbose:
-        print(f"psutil.Process().nice(psutil.{prio_class})")
+        command_context.log(
+            logging.INFO,
+            "priority",
+            {"prio_class": prio_class},
+            "psutil.Process().nice(psutil.{prio_class})",
+        )
     return True
 
 
@@ -165,8 +173,13 @@ def build(
 
     # By setting the current process's priority, by default our child processes
     # will also inherit this same priority.
-    if not _set_priority(priority, verbose):
-        print("--priority not supported on this platform.")
+    if not _set_priority(command_context, priority, verbose):
+        command_context.log(
+            logging.WARNING,
+            "priority",
+            {},
+            "--priority not supported on this platform.",
+        )
 
     for target in what:
         if target.startswith("installers-"):
@@ -299,10 +312,13 @@ def resource_usage(command_context, address=None, port=None, browser=None, url=N
     else:
         profile = command_context._get_state_filename("profile_build_resources.json")
         if not os.path.exists(profile):
-            print(
+            command_context.log(
+                logging.WARNING,
+                "build_resources",
+                {},
                 "Build resources not available. If you have performed a "
                 "build and receive this message, the psutil Python package "
-                "likely failed to initialize properly."
+                "likely failed to initialize properly.",
             )
             return 1
 
@@ -314,11 +330,21 @@ def resource_usage(command_context, address=None, port=None, browser=None, url=N
     try:
         webbrowser.get(browser).open_new_tab(profiler_url)
     except Exception:
-        print("Cannot get browser specified, trying the default instead.")
+        command_context.log(
+            logging.WARNING,
+            "resource_usage",
+            {},
+            "Cannot get browser specified, trying the default instead.",
+        )
         try:
             browser = webbrowser.get().open_new_tab(profiler_url)
         except Exception:
-            print("Please open %s in a browser." % profiler_url)
+            command_context.log(
+                logging.INFO,
+                "resource_usage",
+                {"url": profiler_url},
+                "Please open {url} in a browser.",
+            )
 
     server.run()
 
@@ -351,9 +377,12 @@ def build_backend(command_context, backend, diff=False, verbose=False, dry_run=F
     config_status = os.path.join(command_context.topobjdir, "config.status")
 
     if not os.path.exists(config_status):
-        print(
+        command_context.log(
+            logging.ERROR,
+            "build_backend",
+            {"backend": backend},
             "config.status not found.  Please run |mach configure| "
-            "or |mach build| prior to building the %s build backend." % backend
+            "or |mach build| prior to building the {backend} build backend.",
         )
         return 1
 
