@@ -805,44 +805,43 @@ void Notification::LoadImageAndShow(Promise* aPromise, ContextInfo&& aInfo) {
   }
 
   using IPCImagePromise = mozilla::MozPromise<Maybe<IPCImage>, bool, true>;
-  InvokeAsync(GetMainThreadSerialEventTarget(), __func__,
-              [uri, clientInfo, contextInfo = std::move(aInfo)]() {
-                // Don't load the image if we aren't even allowed to show the
-                // notification.
-                NotificationPermission permission = GetNotificationPermission(
-                    contextInfo.mPrincipal,
-                    contextInfo.mEffectiveStoragePrincipal,
-                    contextInfo.mIsSecureContext,
-                    PermissionCheckPurpose::LoadImageForShow);
-                if (permission != NotificationPermission::Granted) {
-                  return image::FetchDecodedImagePromise::CreateAndReject(
-                      NS_ERROR_FAILURE, __func__);
-                }
+  InvokeAsync(
+      GetMainThreadSerialEventTarget(), __func__,
+      [uri, clientInfo, contextInfo = std::move(aInfo)]() {
+        // Don't load the image if we aren't even allowed to show the
+        // notification.
+        NotificationPermission permission = GetNotificationPermission(
+            contextInfo.mPrincipal, contextInfo.mEffectiveStoragePrincipal,
+            contextInfo.mIsSecureContext,
+            PermissionCheckPurpose::LoadImageForShow);
+        if (permission != NotificationPermission::Granted) {
+          return image::FetchDecodedImagePromise::CreateAndReject(
+              NS_ERROR_FAILURE, __func__);
+        }
 
-                // https://notifications.spec.whatwg.org/#fetch-steps
-                // Step 1: If the notification platform supports images, fetch
-                // notification's image URL, if image URL is set.
-                //
-                // But the spec doesn't provide proper details (see
-                // https://github.com/whatwg/notifications/issues/208), so for
-                // now we pretend a Request object with:
-                // * method: "GET"
-                // * destination: "image"
-                // * mode: "no-cors"
-                nsCOMPtr<nsIChannel> channel;
-                nsresult rv = NS_NewChannel(
-                    getter_AddRefs(channel), uri, contextInfo.mPrincipal,
-                    clientInfo.ref(), Maybe<dom::ServiceWorkerDescriptor>(),
-                    nsILoadInfo::SEC_ALLOW_CROSS_ORIGIN_SEC_CONTEXT_IS_NULL,
-                    nsIContentPolicy::TYPE_INTERNAL_IMAGE_NOTIFICATION);
-                if (NS_FAILED(rv)) {
-                  return image::FetchDecodedImagePromise::CreateAndReject(
-                      rv, __func__);
-                }
+        // https://notifications.spec.whatwg.org/#fetch-steps
+        // Step 1: If the notification platform supports images, fetch
+        // notification's image URL, if image URL is set.
+        //
+        // But the spec doesn't provide proper details (see
+        // https://github.com/whatwg/notifications/issues/208), so for
+        // now we pretend a Request object with:
+        // * method: "GET"
+        // * destination: "image"
+        // * mode: "no-cors"
+        nsCOMPtr<nsIChannel> channel;
+        nsresult rv = NS_NewChannel(
+            getter_AddRefs(channel), uri, contextInfo.mPrincipal,
+            clientInfo.ref(), Maybe<dom::ServiceWorkerDescriptor>(),
+            nsILoadInfo::SEC_ALLOW_CROSS_ORIGIN_SEC_CONTEXT_IS_NULL,
+            nsIContentPolicy::TYPE_INTERNAL_IMAGE_NOTIFICATION);
+        if (NS_FAILED(rv)) {
+          return image::FetchDecodedImagePromise::CreateAndReject(rv, __func__);
+        }
 
-                // This function must be called on the main thread.
-                return image::FetchDecodedImage(uri, channel, gfx::IntSize{});
-              })
+        // This function must be called on the main thread.
+        return image::FetchDecodedImage(uri, channel, gfx::IntSize{});
+      })
       ->Then(
           GetMainThreadSerialEventTarget(), __func__,
           [](already_AddRefed<imgIContainer> aImage) {

@@ -312,7 +312,6 @@ AlertNotification::GetAction(const nsAString& aName,
   return NS_OK;
 }
 
-
 NS_IMPL_ISUPPORTS(AlertAction, nsIAlertAction)
 
 AlertAction::AlertAction(const nsAString& aAction, const nsAString& aTitle)
