@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef jsnum_h
-#define jsnum_h
+#ifndef builtin_Number_h
+#define builtin_Number_h
 
 #include "mozilla/FloatingPoint.h"
 #include "mozilla/Range.h"
@@ -451,4 +451,4 @@ static inline size_t ToIntegerIndex(intptr_t index, size_t length) {
 
 } /* namespace js */
 
-#endif /* jsnum_h */
+#endif /* builtin_Number_h */

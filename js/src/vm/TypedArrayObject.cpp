@@ -30,11 +30,11 @@
 #endif
 #include <type_traits>
 
-#include "jsnum.h"
 #include "jstypes.h"
 
 #include "builtin/Array.h"
 #include "builtin/DataViewObject.h"
+#include "builtin/Number.h"
 #include "gc/Barrier.h"
 #include "gc/MaybeRooted.h"
 #include "jit/InlinableNatives.h"

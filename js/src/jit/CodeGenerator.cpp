@@ -27,9 +27,9 @@
 
 #include "jslibmath.h"
 #include "jsmath.h"
-#include "jsnum.h"
 
 #include "builtin/MapObject.h"
+#include "builtin/Number.h"
 #include "builtin/RegExp.h"
 #include "builtin/String.h"
 #include "irregexp/RegExpTypes.h"

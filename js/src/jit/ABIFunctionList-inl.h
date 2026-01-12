@@ -13,16 +13,16 @@
 #include "jslibmath.h"  // js::NumberMod
 #include "jsmath.h"     // js::ecmaPow, js::ecmaHypot, js::hypot3, js::hypot4,
                         // js::ecmaAtan2, js::UnaryMathFunctionType, js::powi
-#include "jsnum.h"      // js::StringToNumberPure, js::Int32ToStringPure,
-                        // js::NumberToStringPure
 
-#include "builtin/Array.h"             // js::ArrayShiftMoveElements
-#include "builtin/MapObject.h"         // js::MapIteratorObject::next,
-                                       // js::SetIteratorObject::next
-#include "builtin/Object.h"            // js::ObjectClassToString
-#include "builtin/RegExp.h"            // js::RegExpPrototypeOptimizableRaw,
-                                       // js::RegExpInstanceOptimizableRaw
-#include "builtin/Sorting.h"           // js::ArraySortData
+#include "builtin/Array.h"      // js::ArrayShiftMoveElements
+#include "builtin/MapObject.h"  // js::MapIteratorObject::next,
+                                // js::SetIteratorObject::next
+#include "builtin/Number.h"   // js::StringToNumberPure, js::Int32ToStringPure,
+                              // js::NumberToStringPure
+#include "builtin/Object.h"   // js::ObjectClassToString
+#include "builtin/RegExp.h"   // js::RegExpPrototypeOptimizableRaw,
+                              // js::RegExpInstanceOptimizableRaw
+#include "builtin/Sorting.h"  // js::ArraySortData
 #include "builtin/TestingFunctions.h"  // js::FuzzilliHash*
 #include "builtin/WeakMapObject.h"     // js::WeakMapObject::{get,has}Object
 #include "builtin/WeakSetObject.h"     // js::WeakSetObject::hasObject

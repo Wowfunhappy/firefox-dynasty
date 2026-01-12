@@ -17,8 +17,8 @@
 
 #include "jslibmath.h"
 #include "jsmath.h"
-#include "jsnum.h"
 
+#include "builtin/Number.h"
 #include "builtin/RegExp.h"
 #include "jit/AtomicOperations.h"
 #include "jit/CompileInfo.h"

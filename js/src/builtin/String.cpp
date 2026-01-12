@@ -25,7 +25,6 @@
 #include <string.h>
 #include <type_traits>
 
-#include "jsnum.h"
 #include "jstypes.h"
 
 #include "builtin/Array.h"
@@ -36,6 +35,7 @@
 #  include "builtin/intl/GlobalIntlData.h"
 #  include "builtin/intl/LocaleNegotiation.h"
 #endif
+#include "builtin/Number.h"
 #include "builtin/RegExp.h"
 #include "gc/GC.h"
 #include "jit/InlinableNatives.h"

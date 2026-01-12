@@ -25,6 +25,7 @@ UNIFIED_SOURCES += [
     "JSON.cpp",
     "MapObject.cpp",
     "ModuleObject.cpp",
+    "Number.cpp",
     "Object.cpp",
     "ParseRecordObject.cpp",
     "Profilers.cpp",

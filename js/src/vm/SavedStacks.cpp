@@ -14,8 +14,8 @@
 
 #include "jsapi.h"
 #include "jsmath.h"
-#include "jsnum.h"
 
+#include "builtin/Number.h"
 #include "gc/GCContext.h"
 #include "gc/HashUtil.h"
 #include "js/CharacterEncoding.h"

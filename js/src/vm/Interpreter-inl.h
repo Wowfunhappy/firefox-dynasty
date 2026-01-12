@@ -13,8 +13,8 @@
 
 #include "jslibmath.h"
 #include "jsmath.h"
-#include "jsnum.h"
 
+#include "builtin/Number.h"
 #include "js/friend/ErrorMessages.h"  // js::GetErrorMessage, JSMSG_*
 #include "vm/BigIntType.h"
 #include "vm/BytecodeUtil.h"  // JSDVG_SEARCH_STACK

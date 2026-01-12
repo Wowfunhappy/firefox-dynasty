@@ -31,13 +31,13 @@
 
 #include "jsapi.h"
 #include "jsfriendapi.h"
-#include "jsnum.h"
 #include "jstypes.h"
 
 #if JS_HAS_INTL_API
 #  include "builtin/intl/DateTimeFormat.h"
 #  include "builtin/intl/GlobalIntlData.h"
 #endif
+#include "builtin/Number.h"
 #ifdef JS_HAS_INTL_API
 #  include "builtin/temporal/Instant.h"
 #endif

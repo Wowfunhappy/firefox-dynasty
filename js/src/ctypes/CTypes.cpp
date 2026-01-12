@@ -31,8 +31,8 @@
 
 #include "jsapi.h"
 #include "jsexn.h"
-#include "jsnum.h"
 
+#include "builtin/Number.h"
 #include "ctypes/Library.h"
 #include "gc/GCContext.h"
 #include "jit/AtomicOperations.h"
