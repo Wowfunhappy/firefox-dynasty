@@ -305,20 +305,11 @@ DefaultJitOptions::DefaultJitOptions() {
   SET_DEFAULT(ionMaxLocalsAndArgs, 10 * 1000);
   SET_DEFAULT(ionMaxLocalsAndArgsMainThread, 256);
 
-#if defined(JS_CODEGEN_MIPS64) || defined(JS_CODEGEN_LOONG64) || \
-    defined(JS_CODEGEN_RISCV64)
   SET_DEFAULT(spectreIndexMasking, false);
   SET_DEFAULT(spectreObjectMitigations, false);
   SET_DEFAULT(spectreStringMitigations, false);
   SET_DEFAULT(spectreValueMasking, false);
   SET_DEFAULT(spectreJitToCxxCalls, false);
-#else
-  SET_DEFAULT(spectreIndexMasking, true);
-  SET_DEFAULT(spectreObjectMitigations, true);
-  SET_DEFAULT(spectreStringMitigations, true);
-  SET_DEFAULT(spectreValueMasking, true);
-  SET_DEFAULT(spectreJitToCxxCalls, false);
-#endif
 
   // Whether the W^X policy is enforced to mark JIT code pages as either
   // writable or executable but never both at the same time. On Apple Silicon
