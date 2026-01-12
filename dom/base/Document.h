@@ -3392,6 +3392,9 @@ class Document : public nsINode,
   // Posts an event to call UpdateVisibilityState.
   void PostVisibilityUpdateEvent();
 
+  // https://html.spec.whatwg.org/#reveal
+  void Reveal();
+
   bool IsSyntheticDocument() const { return mIsSyntheticDocument; }
 
   // Adds the size of a given node, which must not be a document node, to the
@@ -5244,6 +5247,9 @@ class Document : public nsINode,
   // Whether a copy event happened. Used to detect when this happens
   // while a paste event is being handled in JS.
   bool mClipboardCopyTriggered : 1;
+
+  // https://html.spec.whatwg.org/#has-been-revealed
+  bool mHasBeenRevealed : 1;
 
   // The fingerprinting protections overrides for this document. The value will
   // override the default enabled fingerprinting protections for this document.
