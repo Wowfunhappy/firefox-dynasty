@@ -166,4 +166,14 @@ add_task(async function test_expiry() {
     context: createContext("", { isPrivate: false }),
     matches: [],
   });
+
+  // On the searchbar, EXPIRE_PREF should be ignored.
+  await check_results({
+    context: createContext("", { isPrivate: false, sapName: "searchbar" }),
+    matches: [
+      makeRecentSearchResult(context, defaultEngine, "Joy Formidable"),
+      makeRecentSearchResult(context, defaultEngine, "Glasgow Weather"),
+      makeRecentSearchResult(context, defaultEngine, "Bob Vylan"),
+    ],
+  });
 });
