@@ -276,11 +276,6 @@ UNIFIED_SOURCES += [
     "jsfriendapi.cpp",
 ]
 
-# jsmath.cpp cannot be built in unified mode because it needs to re-#define the
-#   RtlGenRandom declaration's calling convention in <ntsecapi.h> on Windows.
-SOURCES += [
-    "jsmath.cpp",
-]
 
 if CONFIG["MOZ_INSTRUMENTS"]:
     OS_LIBS += ["-framework CoreFoundation"]

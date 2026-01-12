@@ -24,8 +24,7 @@
 #include <algorithm>
 #include <utility>
 
-#include "jsmath.h"
-
+#include "builtin/Math.h"
 #include "builtin/String.h"
 #include "gc/Barrier.h"
 #include "gc/Marking.h"

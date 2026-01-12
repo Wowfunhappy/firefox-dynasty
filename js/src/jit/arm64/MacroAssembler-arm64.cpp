@@ -9,8 +9,7 @@
 #include "mozilla/MathAlgorithms.h"
 #include "mozilla/Maybe.h"
 
-#include "jsmath.h"
-
+#include "builtin/Math.h"
 #include "jit/arm64/MoveEmitter-arm64.h"
 #include "jit/arm64/SharedICRegisters-arm64.h"
 #include "jit/Bailouts.h"

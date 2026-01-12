@@ -9,7 +9,7 @@
 // found in the LICENSE file.
 #include "jit/riscv64/MacroAssembler-riscv64.h"
 
-#include "jsmath.h"
+#include "builtin/Math.h"
 #include "jit/Bailouts.h"
 #include "jit/BaselineFrame.h"
 #include "jit/JitFrames.h"

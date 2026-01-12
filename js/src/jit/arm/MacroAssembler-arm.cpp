@@ -11,8 +11,7 @@
 #include "mozilla/MathAlgorithms.h"
 #include "mozilla/Maybe.h"
 
-#include "jsmath.h"
-
+#include "builtin/Math.h"
 #include "jit/arm/Simulator-arm.h"
 #include "jit/AtomicOp.h"
 #include "jit/AtomicOperations.h"

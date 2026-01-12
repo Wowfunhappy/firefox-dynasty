@@ -12,8 +12,8 @@
 #include "mozilla/CheckedArithmetic.h"
 
 #include "jslibmath.h"
-#include "jsmath.h"
 
+#include "builtin/Math.h"
 #include "builtin/Number.h"
 #include "js/friend/ErrorMessages.h"  // js::GetErrorMessage, JSMSG_*
 #include "vm/BigIntType.h"

@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef jsmath_h
-#define jsmath_h
+#ifndef builtin_Math_h
+#define builtin_Math_h
 
 #include <stdint.h>
 
@@ -166,4 +166,4 @@ extern double math_cbrt_impl(double x);
 
 } /* namespace js */
 
-#endif /* jsmath_h */
+#endif /* builtin_Math_h */

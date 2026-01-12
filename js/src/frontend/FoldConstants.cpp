@@ -10,8 +10,8 @@
 #include "mozilla/Try.h"    // MOZ_TRY*
 
 #include "jslibmath.h"
-#include "jsmath.h"
 
+#include "builtin/Math.h"
 #include "frontend/FullParseHandler.h"
 #include "frontend/ParseNode.h"
 #include "frontend/ParseNodeVisitor.h"

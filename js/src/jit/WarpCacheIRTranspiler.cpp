@@ -9,8 +9,7 @@
 #include "mozilla/Casting.h"
 #include "mozilla/Maybe.h"
 
-#include "jsmath.h"
-
+#include "builtin/Math.h"
 #include "jit/AtomicOp.h"
 #include "jit/CacheIR.h"
 #include "jit/CacheIRCompiler.h"

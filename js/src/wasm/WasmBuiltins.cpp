@@ -25,8 +25,8 @@
 
 #include "fdlibm.h"
 #include "jslibmath.h"
-#include "jsmath.h"
 
+#include "builtin/Math.h"
 #include "jit/AtomicOperations.h"
 #include "jit/InlinableNatives.h"
 #include "jit/JitRuntime.h"

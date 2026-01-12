@@ -8,8 +8,7 @@
 
 #include "mozilla/Casting.h"
 
-#include "jsmath.h"
-
+#include "builtin/Math.h"
 #include "jit/JitFrames.h"
 #include "jit/MacroAssembler.h"
 #include "js/ScalarType.h"  // js::Scalar::Type

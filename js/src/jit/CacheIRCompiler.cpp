@@ -15,9 +15,9 @@
 #include <utility>
 
 #include "jslibmath.h"
-#include "jsmath.h"
 
 #include "builtin/DataViewObject.h"
+#include "builtin/Math.h"
 #include "builtin/Object.h"
 #include "gc/GCEnum.h"
 #include "jit/BaselineCacheIRCompiler.h"
