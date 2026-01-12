@@ -164,12 +164,9 @@ export class BackupUIParent extends JSWindowActorParent {
         lazy.logConsole.error(`Failed to enable scheduled backups`, e);
         return { success: false, errorCode: e.cause || lazy.ERRORS.UNKNOWN };
       }
-      /**
-       * TODO: (Bug 1900125) we should create a backup at the specified dir path once we turn on
-       * scheduled backups. The backup folder in the chosen directory should contain
-       * the archive file, which we create using BackupService.createArchive implemented in
-       * Bug 1897498.
-       */
+
+      // Don't block the return on createBackup
+      this.#triggerCreateBackup({ reason: "first" });
       return { success: true };
     } else if (message.name == "DisableScheduledBackups") {
       await this.#bs.cleanupBackupFiles();
