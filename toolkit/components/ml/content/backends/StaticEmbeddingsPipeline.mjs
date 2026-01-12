@@ -6,6 +6,7 @@
  * @import { PipelineOptions } from "chrome://global/content/ml/EngineProcess.sys.mjs"
  * @import { BackendError } from "./Pipeline.mjs"
  * @import { MLEngineWorker } from "../MLEngine.worker.mjs"
+ * @import { TypedArray } from "../../ml.d.ts"
  * @import { EmbeddingDType, EmbeddingRequest, EmbeddingResponse, PreTrainedTokenizer } from "./StaticEmbeddingsPipeline.d.ts"
  */
 
@@ -91,6 +92,11 @@ export class StaticEmbeddingsPipeline {
   #getFloat;
 
   /**
+   * @type {TypedArray}
+   */
+  embeddings;
+
+  /**
    * @param {PreTrainedTokenizer} tokenizer
    * @param {ArrayBuffer} npyData
    * @param {EmbeddingDType} dtype
@@ -118,6 +124,8 @@ export class StaticEmbeddingsPipeline {
       );
     }
 
+    this.embeddings = embeddings;
+
     switch (dtype) {
       case lazy.QuantizationLevel.FP32:
       case lazy.QuantizationLevel.FP16:
@@ -133,9 +141,6 @@ export class StaticEmbeddingsPipeline {
       default:
         throw new Error("Unsupported dtype: " + dtype);
     }
-
-    /** @type {ArrayBufferLike} */
-    this.embeddings = embeddings;
   }
 
   /**
@@ -156,6 +161,25 @@ export class StaticEmbeddingsPipeline {
       staticEmbeddingsOptions,
     } = pipelineOptions;
 
+    if (!staticEmbeddingsOptions) {
+      throw new Error("No staticEmbeddingsOptions were provided.");
+    }
+    if (!modelId) {
+      throw new Error("No modelId was provided.");
+    }
+    if (!modelRevision) {
+      throw new Error("No modelRevision was provided.");
+    }
+    if (!modelHubUrlTemplate) {
+      throw new Error("No modelHubUrlTemplate was provided.");
+    }
+    if (!modelHubRootUrl) {
+      throw new Error("No modelHubRootUrl was provided.");
+    }
+    if (!backend) {
+      throw new Error("No backend was provided.");
+    }
+
     // These are the options that are specific to this engine.
     const { subfolder, dtype, dimensions, compression, mockedValues } =
       staticEmbeddingsOptions;
@@ -171,7 +195,7 @@ export class StaticEmbeddingsPipeline {
      * @param {string} fileName
      * @returns {Promise<Response | MockedResponse>}
      */
-    async function getResponse(fileName) {
+    const getResponse = async fileName => {
       const url = lazy.createFileUrl({
         file: fileName,
         model: modelId,
@@ -201,7 +225,7 @@ export class StaticEmbeddingsPipeline {
         stream = stream.pipeThrough(decompressionStream);
       }
       return new Response(stream);
-    }
+    };
 
     const [tokenizerJsonResponse, npyDataResponse] = await Promise.all(
       files.map(getResponse)

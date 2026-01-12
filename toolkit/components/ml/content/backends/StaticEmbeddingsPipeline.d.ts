@@ -78,9 +78,9 @@ export interface StaticEmbeddingsOptions {
   compression: boolean;
 
   /**
-   * Mock the engine for tests.
+   * Mock the buffer data for a url for tests.
    */
-  mockedValues?: {};
+  mockedValues?: Record<string, Iterable<number>>;
 }
 
 /**

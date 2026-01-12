@@ -4,6 +4,10 @@
 
 // @ts-nocheck - TODO - Remove this to type check this file.
 
+/**
+ * @import { TypedArray } from "../ml.d.ts"
+ */
+
 const lazy = {};
 const IN_WORKER = typeof importScripts !== "undefined";
 const ES_MODULES_OPTIONS = IN_WORKER ? { global: "current" } : {};

@@ -1834,7 +1834,7 @@ export class ModelHub {
    * @param {string} config.file - The file name.
    * @param {string} config.modelHubRootUrl - root url of the model hub
    * @param {string} config.modelHubUrlTemplate - url template of the model hub
-   * @param {?function(ProgressAndStatusCallbackParams):void} config.progressCallback A function to call to indicate progress status.
+   * @param {?function(ProgressAndStatusCallbackParams):void} [config.progressCallback] A function to call to indicate progress status.
    * @param {string} config.featureId - feature id for the model
    * @param {string} config.sessionId - shared across the same session
    * @param {object} [config.telemetryData] - Additional telemetry data.
