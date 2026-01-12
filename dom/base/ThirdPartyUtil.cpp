@@ -455,9 +455,7 @@ ThirdPartyUtil::GetBaseDomain(nsIURI* aHostURI, nsACString& aBaseDomain) {
     if (aHostURI->SchemeIs("view-source")) {
       rv = NS_GetInnermostURIHost(aHostURI, aBaseDomain);
     } else {
-      // Apply IPV6 fixup to work around Bug 1603199.
-      rv =
-          nsContentUtils::GetAsciiHostOrIPv6WithBrackets(aHostURI, aBaseDomain);
+      rv = aHostURI->GetAsciiHost(aBaseDomain);
     }
   }
 
