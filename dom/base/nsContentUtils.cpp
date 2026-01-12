@@ -8841,6 +8841,18 @@ nsresult nsContentUtils::GetHostOrIPv6WithBrackets(nsIPrincipal* aPrincipal,
   return NS_OK;
 }
 
+nsresult nsContentUtils::GetAsciiHostOrIPv6WithBrackets(nsIURI* aURI,
+                                                        nsACString& aHost) {
+  aHost.Truncate();
+  nsresult rv = aURI->GetAsciiHost(aHost);
+  if (NS_FAILED(rv)) {
+    return rv;
+  }
+
+  MaybeFixIPv6Host(aHost);
+  return NS_OK;
+}
+
 CallState nsContentUtils::CallOnAllRemoteChildren(
     MessageBroadcaster* aManager,
     const std::function<CallState(BrowserParent*)>& aCallback) {
