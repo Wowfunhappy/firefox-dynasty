@@ -4,9 +4,11 @@
 
 use crate::{
     error::{error_to_string, ErrMsg, ErrorBuffer, ErrorBufferType, OwnedErrorBuffer},
-    make_byte_buf, wgpu_string, AdapterInformation, BufferMapResult, ByteBuf, CommandEncoderAction,
-    DeviceAction, FfiSlice, Message, PipelineError, QueueWriteAction, QueueWriteDataSource,
-    ServerMessage, ShaderModuleCompilationMessage, SwapChainId, TextureAction,
+    make_byte_buf,
+    telemetry::build_telemetry_struct,
+    wgpu_string, AdapterInformation, BufferMapResult, ByteBuf, CommandEncoderAction, DeviceAction,
+    FfiSlice, Message, PipelineError, QueueWriteAction, QueueWriteDataSource, ServerMessage,
+    ShaderModuleCompilationMessage, SwapChainId, TextureAction,
 };
 
 use nsstring::{nsACString, nsCString};
@@ -171,7 +173,7 @@ pub extern "C" fn wgpu_server_new(owner: WebGPUParentPtr) -> *mut Global {
             },
             display: None,
         },
-        None,
+        Some(build_telemetry_struct()),
     );
     let global = Global { owner, global };
     Box::into_raw(Box::new(global))
