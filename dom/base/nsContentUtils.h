@@ -2970,6 +2970,12 @@ class nsContentUtils {
   static nsresult GetHostOrIPv6WithBrackets(nsIPrincipal* aPrincipal,
                                             nsACString& aHost);
 
+  /**
+   * Like GetHostOrIPv6WithBrackets, but returns the ASCII (punycode) host.
+   */
+  static nsresult GetAsciiHostOrIPv6WithBrackets(nsIURI* aURI,
+                                                 nsACString& aHost);
+
   /*
    * Call the given callback on all remote children of the given top-level
    * window. Return Callstate::Stop from the callback to stop calling further
