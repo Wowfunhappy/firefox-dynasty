@@ -1328,27 +1328,14 @@ static void WasmArrayMemMove(uint8_t* destArrayData, uint32_t destIndex,
 }
 
 static void WasmArrayRefsMove(WasmArrayObject* destArrayObject,
-                              WriteBarriered<AnyRef>* destArrayData,
-                              uint32_t destIndex, AnyRef* srcArrayData,
-                              uint32_t srcIndex, uint32_t count) {
+                              AnyRef* destArrayData, uint32_t destIndex,
+                              AnyRef* srcArrayData, uint32_t srcIndex,
+                              uint32_t count) {
   AutoUnsafeCallWithABI unsafe;
 
-  // Using std::copy will call set() on the barrier wrapper under the hood.
-  auto copyElements = [count](auto* dstBegin, auto* srcBegin) {
-    if (uintptr_t(dstBegin) < uintptr_t(srcBegin)) {
-      std::copy(srcBegin, srcBegin + count, dstBegin);
-    } else {
-      std::copy_backward(srcBegin, srcBegin + count, dstBegin + count);
-    }
-  };
-
-  WriteBarriered<AnyRef>* dstBegin = destArrayData + destIndex;
+  AnyRef* dstBegin = destArrayData + destIndex;
   AnyRef* srcBegin = srcArrayData + srcIndex;
-  if (destArrayObject->isTenured()) {
-    copyElements((GCPtr<AnyRef>*)dstBegin, srcBegin);
-  } else {
-    copyElements((PreBarriered<AnyRef>*)dstBegin, srcBegin);
-  }
+  BarrieredMoveRange(destArrayObject, dstBegin, srcBegin, count);
 }
 
 template <class F>

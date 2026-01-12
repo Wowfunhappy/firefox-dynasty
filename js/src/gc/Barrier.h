@@ -91,6 +91,8 @@
  *
  * BarrieredInit      Initialize a heap-based pointer with appropriate barriers.
  * BarrieredSet       Update a previously initialized heap-based pointer.
+ * BarrieredCopyRange Copy a non-overlapping memory range with barriers.
+ * BarrieredMoveRange Copy a possibly-overlapping memory range with barriers.
  *
  * Which class to use?
  * -------------------
@@ -1118,6 +1120,83 @@ MOZ_ALWAYS_INLINE void BarrieredSet(bool nurseryOwned, void* dst, T value) {
 template <typename T>
 MOZ_ALWAYS_INLINE void BarrieredSet(gc::Cell* owner, void* dst, T value) {
   BarrieredSet(!owner->isTenured(), dst, value);
+}
+
+namespace gc {
+
+template <typename T, bool PreBarrier = true, bool PostBarrier = true>
+MOZ_ALWAYS_INLINE void BarrieredMoveRangeInner(bool nurseryOwned, void* dst,
+                                               const T* src, size_t count) {
+  T* ptr = reinterpret_cast<T*>(dst);
+  if (uintptr_t(dst) - uintptr_t(src) < count * sizeof(T)) {
+    for (size_t i = count; i != 0; i--) {
+      BarrieredSetImpl<T, PreBarrier, PostBarrier>(nurseryOwned, ptr + i - 1,
+                                                   src[i - 1]);
+    }
+    return;
+  }
+
+  for (size_t i = 0; i < count; i++) {
+    BarrieredSetImpl<T, PreBarrier, PostBarrier>(nurseryOwned, ptr + i,
+                                                 src[i]);
+  }
+}
+
+template <typename T>
+void BarrieredMoveRangeImpl(gc::Cell* owner, void* dst,
+                                              const T* src, size_t count) {
+  // This function is called frequently in some WasmGC benchmarks.
+  //
+  // Most of the time no barriers are required. The most frequent use of the
+  // post barrier is for 12% of calls in Kotlin-compose-wasm. The most frequent
+  // use of the pre barrier is for 1.5% of calls in Dart-flute-complex-wasm.
+
+  bool nurseryOwned = !owner->isTenured();
+  if (owner->shadowZone()->needsIncrementalBarrier()) {
+    // Needs pre barrier and maybe post barrier. The less likely case.
+    BarrieredMoveRangeInner<T, true, true>(nurseryOwned, dst, src, count);
+    return;
+  }
+
+  // Needs post barrier only. The most likely case.
+  MOZ_ASSERT(!nurseryOwned);
+  BarrieredMoveRangeInner<T, false, true>(false, dst, src, count);
+}
+
+}  // namespace gc
+
+// Move a range of elements in the heap, with appropriate GC barriers. The
+// destination may overlap the source.
+//
+// TODO: This can add a store buffer entry for every element, which is not very
+// efficient. In future we could consider adding something like the
+// slots/elements buffer for callers of this, so that we can add ranges to the
+// store buffer with a single entry.
+
+template <typename T>
+void BarrieredMoveRange(gc::Cell* owner, void* dst, const T* src,
+                        size_t count) {
+  MOZ_ASSERT(dst != src);
+
+  if (owner->isTenured() || owner->shadowZone()->needsIncrementalBarrier()) {
+    gc::BarrieredMoveRangeImpl(owner, dst, src, count);
+    return;
+  }
+
+  memmove(dst, src, count * sizeof(T));
+}
+
+// Copy a range of elements in the heap, with appropriate GC barriers. The
+// destination may not overlap the source.
+template <typename T>
+void BarrieredCopyRange(gc::Cell* owner, T* dst, T* src, size_t count) {
+  MOZ_ASSERT(uintptr_t(dst) >= uintptr_t(src) + count * sizeof(T) ||
+             uintptr_t(dst) + count * sizeof(T) <= uintptr_t(src));
+
+  bool nurseryOwned = !owner->isTenured();
+  for (size_t i = 0; i < count; i++) {
+    BarrieredSet(nurseryOwned, dst + i, src[i]);
+  }
 }
 
 /*
