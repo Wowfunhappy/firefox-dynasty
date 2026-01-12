@@ -2619,6 +2619,11 @@ bool Instance::init(JSContext* cx, const JSObjectVector& funcImports,
   }
 #endif
 
+  // We use writeToTenuredHeapLocation below as WasmInstanceObject is always
+  // tenured.
+  Rooted<WasmInstanceObject*> instanceObj(cx, object());
+  MOZ_ASSERT(instanceObj->isTenured());
+
   // Initialize globals in the instance data.
   //
   // This must be performed after we have initialized runtime types as a global
@@ -2646,14 +2651,13 @@ bool Instance::init(JSContext* cx, const JSObjectVector& funcImports,
           *(void**)globalAddr =
               (void*)&globalObjs[imported]->val().get().cell();
         } else {
-          globalImportValues[imported].writeToHeapLocation(globalAddr);
+          globalImportValues[imported].writeToTenuredHeapLocation(globalAddr);
         }
         break;
       }
       case GlobalKind::Variable: {
         RootedVal val(cx);
         const InitExpr& init = global.initExpr();
-        Rooted<WasmInstanceObject*> instanceObj(cx, object());
         if (!init.evaluate(cx, instanceObj, &val)) {
           return false;
         }
@@ -2665,7 +2669,7 @@ bool Instance::init(JSContext* cx, const JSObjectVector& funcImports,
           // Link to the cell
           *(void**)globalAddr = globalObjs[i]->addressOfCell();
         } else {
-          val.get().writeToHeapLocation(globalAddr);
+          val.get().writeToTenuredHeapLocation(globalAddr);
         }
         break;
       }
