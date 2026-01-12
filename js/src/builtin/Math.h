@@ -125,9 +125,6 @@ extern bool math_floor(JSContext* cx, unsigned argc, Value* vp);
 
 extern double math_floor_impl(double x);
 
-template <typename T>
-extern T GetBiggestNumberLessThan(T x);
-
 extern double math_round_impl(double x);
 
 extern float math_roundf_impl(float x);

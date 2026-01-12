@@ -11,7 +11,6 @@
 #include "mozilla/MathAlgorithms.h"
 #include "mozilla/Maybe.h"
 
-#include "builtin/Math.h"
 #include "jit/arm/Simulator-arm.h"
 #include "jit/AtomicOp.h"
 #include "jit/AtomicOperations.h"
@@ -24,6 +23,7 @@
 #include "jit/ProcessExecutableMemory.h"
 #include "js/ScalarType.h"  // js::Scalar::Type
 #include "util/Memory.h"
+#include "util/PortableMath.h"
 #include "vm/BigIntType.h"
 #include "vm/JitActivation.h"  // js::jit::JitActivation
 #include "vm/JSContext.h"

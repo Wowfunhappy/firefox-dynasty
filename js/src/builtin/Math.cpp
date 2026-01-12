@@ -561,19 +561,6 @@ static bool math_random(JSContext* cx, unsigned argc, Value* vp) {
   return true;
 }
 
-template <typename T>
-T js::GetBiggestNumberLessThan(T x) {
-  MOZ_ASSERT(!IsNegative(x));
-  MOZ_ASSERT(std::isfinite(x));
-  using Bits = typename mozilla::FloatingPoint<T>::Bits;
-  Bits bits = mozilla::BitwiseCast<Bits>(x);
-  MOZ_ASSERT(bits > 0, "will underflow");
-  return mozilla::BitwiseCast<T>(bits - 1);
-}
-
-template double js::GetBiggestNumberLessThan<>(double x);
-template float js::GetBiggestNumberLessThan<>(float x);
-
 ALIGN_STACK_FOR_ROUNDING_FUNCTION
 double js::math_round_impl(double x) {
   AutoUnsafeCallWithABI unsafe;
