@@ -374,19 +374,19 @@ export class SidebarHistory extends SidebarPage {
   }
 
   willUpdate() {
-    this._menuSortByDate.toggleAttribute(
+    this._menuSortByDate.setAttribute(
       "checked",
       this.controller.sortOption == "date"
     );
-    this._menuSortBySite.toggleAttribute(
+    this._menuSortBySite.setAttribute(
       "checked",
       this.controller.sortOption == "site"
     );
-    this._menuSortByDateSite.toggleAttribute(
+    this._menuSortByDateSite.setAttribute(
       "checked",
       this.controller.sortOption == "datesite"
     );
-    this._menuSortByLastVisited.toggleAttribute(
+    this._menuSortByLastVisited.setAttribute(
       "checked",
       this.controller.sortOption == "lastvisited"
     );
