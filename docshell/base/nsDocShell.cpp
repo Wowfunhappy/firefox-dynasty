@@ -4789,6 +4789,11 @@ nsDocShell::SetPositionAndSize(int32_t aX, int32_t aY, int32_t aWidth,
     NS_ENSURE_SUCCESS(rv, NS_ERROR_FAILURE);
   }
 
+  if (nsCOMPtr<nsIObserverService> obs = services::GetObserverService()) {
+    obs->NotifyObservers(GetAsSupports(this), "docshell-position-size-changed",
+                         nullptr);
+  }
+
   return NS_OK;
 }
 
