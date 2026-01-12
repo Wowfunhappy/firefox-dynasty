@@ -357,3 +357,143 @@ add_task(async function test_click_findbar_to_select_panel() {
 
   splitView.close();
 });
+
+add_task(async function test_moving_tabs() {
+  let [tab1, tab2, tab3, tab4] = await Promise.all(
+    Array.from({ length: 4 }).map((_, index) =>
+      addTab(`data:text/plain,tab${index + 1}`)
+    )
+  );
+  let startingTab = gBrowser.tabs[0];
+
+  let splitview = gBrowser.addTabSplitView([tab1, tab2], {
+    insertBefore: tab1,
+  });
+  Assert.equal(splitview.tabs.length, 2, "Split view has 2 tabs");
+
+  Assert.deepEqual(
+    gBrowser.tabs,
+    [startingTab, tab1, tab2, tab3, tab4],
+    "Confirm starting order of tabs"
+  );
+
+  gBrowser.moveTabTo(startingTab, { tabIndex: 2 });
+
+  Assert.deepEqual(
+    gBrowser.tabs,
+    [tab1, tab2, startingTab, tab3, tab4],
+    "Starting tab is moved after splitview tabs"
+  );
+  ok(
+    tab1.splitview && tab2.splitview && !startingTab.splitview,
+    "Tab 1 and tab 2 are still in a splitview and starting tab isn't"
+  );
+
+  gBrowser.moveTabTo(tab1, { tabIndex: 3 });
+  Assert.deepEqual(
+    gBrowser.tabs,
+    [startingTab, tab1, tab2, tab3, tab4],
+    "Moving a splitview tab moves both tabs in the splitview"
+  );
+  ok(
+    tab1.splitview && tab2.splitview,
+    "Tab 1 and tab 2 are still in a splitview"
+  );
+
+  gBrowser.selectedTab = startingTab;
+  gBrowser.moveTabForward();
+  Assert.deepEqual(
+    gBrowser.tabs,
+    [tab1, tab2, startingTab, tab3, tab4],
+    "Selected tab moves forward but after splitview tabs"
+  );
+  ok(
+    tab1.splitview && tab2.splitview && !startingTab.splitview,
+    "Tab 1 and tab 2 are still in a splitview and starting tab isn't"
+  );
+
+  gBrowser.moveTabBackward();
+  Assert.deepEqual(
+    gBrowser.tabs,
+    [startingTab, tab1, tab2, tab3, tab4],
+    "Selected tab moves backward but before splitview tabs"
+  );
+  ok(
+    tab1.splitview && tab2.splitview && !startingTab.splitview,
+    "Tab 1 and tab 2 are still in a splitview and starting tab isn't"
+  );
+
+  gBrowser.selectedTab = tab1;
+  gBrowser.moveTabForward();
+
+  Assert.deepEqual(
+    gBrowser.tabs,
+    [startingTab, tab3, tab1, tab2, tab4],
+    "Selected tab in a splitview moves both splitview tabs forward"
+  );
+  ok(
+    tab1.splitview && tab2.splitview,
+    "Tab 1 and tab 2 are still in a splitview"
+  );
+
+  gBrowser.selectedTab = tab2;
+  gBrowser.moveTabBackward();
+  Assert.deepEqual(
+    gBrowser.tabs,
+    [startingTab, tab1, tab2, tab3, tab4],
+    "Selected tab in a splitview moves both splitview tabs backward"
+  );
+  ok(
+    tab1.splitview && tab2.splitview,
+    "Tab 1 and tab 2 are still in a splitview"
+  );
+
+  // Create a tabgroup with tabs and a splitview
+  gBrowser.addTabGroup([tab1, tab2, tab3], { insertBefore: tab3 });
+  Assert.deepEqual(
+    gBrowser.tabs,
+    [startingTab, tab1, tab2, tab3, tab4],
+    "Selected tab in a splitview moves both splitview tabs backward"
+  );
+
+  // Add another splitview to the existing group, so two splitviews are in the group
+  let splitview2 = gBrowser.addTabSplitView([tab3, tab4], {
+    insertBefore: tab3,
+  });
+  ok(
+    tab3.splitview && tab4.splitview && splitview2.group,
+    "Tab 3 and tab 4 are in a splitview and in a tab group"
+  );
+
+  gBrowser.selectedTab = tab2;
+  gBrowser.moveTabForward();
+
+  Assert.deepEqual(
+    gBrowser.tabs,
+    [startingTab, tab3, tab4, tab1, tab2],
+    "First splitview tabs are moved after the second splitview but within the group"
+  );
+
+  Assert.equal(
+    splitview.group,
+    splitview2.group,
+    "Both splitviews are still in the same tab group"
+  );
+
+  gBrowser.selectedTab = tab4;
+  gBrowser.moveTabBackward();
+
+  // The order doesn't change, the splitview tabs just moved outside of the group.
+  Assert.deepEqual(
+    gBrowser.tabs,
+    [startingTab, tab3, tab4, tab1, tab2],
+    "Splitview tabs are moved together and in the correct order"
+  );
+  ok(
+    tab3.splitview && tab4.splitview && !splitview2.group,
+    "Tab 3 and tab 4 are still in a splitview but no longer in a tab group"
+  );
+  for (let tab of [tab1, tab2, tab3, tab4]) {
+    BrowserTestUtils.removeTab(tab);
+  }
+});

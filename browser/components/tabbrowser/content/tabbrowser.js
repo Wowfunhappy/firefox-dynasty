@@ -6619,13 +6619,19 @@
       if (this.isTabGroup(element)) {
         forceUngrouped = true;
       }
-
+      // When asked to move a tab in a splitview, move the entire wrapper instead.
+      if (element.splitview) {
+        element = element.splitview;
+      }
       this.#handleTabMove(
         element,
         () => {
           let neighbor = this.tabs[tabIndex];
           if (forceUngrouped && neighbor?.group) {
             neighbor = neighbor.group;
+          }
+          if (neighbor?.splitview) {
+            neighbor = neighbor.splitview;
           }
           if (neighbor && this.isTab(element) && tabIndex > element._tPos) {
             neighbor.after(element);
@@ -6927,7 +6933,9 @@
      */
     #handleTabMove(element, moveActionCallback, metricsContext) {
       let tabs;
-      if (this.isTab(element)) {
+      if (this.isTab(element) && element.splitview) {
+        tabs = element.splitview.tabs;
+      } else if (this.isTab(element)) {
         tabs = [element];
       } else if (this.isTabGroup(element) || this.isSplitViewWrapper(element)) {
         tabs = element.tabs;
@@ -7057,63 +7065,74 @@
 
     moveTabForward() {
       let { selectedTab } = this;
-      let nextTab = this.tabContainer.findNextTab(selectedTab, {
-        direction: DIRECTION_FORWARD,
-        filter: tab => !tab.hidden && selectedTab.pinned == tab.pinned,
-      });
+      let selectedTabOrSplitview = selectedTab.splitview || selectedTab;
+      let nextTab = this.tabContainer.findNextTab(
+        selectedTab.splitview?.lastElementChild || selectedTab,
+        {
+          direction: DIRECTION_FORWARD,
+          filter: tab => !tab.hidden && selectedTab.pinned == tab.pinned,
+        }
+      );
+      let nextTabOrSplitview = nextTab?.splitview || nextTab;
       if (nextTab) {
         this.#handleTabMove(selectedTab, () => {
           if (!selectedTab.group && nextTab.group) {
-            if (nextTab.group.collapsed) {
+            if (nextTabOrSplitview.group.collapsed) {
               // Skip over collapsed tab group.
-              nextTab.group.after(selectedTab);
+              nextTabOrSplitview.group.after(selectedTabOrSplitview);
             } else {
               // Enter first position of tab group.
-              nextTab.group.insertBefore(selectedTab, nextTab);
+              nextTabOrSplitview.group.insertBefore(
+                selectedTabOrSplitview,
+                nextTabOrSplitview
+              );
             }
           } else if (selectedTab.group != nextTab.group) {
             // Standalone tab after tab group.
-            selectedTab.group.after(selectedTab);
+            selectedTab.group.after(selectedTabOrSplitview);
           } else {
-            nextTab.after(selectedTab);
+            nextTabOrSplitview.after(selectedTabOrSplitview);
           }
         });
       } else if (selectedTab.group) {
         // selectedTab is the last tab and is grouped.
         // remove it from its group.
-        selectedTab.group.after(selectedTab);
+        selectedTab.group.after(selectedTabOrSplitview);
       }
     }
 
     moveTabBackward() {
       let { selectedTab } = this;
-
-      let previousTab = this.tabContainer.findNextTab(selectedTab, {
-        direction: DIRECTION_BACKWARD,
-        filter: tab => !tab.hidden && selectedTab.pinned == tab.pinned,
-      });
-
+      let selectedTabOrSplitview = selectedTab.splitview || selectedTab;
+      let previousTab = this.tabContainer.findNextTab(
+        selectedTab.splitview?.firstElementChild || selectedTab,
+        {
+          direction: DIRECTION_BACKWARD,
+          filter: tab => !tab.hidden && selectedTab.pinned == tab.pinned,
+        }
+      );
+      let previousTabOrSplitview = previousTab?.splitview || previousTab;
       if (previousTab) {
         this.#handleTabMove(selectedTab, () => {
           if (!selectedTab.group && previousTab.group) {
             if (previousTab.group.collapsed) {
               // Skip over collapsed tab group.
-              previousTab.group.before(selectedTab);
+              previousTab.group.before(selectedTabOrSplitview);
             } else {
               // Enter last position of tab group.
-              previousTab.group.append(selectedTab);
+              previousTab.group.append(selectedTabOrSplitview);
             }
           } else if (selectedTab.group != previousTab.group) {
             // Standalone tab before tab group.
-            selectedTab.group.before(selectedTab);
+            selectedTab.group.before(selectedTabOrSplitview);
           } else {
-            previousTab.before(selectedTab);
+            previousTabOrSplitview.before(selectedTabOrSplitview);
           }
         });
       } else if (selectedTab.group) {
         // selectedTab is the first tab and is grouped.
         // remove it from its group.
-        selectedTab.group.before(selectedTab);
+        selectedTab.group.before(selectedTabOrSplitview);
       }
     }
 
