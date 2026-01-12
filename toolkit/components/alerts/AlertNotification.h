@@ -67,6 +67,7 @@ class AlertNotification : public nsIAlertNotification {
   nsString mId;
   nsString mName;
   nsString mImageURL;
+  nsCOMPtr<imgIContainer> mImage;
   nsString mTitle;
   nsString mText;
   bool mTextClickable = false;

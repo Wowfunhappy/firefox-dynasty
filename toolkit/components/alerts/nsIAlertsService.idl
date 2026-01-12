@@ -7,6 +7,7 @@
 #include "nsIObserver.idl"
 
 interface imgIRequest;
+interface imgIContainer;
 interface nsICancelable;
 interface nsIPrincipal;
 interface nsIURI;
@@ -131,6 +132,11 @@ interface nsIAlertNotification : nsISupports
    * that time, the alert will show without an image.
    */
   readonly attribute AString imageURL;
+
+  /**
+   * The actual image container to use for the alert. This should be what imageURL returns.
+   */
+  attribute imgIContainer image;
 
   /** The title for the alert. */
   readonly attribute AString title;

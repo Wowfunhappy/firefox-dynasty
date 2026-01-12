@@ -56,6 +56,7 @@ NS_IMETHODIMP
 AlertNotification::InitWithObject(nsIAlertNotification* aAlertNotification) {
   MOZ_TRY(aAlertNotification->GetName(mName));
   MOZ_TRY(aAlertNotification->GetImageURL(mImageURL));
+  MOZ_TRY(aAlertNotification->GetImage(getter_AddRefs(mImage)));
   MOZ_TRY(aAlertNotification->GetTitle(mTitle));
   MOZ_TRY(aAlertNotification->GetText(mText));
   MOZ_TRY(aAlertNotification->GetTextClickable(&mTextClickable));
@@ -160,6 +161,19 @@ AlertNotification::GetName(nsAString& aName) {
 NS_IMETHODIMP
 AlertNotification::GetImageURL(nsAString& aImageURL) {
   aImageURL = mImageURL;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+AlertNotification::SetImage(imgIContainer* aImage) {
+  mImage = aImage;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+AlertNotification::GetImage(imgIContainer** aImage) {
+  nsCOMPtr<imgIContainer> image = mImage;
+  image.forget(aImage);
   return NS_OK;
 }
 
