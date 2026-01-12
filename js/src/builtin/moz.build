@@ -24,6 +24,7 @@ UNIFIED_SOURCES += [
     "FinalizationRegistryObject.cpp",
     "JSON.cpp",
     "MapObject.cpp",
+    "Math.cpp",
     "ModuleObject.cpp",
     "Number.cpp",
     "Object.cpp",
@@ -53,10 +54,7 @@ if CONFIG["ENABLE_EXPLICIT_RESOURCE_MANAGEMENT"]:
 
 # builtin/RegExp.cpp cannot be built in unified mode because it causes huge
 #   win32 test slowdowns
-# builtin/Math.cpp cannot be built in unified mode because it needs to re-#define the
-#   RtlGenRandom declaration's calling convention in <ntsecapi.h> on Windows.
 SOURCES += [
-    "Math.cpp",
     "RegExp.cpp",
 ]
 
