@@ -5809,9 +5809,6 @@ static bool ComputeDecorationInset(
     nsTextFrame* aFrame, const nsPresContext* aPresCtx,
     const nsIFrame* aDecFrame, const gfxFont::Metrics& aMetrics,
     nsCSSRendering::DecorationRectParams& aParams, bool aOnlyExtend = false) {
-  const WritingMode wm = aDecFrame->GetWritingMode();
-  bool verticalDec = wm.IsVertical();
-
   aParams.insetLeft = 0.0;
   aParams.insetRight = 0.0;
 
@@ -5849,10 +5846,6 @@ static bool ComputeDecorationInset(
     return true;
   }
 
-  if (wm.IsInlineReversed()) {
-    std::swap(insetLeft, insetRight);
-  }
-
   // The rect of the decorating box (if an inline) or of the current line (if
   // the decoration is propagated from a block ancestor). We will need to
   // compare this with the rect of the current frame, which may be only a
@@ -5866,18 +5859,14 @@ static bool ComputeDecorationInset(
   // reference frame for measurements.
   // If the decorating frame is not inline, then we will need to consider
   // text indentation and calculate geometry using line boxes.
+  WritingMode wm;
   if (aDecFrame->IsInlineFrame()) {
     decRect = aDecFrame->GetContentRectRelativeToSelf();
     decContainer = aDecFrame;
+    wm = aDecFrame->GetWritingMode();
   } else {
     nsIFrame* const lineContainer = FindLineContainer(aFrame);
-    // If the frame specifies text-combined, then it might have an orthogonal
-    // writing mode to the line container.
-    MOZ_ASSERT(
-        !wm.IsOrthogonalTo(lineContainer->GetWritingMode()) ||
-            aFrame->Style()->IsTextCombined(),
-        "Decorating frame and line container must have writing modes in the "
-        "same axis");
+    wm = lineContainer->GetWritingMode();
     if (nsILineIterator* const iter = lineContainer->GetLineIterator()) {
       const int32_t lineNum = GetFrameLineNum(aFrame, iter);
       const nsILineIterator::LineInfo lineInfo =
@@ -5943,7 +5932,7 @@ static bool ComputeDecorationInset(
   // Find the margin of the of this frame inside its container.
   nscoord marginLeft, marginRight, frameSize;
   const nsMargin difference = decRect - frameRect;
-  if (verticalDec) {
+  if (wm.IsVertical()) {
     marginLeft = difference.top;
     marginRight = difference.bottom;
     frameSize = frameRect.height;
@@ -5962,6 +5951,7 @@ static bool ComputeDecorationInset(
   bool applyRight = cloneDecBreak || (!aFrame->GetNextContinuation() &&
                                       !aDecFrame->GetNextContinuation());
   if (wm.IsInlineReversed()) {
+    std::swap(insetLeft, insetRight);
     std::swap(applyLeft, applyRight);
   }
   if (applyLeft) {
