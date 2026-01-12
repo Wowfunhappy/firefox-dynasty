@@ -9894,8 +9894,13 @@ var TabContextMenu = {
       );
 
       let pinnedTabs = this.contextTabs.filter(t => t.pinned);
+      let customizeTabs = this.contextTabs.filter(t =>
+        t.hasAttribute("customizemode")
+      );
       contextMoveTabToNewSplitView.disabled =
-        this.contextTabs.length > 2 || pinnedTabs.length;
+        this.contextTabs.length > 2 ||
+        pinnedTabs.length ||
+        customizeTabs.length;
     }
 
     // Only one of Reload_Tab/Reload_Selected_Tabs should be visible.
