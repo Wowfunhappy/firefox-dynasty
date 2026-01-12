@@ -6,7 +6,6 @@ package mozilla.components.browser.thumbnails
 
 import android.graphics.Bitmap
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import kotlinx.coroutines.test.StandardTestDispatcher
 import mozilla.components.browser.state.action.ContentAction
 import mozilla.components.browser.state.state.BrowserState
 import mozilla.components.browser.state.state.createTab
@@ -15,7 +14,9 @@ import mozilla.components.concept.engine.EngineView
 import mozilla.components.support.test.any
 import mozilla.components.support.test.mock
 import mozilla.components.support.test.robolectric.testContext
+import mozilla.components.support.test.rule.MainCoroutineRule
 import org.junit.Before
+import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.mockito.Mockito.never
@@ -28,12 +29,13 @@ import org.mockito.Mockito.`when`
 @RunWith(AndroidJUnit4::class)
 class BrowserThumbnailsTest {
 
+    @get:Rule
+    val coroutinesTestRule = MainCoroutineRule()
+
     private lateinit var store: BrowserStore
     private lateinit var engineView: EngineView
     private lateinit var thumbnails: BrowserThumbnails
     private val tabId = "test-tab"
-
-    private val testDispatcher = StandardTestDispatcher()
 
     @Before
     fun setup() {
@@ -49,13 +51,12 @@ class BrowserThumbnailsTest {
             ),
         )
         engineView = mock()
-        thumbnails = BrowserThumbnails(testContext, engineView, store, testDispatcher)
+        thumbnails = BrowserThumbnails(testContext, engineView, store)
     }
 
     @Test
     fun `do not capture thumbnail when feature is stopped and a site finishes loading`() {
         thumbnails.start()
-        testDispatcher.scheduler.advanceUntilIdle()
         thumbnails.stop()
 
         store.dispatch(ContentAction.UpdateThumbnailAction(tabId, mock()))
@@ -66,12 +67,11 @@ class BrowserThumbnailsTest {
     @Suppress("UNCHECKED_CAST")
     @Test
     fun `feature must capture thumbnail when a site finishes loading and first paint`() {
-        val bitmap: Bitmap = mock()
+        val bitmap: Bitmap? = mock()
 
         store.dispatch(ContentAction.UpdateLoadingStateAction(tabId, true))
 
         thumbnails.start()
-        testDispatcher.scheduler.advanceUntilIdle()
 
         `when`(engineView.captureThumbnail(any()))
             .thenAnswer {
@@ -83,7 +83,6 @@ class BrowserThumbnailsTest {
 
         store.dispatch(ContentAction.UpdateLoadingStateAction(tabId, false))
         store.dispatch(ContentAction.UpdateFirstContentfulPaintStateAction(tabId, true))
-        testDispatcher.scheduler.advanceUntilIdle()
 
         verify(store).dispatch(ContentAction.UpdateThumbnailAction(tabId, bitmap))
     }
@@ -137,7 +136,6 @@ class BrowserThumbnailsTest {
         thumbnails.testLowMemory = true
 
         thumbnails.start()
-        testDispatcher.scheduler.advanceUntilIdle()
 
         verify(engineView, never()).captureThumbnail(any())
     }
