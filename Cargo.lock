@@ -8088,8 +8088,6 @@ dependencies = [
  "ash",
  "bincode",
  "block2",
- "firefox-on-glean",
- "glean",
  "io-surface",
  "log",
  "metal",
