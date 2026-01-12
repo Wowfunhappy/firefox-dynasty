@@ -151,7 +151,7 @@ let dialog = {
           // replaced by the URL of the content being handled).
           elm.setAttribute(
             "image",
-            getMozRemoteImageURL(uri.prePath + "/favicon.ico", 32)
+            getMozRemoteImageURL(uri.prePath + "/favicon.ico", { size: 32 })
           );
         }
         elm.setAttribute("description", uri.prePath);

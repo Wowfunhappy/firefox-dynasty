@@ -303,8 +303,9 @@ this.SyncedTabsPanelList = class SyncedTabsPanelList {
         try {
           const uri = NetUtil.newURI(icon);
           if (!TRUSTED_FAVICON_SCHEMES.includes(uri.scheme)) {
-            const size = Math.floor(16 * window.devicePixelRatio);
-            icon = getMozRemoteImageURL(uri.spec, size);
+            icon = getMozRemoteImageURL(uri.spec, {
+              size: Math.floor(16 * window.devicePixelRatio),
+            });
           }
         } catch (e) {
           console.error(e);

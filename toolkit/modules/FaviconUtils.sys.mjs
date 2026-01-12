@@ -18,12 +18,24 @@ export const TRUSTED_FAVICON_SCHEMES = Object.freeze([
   "resource",
 ]);
 
-// Creates a moz-remote-image: URL wrapping the specified URL.
-function getMozRemoteImageURL(imageUrl, size) {
+/**
+ * Creates a moz-remote-image: URL wrapping the specified URL.
+ *
+ * @param {string} url The URL to (remotely) load the image from.
+ * @param {object} options Further configuration options for loading.
+ * @param {number} options.size The size of the final image. Should be > 0.
+ * @param {string} options.colorScheme Either "dark" or "light". Used for SVGs.
+ * @param {number} options.contentParentId Which process to render the image in.
+ */
+function getMozRemoteImageURL(url, options = {}) {
+  if (options.size !== undefined) {
+    options.height = options.width = options.size;
+    delete options.size;
+  }
+
   let params = new URLSearchParams({
-    url: imageUrl,
-    width: size,
-    height: size,
+    url,
+    ...options,
   });
   return "moz-remote-image://?" + params;
 }
