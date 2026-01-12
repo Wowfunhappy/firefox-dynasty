@@ -273,11 +273,7 @@ add_task(async function test_history_sort() {
   );
   ok(true, "There is a card for each site.");
 
-  Assert.equal(
-    sortBySiteButton.getAttribute("checked"),
-    "true",
-    "Sort by site is checked."
-  );
+  ok(sortBySiteButton.hasAttribute("checked"), "Sort by site is checked.");
   for (const card of component.cards) {
     Assert.equal(card.expanded, true, "All cards are expanded.");
   }
@@ -293,11 +289,7 @@ add_task(async function test_history_sort() {
     () => component.lists.length === dates.length
   );
   ok(true, "There is a card for each date.");
-  Assert.equal(
-    sortByDateButton.getAttribute("checked"),
-    "true",
-    "Sort by date is checked."
-  );
+  ok(sortByDateButton.hasAttribute("checked"), "Sort by date is checked.");
   for (const [i, card] of component.cards.entries()) {
     Assert.equal(
       card.expanded,
@@ -320,9 +312,8 @@ add_task(async function test_history_sort() {
     true,
     "There is a card for each date, and a nested card for each site."
   );
-  Assert.equal(
-    sortByDateSiteButton.getAttribute("checked"),
-    "true",
+  ok(
+    sortByDateSiteButton.hasAttribute("checked"),
     "Sort by date and site is checked."
   );
   const outerCards = [...component.cards].filter(
@@ -351,9 +342,8 @@ add_task(async function test_history_sort() {
     URLs.length,
     "There is a single card with a row for each site."
   );
-  Assert.equal(
-    sortByLastVisitedButton.getAttribute("checked"),
-    "true",
+  ok(
+    sortByLastVisitedButton.hasAttribute("checked"),
     "Sort by last visited is checked."
   );
 
