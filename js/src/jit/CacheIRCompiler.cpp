@@ -14,10 +14,8 @@
 #include <type_traits>
 #include <utility>
 
-#include "jslibmath.h"
-#include "jsmath.h"
-
 #include "builtin/DataViewObject.h"
+#include "builtin/Math.h"
 #include "builtin/Object.h"
 #include "gc/GCEnum.h"
 #include "jit/BaselineCacheIRCompiler.h"
@@ -37,6 +35,7 @@
 #include "proxy/Proxy.h"
 #include "proxy/ScriptedProxyHandler.h"
 #include "util/DifferentialTesting.h"
+#include "util/PortableMath.h"
 #include "vm/ArgumentsObject.h"
 #include "vm/ArrayBufferObject.h"
 #include "vm/ArrayBufferViewObject.h"

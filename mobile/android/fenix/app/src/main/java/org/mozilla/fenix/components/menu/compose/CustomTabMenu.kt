@@ -218,7 +218,6 @@ internal fun CustomTabMenu(
                 Badge(
                     badgeText = badgeText,
                     state = menuItemState,
-                    badgeBackgroundColor = badgeBackgroundColor,
                 )
             }
 

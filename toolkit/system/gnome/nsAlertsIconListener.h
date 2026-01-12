@@ -20,17 +20,15 @@ class nsSystemAlertsService;
 
 struct NotifyNotification;
 
-class nsAlertsIconListener : public nsIAlertNotificationImageListener {
+class nsAlertsIconListener : public nsISupports {
  public:
   NS_DECL_ISUPPORTS
-  NS_DECL_NSIALERTNOTIFICATIONIMAGELISTENER
 
   nsAlertsIconListener(nsSystemAlertsService* aBackend,
                        nsIAlertNotification* aAlertNotification,
                        const nsAString& aAlertName);
 
-  nsresult InitAlertAsync(nsIAlertNotification* aAlert,
-                          nsIObserver* aAlertListener);
+  nsresult InitAlert(nsIAlertNotification* aAlert, nsIObserver* aAlertListener);
   nsresult Close();
 
   void SendCallback();
@@ -99,7 +97,7 @@ class nsAlertsIconListener : public nsIAlertNotificationImageListener {
   NotifyNotification* mNotification = nullptr;
   gulong mClosureHandler = 0;
 
-  nsresult ShowAlert(GdkPixbuf* aPixbuf);
+  nsresult ShowAlert(imgIContainer* aImage);
 
   void NotifyFinished();
 };

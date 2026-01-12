@@ -4789,6 +4789,11 @@ nsDocShell::SetPositionAndSize(int32_t aX, int32_t aY, int32_t aWidth,
     NS_ENSURE_SUCCESS(rv, NS_ERROR_FAILURE);
   }
 
+  if (nsCOMPtr<nsIObserverService> obs = services::GetObserverService()) {
+    obs->NotifyObservers(GetAsSupports(this), "docshell-position-size-changed",
+                         nullptr);
+  }
+
   return NS_OK;
 }
 
@@ -11021,15 +11026,18 @@ nsresult nsDocShell::DoURILoad(nsDocShellLoadState* aLoadState,
   const bool doInitialSyncLoad = ShouldDoInitialAboutBlankSyncLoad(
       uri, aLoadState, aLoadState->PrincipalToInherit());
 
-  if (!doInitialSyncLoad) {
+  if (!doInitialSyncLoad && mBrowsingContext->IsContent()) {
     // https://wicg.github.io/document-picture-in-picture/#close-on-navigate
+    // Two exceptions.
+    // - The initial navigation is not per-spec and must complete.
+    // - We also set IsDocumentPiP on chrome but the spec doesn't apply to it.
     if (Document* doc = GetExtantDocument()) {
       NS_DispatchToMainThread(NS_NewRunnableFunction(
           "Close PIP window on navigate", [doc = RefPtr(doc)]() {
             doc->CloseAnyAssociatedDocumentPiPWindows();
           }));
     }
-    if (GetBrowsingContext()->GetIsDocumentPiP()) {
+    if (mBrowsingContext->GetIsDocumentPiP()) {
       return NS_OK;
     }
   }
@@ -14212,7 +14220,7 @@ nsresult nsDocShell::OnOverLink(nsIContent* aContent, nsIURI* aURI,
       nsCOMPtr<nsIPrincipal> principal = BasePrincipal::CreateContentPrincipal(
           aURI, aContent->NodePrincipal()->OriginAttributesRef());
 
-      specService->SpeculativeConnect(aURI, principal, nullptr, false);
+      specService->SpeculativeConnect(aURI, principal, this, false);
     }
   }
 

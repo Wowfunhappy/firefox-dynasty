@@ -13,12 +13,12 @@
 #include "mozilla/PodOperations.h"
 #include "mozilla/Span.h"
 
-#include "jsnum.h"
 #include "jspubtd.h"
 
 #include "builtin/intl/CommonFunctions.h"
 #include "builtin/intl/FormatBuffer.h"
 #include "builtin/intl/LocaleNegotiation.h"
+#include "builtin/Number.h"
 #include "gc/AllocKind.h"
 #include "gc/GCContext.h"
 #include "js/CallArgs.h"

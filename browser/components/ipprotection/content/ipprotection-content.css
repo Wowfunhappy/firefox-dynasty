@@ -14,7 +14,6 @@ hr {
   display: flex;
   flex-direction: column;
   padding-inline: var(--panel-subview-body-padding-inline);
-  padding-block: var(--panel-subview-body-padding-block);
 }
 
 .vpn-top-content {
@@ -43,7 +42,7 @@ hr {
 #signed-out-vpn-content {
   display: flex;
   flex-direction: column;
-  padding: var(--space-medium) var(--space-large) var(--space-small);
+  padding: 0 var(--space-large) var(--space-small);
 }
 
 @media (prefers-color-scheme: dark) {

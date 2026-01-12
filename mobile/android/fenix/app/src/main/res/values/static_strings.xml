@@ -268,8 +268,8 @@
     <!-- Subtitle warning text for crash button -->
     <string name="crash_debug_startup_crash_warning">This will start the startup crash activity in a new process and terminate the current process.</string>
 
-    <!-- Label for enabling Relay email masks -->
-    <string name="preferences_enable_relay_email_masks">Enable Relay email masks</string>
+    <!-- Label for enabling Email Masks -->
+    <string name="preferences_enable_email_masks">Enable Email Masks</string>
 
     <!-- Firefox Labs -->
     <!-- Firefox Labs is the name of a screen in Settings to allow users to learn about

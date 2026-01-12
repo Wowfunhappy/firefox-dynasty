@@ -469,9 +469,9 @@ class SecretSettingsFragment : PreferenceFragmentCompat() {
             onPreferenceChangeListener = SharedPreferenceUpdater()
         }
 
-        requirePreference<SwitchPreference>(R.string.pref_key_enable_relay_email_masks).apply {
+        requirePreference<SwitchPreference>(R.string.pref_key_enable_email_masks).apply {
             isVisible = Config.channel.isDebug
-            isChecked = context.settings().isRelayFeatureEnabled
+            isChecked = context.settings().isEmailMaskFeatureEnabled
             onPreferenceChangeListener = SharedPreferenceUpdater()
         }
 

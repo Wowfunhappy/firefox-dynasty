@@ -20,11 +20,11 @@
 #include <string.h>
 
 #include "jsapi.h"
-#include "jsnum.h"
 
 #include "builtin/Array.h"
 #include "builtin/Eval.h"
 #include "builtin/ModuleObject.h"
+#include "builtin/Number.h"
 #include "builtin/Object.h"
 #include "builtin/Promise.h"
 #include "gc/GC.h"

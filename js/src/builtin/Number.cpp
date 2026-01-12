@@ -8,7 +8,7 @@
  * JS number type and wrapper class.
  */
 
-#include "jsnum.h"
+#include "builtin/Number.h"
 
 #include "mozilla/Casting.h"
 #include "mozilla/FloatingPoint.h"

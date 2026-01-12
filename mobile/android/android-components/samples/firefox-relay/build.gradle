@@ -39,6 +39,7 @@ android {
 
 dependencies {
     implementation project(':components:lib-fetch-httpurlconnection')
+    implementation project(':components:lib-state')
     implementation project(':components:service-firefox-accounts')
     implementation project(':components:support-appservices')
     implementation project(':components:support-base')

@@ -416,6 +416,7 @@ export class UrlbarInput extends HTMLElement {
       menuToolbar.addEventListener("DOMMenuBarInactive", this);
       menuToolbar.addEventListener("DOMMenuBarActive", this);
     }
+    this.window.addEventListener("uidensitychanged", this);
 
     if (this.window.gBrowser) {
       // On startup, this will be called again by browser-init.js
@@ -508,6 +509,8 @@ export class UrlbarInput extends HTMLElement {
       menuToolbar.removeEventListener("DOMMenuBarInactive", this);
       menuToolbar.removeEventListener("DOMMenuBarActive", this);
     }
+    this.window.removeEventListener("uidensitychanged", this);
+
     if (this.#gBrowserListenersAdded) {
       this.window.gBrowser.tabContainer.removeEventListener("TabSelect", this);
       this.window.gBrowser.tabContainer.removeEventListener("TabClose", this);
@@ -5569,7 +5572,7 @@ export class UrlbarInput extends HTMLElement {
     this.#updateLayoutBreakout();
   }
 
-  uiDensityChanged() {
+  _on_uidensitychanged() {
     if (this.#breakoutBlockerCount) {
       return;
     }

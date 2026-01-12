@@ -8,12 +8,13 @@
  * JS Date class interface.
  */
 
-#ifndef jsdate_h
-#define jsdate_h
+#ifndef builtin_Date_h
+#define builtin_Date_h
+
+#include "js/Date.h"
 
 #include "jstypes.h"
 
-#include "js/Date.h"
 #include "js/RootingAPI.h"
 #include "js/TypeDecls.h"
 
@@ -84,4 +85,4 @@ HourMinuteSecond ToHourMinuteSecond(int64_t epochMilliseconds);
 
 } /* namespace js */
 
-#endif /* jsdate_h */
+#endif /* builtin_Date_h */

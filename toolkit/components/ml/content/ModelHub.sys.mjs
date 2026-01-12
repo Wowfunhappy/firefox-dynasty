@@ -1,10 +1,14 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+// @ts-nocheck - TODO - Remove this to type check this file.
+
 import { XPCOMUtils } from "resource://gre/modules/XPCOMUtils.sys.mjs";
 
 /**
- * @typedef {import("./Utils.sys.mjs").ProgressAndStatusCallbackParams} ProgressAndStatusCallbackParams
+ * @import { ProgressAndStatusCallbackParams } from "./Utils.sys.mjs"
+ * @import { ParsedModelHubUrl, AllowDeny } from "../ml.d.ts"
  */
 
 const lazy = {};
@@ -1359,16 +1363,16 @@ export class ModelHub {
   /**
    * Create an instance of ModelHub.
    *
-   * @param {object} config
-   * @param {string} config.rootUrl - Root URL used to download models.
-   * @param {string} config.urlTemplate - The template to retrieve the full URL using a model name and revision.
-   * @param {Array<{filter: 'ALLOW'|'DENY', urlPrefix: string}>} config.allowDenyList - Array of URL patterns with filters.
+   * @param {object} [config]
+   * @param {string} [config.rootUrl] - Root URL used to download models.
+   * @param {string} [config.urlTemplate] - The template to retrieve the full URL using a model name and revision.
+   * @param {Array<AllowDeny>} [config.allowDenyList] - Array of URL patterns with filters.
    * @param {boolean} [config.reset=false] - Whether to reset the database.
    */
   constructor({
     rootUrl = lazy.DEFAULT_ROOT_URL,
     urlTemplate = lazy.DEFAULT_URL_TEMPLATE,
-    allowDenyList = null,
+    allowDenyList,
     reset = false,
   } = {}) {
     this.rootUrl = rootUrl;
@@ -1427,7 +1431,7 @@ export class ModelHub {
    * `https://hub/organization/model/revision/filePath`
    *
    * @param {string} url - The full URL to the model, including protocol and domain - or the relative path.
-   * @returns {object} An object containing the parsed components of the URL. The
+   * @returns {ParsedModelHubUrl} An object containing the parsed components of the URL. The
    *                   object has properties `model`, `modelWithHostname` and `file`,
    *                   and optionally `revision` if the URL includes a version.
    * @throws {Error} Throws an error if the URL does not start with `this.rootUrl` or
@@ -1480,13 +1484,24 @@ export class ModelHub {
     const regex = new RegExp(`^${templateRegex}/(?<file>.+)$`);
     const match = parts.match(regex);
 
-    if (!match) {
+    if (!match || !match.groups) {
       throw new Error(`Invalid model URL format: ${url}`);
     }
 
     // Extract the matched parts
     const { model, revision, file } = match.groups;
-
+    if (!model) {
+      lazy.console.error(match);
+      throw new Error("No model found from url: " + url);
+    }
+    if (!revision) {
+      lazy.console.error(match);
+      throw new Error("No revision found from url: " + url);
+    }
+    if (!file) {
+      lazy.console.error(match);
+      throw new Error("No file found from url: " + url);
+    }
     if (!file || !file.length) {
       throw new Error(`Invalid model URL: ${url}`);
     }
@@ -1579,18 +1594,17 @@ export class ModelHub {
   /**
    * Deletes all model files for the specified task and model, except for the specified revision.
    *
-   * @param {object} config - Configuration object.
-   * @param {string} config.taskName - The name of the inference task.
-   * @param {string} config.modelWithHostname - The model name (hostname/organization/name).
-   * @param {string} config.targetRevision - The revision to keep.
+   * @param {string} taskName - The name of the inference task.
+   * @param {string} modelWithHostname - The model name (hostname/organization/name).
+   * @param {string} targetRevision - The revision to keep.
    *
    * @returns {Promise<void>}
    */
-  async deleteNonMatchingModelRevisions({
+  async deleteNonMatchingModelRevisions(
     taskName,
     modelWithHostname,
-    targetRevision,
-  }) {
+    targetRevision
+  ) {
     // Ensure all required parameters are provided
     if (!taskName || !modelWithHostname || !targetRevision) {
       throw new Error(
@@ -1727,7 +1741,7 @@ export class ModelHub {
    * @param {string} config.file - The file name.
    * @param {string} config.modelHubRootUrl - root url of the model hub
    * @param {string} config.modelHubUrlTemplate - url template of the model hub
-   * @param {?function(ProgressAndStatusCallbackParams):void} config.progressCallback A function to call to indicate progress status.
+   * @param {?function(ProgressAndStatusCallbackParams):void} [config.progressCallback] A function to call to indicate progress status.
    * @returns {Promise<[ArrayBuffer, headers]>} The file content
    */
   async getModelFileAsArrayBuffer({
@@ -1820,11 +1834,11 @@ export class ModelHub {
    * @param {string} config.file - The file name.
    * @param {string} config.modelHubRootUrl - root url of the model hub
    * @param {string} config.modelHubUrlTemplate - url template of the model hub
-   * @param {?function(ProgressAndStatusCallbackParams):void} config.progressCallback A function to call to indicate progress status.
+   * @param {?function(ProgressAndStatusCallbackParams):void} [config.progressCallback] A function to call to indicate progress status.
    * @param {string} config.featureId - feature id for the model
    * @param {string} config.sessionId - shared across the same session
-   * @param {object} config.telemetryData - Additional telemetry data.
-   * @param {?AbortSignal} config.abortSignal - AbortSignal to cancel the download.
+   * @param {object} [config.telemetryData] - Additional telemetry data.
+   * @param {?AbortSignal} [config.abortSignal] - AbortSignal to cancel the download.
    * @returns {Promise<[string, headers]>} The local path to the file content and headers.
    */
   async getModelDataAsFile({
@@ -1854,6 +1868,12 @@ export class ModelHub {
       modelHubUrlTemplate,
     });
     lazy.console.debug(`Getting model file from ${url}`);
+
+    if (abortSignal === null) {
+      // Guard against a `null` abortSignal which for some reason causes an error
+      // when piping through a Response body.
+      abortSignal = undefined;
+    }
 
     await this.#initCache();
 

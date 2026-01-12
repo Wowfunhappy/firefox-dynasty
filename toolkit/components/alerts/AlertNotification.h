@@ -17,42 +17,6 @@
 
 namespace mozilla {
 
-class AlertImageRequest final : public imgINotificationObserver,
-                                public nsICancelable,
-                                public nsITimerCallback,
-                                public nsINamed {
- public:
-  NS_DECL_CYCLE_COLLECTING_ISUPPORTS
-  NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(AlertImageRequest,
-                                           imgINotificationObserver)
-  NS_DECL_IMGINOTIFICATIONOBSERVER
-  NS_DECL_NSICANCELABLE
-  NS_DECL_NSITIMERCALLBACK
-  NS_DECL_NSINAMED
-
-  AlertImageRequest(nsIURI* aURI, nsIPrincipal* aPrincipal,
-                    bool aInPrivateBrowsing, uint32_t aTimeout,
-                    nsIAlertNotificationImageListener* aListener,
-                    nsISupports* aUserData);
-
-  nsresult Start();
-
- private:
-  virtual ~AlertImageRequest();
-
-  nsresult NotifyMissing();
-  void NotifyComplete();
-
-  nsCOMPtr<nsIURI> mURI;
-  nsCOMPtr<nsIPrincipal> mPrincipal;
-  bool mInPrivateBrowsing;
-  uint32_t mTimeout;
-  nsCOMPtr<nsIAlertNotificationImageListener> mListener;
-  nsCOMPtr<nsISupports> mUserData;
-  nsCOMPtr<nsITimer> mTimer;
-  nsCOMPtr<imgIRequest> mRequest;
-};
-
 class AlertNotification : public nsIAlertNotification {
  public:
   NS_DECL_ISUPPORTS
@@ -67,6 +31,7 @@ class AlertNotification : public nsIAlertNotification {
   nsString mId;
   nsString mName;
   nsString mImageURL;
+  nsCOMPtr<imgIContainer> mImage;
   nsString mTitle;
   nsString mText;
   bool mTextClickable = false;

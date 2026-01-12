@@ -4611,29 +4611,32 @@ bool nsGlobalWindowOuter::CanMoveResizeWindows(CallerType aCallerType,
     if (mBrowsingContext->Top()->HasSiblings()) {
       return false;
     }
+
+    if (mBrowsingContext->GetIsDocumentPiP()) {
+      // https://wicg.github.io/document-picture-in-picture/#positioning
+      if (aIsMove) {
+        nsLiteralString errorMsg(
+            u"Picture-in-Picture windows cannot be moved by script.");
+        nsContentUtils::ReportToConsoleNonLocalized(
+            errorMsg, nsIScriptError::warningFlag, "Window"_ns, GetDocument());
+        return false;
+      }
+
+      // https://wicg.github.io/document-picture-in-picture/#resizing-the-pip-window
+      WindowContext* wc = mInnerWindow->GetWindowContext();
+      if (!wc || !wc->ConsumeTransientUserGestureActivation()) {
+        aError.ThrowNotAllowedError(
+            "Resizing a Picture-in-Picture window requires transient "
+            "activation");
+        return false;
+      }
+    }
   }
 
   if (mDocShell) {
     bool allow;
     nsresult rv = mDocShell->GetAllowWindowControl(&allow);
-    if (NS_SUCCEEDED(rv) && !allow) return false;
-  }
-
-  if (mBrowsingContext->GetIsDocumentPiP()) {
-    // https://wicg.github.io/document-picture-in-picture/#positioning
-    if (aIsMove) {
-      nsLiteralString errorMsg(
-          u"Picture-in-Picture windows cannot be moved by script.");
-      nsContentUtils::ReportToConsoleNonLocalized(
-          errorMsg, nsIScriptError::warningFlag, "Window"_ns, GetDocument());
-      return false;
-    }
-
-    // https://wicg.github.io/document-picture-in-picture/#resizing-the-pip-window
-    WindowContext* wc = mInnerWindow->GetWindowContext();
-    if (!wc || !wc->ConsumeTransientUserGestureActivation()) {
-      aError.ThrowNotAllowedError(
-          "Resizing a Picture-in-Picture window requires transient activation");
+    if (NS_SUCCEEDED(rv) && !allow) {
       return false;
     }
   }

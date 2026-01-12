@@ -19,8 +19,6 @@
 #include <iterator>
 
 #include "jsfriendapi.h"
-#include "jsmath.h"
-#include "jsnum.h"
 #include "selfhosted.out.h"
 
 #include "builtin/Array.h"
@@ -39,6 +37,8 @@
 #  include "builtin/intl/Segmenter.h"
 #endif
 #include "builtin/MapObject.h"
+#include "builtin/Math.h"
+#include "builtin/Number.h"
 #include "builtin/Object.h"
 #include "builtin/Promise.h"
 #include "builtin/Reflect.h"

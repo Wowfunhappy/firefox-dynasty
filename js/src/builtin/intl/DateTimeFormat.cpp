@@ -17,9 +17,8 @@
 #include "mozilla/intl/TimeZone.h"
 #include "mozilla/Span.h"
 
-#include "jsdate.h"
-
 #include "builtin/Array.h"
+#include "builtin/Date.h"
 #include "builtin/intl/CommonFunctions.h"
 #include "builtin/intl/FormatBuffer.h"
 #include "builtin/intl/LanguageTag.h"

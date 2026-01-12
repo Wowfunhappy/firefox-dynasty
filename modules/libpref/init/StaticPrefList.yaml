@@ -5072,11 +5072,6 @@
   value: false
   mirror: always
 
-- name: dom.hidden_until_found.enabled
-  type: bool
-  value: true
-  mirror: always
-
 - name: dom.text_fragments.enabled
   type: RelaxedAtomicBool
   value: true
@@ -5526,11 +5521,6 @@
 
 # W3C pointer events draft.
 - name: dom.w3c_pointer_events.implicit_capture
-  type: bool
-  value: true
-  mirror: always
-
-- name: dom.w3c_pointer_events.getcoalescedevents_only_in_securecontext
   type: bool
   value: true
   mirror: always

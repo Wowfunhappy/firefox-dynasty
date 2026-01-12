@@ -120,6 +120,11 @@ class GfxInfoBase : public nsIGfxInfo,
   virtual uint32_t OperatingSystemVersion() { return 0; }
   virtual GfxVersionEx OperatingSystemVersionEx() { return GfxVersionEx(); }
 
+  // Reports GL string values obtained from an OpenGL context to gfxInfo. Some
+  // gfxInfo implementations can use these in order to avoid having to create
+  // their own GL context during startup.
+  virtual void ReportGLStrings(gfx::GfxInfoGLStrings&& aStrings) {}
+
   // Convenience to get the application version
   static const nsCString& GetApplicationVersion();
 

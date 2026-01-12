@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef jsmath_h
-#define jsmath_h
+#ifndef builtin_Math_h
+#define builtin_Math_h
 
 #include <stdint.h>
 
@@ -56,12 +56,6 @@ extern const char* GetUnaryMathFunctionName(UnaryMathFunction fun,
  */
 
 extern const JSClass MathClass;
-
-extern uint64_t GenerateRandomSeed();
-
-// Fill |seed[0]| and |seed[1]| with random bits, suitable for
-// seeding a XorShift128+ random number generator.
-extern void GenerateXorShift128PlusSeed(mozilla::Array<uint64_t, 2>& seed);
 
 extern double math_random_impl(JSContext* cx);
 
@@ -131,9 +125,6 @@ extern bool math_floor(JSContext* cx, unsigned argc, Value* vp);
 
 extern double math_floor_impl(double x);
 
-template <typename T>
-extern T GetBiggestNumberLessThan(T x);
-
 extern double math_round_impl(double x);
 
 extern float math_roundf_impl(float x);
@@ -172,4 +163,4 @@ extern double math_cbrt_impl(double x);
 
 } /* namespace js */
 
-#endif /* jsmath_h */
+#endif /* builtin_Math_h */

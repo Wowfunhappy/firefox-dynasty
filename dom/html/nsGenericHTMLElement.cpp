@@ -238,8 +238,7 @@ void nsGenericHTMLElement::GetHidden(
   //    return "until-found".
   nsAutoString result;
   if (GetAttr(kNameSpaceID_None, nsGkAtoms::hidden, result)) {
-    if (StaticPrefs::dom_hidden_until_found_enabled() &&
-        result.LowerCaseEqualsLiteral("until-found")) {
+    if (result.LowerCaseEqualsLiteral("until-found")) {
       value.SetStringLiteral(u"until-found");
     } else {
       // 2. If the hidden attribute is set, then return true.
@@ -271,8 +270,7 @@ void nsGenericHTMLElement::SetHidden(
     //    hidden attribute.
     if (stringValue.IsEmpty()) {
       isHidden = false;
-    } else if (StaticPrefs::dom_hidden_until_found_enabled() &&
-               stringValue.LowerCaseEqualsLiteral("until-found")) {
+    } else if (stringValue.LowerCaseEqualsLiteral("until-found")) {
       return SetAttr(nsGkAtoms::hidden, u"until-found"_ns, aRv);
     }
   }
@@ -1334,8 +1332,7 @@ void nsGenericHTMLElement::MapCommonAttributesInto(
   MOZ_ASSERT(!aBuilder.PropertyIsSet(eCSSProperty_content_visibility));
 
   if (const nsAttrValue* hidden = aBuilder.GetAttr(nsGkAtoms::hidden)) {
-    if (StaticPrefs::dom_hidden_until_found_enabled() &&
-        hidden->Equals(nsGkAtoms::untilFound, eIgnoreCase)) {
+    if (hidden->Equals(nsGkAtoms::untilFound, eIgnoreCase)) {
       aBuilder.SetKeywordValue(eCSSProperty_content_visibility,
                                StyleContentVisibility::Hidden);
     } else {

@@ -4,9 +4,10 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef jslibmath_h
-#define jslibmath_h
+#ifndef util_PortableMath_h
+#define util_PortableMath_h
 
+#include "mozilla/Casting.h"
 #include "mozilla/FloatingPoint.h"
 
 #include <math.h>
@@ -48,6 +49,16 @@ inline double NumberMod(double a, double b) {
   return r;
 }
 
+template <typename T>
+inline T GetBiggestNumberLessThan(T x) {
+  MOZ_ASSERT(!mozilla::IsNegative(x));
+  MOZ_ASSERT(std::isfinite(x));
+  using Bits = typename mozilla::FloatingPoint<T>::Bits;
+  Bits bits = mozilla::BitwiseCast<Bits>(x);
+  MOZ_ASSERT(bits > 0, "will underflow");
+  return mozilla::BitwiseCast<T>(bits - 1);
+}
+
 }  // namespace js
 
-#endif /* jslibmath_h */
+#endif /* util_PortableMath_h */

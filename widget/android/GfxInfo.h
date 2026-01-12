@@ -80,6 +80,8 @@ class GfxInfo : public GfxInfoBase {
   virtual uint32_t OperatingSystemVersion() override;
   GfxVersionEx OperatingSystemVersionEx() override;
 
+  void ReportGLStrings(gfx::GfxInfoGLStrings&& aStrings) override;
+
  protected:
   OperatingSystem GetOperatingSystem() override {
     return OperatingSystem::Android;

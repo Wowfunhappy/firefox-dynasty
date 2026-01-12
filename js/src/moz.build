@@ -40,10 +40,6 @@ for gcfile in ["devtools/rootAnalysis", "devtools/gc-ubench", "devtools/gctrace"
     with Files(gcfile):
         BUG_COMPONENT = component_gc
 
-for stlfile in ["jsdate.*", "jsnum.*"]:
-    with Files(stlfile):
-        BUG_COMPONENT = component_stl
-
 with Files("builtin/intl/*"):
     BUG_COMPONENT = component_intl
 
@@ -276,17 +272,9 @@ EXPORTS.js.shadow += [
 
 UNIFIED_SOURCES += [
     "jsapi.cpp",
-    "jsdate.cpp",
-    "jsexn.cpp",
     "jsfriendapi.cpp",
-    "jsnum.cpp",
 ]
 
-# jsmath.cpp cannot be built in unified mode because it needs to re-#define the
-#   RtlGenRandom declaration's calling convention in <ntsecapi.h> on Windows.
-SOURCES += [
-    "jsmath.cpp",
-]
 
 if CONFIG["MOZ_INSTRUMENTS"]:
     OS_LIBS += ["-framework CoreFoundation"]

@@ -9,7 +9,6 @@
 // found in the LICENSE file.
 #include "jit/riscv64/MacroAssembler-riscv64.h"
 
-#include "jsmath.h"
 #include "jit/Bailouts.h"
 #include "jit/BaselineFrame.h"
 #include "jit/JitFrames.h"
@@ -18,6 +17,7 @@
 #include "jit/MoveEmitter.h"
 #include "jit/riscv64/SharedICRegisters-riscv64.h"
 #include "util/Memory.h"
+#include "util/PortableMath.h"
 #include "vm/JitActivation.h"  // jit::JitActivation
 #include "vm/JSContext.h"
 #include "wasm/WasmStubs.h"
