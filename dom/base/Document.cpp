@@ -12657,7 +12657,10 @@ void Document::OnPageHide(bool aPersisted, EventTarget* aDispatchStartTarget,
   }
 
   // https://wicg.github.io/document-picture-in-picture/#close-on-destroy
-  CloseAnyAssociatedDocumentPiPWindows();
+  // If chrome window is destroyed, content will take care of PiP windows.
+  if (GetBrowsingContext() && GetBrowsingContext()->IsContent()) {
+    CloseAnyAssociatedDocumentPiPWindows();
+  }
 
   PointerLockManager::Unlock("Document::OnPageHide", this);
 

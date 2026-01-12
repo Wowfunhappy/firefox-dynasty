@@ -11021,15 +11021,18 @@ nsresult nsDocShell::DoURILoad(nsDocShellLoadState* aLoadState,
   const bool doInitialSyncLoad = ShouldDoInitialAboutBlankSyncLoad(
       uri, aLoadState, aLoadState->PrincipalToInherit());
 
-  if (!doInitialSyncLoad) {
+  if (!doInitialSyncLoad && mBrowsingContext->IsContent()) {
     // https://wicg.github.io/document-picture-in-picture/#close-on-navigate
+    // Two exceptions.
+    // - The initial navigation is not per-spec and must complete.
+    // - We also set IsDocumentPiP on chrome but the spec doesn't apply to it.
     if (Document* doc = GetExtantDocument()) {
       NS_DispatchToMainThread(NS_NewRunnableFunction(
           "Close PIP window on navigate", [doc = RefPtr(doc)]() {
             doc->CloseAnyAssociatedDocumentPiPWindows();
           }));
     }
-    if (GetBrowsingContext()->GetIsDocumentPiP()) {
+    if (mBrowsingContext->GetIsDocumentPiP()) {
       return NS_OK;
     }
   }
