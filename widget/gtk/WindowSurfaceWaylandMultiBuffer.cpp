@@ -283,6 +283,11 @@ void WindowSurfaceWaylandMB::Commit(
   WaylandSurface* waylandSurface = MOZ_WL_SURFACE(container);
   WaylandSurfaceLock lock(waylandSurface);
 
+  if (!waylandSurface->IsMapped()) {
+    // invisible window
+    return;
+  }
+
   waylandSurface->InvalidateRegionLocked(lock,
                                          aInvalidRegion.ToUnknownRegion());
   waylandSurface->AttachLocked(lock, mInProgressBuffer);
