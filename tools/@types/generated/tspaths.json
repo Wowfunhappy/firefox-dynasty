@@ -23,6 +23,15 @@
       "chrome://browser/content/aiwindow/components/ai-chat-message.mjs": [
         "browser/components/aiwindow/ui/components/ai-chat-message/ai-chat-message.mjs"
       ],
+      "chrome://browser/content/aiwindow/components/ai-chat-search-button.mjs": [
+        "browser/components/aiwindow/ui/components/ai-chat-search-button/ai-chat-search-button.mjs"
+      ],
+      "chrome://browser/content/aiwindow/components/applied-memories-button.mjs": [
+        "browser/components/aiwindow/ui/components/ai-chat-content/chat-assistant-footer/applied-memories-button.mjs"
+      ],
+      "chrome://browser/content/aiwindow/components/assistant-message-footer.mjs": [
+        "browser/components/aiwindow/ui/components/ai-chat-content/chat-assistant-footer/assistant-message-footer.mjs"
+      ],
       "chrome://browser/content/aiwindow/components/input-cta.mjs": [
         "browser/components/aiwindow/ui/components/input-cta/input-cta.mjs"
       ],
@@ -55,6 +64,9 @@
       ],
       "chrome://browser/content/backup/turn-on-scheduled-backups.mjs": [
         "browser/components/backup/content/turn-on-scheduled-backups.mjs"
+      ],
+      "chrome://browser/content/contentSearchHandoffUI.mjs": [
+        "browser/components/search/content/contentSearchHandoffUI.mjs"
       ],
       "chrome://browser/content/firefoxview/card-container.mjs": [
         "browser/components/firefoxview/card-container.mjs"
@@ -976,6 +988,9 @@
       ],
       "resource:///modules/AccountsGlue.sys.mjs": [
         "browser/components/AccountsGlue.sys.mjs"
+      ],
+      "resource:///modules/BrowserContentHandler.sys.mjs": [
+        "browser/components/BrowserContentHandler.sys.mjs"
       ],
       "resource:///modules/BrowserGlue.sys.mjs": [
         "browser/components/BrowserGlue.sys.mjs"
@@ -4946,15 +4961,6 @@
       "resource://devtools/shared/protocol/utils.js": [
         "devtools/shared/protocol/utils.js"
       ],
-      "resource://devtools/shared/qrcode/decoder/index.js": [
-        "devtools/shared/qrcode/decoder/index.js"
-      ],
-      "resource://devtools/shared/qrcode/encoder/index.js": [
-        "devtools/shared/qrcode/encoder/index.js"
-      ],
-      "resource://devtools/shared/qrcode/index.js": [
-        "devtools/shared/qrcode/index.js"
-      ],
       "resource://devtools/shared/security/DevToolsSocketStatus.sys.mjs": [
         "devtools/shared/security/DevToolsSocketStatus.sys.mjs"
       ],
@@ -6514,6 +6520,9 @@
       ],
       "resource://newtab/lib/DownloadsManager.sys.mjs": [
         "browser/extensions/newtab/lib/DownloadsManager.sys.mjs"
+      ],
+      "resource://newtab/lib/ExternalComponentsFeed.sys.mjs": [
+        "browser/extensions/newtab/lib/ExternalComponentsFeed.sys.mjs"
       ],
       "resource://newtab/lib/FaviconFeed.sys.mjs": [
         "browser/extensions/newtab/lib/FaviconFeed.sys.mjs"
