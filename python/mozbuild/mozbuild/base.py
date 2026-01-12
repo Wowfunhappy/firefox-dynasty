@@ -686,6 +686,7 @@ class MozbuildObject(ProcessExecutionMixin):
         log=True,
         srcdir=False,
         line_handler=None,
+        stderr_line_handler=None,
         append_env=None,
         explicit_env=None,
         ignore_errors=False,
@@ -788,6 +789,7 @@ class MozbuildObject(ProcessExecutionMixin):
         params = {
             "args": args,
             "line_handler": line_handler,
+            "stderr_line_handler": stderr_line_handler,
             "append_env": append_env,
             "explicit_env": explicit_env,
             "log_level": logging.INFO,

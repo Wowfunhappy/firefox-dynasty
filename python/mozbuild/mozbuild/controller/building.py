@@ -16,6 +16,7 @@ from collections import Counter, OrderedDict, namedtuple
 from itertools import dropwhile, islice, takewhile
 from textwrap import TextWrapper
 
+from mach.logging import BUILD_ERROR
 from mach.site import CommandSiteManager
 
 try:
@@ -32,13 +33,27 @@ from mozterm.widgets import Footer
 
 from ..backend import get_backend_class
 from ..base import MozbuildObject
-from ..compilation.warnings import WarningsCollector, WarningsDatabase
+from ..compilation.warnings import (
+    IN_FILE_INCLUDED_FROM,
+    RE_STRIP_COLORS,
+    WarningsCollector,
+    WarningsDatabase,
+)
 from ..dirutils import mkdir
 from ..serialized_logging import read_serialized_record
 from ..telemetry import get_cpu_brand
 from ..testing import install_test_files
 from ..util import FileAvoidWrite, resolve_target_to_make
 from .clobber import Clobberer
+
+RE_WARNING_SUMMARY = re.compile(r"\d+\s+warnings?\s+generated\.")
+RE_ERROR_SUMMARY = re.compile(r"\d+\s+errors?\s+generated\.")
+RE_MAKE_ERROR = re.compile(r"make(?:\[\d+\])?\s*:\s*\*\*\*")
+RE_WARNING = re.compile(r"^warning:\s", re.IGNORECASE)
+RE_ERROR = re.compile(r"^error:(?:\[E\d+\])?:\s", re.IGNORECASE)
+RE_CARGO_PROGRESS = re.compile(
+    r"^\s{3,}(Compiling|Downloading|Building|Finished|Fresh|Running|Documenting)\s"
+)
 
 FINDER_SLOW_MESSAGE = """
 ===================
@@ -679,6 +694,7 @@ class BuildOutputManager(OutputManager):
 
     def __init__(self, log_manager, monitor, footer):
         self.monitor = monitor
+        self._active_log_level = None
         OutputManager.__init__(self, log_manager, footer)
 
     def __exit__(self, exc_type, exc_value, traceback):
@@ -689,14 +705,63 @@ class BuildOutputManager(OutputManager):
         # collection child process hasn't been told to stop.
         self.monitor.stop_resource_recording()
 
-    def on_line(self, line):
+    def on_stdout_line(self, line):
+        """Handle stdout output - log as INFO, but catch obvious warnings/errors."""
         warning, state_changed, message = self.monitor.on_line(line)
-
         if message:
             if isinstance(message, logging.LogRecord):
                 self.log_record("build_output", message)
             else:
-                self.log(logging.INFO, "build_output", {"line": message}, "{line}")
+                log_level = logging.INFO
+                if isinstance(message, str):
+                    if RE_ERROR.match(message):
+                        log_level = BUILD_ERROR
+                    elif RE_WARNING.match(message):
+                        log_level = logging.WARNING
+                self.log(log_level, "build_output", {"line": message}, "{line}")
+        elif state_changed:
+            have_handler = hasattr(self, "_handler")
+            if have_handler:
+                self._handler.acquire()
+            try:
+                self.refresh()
+            finally:
+                if have_handler:
+                    self._handler.release()
+
+    def on_stderr_line(self, line):
+        """Handle stderr output - parse for warnings/errors."""
+        warning, state_changed, message = self.monitor.on_line(line)
+        if message:
+            if isinstance(message, logging.LogRecord):
+                self.log_record("build_output", message)
+            else:
+                log_level = self._active_log_level or logging.WARNING
+
+                if warning:
+                    self._active_log_level = log_level = (
+                        BUILD_ERROR if warning["type"] == "error" else logging.WARNING
+                    )
+                elif isinstance(message, str):
+                    stripped = RE_STRIP_COLORS.sub("", message)
+
+                    if RE_CARGO_PROGRESS.match(stripped):
+                        log_level = logging.INFO
+                    elif RE_WARNING_SUMMARY.search(stripped):
+                        log_level = logging.WARNING
+                        self._active_log_level = None
+                    elif (
+                        RE_ERROR_SUMMARY.search(stripped)
+                        or RE_MAKE_ERROR.search(stripped)
+                        or RE_ERROR.match(stripped)
+                    ):
+                        self._active_log_level = log_level = BUILD_ERROR
+                    elif RE_WARNING.match(stripped) or stripped.startswith(
+                        IN_FILE_INCLUDED_FROM
+                    ):
+                        self._active_log_level = log_level = logging.WARNING
+
+                self.log(log_level, "build_output", {"line": message}, "{line}")
         elif state_changed:
             have_handler = hasattr(self, "_handler")
             if have_handler:
@@ -1204,7 +1269,7 @@ class BuildDriver(MozbuildObject):
                 config_rc = self.configure(
                     metrics,
                     buildstatus_messages=True,
-                    line_handler=output.on_line,
+                    line_handler=output.on_stdout_line,
                     append_env=append_env,
                 )
 
@@ -1339,7 +1404,8 @@ class BuildDriver(MozbuildObject):
                     status = self._run_make(
                         directory=make_dir,
                         target=make_target,
-                        line_handler=output.on_line,
+                        line_handler=output.on_stdout_line,
+                        stderr_line_handler=output.on_stderr_line,
                         log=False,
                         print_directory=False,
                         ensure_exit_code=False,
@@ -1357,7 +1423,8 @@ class BuildDriver(MozbuildObject):
                 # If the backend doesn't specify a build() method, then just
                 # call client.mk directly.
                 status = self._run_client_mk(
-                    line_handler=output.on_line,
+                    line_handler=output.on_stdout_line,
+                    stderr_line_handler=output.on_stderr_line,
                     jobs=jobs,
                     job_size=job_size,
                     verbose=verbose,
@@ -1549,18 +1616,18 @@ class BuildDriver(MozbuildObject):
         long_build = monitor.elapsed > 1200
 
         if long_build:
-            output.on_line(
+            output.on_stdout_line(
                 "We know it took a while, but your build finally finished successfully!"
             )
             if not using_sccache:
-                output.on_line(
+                output.on_stdout_line(
                     "If you are building Firefox often, SCCache can save you a lot "
                     "of time. You can learn more here: "
                     "https://firefox-source-docs.mozilla.org/setup/"
                     "configuring_build_options.html#sccache"
                 )
         else:
-            output.on_line("Your build was successful!")
+            output.on_stdout_line("Your build was successful!")
 
         # Only for full builds because incremental builders likely don't
         # need to be burdened with this.
@@ -1736,6 +1803,7 @@ class BuildDriver(MozbuildObject):
         self,
         target=None,
         line_handler=None,
+        stderr_line_handler=None,
         jobs=0,
         job_size=0,
         verbose=None,
@@ -1818,6 +1886,7 @@ class BuildDriver(MozbuildObject):
             print_directory=False,
             target=target,
             line_handler=line_handler,
+            stderr_line_handler=stderr_line_handler,
             log=False,
             num_jobs=jobs,
             job_size=job_size,

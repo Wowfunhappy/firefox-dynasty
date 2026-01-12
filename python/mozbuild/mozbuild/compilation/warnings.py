@@ -26,9 +26,10 @@ RE_CLANG_WARNING_AND_ERROR = re.compile(
     :
     (?P<column>\d+)
     :
-    \s(?P<type>warning|error):\s
-    (?P<message>.+)
-    \[(?P<flag>[^\]]+)
+    \s(?:fatal\s+)?(?P<type>warning|error):\s
+    (?P<message>.+?)
+    (?:\[(?P<flag>[^\]]+)\])?
+    $
     """,
     re.X,
 )
@@ -38,9 +39,10 @@ RE_CLANG_CL_WARNING_AND_ERROR = re.compile(
     r"""
     (?P<file>.*)
     \((?P<line>\d+),(?P<column>\d+)\)
-    \s?:\s+(?P<type>warning|error):\s
-    (?P<message>.*)
-    \[(?P<flag>[^\]]+)
+    \s?:\s+(?:fatal\s+)?(?P<type>warning|error):\s
+    (?P<message>.+?)
+    (?:\[(?P<flag>[^\]]+)\])?
+    $
     """,
     re.X,
 )

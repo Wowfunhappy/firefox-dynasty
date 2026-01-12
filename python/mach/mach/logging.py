@@ -19,6 +19,14 @@ from packaging.version import Version
 
 IS_WINDOWS = sys.platform.startswith("win")
 
+# Custom log level for build errors, between WARNING (30) and ERROR (40).
+# Using ERROR would trigger Sentry's LoggingIntegration for each line, which
+# generates excessive telemetry events and is very slow (~400ms per line).
+BUILD_ERROR = 35
+assert logging.WARNING < BUILD_ERROR < logging.ERROR
+
+logging.addLevelName(BUILD_ERROR, "BUILD_ERROR")
+
 if IS_WINDOWS:
     import msvcrt
     from ctypes import byref, windll
@@ -80,6 +88,7 @@ def format_level(level, terminal=None):
         logging.DEBUG: ("D", "blue"),
         logging.INFO: (None, None),
         logging.WARNING: ("W", "yellow"),
+        BUILD_ERROR: ("E", "red"),
         logging.ERROR: ("E", "red"),
         logging.CRITICAL: ("C", "black_on_red"),
     }
