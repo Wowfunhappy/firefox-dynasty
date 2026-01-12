@@ -182,3 +182,29 @@ add_task(async function test_moz_extension_icon() {
     },
   });
 });
+
+add_task(async function test_forbidden_chrome_icon() {
+  let loadFailedMessagePromise = new Promise(resolve => {
+    Services.console.registerListener(function listener(msg) {
+      if (
+        /Content at moz-extension:.*? may not load or link to chrome:/.test(
+          msg.message
+        )
+      ) {
+        resolve();
+        Services.console.unregisterListener(listener);
+      }
+    });
+  });
+
+  await testCreateNotification({
+    iconUrl: "chrome://branding/content/icon64.png",
+    async testOnShown(alertWindow) {
+      const img = alertWindow.document.getElementById("alertImage");
+      ok(!img.hasAttribute("src"), "No image");
+    },
+  });
+
+  info("Waiting for console error message");
+  await loadFailedMessagePromise;
+});
