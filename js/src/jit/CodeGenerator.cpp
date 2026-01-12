@@ -25,8 +25,6 @@
 #include <type_traits>
 #include <utility>
 
-#include "jslibmath.h"
-
 #include "builtin/MapObject.h"
 #include "builtin/Math.h"
 #include "builtin/Number.h"
@@ -63,6 +61,7 @@
 #include "proxy/DOMProxy.h"
 #include "proxy/ScriptedProxyHandler.h"
 #include "util/DifferentialTesting.h"
+#include "util/PortableMath.h"
 #include "util/Unicode.h"
 #include "vm/ArrayBufferViewObject.h"
 #include "vm/AsyncFunction.h"

@@ -10,8 +10,6 @@
 #include "mozilla/MacroArgs.h"  // MOZ_CONCAT
 #include "mozilla/SIMD.h"       // mozilla::SIMD::memchr{,2x}{8,16}
 
-#include "jslibmath.h"  // js::NumberMod
-
 #include "builtin/Array.h"      // js::ArrayShiftMoveElements
 #include "builtin/MapObject.h"  // js::MapIteratorObject::next,
                                 // js::SetIteratorObject::next
@@ -45,8 +43,8 @@
 // JSJitGetterOp, JSJitSetterOp, JSJitMethodOp
 #include "js/experimental/JitInfo.h"
 
-#include "proxy/Proxy.h"  // js::ProxyGetProperty
-
+#include "proxy/Proxy.h"          // js::ProxyGetProperty
+#include "util/PortableMath.h"    // js::NumberMod
 #include "vm/ArgumentsObject.h"   // js::ArgumentsObject::finishForIonPure
 #include "vm/Interpreter.h"       // js::TypeOfObject
 #include "vm/NativeObject.h"      // js::NativeObject

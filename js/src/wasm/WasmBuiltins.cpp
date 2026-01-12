@@ -24,7 +24,6 @@
 #include <cmath>
 
 #include "fdlibm.h"
-#include "jslibmath.h"
 
 #include "builtin/Math.h"
 #include "jit/AtomicOperations.h"
@@ -39,6 +38,7 @@
 #include "threading/Mutex.h"
 #include "util/Memory.h"
 #include "util/Poison.h"
+#include "util/PortableMath.h"
 #include "vm/BigIntType.h"
 #include "vm/ErrorObject.h"
 #include "wasm/WasmCodegenTypes.h"
