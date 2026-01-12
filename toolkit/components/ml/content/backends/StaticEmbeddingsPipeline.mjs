@@ -2,8 +2,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-// @ts-check
-
 /**
  * @import { PipelineOptions } from "chrome://global/content/ml/EngineProcess.sys.mjs"
  * @import { BackendError } from "./Pipeline.mjs"

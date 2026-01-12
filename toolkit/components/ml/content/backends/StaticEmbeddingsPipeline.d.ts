@@ -89,6 +89,6 @@ export interface StaticEmbeddingsOptions {
  * @see https://huggingface.co/docs/transformers.js/api/tokenizers#module_tokenizers.PreTrainedTokenizer
  */
 interface PreTrainedTokenizer {
-  model: { vocab: list[any] };
+  model: { vocab: Array<any> };
   encode(text: string): number[];
 }
