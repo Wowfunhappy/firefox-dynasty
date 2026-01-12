@@ -20,7 +20,7 @@ ChromeUtils.defineESModuleGetters(this, {
   NimbusFeatures: "resource://nimbus/ExperimentAPI.sys.mjs",
   FormAutofillPreferences:
     "resource://autofill/FormAutofillPreferences.sys.mjs",
-  getMozRemoteImageURL: "moz-src:///browser/modules/FaviconUtils.sys.mjs",
+  getMozRemoteImageURL: "moz-src:///toolkit/modules/FaviconUtils.sys.mjs",
 });
 
 // Constants & Enumeration Values

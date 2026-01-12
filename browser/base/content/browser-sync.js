@@ -12,7 +12,7 @@ const {
 );
 
 const { TRUSTED_FAVICON_SCHEMES, getMozRemoteImageURL } =
-  ChromeUtils.importESModule("moz-src:///browser/modules/FaviconUtils.sys.mjs");
+  ChromeUtils.importESModule("moz-src:///toolkit/modules/FaviconUtils.sys.mjs");
 
 const { UIState } = ChromeUtils.importESModule(
   "resource://services-sync/UIState.sys.mjs"
