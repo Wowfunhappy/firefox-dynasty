@@ -23,7 +23,6 @@ namespace mozilla::dom {
 class NotificationRef;
 class WorkerNotificationObserver;
 class Promise;
-class StrongWorkerRef;
 
 namespace notification {
 enum class PermissionCheckPurpose : uint8_t;
@@ -195,8 +194,17 @@ class Notification : public DOMEventTargetHelper, public SupportsWeakPtr {
       const NotificationOptions& aOptions, const nsAString& aScope,
       ErrorResult& aRv);
 
-  bool CreateActor();
-  bool SendShow(Promise* aPromise);
+  struct ContextInfo {
+    nsCOMPtr<nsISerialEventTarget> mTarget = nullptr;
+    nsCOMPtr<nsIPrincipal> mPrincipal = nullptr;
+    nsCOMPtr<nsIPrincipal> mEffectiveStoragePrincipal = nullptr;
+    bool mIsSecureContext = false;
+  };
+  ContextInfo GetContextInfo();
+
+  bool CreateActor(const ContextInfo& aInfo);
+  void LoadImageAndShow(Promise* aPromise, ContextInfo&& aInfo);
+  void SendShow(Promise* aPromise, Maybe<IPCImage>&& aIcon);
 
   static already_AddRefed<nsIURI> ResolveIconURL(nsIGlobalObject* aGlobal,
                                                  const nsACString& aIconUrl);
