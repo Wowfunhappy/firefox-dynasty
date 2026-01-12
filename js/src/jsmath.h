@@ -57,12 +57,6 @@ extern const char* GetUnaryMathFunctionName(UnaryMathFunction fun,
 
 extern const JSClass MathClass;
 
-extern uint64_t GenerateRandomSeed();
-
-// Fill |seed[0]| and |seed[1]| with random bits, suitable for
-// seeding a XorShift128+ random number generator.
-extern void GenerateXorShift128PlusSeed(mozilla::Array<uint64_t, 2>& seed);
-
 extern double math_random_impl(JSContext* cx);
 
 extern double math_abs_impl(double x);

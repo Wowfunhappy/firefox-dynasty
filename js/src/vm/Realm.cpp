@@ -12,7 +12,6 @@
 #include <stddef.h>
 
 #include "jsfriendapi.h"
-#include "jsmath.h"
 
 #include "builtin/WrappedFunctionObject.h"
 #include "debugger/DebugAPI.h"
@@ -25,6 +24,7 @@
 #include "js/Proxy.h"
 #include "js/RootingAPI.h"
 #include "js/Wrapper.h"
+#include "util/RandomSeed.h"
 #include "vm/Compartment.h"
 #include "vm/DateTime.h"
 #include "vm/Iteration.h"

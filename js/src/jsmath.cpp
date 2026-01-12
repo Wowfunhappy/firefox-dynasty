@@ -13,7 +13,6 @@
 #include "mozilla/CheckedInt.h"
 #include "mozilla/FloatingPoint.h"
 #include "mozilla/MathAlgorithms.h"
-#include "mozilla/RandomNum.h"
 #include "mozilla/WrappingOperations.h"
 
 #include <cmath>
@@ -28,11 +27,11 @@
 #include "js/Prefs.h"
 #include "js/PropertySpec.h"
 #include "util/DifferentialTesting.h"
+#include "util/RandomSeed.h"
 #include "vm/Float16.h"
 #include "vm/Interpreter.h"
 #include "vm/JSContext.h"
 #include "vm/Realm.h"
-#include "vm/Time.h"
 #include "xsum/xsum.h"
 
 #include "vm/JSObject-inl.h"
@@ -535,24 +534,6 @@ static bool math_pow(JSContext* cx, unsigned argc, Value* vp) {
   double z = ecmaPow(x, y);
   args.rval().setNumber(z);
   return true;
-}
-
-uint64_t js::GenerateRandomSeed() {
-  Maybe<uint64_t> maybeSeed = mozilla::RandomUint64();
-
-  return maybeSeed.valueOrFrom([] {
-    // Use PRMJ_Now() in case we couldn't read random bits from the OS.
-    uint64_t timestamp = PRMJ_Now();
-    return timestamp ^ (timestamp << 32);
-  });
-}
-
-void js::GenerateXorShift128PlusSeed(mozilla::Array<uint64_t, 2>& seed) {
-  // XorShift128PlusRNG must be initialized with a non-zero seed.
-  do {
-    seed[0] = GenerateRandomSeed();
-    seed[1] = GenerateRandomSeed();
-  } while (seed[0] == 0 && seed[1] == 0);
 }
 
 mozilla::non_crypto::XorShift128PlusRNG&
