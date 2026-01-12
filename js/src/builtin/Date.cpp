@@ -15,7 +15,8 @@
  * Frederick Brooks, 'The Second-System Effect'.
  */
 
-#include "jsdate.h"
+#include "builtin/Date.h"
+#include "js/Date.h"
 
 #include "mozilla/Atomics.h"
 #include "mozilla/Casting.h"
@@ -43,7 +44,6 @@
 #include "jit/InlinableNatives.h"
 #include "js/CallAndConstruct.h"  // JS::IsCallable
 #include "js/Conversions.h"
-#include "js/Date.h"
 #include "js/friend/ErrorMessages.h"  // js::GetErrorMessage, JSMSG_*
 #include "js/LocaleSensitive.h"
 #include "js/Object.h"  // JS::GetBuiltinClass

@@ -16,13 +16,13 @@
 #include <string.h>
 
 #include "jsapi.h"
-#include "jsdate.h"
 #include "jsexn.h"
 #include "jsfriendapi.h"
 #include "jsnum.h"
 #include "jstypes.h"
 
 #include "builtin/BigInt.h"
+#include "builtin/Date.h"
 #include "builtin/MapObject.h"
 #include "builtin/Object.h"
 #include "builtin/String.h"

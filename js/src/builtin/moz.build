@@ -19,6 +19,7 @@ UNIFIED_SOURCES += [
     "BigInt.cpp",
     "Boolean.cpp",
     "DataViewObject.cpp",
+    "Date.cpp",
     "Eval.cpp",
     "FinalizationRegistryObject.cpp",
     "JSON.cpp",

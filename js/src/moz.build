@@ -40,9 +40,8 @@ for gcfile in ["devtools/rootAnalysis", "devtools/gc-ubench", "devtools/gctrace"
     with Files(gcfile):
         BUG_COMPONENT = component_gc
 
-for stlfile in ["jsdate.*", "jsnum.*"]:
-    with Files(stlfile):
-        BUG_COMPONENT = component_stl
+with Files("jsnum.*"):
+    BUG_COMPONENT = component_stl
 
 with Files("builtin/intl/*"):
     BUG_COMPONENT = component_intl
@@ -276,7 +275,6 @@ EXPORTS.js.shadow += [
 
 UNIFIED_SOURCES += [
     "jsapi.cpp",
-    "jsdate.cpp",
     "jsexn.cpp",
     "jsfriendapi.cpp",
     "jsnum.cpp",

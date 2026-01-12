@@ -11,11 +11,11 @@
 #include "mozilla/FloatingPoint.h"
 
 #include "jsapi.h"
-#include "jsdate.h"
 #include "jsmath.h"
 #include "jsnum.h"
 
 #include "builtin/DataViewObject.h"
+#include "builtin/Date.h"
 #include "builtin/MapObject.h"
 #include "builtin/ModuleObject.h"
 #include "builtin/Object.h"
