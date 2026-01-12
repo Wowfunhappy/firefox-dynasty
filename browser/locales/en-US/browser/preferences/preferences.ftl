@@ -851,8 +851,15 @@ home-homepage-custom-homepage-button =
 
 home-custom-homepage-header = Custom Homepage
 
+home-custom-homepage-subpage =
+    .heading = Custom Homepage
+
 # Subheader on the Custom Homepage subpage. Followed by a form to enter URLs and a list of URLs already saved, if any.
 home-custom-homepage-subheader = Website address(es)
+
+# Subheader on the Custom Homepage subpage. Followed by a form to enter URLs and a list of URLs already saved, if any.
+home-custom-homepage-card =
+    .heading = Website address(es)
 
 home-custom-homepage-address =
     .placeholder = Enter address
