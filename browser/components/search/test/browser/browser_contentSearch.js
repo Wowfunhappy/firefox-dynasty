@@ -71,7 +71,7 @@ add_task(async function test_GetEngine() {
   checkMsg(msg, {
     type: "Engine",
     data: {
-      isPrivateEngine: false,
+      inPrivateBrowsing: false,
       engine: await constructEngineObj(await Services.search.getDefault()),
     },
   });
