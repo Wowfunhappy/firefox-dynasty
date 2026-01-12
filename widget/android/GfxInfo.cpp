@@ -872,5 +872,23 @@ GfxVersionEx GfxInfo::OperatingSystemVersionEx() {
   return mOSVersionEx;
 }
 
+void GfxInfo::ReportGLStrings(gfx::GfxInfoGLStrings&& aStrings) {
+  EnsureInitialized();
+  // Sanity check the provided strings match our cached values.
+  if (aStrings.vendor() != mGLStrings->Vendor() ||
+      aStrings.renderer() != mGLStrings->Renderer() ||
+      aStrings.version() != mGLStrings->Version() ||
+      aStrings.extensions() != mGLStrings->Extensions()) {
+    gfxCriticalNoteOnce << "Received unexpected GLStrings: "
+                        << aStrings.vendor().get() << ", "
+                        << aStrings.renderer().get() << ", "
+                        << aStrings.version().get();
+
+    // Update the cache if they differ.
+    mGLStrings->CacheStrings(aStrings.vendor(), aStrings.renderer(),
+                             aStrings.version(), aStrings.extensions());
+  }
+}
+
 }  // namespace widget
 }  // namespace mozilla
