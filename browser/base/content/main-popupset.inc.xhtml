@@ -570,7 +570,11 @@
       </html:div>
     </html:div>
     <html:div class="tab-preview-thumbnail-container"></html:div>
-    <html:div class="tab-note-text-container"></html:div>
+    <html:div class="tab-preview-note-container">
+      <html:div class="tab-preview-note-text"></html:div>
+      <!-- Not using a real button here to avoid having to unset default styles -->
+      <html:div role="button" class="tab-preview-note-expand" data-l10n-id="tab-note-preview-expand"></html:div>
+    </html:div>
   </panel>
 
   <!--
