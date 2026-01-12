@@ -1357,8 +1357,8 @@ static already_AddRefed<SVGReference> GetMarkerURI(
   return ResolveURLUsingLocalRef(url.AsUrl());
 }
 
-bool SVGObserverUtils::GetAndObserveMarkers(nsIFrame* aMarkedFrame,
-                                            SVGMarkerFrame* (*aFrames)[3]) {
+bool SVGObserverUtils::GetAndObserveMarkers(
+    nsIFrame* aMarkedFrame, SVGMarkerFrame* (*aFrames)[SVGMark::eTypeCount]) {
   MOZ_ASSERT(!aMarkedFrame->GetPrevContinuation() &&
                  aMarkedFrame->IsSVGGeometryFrame() &&
                  static_cast<SVGGeometryElement*>(aMarkedFrame->GetContent())
@@ -1432,13 +1432,13 @@ static SVGObserverUtils::ReferenceState GetAndObserveFilters(
     ISVGFilterObserverList* aObserverList,
     nsTArray<SVGFilterFrame*>* aFilterFrames) {
   if (!aObserverList) {
-    return SVGObserverUtils::eHasNoRefs;
+    return SVGObserverUtils::ReferenceState::HasNoRefs;
   }
 
   const nsTArray<RefPtr<SVGFilterObserver>>& observers =
       aObserverList->GetObservers();
   if (observers.IsEmpty()) {
-    return SVGObserverUtils::eHasNoRefs;
+    return SVGObserverUtils::ReferenceState::HasNoRefs;
   }
 
   for (const auto& observer : observers) {
@@ -1447,14 +1447,14 @@ static SVGObserverUtils::ReferenceState GetAndObserveFilters(
       if (aFilterFrames) {
         aFilterFrames->Clear();
       }
-      return SVGObserverUtils::eHasRefsSomeInvalid;
+      return SVGObserverUtils::ReferenceState::HasRefsSomeInvalid;
     }
     if (aFilterFrames) {
       aFilterFrames->AppendElement(filter);
     }
   }
 
-  return SVGObserverUtils::eHasRefsAllValid;
+  return SVGObserverUtils::ReferenceState::HasRefsAllValid;
 }
 
 SVGObserverUtils::ReferenceState SVGObserverUtils::GetAndObserveFilters(
@@ -1507,7 +1507,7 @@ SVGObserverUtils::ReferenceState SVGObserverUtils::GetAndObserveClipPath(
   }
   SVGPaintingProperty* observers = GetOrCreateClipPathObserver(aClippedFrame);
   if (!observers) {
-    return eHasNoRefs;
+    return ReferenceState::HasNoRefs;
   }
   bool frameTypeOK = true;
   SVGClipPathFrame* frame =
@@ -1516,12 +1516,12 @@ SVGObserverUtils::ReferenceState SVGObserverUtils::GetAndObserveClipPath(
   // Note that, unlike for filters, a reference to an ID that doesn't exist
   // is not invalid for clip-path or mask.
   if (!frameTypeOK) {
-    return eHasRefsSomeInvalid;
+    return ReferenceState::HasRefsSomeInvalid;
   }
   if (aClipPathFrame) {
     *aClipPathFrame = frame;
   }
-  return frame ? eHasRefsAllValid : eHasNoRefs;
+  return frame ? ReferenceState::HasRefsAllValid : ReferenceState::HasNoRefs;
 }
 
 static SVGRenderingObserverProperty* GetOrCreateGeometryObserver(
@@ -1581,16 +1581,16 @@ SVGObserverUtils::ReferenceState SVGObserverUtils::GetAndObserveMasks(
     nsIFrame* aMaskedFrame, nsTArray<SVGMaskFrame*>* aMaskFrames) {
   SVGMaskObserverList* observerList = GetOrCreateMaskObserverList(aMaskedFrame);
   if (!observerList) {
-    return eHasNoRefs;
+    return ReferenceState::HasNoRefs;
   }
 
   const nsTArray<RefPtr<SVGPaintingProperty>>& observers =
       observerList->GetObservers();
   if (observers.IsEmpty()) {
-    return eHasNoRefs;
+    return ReferenceState::HasNoRefs;
   }
 
-  ReferenceState state = eHasRefsAllValid;
+  ReferenceState state = ReferenceState::HasRefsAllValid;
 
   for (size_t i = 0; i < observers.Length(); i++) {
     bool frameTypeOK = true;
@@ -1607,7 +1607,7 @@ SVGObserverUtils::ReferenceState SVGObserverUtils::GetAndObserveMasks(
       //
       // Hand it over to the style image.
       observerList->ResolveImage(i);
-      state = eHasRefsSomeInvalid;
+      state = ReferenceState::HasRefsSomeInvalid;
     }
     if (aMaskFrames) {
       aMaskFrames->AppendElement(maskFrame);
@@ -1952,8 +1952,8 @@ void SVGObserverUtils::InvalidateRenderingObservers(nsIFrame* aFrame) {
 }
 
 void SVGObserverUtils::InvalidateDirectRenderingObservers(
-    Element* aElement, uint32_t aFlags /* = 0 */) {
-  if (!(aFlags & INVALIDATE_DESTROY)) {
+    Element* aElement, InvalidationFlags aFlags) {
+  if (!aFlags.contains(InvalidationFlag::Destroy)) {
     if (nsIFrame* frame = aElement->GetPrimaryFrame()) {
       // If the rendering has changed, the bounds may well have changed too:
       frame->RemoveProperty(SVGUtils::ObjectBoundingBoxProperty());
@@ -1963,7 +1963,7 @@ void SVGObserverUtils::InvalidateDirectRenderingObservers(
   if (aElement->HasDirectRenderingObservers()) {
     SVGRenderingObserverSet* observers = GetObserverSet(aElement);
     if (observers) {
-      if (aFlags & INVALIDATE_REFLOW) {
+      if (aFlags.contains(InvalidationFlag::Reflow)) {
         observers->InvalidateAllForReflow();
       } else {
         observers->InvalidateAll();
@@ -1973,7 +1973,7 @@ void SVGObserverUtils::InvalidateDirectRenderingObservers(
 }
 
 void SVGObserverUtils::InvalidateDirectRenderingObservers(
-    nsIFrame* aFrame, uint32_t aFlags /* = 0 */) {
+    nsIFrame* aFrame, InvalidationFlags aFlags) {
   if (auto* element = Element::FromNodeOrNull(aFrame->GetContent())) {
     InvalidateDirectRenderingObservers(element, aFlags);
   }
