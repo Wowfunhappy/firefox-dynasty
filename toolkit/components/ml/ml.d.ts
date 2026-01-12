@@ -26,6 +26,33 @@ export type EngineStatus =
   // The engine has been fully terminated and removed.
   | "TERMINATED";
 
+export interface EngineRunRequest {
+  /**
+   * The identifier for tracking this request. If not provided, an id will be
+   * auto-generated. Each inference callback will reference this id.
+   */
+  id: string;
+
+  /**
+   * The arguments to pass to the pipeline. The required arguments depend on your model.
+   * See Hugging Face Transformers documentation]() for more details.
+   * @see https://huggingface.co/docs/transformers.js/en/api/models
+   */
+  args: any[];
+
+  /**
+   * The generation options to pass to the model. Refer to the `GenerationConfigType`
+   * for available options.
+   * @see https://huggingface.co/docs/transformers.js/en/api/utils/generation#module_utils/generation..GenerationConfigType
+   */
+  options: any;
+
+  /**
+   * For the imagetoText model, this is the array containing the image data.
+   */
+  data?: Uint8Array;
+}
+
 /**
  * The EngineId is used to identify a unique engine that can be shared across multiple
  * consumers. This way a single model can be loaded into memory and used in different
@@ -58,3 +85,87 @@ export type StatusByEngineId = Map<
     options: PipelineOptions | PipelineOptionsRaw | null;
   }
 >;
+
+export type EngineNames =
+  keyof GleanImpl["firefoxAiRuntime"]["engineCreationSuccess"];
+
+export interface ParsedModelHubUrl {
+  model: string;
+  revision: string;
+  file: string;
+  modelWithHostname: string;
+}
+
+export interface SyncEvent {
+  created: BaseRecord[];
+  updated: Array<{ old: BaseRecord; new: BaseRecord }>;
+  deleted: BaseRecord[];
+}
+
+interface BaseRecord {
+  id: string; // e.g. "0931e27c-4844-4d0c-92eb-4c51bceaf3f5";
+  last_modified: number; // e.g. 1730736272603
+  schema: number; // e.g. 1730381905606
+}
+
+/**
+ * These are the types for all of the collections in RemoteSettings. They
+ * also include the BaseRecord information. RecordsML is the exported type.
+ */
+interface RecordsMLUnique {
+  /**
+   * Allow or deny URL Prefixes.
+   * https://firefox.settings.services.mozilla.com/v1/buckets/main/collections/ml-model-allow-deny-list/records
+   */
+  "ml-model-allow-deny-list": {
+    filter: "ALLOW" | "DENY";
+    urlPrefix: string; // e.g. "https://huggingface.co/Mozilla/"
+    description: string; // e.g. "All models we host are allowed."
+  };
+
+  /**
+   * Specific configuration options for different tasks. Filters can be used
+   * to select specific features, tasks or models.
+   * https://firefox.settings.services.mozilla.com/v1/buckets/main/collections/ml-inference-options/records
+   */
+  "ml-inference-options": {
+    modelId: string; // e.g. "tliumozilla/intent-detection-mobilebert";
+    taskName: string; // "text-classification";
+    dtype?: string; // "q8",
+    featureId?: string; // "query-intent-detection";
+    processorId: string; // "tliumozilla/intent-detection-mobilebert";
+    tokenizerId: string; // "tliumozilla/intent-detection-mobilebert";
+    modelRevision: string; // "main";
+    processorRevision: string; // "main";
+    tokenizerRevision: string; // "main";
+    backend?: string; // "onnx-native"
+    numThreads?: number;
+  };
+}
+
+export type RecordsML = {
+  [Collection in keyof RecordsMLUnique]: BaseRecord &
+    RecordsMLUnique[Collection];
+};
+
+export interface RemoteSettingsInferenceOptions {
+  modelRevision: string | null;
+  modelId: string | null;
+  tokenizerRevision: string | null;
+  tokenizerId: string | null;
+  processorRevision: string | null;
+  processorId: string | null;
+  dtype: string | null;
+  numThreads: number | null;
+  runtimeFilename: string | null;
+}
+
+export interface ChunkResponse {
+  text: string;
+  tokens: any;
+  isPrompt: any;
+  toolCalls: Array<{
+    id: string;
+    function: { name: string; arguments: any[] };
+  }>;
+}

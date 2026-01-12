@@ -325,9 +325,6 @@ class EngineDispatcher {
   /** @type {number | null} */
   #keepAliveTimeout = null;
 
-  /** @type {PromiseWithResolvers<any> | null} */
-  #modelRequest = null;
-
   /** @type {Promise<InferenceEngine>} */
   #engine;
 
@@ -517,19 +514,6 @@ class EngineDispatcher {
   }
 
   /**
-   * @param {MessagePort} port
-   */
-  getModel(port) {
-    if (this.#modelRequest) {
-      // There could be a race to get a model, use the first request.
-      return this.#modelRequest.promise;
-    }
-    this.#modelRequest = Promise.withResolvers();
-    port.postMessage({ type: "EnginePort:ModelRequest" });
-    return this.#modelRequest.promise;
-  }
-
-  /**
    * Wait for the engine to be ready.
    */
   async isReady() {
@@ -552,22 +536,6 @@ class EngineDispatcher {
         }
         case "EnginePort:Terminate": {
           await this.terminate(data.shutdown, data.replacement);
-          break;
-        }
-        case "EnginePort:ModelResponse": {
-          if (this.#modelRequest) {
-            const { model, error } = data;
-            if (model) {
-              this.#modelRequest.resolve(model);
-            } else {
-              this.#modelRequest.reject(error);
-            }
-            this.#modelRequest = null;
-          } else {
-            lazy.console.error(
-              "Got a EnginePort:ModelResponse but no model resolvers"
-            );
-          }
           break;
         }
         case "EnginePort:Run": {

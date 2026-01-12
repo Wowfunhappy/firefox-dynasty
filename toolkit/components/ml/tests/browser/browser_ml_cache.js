@@ -1044,11 +1044,11 @@ add_task(async function test_deleteNonMatchingModelRevisions() {
     }),
   ]);
 
-  await hub.deleteNonMatchingModelRevisions({
+  await hub.deleteNonMatchingModelRevisions(
     taskName,
-    modelWithHostname: `${hostname}/org/model2`,
-    targetRevision: "v3",
-  });
+    `${hostname}/org/model2`,
+    "v3"
+  );
 
   const [retrievedData, headers] = await cache.getFile({
     model: `${hostname}/org/model`,

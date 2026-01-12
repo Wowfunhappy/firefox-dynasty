@@ -434,6 +434,13 @@ export class PipelineOptions {
   modelRevision = null;
 
   /**
+   * The flowId is used to track a flow of events for telemetry.
+   *
+   * @type {?string}
+   */
+  flowId = null;
+
+  /**
    * The identifier for the tokenizer associated with the model, used for pre-processing inputs.
    *
    * @type {?string}
