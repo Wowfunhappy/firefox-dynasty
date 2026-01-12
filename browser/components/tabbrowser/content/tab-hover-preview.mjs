@@ -559,6 +559,7 @@ class TabPanel extends HoverPanel {
     const addNoteButton = this.panelElement.querySelector(
       ".tab-preview-add-note"
     );
+
     if (this._prefUseTabNotes && lazy.TabNotes.isEligible(this.#tab)) {
       lazy.TabNotes.get(this.#tab).then(note => {
         noteTextContainer.textContent = note?.text || "";
@@ -570,7 +571,7 @@ class TabPanel extends HoverPanel {
         this.#noteOverflow =
           noteTextContainer.scrollHeight > noteTextContainer.clientHeight;
 
-        // Pass the width and height of the button to CSS so that
+        // Pass the width of the button to CSS so that
         // they can be used to calculate the correct offset of the gradient mask
         let button = this.panelElement.querySelector(
           ".tab-preview-note-expand"
@@ -583,6 +584,7 @@ class TabPanel extends HoverPanel {
     } else {
       noteTextContainer.textContent = "";
       addNoteButton.setAttribute("hidden", "");
+      noteContainer.setAttribute("hidden", "");
     }
 
     let thumbnailContainer = this.panelElement.querySelector(
