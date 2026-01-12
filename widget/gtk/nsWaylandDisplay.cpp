@@ -803,7 +803,7 @@ static void global_registry_handler(void* data, wl_registry* registry,
     display->SetPointerGestures(gestures);
   } else if (iface.EqualsLiteral("wp_color_manager_v1")) {
     auto* colorManager = WaylandRegistryBind<wp_color_manager_v1>(
-        registry, id, &wp_color_manager_v1_interface, 1);
+        registry, id, &wp_color_manager_v1_interface, version);
     display->SetColorManager(colorManager);
   } else if (iface.EqualsLiteral("wp_color_representation_manager_v1")) {
     auto* colorRepresentationManager =
@@ -812,12 +812,11 @@ static void global_registry_handler(void* data, wl_registry* registry,
     display->SetColorRepresentationManager(colorRepresentationManager);
   } else if (iface.EqualsLiteral("xx_pip_shell_v1")) {
     auto* pipShell = WaylandRegistryBind<xx_pip_shell_v1>(
-        registry, id, &xx_pip_shell_v1_interface, 1);
+        registry, id, &xx_pip_shell_v1_interface, version);
     display->SetPipShell(pipShell);
   } else if (iface.EqualsLiteral("xdg_wm_base")) {
-    int vers = MIN(version, xdg_wm_base_interface.version);
     auto* xdgWm = WaylandRegistryBind<xdg_wm_base>(
-        registry, id, &xdg_wm_base_interface, vers);
+        registry, id, &xdg_wm_base_interface, version);
     display->SetXdgWm(xdgWm);
   } else if (iface.EqualsLiteral("wl_output") && version > 1) {
     auto* output =
