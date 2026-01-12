@@ -1137,14 +1137,13 @@ MOZ_ALWAYS_INLINE void BarrieredMoveRangeInner(bool nurseryOwned, void* dst,
   }
 
   for (size_t i = 0; i < count; i++) {
-    BarrieredSetImpl<T, PreBarrier, PostBarrier>(nurseryOwned, ptr + i,
-                                                 src[i]);
+    BarrieredSetImpl<T, PreBarrier, PostBarrier>(nurseryOwned, ptr + i, src[i]);
   }
 }
 
 template <typename T>
-void BarrieredMoveRangeImpl(gc::Cell* owner, void* dst,
-                                              const T* src, size_t count) {
+void BarrieredMoveRangeImpl(gc::Cell* owner, void* dst, const T* src,
+                            size_t count) {
   // This function is called frequently in some WasmGC benchmarks.
   //
   // Most of the time no barriers are required. The most frequent use of the
