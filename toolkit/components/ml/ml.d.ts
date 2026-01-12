@@ -55,6 +55,6 @@ export type StatusByEngineId = Map<
   EngineId,
   {
     status: EngineStatus;
-    options: PipelineOptions | PipelineOptionsRaw;
+    options: PipelineOptions | PipelineOptionsRaw | null;
   }
 >;

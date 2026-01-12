@@ -58,7 +58,7 @@ export const FILE_REGEX =
 
 /**
  * @constant
- * @type {{ [key: string]: string }}
+ * @type {{ [key: string]: { modelId: string, dtype: string } }}
  * @description Supported tasks with their default model identifiers.
  */
 export const DEFAULT_MODELS = Object.freeze({

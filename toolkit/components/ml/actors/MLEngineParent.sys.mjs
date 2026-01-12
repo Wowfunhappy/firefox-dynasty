@@ -555,8 +555,6 @@ export class MLEngineParent extends JSProcessActorParent {
 
   /**
    * Gets the configuration of the worker
-   *
-   * @returns {Promise<object>}
    */
   static getWorkerConfig() {
     return {
