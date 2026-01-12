@@ -55,7 +55,6 @@ features = ["device_lost_panic", "internal_error_panic"]
 
 [target.'cfg(windows)'.dependencies]
 windows = { version = "0.62", default-features = false, features = [
-  "Win32_Graphics_Dxgi_Common",
   "Win32_Graphics_Direct3D12",
 ] }
 
@@ -79,5 +78,3 @@ nsstring = { path = "../../xpcom/rust/nsstring" }
 static_prefs = { path = "../../modules/libpref/init/static_prefs" }
 arrayvec = "0.7"
 ash = "0.38"
-glean = { workspace = true }
-firefox-on-glean = { path = "../../toolkit/components/glean/api" }
