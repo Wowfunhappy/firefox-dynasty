@@ -2008,12 +2008,7 @@ static bool AddIntlExtras(JSContext* cx, unsigned argc, Value* vp) {
   }
   JS::RootedObject intl(cx, &args[0].toObject());
 
-  static const JSFunctionSpec funcs[] = {
-      JS_SELF_HOSTED_FN("getCalendarInfo", "Intl_getCalendarInfo", 1, 0),
-      JS_FS_END,
-  };
-
-  if (!JS_DefineFunctions(cx, intl, funcs)) {
+  if (!JS::AddMozGetCalendarInfo(cx, intl)) {
     return false;
   }
 
