@@ -1703,7 +1703,7 @@ function CleanUpCrashDumpFiles() {
 }
 
 function FinishTestItem() {
-  logger.testEnd(g.urls[0].identifier, "PASS");
+  logger.testEnd(g.urls[0].identifier, "OK");
 
   // Replace document with BLANK_URL_FOR_CLEARING in case there are
   // assertions when unloading.
