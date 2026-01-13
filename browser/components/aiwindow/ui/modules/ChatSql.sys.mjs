@@ -179,6 +179,24 @@ export function getConversationMessagesSql(amount) {
   `;
 }
 
+export function getDeleteMessagesByIdsSql(amount) {
+  return `
+    DELETE FROM message WHERE message.message_id IN(${new Array(amount).fill("?").join(",")})
+  `;
+}
+
+export function getDeleteEmptyConversationsSql(amount) {
+  return `
+    DELETE FROM conversation
+    WHERE conversation.conv_id IN(${new Array(amount).fill("?").join(",")})
+      AND NOT EXISTS(
+        SELECT 1
+        FROM message m
+        WHERE m.conv_id = conversation.conv_id
+      )
+  `;
+}
+
 export const CONVERSATIONS_CONTENT_SEARCH = `
 SELECT c.conv_id, c.title, c.description, c.page_url,
   json(c.page_meta_jsonb) AS page_meta, c.created_date, c.updated_date,

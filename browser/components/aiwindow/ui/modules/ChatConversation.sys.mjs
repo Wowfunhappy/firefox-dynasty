@@ -231,33 +231,115 @@ export class ChatConversation {
    *
    * @param {string} prompt - new user prompt
    * @param {URL} pageUrl - The URL of the page when prompt was submitted
+   * @param {boolean} withMemories - Whether to generate memories for new prompt message
    */
-  async generatePrompt(prompt, pageUrl) {
+  async generatePrompt(prompt, pageUrl, withMemories) {
     if (!this.#messages.length) {
       // TODO: Bug 2008865
       // switch to use remote settings prompt accessed via engine.loadPrompt(feature)
       this.addSystemMessage(SYSTEM_PROMPT_TYPE.TEXT, assistantPrompt);
     }
 
-    const nextConversationTurn = this.currentTurnIndex() + 1;
+    await this.getRealTimeInfo();
 
-    const realTime = await constructRealTimeInfoInjectionMessage();
-    if (realTime.content) {
-      this.addSystemMessage(SYSTEM_PROMPT_TYPE.REAL_TIME, realTime.content);
+    if (withMemories) {
+      await this.getMemoriesContext();
     }
 
-    const insightsContext = await constructRelevantMemoriesContextMessage();
-    if (insightsContext?.content) {
-      this.addSystemMessage(
-        SYSTEM_PROMPT_TYPE.INSIGHTS,
-        insightsContext.content,
-        nextConversationTurn
-      );
-    }
-
-    this.addUserMessage(prompt, pageUrl, nextConversationTurn);
+    this.addUserMessage(prompt, pageUrl);
 
     return this;
+  }
+
+  /**
+   * Retries a specified user message. Will remove the original message
+   * being retried as well as all messages that come after the message
+   * being retried.
+   *
+   * @param {ChatMessage} message
+   * @param {boolean} withMemories
+   *
+   * @returns {Array<ChatMessage>} - Array of messages removed from the conversation
+   */
+  async retryMessage(message, withMemories) {
+    if (message.role !== MESSAGE_ROLE.USER) {
+      throw new Error("Not a user message");
+    }
+
+    const retryMessageIndex = this.#messages.findIndex(
+      chatMessage => message.id === chatMessage.id
+    );
+
+    if (retryMessageIndex === -1) {
+      throw new Error("Unrelated message");
+    }
+
+    const toDeleteMessages = this.#messages.splice(retryMessageIndex);
+
+    await this.getRealTimeInfo();
+
+    if (withMemories) {
+      await this.getMemoriesContext();
+    }
+
+    this.addUserMessage(message.content.body, message.pageUrl);
+
+    return toDeleteMessages;
+  }
+
+  /**
+   * Gets the real time brower tab data for a new chat message and
+   * adds a system message if the real time data API function
+   * returns content.
+   *
+   * @typedef {
+   *   (depsOverride?: object) => Promise<{ role: string; content: string; }>
+   * } RealTimeApiFunction
+   *
+   * @param {RealTimeApiFunction} [constructRealTime=constructRealTimeInfoInjectionMessage]
+   * Function that returns promise that resolves with real time info
+   */
+  async getRealTimeInfo(
+    constructRealTime = constructRealTimeInfoInjectionMessage
+  ) {
+    const realTime = await constructRealTime();
+    if (!realTime.content) {
+      return;
+    }
+
+    this.addSystemMessage(SYSTEM_PROMPT_TYPE.REAL_TIME, realTime.content);
+  }
+
+  /**
+   * Gets the memories for a new chat message and adds
+   * a system message if the memories API function returns
+   * content.
+   *
+   * @todo Bug2009434
+   * Rename type and change enum to renamed values
+   *
+   * @typedef {{
+   *    role: string;
+   *    tool_call_id: string;
+   *    content: string;
+   *  }} InsightsApiFunctionParams
+   *
+   *  @typedef {
+   *    (message: string) => Promise<null | InsightsContextParams>
+   *  } InsightsApiFunction
+   *
+   * @param {InsightsApiFunction} [constructMemories=constructRelevantMemoriesContextMessage]
+   * Function that returns promise that resolves with memories data
+   */
+  async getMemoriesContext(
+    constructMemories = constructRelevantMemoriesContextMessage
+  ) {
+    const memoriesContext = await constructMemories();
+    if (!memoriesContext?.content) {
+      return;
+    }
+
+    this.addSystemMessage(SYSTEM_PROMPT_TYPE.INSIGHTS, memoriesContext.content);
   }
 
   /**
