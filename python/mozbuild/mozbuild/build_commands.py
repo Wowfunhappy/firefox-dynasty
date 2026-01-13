@@ -13,7 +13,11 @@ from mach.decorators import Command, CommandArgument
 
 from mozbuild.backend import backends
 from mozbuild.mozconfig import MozconfigLoader
-from mozbuild.util import MOZBUILD_METRICS_PATH, ensure_l10n_central
+from mozbuild.util import (
+    MOZBUILD_METRICS_PATH,
+    ensure_l10n_central,
+    is_running_under_coding_agent,
+)
 
 BUILD_WHAT_HELP = """
 What to build. Can be a top-level make target or a relative directory. If
@@ -159,6 +163,13 @@ def build(
     from mozbuild.controller.building import BuildDriver
 
     command_context.log_manager.enable_all_structured_loggers()
+
+    # For coding agents, automatically enable quiet mode
+    if is_running_under_coding_agent():
+        if command_context.log_manager.terminal_handler:
+            command_context.log_manager.terminal_handler.setLevel(logging.WARNING)
+        log_path = command_context._get_state_filename("last_log.json")
+        print(f"Running in quiet mode. Full build output: {log_path}\n", flush=True)
 
     loader = MozconfigLoader(command_context.topsrcdir)
     mozconfig = loader.read_mozconfig(loader.AUTODETECT)

@@ -49,6 +49,15 @@ class NotAGitRepositoryError(Exception):
     pass
 
 
+def is_running_under_coding_agent():
+    return bool(
+        os.environ.get("CLAUDECODE")
+        or os.environ.get("CODEX_SANDBOX")
+        or os.environ.get("GEMINI_CLI")
+        or os.environ.get("OPENCODE")
+    )
+
+
 def _open(path, mode):
     if "b" in mode:
         return open(path, mode)
