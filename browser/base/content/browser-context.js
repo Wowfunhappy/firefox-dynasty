@@ -321,20 +321,14 @@ document.addEventListener(
           gSync.populateSendTabToDevicesMenu(
             event.target,
             gContextMenu.linkURI,
-            gContextMenu.linkTextStr,
-            {
-              contextMenuType: "link",
-            }
+            gContextMenu.linkTextStr
           );
           break;
         case "context-sendpagetodevice-popup":
           gSync.populateSendTabToDevicesMenu(
             event.target,
             gBrowser.currentURI,
-            gBrowser.contentTitle,
-            {
-              contextMenuType: "page",
-            }
+            gBrowser.contentTitle
           );
           break;
       }
@@ -350,8 +344,6 @@ document.addEventListener(
       if (!IS_WEBEXT_PANELS) {
         updateEditUIVisibility();
       }
-      // Reset Send Tab exposure tracking when context menu closes
-      gSync._resetSendTabExposureTracking();
     });
 
     // The command events bubble up to the popup element.

@@ -717,12 +717,6 @@ class OpenTabsContextMenu extends MozLitElement {
     await this.fetchDevicesPromise;
     await this.getUpdateComplete();
     this.panelList.toggle(originalEvent);
-
-    if (this.devices.length >= 1) {
-      Glean.firefoxview.sendTabExposed.record({
-        device_count: String(this.devices.length),
-      });
-    }
   }
 
   copyLink(e) {
@@ -817,11 +811,6 @@ class OpenTabsContextMenu extends MozLitElement {
     const viewPage = this.ownerViewPage;
     viewPage.recordContextMenuTelemetry("send-tab-device", e);
 
-    Glean.firefoxview.clickSendTab.record({
-      device_count: String(this.devices.length),
-      action: "device",
-    });
-
     if (device && this.triggerNode) {
       await viewPage
         .getWindow()
@@ -831,12 +820,6 @@ class OpenTabsContextMenu extends MozLitElement {
           this.triggerNode.title
         );
     }
-  }
-
-  onSendTabSubmenuClick() {
-    Glean.firefoxview.sendTabOpened.record({
-      device_count: String(this.devices.length),
-    });
   }
 
   sendTabTemplate() {
@@ -894,7 +877,6 @@ class OpenTabsContextMenu extends MozLitElement {
               data-l10n-id="fxviewtabrow-send-to-device"
               data-l10n-attrs="accesskey"
               submenu="send-tab-menu"
-              @click=${this.onSendTabSubmenuClick}
               >${this.sendTabTemplate()}</panel-item
             >`
           : null}
