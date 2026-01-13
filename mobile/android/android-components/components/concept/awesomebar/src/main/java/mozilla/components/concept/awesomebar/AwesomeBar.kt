@@ -7,6 +7,7 @@ package mozilla.components.concept.awesomebar
 import android.graphics.Bitmap
 import android.graphics.drawable.Drawable
 import android.view.View
+import mozilla.components.concept.awesomebar.AwesomeBar.Suggestion.Flag.BOOKMARK
 import java.util.UUID
 
 /**
@@ -73,6 +74,16 @@ interface AwesomeBar {
     fun setOnEditSuggestionListener(listener: (String) -> Unit)
 
     /**
+     * Update what search suggestions should be hidden.
+     */
+    fun updateHiddenSuggestions(hiddenSuggestions: Set<GroupedSuggestion>)
+
+    /**
+     * Add a callback for when the user clicked on the remove button for a history suggestion.
+     */
+    fun setOnRemoveSuggestionButtonClicked(listener: (GroupedSuggestion) -> Unit)
+
+    /**
      * Information about the [Suggestion]s that are currently displayed by the [AwesomeBar].
      */
     data class VisibilityState(
@@ -81,6 +92,15 @@ interface AwesomeBar {
          * group. The groups and their suggestions are ordered top to bottom.
          */
         val visibleProviderGroups: Map<SuggestionProviderGroup, List<Suggestion>> = emptyMap(),
+    )
+
+    /**
+     * Pair of a [Suggestion] and the [SuggestionProviderGroup] identified by its id in which the
+     * [Suggestion] should be shown.
+     */
+    data class GroupedSuggestion(
+        val suggestion: Suggestion,
+        val groupId: String,
     )
 
     /**

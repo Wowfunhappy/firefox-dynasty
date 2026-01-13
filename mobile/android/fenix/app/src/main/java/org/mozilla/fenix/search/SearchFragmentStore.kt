@@ -13,7 +13,7 @@ import mozilla.components.browser.state.selector.findTab
 import mozilla.components.browser.state.state.SearchState
 import mozilla.components.browser.state.state.searchEngines
 import mozilla.components.browser.state.state.selectedOrDefaultSearchEngine
-import mozilla.components.compose.browser.awesomebar.internal.GroupedSuggestion
+import mozilla.components.concept.awesomebar.AwesomeBar.GroupedSuggestion
 import mozilla.components.concept.awesomebar.AwesomeBar.Suggestion
 import mozilla.components.concept.awesomebar.AwesomeBar.SuggestionProvider
 import mozilla.components.lib.state.Action
@@ -115,8 +115,7 @@ sealed class SearchEngineSource {
  * @property searchEngineSource The current selected search engine with the context of how it was selected.
  * @property defaultEngine The current default search engine (or null if none is available yet).
  * @property searchSuggestionsProviders The list of search suggestions providers that the user can choose from.
- * @property suggestionsPendingDeletion The list of soft deleted suggestions that should not be shown
- * anymore to users.
+ * @property hiddenSuggestions The list of suggestions that should not be shown anymore to users.
  * @property searchSuggestionsOrientedAtBottom Whether or not the search suggestions should be oriented at the
  * bottom of the screen.
  * @property searchStartedForCurrentUrl Whether or not the search started with editing the current URL.
@@ -163,7 +162,7 @@ data class SearchFragmentState(
     val searchEngineSource: SearchEngineSource,
     val defaultEngine: SearchEngine?,
     val searchSuggestionsProviders: List<SuggestionProvider>,
-    val suggestionsPendingDeletion: Set<GroupedSuggestion>,
+    val hiddenSuggestions: Set<GroupedSuggestion>,
     val searchSuggestionsOrientedAtBottom: Boolean,
     val searchStartedForCurrentUrl: Boolean,
     val shouldShowSearchSuggestions: Boolean,
@@ -206,7 +205,7 @@ data class SearchFragmentState(
             searchEngineSource = SearchEngineSource.None,
             defaultEngine = null,
             searchSuggestionsProviders = emptyList(),
-            suggestionsPendingDeletion = emptySet(),
+            hiddenSuggestions = emptySet(),
             searchSuggestionsOrientedAtBottom = false,
             searchStartedForCurrentUrl = false,
             shouldShowSearchSuggestions = false,
@@ -267,7 +266,7 @@ fun createInitialSearchFragmentState(
         searchTerms = tab?.content?.searchTerms.orEmpty(),
         searchEngineSource = searchEngineSource,
         searchSuggestionsProviders = emptyList(),
-        suggestionsPendingDeletion = emptySet(),
+        hiddenSuggestions = emptySet(),
         searchSuggestionsOrientedAtBottom = settings.shouldUseBottomToolbar,
         searchStartedForCurrentUrl = false,
         shouldShowSearchSuggestions = false,
@@ -430,23 +429,16 @@ sealed class SearchFragmentAction : Action {
     ) : SearchFragmentAction()
 
     /**
-     * Action indicating a suggestion is set to be deleted.
+     * Action indicating a suggestion that should not be shown anymore to users.
      */
-    data class SuggestionSetToBeDeleted(
+    data class SuggestionHidden(
         val suggestion: GroupedSuggestion,
     ) : SearchFragmentAction()
 
     /**
-     * Action indicating a suggestion is set to be deleted.
+     * Action indicating a suggestion that can be shown again to users.
      */
-    data class SuggestionUnsetToBeDeleted(
-        val suggestion: GroupedSuggestion,
-    ) : SearchFragmentAction()
-
-    /**
-     * Action indicating a suggestion has been deleted.
-     */
-    data class SuggestionDeleted(
+    data class SuggestionRestored(
         val suggestion: GroupedSuggestion,
     ) : SearchFragmentAction()
 
@@ -646,16 +638,12 @@ private fun searchStateReducer(state: SearchFragmentState, action: SearchFragmen
             state.copy(searchStartedForCurrentUrl = action.searchStartedForCurrentUrl)
         }
 
-        is SearchFragmentAction.SuggestionSetToBeDeleted -> {
-            state.copy(suggestionsPendingDeletion = state.suggestionsPendingDeletion + action.suggestion)
+        is SearchFragmentAction.SuggestionHidden -> {
+            state.copy(hiddenSuggestions = state.hiddenSuggestions + action.suggestion)
         }
 
-        is SearchFragmentAction.SuggestionUnsetToBeDeleted -> {
-            state.copy(suggestionsPendingDeletion = state.suggestionsPendingDeletion - action.suggestion)
-        }
-
-        is SearchFragmentAction.SuggestionDeleted -> {
-            state.copy(suggestionsPendingDeletion = state.suggestionsPendingDeletion - action.suggestion)
+        is SearchFragmentAction.SuggestionRestored -> {
+            state.copy(hiddenSuggestions = state.hiddenSuggestions - action.suggestion)
         }
 
         is SearchFragmentAction.SuggestionClicked,

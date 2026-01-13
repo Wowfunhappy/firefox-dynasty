@@ -15,8 +15,6 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import mozilla.components.compose.browser.awesomebar.AwesomeBarColors
-import mozilla.components.concept.awesomebar.AwesomeBar.Suggestion
-import mozilla.components.concept.awesomebar.AwesomeBar.SuggestionProviderGroup
 
 /**
  * Renders a header for a group of suggestions.
@@ -46,12 +44,3 @@ internal fun SuggestionGroup(
         )
     }
 }
-
-/**
- * Pair of a [Suggestion] and the [SuggestionProviderGroup] identified by its id in which the
- * [Suggestion] should be shown.
- */
-data class GroupedSuggestion(
-    val suggestion: Suggestion,
-    val groupId: String,
-)

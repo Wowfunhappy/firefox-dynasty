@@ -8,6 +8,7 @@
 package org.mozilla.fenix.bookmarks
 
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.LocalActivity
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
 import androidx.compose.foundation.Image
@@ -138,10 +139,13 @@ import org.mozilla.fenix.compose.Favicon
 import org.mozilla.fenix.compose.list.IconListItem
 import org.mozilla.fenix.compose.list.SelectableFaviconListItem
 import org.mozilla.fenix.compose.list.SelectableIconListItem
+import org.mozilla.fenix.ext.components
+import org.mozilla.fenix.ext.getRootView
 import org.mozilla.fenix.search.SearchFragmentAction.SuggestionClicked
 import org.mozilla.fenix.search.SearchFragmentAction.SuggestionSelected
 import org.mozilla.fenix.search.SearchFragmentState
 import org.mozilla.fenix.search.SearchFragmentStore
+import org.mozilla.fenix.search.awesomebar.DeleteHistoryEntryDelegate
 import org.mozilla.fenix.theme.FirefoxTheme
 import mozilla.components.ui.icons.R as iconsR
 
@@ -569,6 +573,13 @@ private fun BookmarksList(
         }
 
         if (useNewSearchUX && state.isSearching && searchState.searchSuggestionsProviders.isNotEmpty()) {
+            val activity = LocalActivity.current
+            val deleteHistoryDelegate = remember(activity?.getRootView(), searchStore) {
+                activity?.getRootView()?.let {
+                    DeleteHistoryEntryDelegate(it, it.context.components, searchStore)
+                }
+            }
+
             Box(
                 modifier = Modifier
                     .background(awesomebarScrim)
@@ -589,6 +600,7 @@ private fun BookmarksList(
                     AwesomeBar(
                         text = searchState.query,
                         providers = searchState.searchSuggestionsProviders,
+                        hiddenSuggestions = searchState.hiddenSuggestions,
                         orientation = AwesomeBarOrientation.TOP,
                         onSuggestionClicked = { suggestion ->
                             searchStore.dispatch(SuggestionClicked(suggestion))
@@ -596,7 +608,9 @@ private fun BookmarksList(
                         onAutoComplete = { suggestion ->
                             searchStore.dispatch(SuggestionSelected(suggestion))
                         },
-                        onRemoveClicked = {},
+                        onRemoveClicked = { suggestion ->
+                            deleteHistoryDelegate?.handleDeletingHistoryEntry(suggestion)
+                        },
                         onVisibilityStateUpdated = {
                             browserStore.dispatch(AwesomeBarAction.VisibilityStateUpdated(it))
                         },
