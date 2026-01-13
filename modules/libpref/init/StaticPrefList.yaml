@@ -7822,7 +7822,11 @@
 
 - name: gfx.webrender.dcomp-texture-overlay-win
   type: bool
+#if defined(XP_WIN)
+  value: @IS_EARLY_BETA_OR_EARLIER@
+#else
   value: false
+#endif
   mirror: once
 
 - name: gfx.webrender.scissored-cache-clears.enabled
