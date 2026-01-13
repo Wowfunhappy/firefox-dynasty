@@ -494,26 +494,30 @@ impl MarionetteSession {
                         "Failed to interpret script timeout duration as u64"
                     ),
                 };
-                let page_load = try_opt!(
-                    try_opt!(
-                        resp.result.get("pageLoad"),
-                        ErrorStatus::UnknownError,
-                        "Missing field: pageLoad"
-                    )
-                    .as_u64(),
+                let page_load = match try_opt!(
+                    resp.result.get("pageLoad"),
                     ErrorStatus::UnknownError,
-                    "Failed to interpret page load duration as u64"
-                );
-                let implicit = try_opt!(
-                    try_opt!(
-                        resp.result.get("implicit"),
+                    "Missing field: pageLoad"
+                ) {
+                    Value::Null => None,
+                    n => try_opt!(
+                        Some(n.as_u64()),
                         ErrorStatus::UnknownError,
-                        "Missing field: implicit"
-                    )
-                    .as_u64(),
+                        "Failed to interpret pageLoad timeout duration as u64"
+                    ),
+                };
+                let implicit = match try_opt!(
+                    resp.result.get("implicit"),
                     ErrorStatus::UnknownError,
-                    "Failed to interpret implicit search duration as u64"
-                );
+                    "Missing field: implicit"
+                ) {
+                    Value::Null => None,
+                    n => try_opt!(
+                        Some(n.as_u64()),
+                        ErrorStatus::UnknownError,
+                        "Failed to interpret implicit timeout duration as u64"
+                    ),
+                };
 
                 WebDriverResponse::Timeouts(TimeoutsResponse {
                     script,
