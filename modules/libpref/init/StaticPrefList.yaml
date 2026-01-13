@@ -9346,6 +9346,12 @@
     mirror: always
     set_spidermonkey_pref: startup
 
+-   name: javascript.options.wasm_compact_imports
+    type: bool
+    value: false
+    mirror: always
+    set_spidermonkey_pref: always
+
 #if defined(ENABLE_WASM_SIMD)
 #if defined(JS_CODEGEN_X64) || defined(JS_CODEGEN_X86)
   # Enables AVX instructions support on X86/X64 platforms.

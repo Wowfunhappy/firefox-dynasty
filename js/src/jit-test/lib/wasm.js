@@ -525,6 +525,9 @@ const MaxTable64ElemsValidation = 0xFFFF_FFFF_FFFF_FFFFn; // from spec
 const MaxTableElemsRuntime = 10000000; // from WasmConstants.h
 const MaxUint32 = 0xFFFF_FFFF;
 
+// Constants related to other limits.
+const MaxImports = 1000000; // from WasmConstants.h
+
 // Common array utilities
 
 // iota(n,k) creates an Array of length n with values k..k+n-1
