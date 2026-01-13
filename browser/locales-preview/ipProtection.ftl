@@ -53,9 +53,6 @@ ipprotection-connection-status-off =
 ipprotection-location-title =
   .title = Location selected based on fastest server
 
-ipprotection-site-settings-control =
-  .label = Website settings
-
 # Variables:
 #   $sitename (String) - The name of the site that we're currently on (eg. example.com)
 ipprotection-site-settings-button-vpn-off =

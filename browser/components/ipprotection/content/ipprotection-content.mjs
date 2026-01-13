@@ -62,10 +62,6 @@ export default class IPProtectionContentElement extends MozLitElement {
       this.#statusCardListener
     );
     this.addEventListener(
-      "ipprotection-site-settings-control:click",
-      this.#statusCardListener
-    );
-    this.addEventListener(
       "ipprotection-message-bar:user-dismissed",
       this.#messageBarListener
     );
@@ -81,10 +77,6 @@ export default class IPProtectionContentElement extends MozLitElement {
     );
     this.removeEventListener(
       "ipprotection-status-card:user-toggled-off",
-      this.#statusCardListener
-    );
-    this.removeEventListener(
-      "ipprotection-site-settings-control:click",
       this.#statusCardListener
     );
     this.removeEventListener(
@@ -167,10 +159,6 @@ export default class IPProtectionContentElement extends MozLitElement {
       this.dispatchEvent(
         new CustomEvent("IPProtection:UserDisable", { bubbles: true })
       );
-    } else if (event.type === "ipprotection-site-settings-control:click") {
-      this.dispatchEvent(
-        new CustomEvent("IPProtection:UserShowSiteSettings", { bubbles: true })
-      );
     }
   }
 
@@ -240,7 +228,6 @@ export default class IPProtectionContentElement extends MozLitElement {
       <ipprotection-status-card
         .protectionEnabled=${this.canEnableConnection}
         .location=${this.state.location}
-        .siteData=${ifDefined(this.state.siteData)}
       ></ipprotection-status-card>
     `;
   }
