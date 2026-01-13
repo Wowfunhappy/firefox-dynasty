@@ -51,6 +51,7 @@ class alignas(TypicalCacheLineSize) ParallelMarkTask : public GCParallelTask {
   bool tryMarking(AutoLockHelperThreadState& lock);
   bool requestWork(AutoLockHelperThreadState& lock);
   void resumeWaitingTasks(AutoLockHelperThreadState& lock);
+  void markDeferredWeakmaps(AutoLockHelperThreadState& lock);
 
   void waitUntilResumed(AutoLockHelperThreadState& lock);
   void resume();
@@ -98,7 +99,7 @@ class MOZ_STACK_CLASS ParallelMarker {
 
   bool mark(const JS::SliceBudget& sliceBudget);
 
-  bool hasWork(MarkColor color) const;
+  bool anyMarkerHasEntries() const;
 
   void addTask(ParallelMarkTask* task, const AutoLockHelperThreadState& lock);
 

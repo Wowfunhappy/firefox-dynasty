@@ -460,7 +460,8 @@ class Zone : public js::ZoneAllocator, public js::gc::GraphNodeBase<JS::Zone> {
   // Number of allocations since the most recent minor GC for this thread.
   uint32_t tenuredAllocsSinceMinorGC_ = 0;
 
-  // Live weakmaps in this zone.
+  // Weakmaps in this zone. Live weakmaps will be temporarily moved during GC to
+  // a list of deferred maps on GCRuntime.
   js::MainThreadOrGCTaskData<mozilla::LinkedList<js::WeakMapBase>>
       gcWeakMapList_;
 

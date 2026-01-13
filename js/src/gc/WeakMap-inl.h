@@ -277,7 +277,37 @@ void WeakMap<K, V, AP>::trace(JSTracer* trc) {
     MOZ_ASSERT(trc->weakMapAction() == JS::WeakMapTraceAction::Expand);
     GCMarker* marker = GCMarker::fromTracer(trc);
     if (markMap(marker->markColor())) {
-      (void)markEntries(marker);
+      if (!memberOf) {
+        (void)markEntries(marker);
+        return;
+      }
+
+      // Move any reachable weakmap to where it will mark its entries only after
+      // everything else markable has been marked.
+      //
+      // This makes it uncommon to accumulate live entries in the ephemeron
+      // table, because in order to be added to the table the key cannot be
+      // reachable, but we defer tracing the entries until everything else has
+      // been marked. The only way to get a live entry into the table is to have
+      // a back-edge in terms of the order of weakmaps in the deferred list: if
+      // one WeakMap WM1 has a value that is a key in another WeakMap WM2, and
+      // WM2's children are traced before WM1's, then at the time of tracing the
+      // key will not yet be marked and so will be entered into the table.
+
+      // If marking in parallel, lock the GC to manipulate the map list links.
+      mozilla::Maybe<AutoLockGC> lock;
+      if (marker->isParallelMarking()) {
+        lock.emplace(marker->runtime());
+      }
+
+      // Deferred maps are segregated into separate lists by color. Note that a
+      // black map can produce gray values, but putting a black map into the
+      // deferred black list is enough because when a deferred map is traced,
+      // any still-relevant entries will be placed into the ephemeron table
+      // associated with the correct color.
+      ListElement::remove();
+      gc::GCRuntime& gcrt = marker->runtime()->gc;
+      gcrt.deferredMapsList(marker->markColor()).insertBack(this);
     }
     return;
   }

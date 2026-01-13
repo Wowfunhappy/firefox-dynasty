@@ -403,6 +403,7 @@ void gc::GCRuntime::endVerifyPreBarriers() {
 
   marker().reset();
   resetDelayedMarking();
+  resetDeferredWeakMaps();
 
   for (AllZonesIter zone(this); !zone.done(); zone.next()) {
     zone->bufferAllocator.clearMarkStateAfterBarrierVerification();
@@ -609,6 +610,7 @@ void js::gc::MarkingValidator::nonIncrementalMark(AutoGCSession& session) {
       }
 
       MOZ_ASSERT(gcmarker->isDrained());
+      MOZ_ASSERT(!gc->hasAnyDeferredWeakMaps());
 
       ClearMarkBits<GCZonesIter>(gc);
     }
@@ -649,6 +651,7 @@ void js::gc::MarkingValidator::nonIncrementalMark(AutoGCSession& session) {
       zone->changeGCState(Zone::MarkBlackAndGray, zone->initialMarkingState());
     }
     MOZ_ASSERT(gc->marker().isDrained());
+    MOZ_ASSERT(!gc->hasAnyDeferredWeakMaps());
   }
 
   /* Take a copy of the non-incremental mark state and restore the original. */
