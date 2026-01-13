@@ -172,6 +172,7 @@ DIRS += [
     "/third_party/libwebrtc/experiments/registered_field_trials_header_gn",
     "/third_party/libwebrtc/logging/rtc_event_audio_gn",
     "/third_party/libwebrtc/logging/rtc_event_bwe_gn",
+    "/third_party/libwebrtc/logging/rtc_event_bwe_update_scream_gn",
     "/third_party/libwebrtc/logging/rtc_event_field_gn",
     "/third_party/libwebrtc/logging/rtc_event_log_parse_status_gn",
     "/third_party/libwebrtc/logging/rtc_event_number_encodings_gn",
