@@ -11,6 +11,10 @@ const { ActionsProviderQuickActions } = ChromeUtils.importESModule(
   "moz-src:///browser/components/urlbar/ActionsProviderQuickActions.sys.mjs"
 );
 
+const { CustomizableUITestUtils } = ChromeUtils.importESModule(
+  "resource://testing-common/CustomizableUITestUtils.sys.mjs"
+);
+
 const CONFIG = [
   {
     identifier: "default-engine",
@@ -38,6 +42,16 @@ const CONFIG = [
     },
     // Only enable in particular locale so it is not installed by default.
     variants: [{ environment: { locales: ["sl"] } }],
+  },
+  {
+    identifier: "de-engine",
+    base: {
+      urls: {
+        search: { base: "https://mochi.test/", searchTermParamName: "q" },
+      },
+    },
+    // Only enable in particular locale so it is not installed by default.
+    variants: [{ environment: { locales: ["de"] } }],
   },
 ];
 
@@ -343,6 +357,36 @@ add_task(async function test_onboarding() {
   await UrlbarTestUtils.promisePopupClose(window, () => {
     EventUtils.synthesizeKey("KEY_Escape");
   });
+});
+
+add_task(async function keep_search_query_searchbar() {
+  let gCUITestUtils = new CustomizableUITestUtils(window);
+  let searchbar = await gCUITestUtils.addSearchBar();
+
+  // Visit page where de-engine will be suggested.
+  await BrowserTestUtils.loadURIString({
+    browser: gBrowser.selectedBrowser,
+    uriString: "https://mochi.test/",
+  });
+
+  await SearchbarTestUtils.promiseAutocompleteResultPopup({
+    window,
+    value: "kitten",
+  });
+
+  EventUtils.synthesizeKey("KEY_Tab");
+  EventUtils.synthesizeKey("KEY_Enter"); // Select "Seach with de-engine"
+  await BrowserTestUtils.browserLoaded(gBrowser.selectedBrowser, {
+    wantLoad: "https://mochi.test/?q=kitten",
+  });
+
+  Assert.equal(
+    searchbar.value,
+    "kitten",
+    "Search query should stay after contextual search was executed"
+  );
+
+  gCUITestUtils.removeSearchBar();
 });
 
 async function hasActions(index) {

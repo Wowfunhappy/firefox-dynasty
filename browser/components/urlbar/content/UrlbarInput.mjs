@@ -1671,7 +1671,11 @@ export class UrlbarInput extends HTMLElement {
           // be reverted when they're notified of the engagement, but before
           // reverting, copy the search mode since it's nulled on revert.
           const { searchMode } = this;
-          this.handleRevert();
+          if (this.sapName != "searchbar") {
+            // The searchbar is not reverted so providers enabled in
+            // the searchbar should be able to handle both cases.
+            this.handleRevert();
+          }
           this.controller.engagementEvent.record(event, {
             result,
             element,
