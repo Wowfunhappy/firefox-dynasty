@@ -225,6 +225,10 @@ function Tester(aTests, structuredLogger, aCallback) {
   this.SimpleTest.harnessParameters = gConfig;
 
   this.MemoryStats = simpleTestScope.MemoryStats;
+  // Lazy import since we only use it if a test loaded it.
+  ChromeUtils.defineESModuleGetters(this, {
+    sinon: "resource://testing-common/Sinon.sys.mjs",
+  });
   this.ContentTask = ChromeUtils.importESModule(
     "resource://testing-common/ContentTask.sys.mjs"
   ).ContentTask;
@@ -243,7 +247,6 @@ function Tester(aTests, structuredLogger, aCallback) {
   this.PerTestCoverageUtils = ChromeUtils.importESModule(
     "resource://testing-common/PerTestCoverageUtils.sys.mjs"
   ).PerTestCoverageUtils;
-
   this.PromiseTestUtils.init();
 
   this.SimpleTestOriginal = {};
@@ -898,6 +901,10 @@ Tester.prototype = {
         }
       }
 
+      // Ensure any sinon stubs and spies have been cleaned up before the next test.
+      if (Cu.isESModuleLoaded("resource://testing-common/Sinon.sys.mjs")) {
+        this.sinon.restore();
+      }
       // Spare tests cleanup work.
       // Reset gReduceMotionOverride in case the test set it.
       if (typeof gReduceMotionOverride == "boolean") {
