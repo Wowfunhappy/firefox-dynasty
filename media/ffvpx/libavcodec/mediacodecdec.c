@@ -131,9 +131,9 @@ done:
 }
 #endif
 
-#if CONFIG_H264_MEDIACODEC_DECODER_EXTRADATA
 static int h264_set_extradata(AVCodecContext *avctx, FFAMediaFormat *format)
 {
+#if CONFIG_H264_MEDIACODEC_DECODER_EXTRADATA
     int i;
     int ret;
 
@@ -194,8 +194,23 @@ done:
     ff_h264_ps_uninit(&ps);
 
     return ret;
-}
+#else
+    const uint8_t* ed = avctx->extradata;
+    int edsize = avctx->extradata_size;
+    int edoffset = avctx->moz_extradata_offset;
+
+    if (ed) {
+        if (edoffset > 0 && edoffset < edsize) {
+            ff_AMediaFormat_setBuffer(format, "csd-0", ed, edoffset);
+            ff_AMediaFormat_setBuffer(format, "csd-1", ed + edoffset, edsize - edoffset);
+        } else {
+            ff_AMediaFormat_setBuffer(format, "csd-0", ed, edsize);
+        }
+    }
+
+    return 0;
 #endif
+}
 
 #if CONFIG_HEVC_MEDIACODEC_DECODER_EXTRADATA
 static int hevc_set_extradata(AVCodecContext *avctx, FFAMediaFormat *format)
@@ -301,7 +316,8 @@ done:
     CONFIG_AAC_MEDIACODEC_DECODER   || \
     CONFIG_AMRNB_MEDIACODEC_DECODER || \
     CONFIG_AMRWB_MEDIACODEC_DECODER || \
-    CONFIG_MP3_MEDIACODEC_DECODER
+    CONFIG_MP3_MEDIACODEC_DECODER   || \
+    !CONFIG_HEVC_MEDIACODEC_DECODER_EXTRADATA
 static int common_set_extradata(AVCodecContext *avctx, FFAMediaFormat *format)
 {
     int ret = 0;
@@ -348,11 +364,7 @@ static av_cold int mediacodec_decode_init(AVCodecContext *avctx)
     case AV_CODEC_ID_H264:
         codec_mime = "video/avc";
 
-#if CONFIG_H264_MEDIACODEC_DECODER_EXTRADATA
         ret = h264_set_extradata(avctx, format);
-#else
-        ret = 0;
-#endif
         if (ret < 0)
             goto done;
         break;
@@ -364,7 +376,7 @@ static av_cold int mediacodec_decode_init(AVCodecContext *avctx)
 #if CONFIG_HEVC_MEDIACODEC_DECODER_EXTRADATA
         ret = hevc_set_extradata(avctx, format);
 #else
-        ret = 0;
+        ret = common_set_extradata(avctx, format);
 #endif
         if (ret < 0)
             goto done;
