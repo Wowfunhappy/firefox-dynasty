@@ -1627,6 +1627,12 @@ Tester.prototype = {
               self.nextTest();
             } else {
               await self.notifyProfilerOfTestEnd();
+              self.structuredLogger.testEnd(
+                self.currentTest.path,
+                "TIMEOUT",
+                "PASS",
+                "Test timed out"
+              );
               self.finish();
             }
           },
