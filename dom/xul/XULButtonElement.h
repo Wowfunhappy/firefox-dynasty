@@ -107,6 +107,8 @@ class XULButtonElement : public nsXULElement {
   void KillMenuOpenTimer();
   MOZ_CAN_RUN_SCRIPT void PassMenuCommandEventToPopupManager();
 
+  nsAtom* GetCheckedStateAttribute() const;
+
   bool mIsHandlingKeyEvent = false;
 
   // Whether this is a XULMenuElement.
