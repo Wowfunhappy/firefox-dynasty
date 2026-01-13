@@ -493,66 +493,55 @@ mozilla::LazyLogModule gInputEventLog("InputEvent");
 int32_t nsContentUtils::sInnerOrOuterWindowCount = 0;
 uint32_t nsContentUtils::sInnerOrOuterWindowSerialCounter = 0;
 
-template Maybe<int32_t>
-nsContentUtils::ComparePoints<TreeKind::ShadowIncludingDOM>(
-    const RangeBoundary& aFirstBoundary, const RangeBoundary& aSecondBoundary,
-    NodeIndexCache* aIndexCache);
-template Maybe<int32_t> nsContentUtils::ComparePoints<TreeKind::Flat>(
-    const RangeBoundary& aFirstBoundary, const RangeBoundary& aSecondBoundary,
-    NodeIndexCache* aIndexCache);
+#define INSTANTIATE_METHOD_FOR_TREEKIND_TEMPLATE_PARAM( \
+    aResultType, aMethodName, aTreeKind, ...)           \
+  template aResultType aMethodName<aTreeKind>(__VA_ARGS__);
 
-template Maybe<int32_t>
-nsContentUtils::ComparePoints<TreeKind::ShadowIncludingDOM>(
-    const RangeBoundary& aFirstBoundary,
-    const RawRangeBoundary& aSecondBoundary, NodeIndexCache* aIndexCache);
-template Maybe<int32_t> nsContentUtils::ComparePoints<TreeKind::Flat>(
-    const RangeBoundary& aFirstBoundary,
-    const RawRangeBoundary& aSecondBoundary, NodeIndexCache* aIndexCache);
+#define INSTANTIATE_METHOD_FOR_CONST_RANGE_BOUNDARY_REFS(                \
+    aResultType, aMethodName, aTreeKind, ...)                            \
+  INSTANTIATE_METHOD_FOR_TREEKIND_TEMPLATE_PARAM(                        \
+      aResultType, aMethodName, aTreeKind, const RangeBoundary&,         \
+      const RangeBoundary&, __VA_ARGS__)                                 \
+  INSTANTIATE_METHOD_FOR_TREEKIND_TEMPLATE_PARAM(                        \
+      aResultType, aMethodName, aTreeKind, const RangeBoundary&,         \
+      const RawRangeBoundary&, __VA_ARGS__)                              \
+  INSTANTIATE_METHOD_FOR_TREEKIND_TEMPLATE_PARAM(                        \
+      aResultType, aMethodName, aTreeKind, const RawRangeBoundary&,      \
+      const RangeBoundary&, __VA_ARGS__)                                 \
+  INSTANTIATE_METHOD_FOR_TREEKIND_TEMPLATE_PARAM(                        \
+      aResultType, aMethodName, aTreeKind, const RawRangeBoundary&,      \
+      const RawRangeBoundary&, __VA_ARGS__)                              \
+  INSTANTIATE_METHOD_FOR_TREEKIND_TEMPLATE_PARAM(                        \
+      aResultType, aMethodName, aTreeKind, const ConstRawRangeBoundary&, \
+      const ConstRawRangeBoundary&, __VA_ARGS__)                         \
+  INSTANTIATE_METHOD_FOR_TREEKIND_TEMPLATE_PARAM(                        \
+      aResultType, aMethodName, aTreeKind, const ConstRawRangeBoundary&, \
+      const RangeBoundary&, __VA_ARGS__)                                 \
+  INSTANTIATE_METHOD_FOR_TREEKIND_TEMPLATE_PARAM(                        \
+      aResultType, aMethodName, aTreeKind, const ConstRawRangeBoundary&, \
+      const RawRangeBoundary&, __VA_ARGS__)                              \
+  INSTANTIATE_METHOD_FOR_TREEKIND_TEMPLATE_PARAM(                        \
+      aResultType, aMethodName, aTreeKind, const RangeBoundary&,         \
+      const ConstRawRangeBoundary&, __VA_ARGS__)                         \
+  INSTANTIATE_METHOD_FOR_TREEKIND_TEMPLATE_PARAM(                        \
+      aResultType, aMethodName, aTreeKind, const RawRangeBoundary&,      \
+      const ConstRawRangeBoundary&, __VA_ARGS__)
 
-template Maybe<int32_t>
-nsContentUtils::ComparePoints<TreeKind::ShadowIncludingDOM>(
-    const RawRangeBoundary& aFirstBoundary,
-    const RangeBoundary& aSecondBoundary, NodeIndexCache* aIndexCache);
-template Maybe<int32_t> nsContentUtils::ComparePoints<TreeKind::Flat>(
-    const RawRangeBoundary& aFirstBoundary,
-    const RangeBoundary& aSecondBoundary, NodeIndexCache* aIndexCache);
+INSTANTIATE_METHOD_FOR_CONST_RANGE_BOUNDARY_REFS(Maybe<int32_t>,
+                                                 nsContentUtils::ComparePoints,
+                                                 TreeKind::DOM,
+                                                 NodeIndexCache*);
+INSTANTIATE_METHOD_FOR_CONST_RANGE_BOUNDARY_REFS(Maybe<int32_t>,
+                                                 nsContentUtils::ComparePoints,
+                                                 TreeKind::ShadowIncludingDOM,
+                                                 NodeIndexCache*);
+INSTANTIATE_METHOD_FOR_CONST_RANGE_BOUNDARY_REFS(Maybe<int32_t>,
+                                                 nsContentUtils::ComparePoints,
+                                                 TreeKind::Flat,
+                                                 NodeIndexCache*);
 
-template Maybe<int32_t>
-nsContentUtils::ComparePoints<TreeKind::ShadowIncludingDOM>(
-    const RawRangeBoundary& aFirstBoundary,
-    const RawRangeBoundary& aSecondBoundary, NodeIndexCache* aIndexCache);
-template Maybe<int32_t> nsContentUtils::ComparePoints<TreeKind::Flat>(
-    const RawRangeBoundary& aFirstBoundary,
-    const RawRangeBoundary& aSecondBoundary, NodeIndexCache* aIndexCache);
-
-template Maybe<int32_t>
-nsContentUtils::ComparePoints<TreeKind::ShadowIncludingDOM>(
-    const RangeBoundary& aFirstBoundary,
-    const ConstRawRangeBoundary& aSecondBoundary, NodeIndexCache* aIndexCache);
-template Maybe<int32_t> nsContentUtils::ComparePoints<TreeKind::Flat>(
-    const RangeBoundary& aFirstBoundary,
-    const ConstRawRangeBoundary& aSecondBoundary, NodeIndexCache* aIndexCache);
-
-template Maybe<int32_t>
-nsContentUtils::ComparePoints<TreeKind::ShadowIncludingDOM>(
-    const ConstRawRangeBoundary& aFirstBoundary,
-    const RangeBoundary& aSecondBoundary, NodeIndexCache* aIndexCache);
-template Maybe<int32_t> nsContentUtils::ComparePoints<TreeKind::Flat>(
-    const ConstRawRangeBoundary& aFirstBoundary,
-    const RangeBoundary& aSecondBoundary, NodeIndexCache* aIndexCache);
-
-template Maybe<int32_t>
-nsContentUtils::ComparePoints<TreeKind::ShadowIncludingDOM>(
-    const ConstRawRangeBoundary& aFirstBoundary,
-    const RawRangeBoundary& aSecondBoundary, NodeIndexCache* aIndexCache);
-
-template Maybe<int32_t>
-nsContentUtils::ComparePoints<TreeKind::ShadowIncludingDOM>(
-    const ConstRawRangeBoundary& aFirstBoundary,
-    const ConstRawRangeBoundary& aSecondBoundary, NodeIndexCache* aIndexCache);
-template Maybe<int32_t> nsContentUtils::ComparePoints<TreeKind::Flat>(
-    const ConstRawRangeBoundary& aFirstBoundary,
-    const ConstRawRangeBoundary& aSecondBoundary, NodeIndexCache* aIndexCache);
+#undef INSTANTIATE_METHOD_FOR_CONST_RANGE_BOUNDARY_REFS
+#undef INSTANTIATE_METHOD_FOR_TREEKIND_TEMPLATE_PARAM
 
 // Subset of
 // http://www.whatwg.org/specs/web-apps/current-work/#autofill-field-name
@@ -830,11 +819,12 @@ static bool ChildNodeIsInShadowDOMHostedByParent(const nsINode* aParent,
   return shadowRoot == aChild->GetContainingShadow();
 }
 
-template <TreeKind aKind,
-          typename = std::enable_if_t<aKind == TreeKind::ShadowIncludingDOM ||
-                                      aKind == TreeKind::Flat>>
+template <TreeKind aKind>
 static nsINode* GetParentFuncForComparison(const nsINode* aNode) {
   MOZ_ASSERT(aNode);
+  if constexpr (aKind == TreeKind::DOM) {
+    return aNode->GetParentNode();
+  }
   if constexpr (aKind == TreeKind::Flat) {
     if (aNode->IsContent() && aNode->AsContent()->GetAssignedSlot()) {
       return aNode->GetFlattenedTreeParentNodeForSelection();
@@ -944,9 +934,7 @@ class MOZ_STACK_CLASS CommonAncestors final {
     return child;
   }
 
-  template <TreeKind aKind, typename Node,
-            typename = std::enable_if_t<aKind == TreeKind::ShadowIncludingDOM ||
-                                        aKind == TreeKind::Flat>>
+  template <TreeKind aKind, typename Node>
   void WarnIfClosestCommonAncestorChildIsNotInChildList(
       const nsTArray<Node*>& aInclusiveAncestors) const {
 #ifdef DEBUG
@@ -3350,7 +3338,7 @@ Element* nsContentUtils::GetCommonFlattenedTreeAncestorForStyle(
 }
 
 /* static */
-template <TreeKind aKind, typename Dummy>
+template <TreeKind aKind>
 Maybe<int32_t> nsContentUtils::CompareChildNodes(
     const nsINode* aChild1, const nsINode* aChild2,
     NodeIndexCache* aIndexCache /* = nullptr */) {
@@ -3366,11 +3354,13 @@ Maybe<int32_t> nsContentUtils::CompareChildNodes(
   }
   MOZ_ASSERT(aChild1 || aChild2);
   if (!aChild1) {  // i.e., end of parent vs aChild2
-    MOZ_ASSERT(aChild2->GetParentOrShadowHostNode());
+    MOZ_ASSERT_IF(aKind == TreeKind::DOM, aChild2->GetParentNode());
+    MOZ_ASSERT_IF(aKind != TreeKind::DOM, aChild2->GetParentOrShadowHostNode());
     return Some(1);
   }
   if (!aChild2) {  // i.e., aChild1 vs. end of parent
-    MOZ_ASSERT(aChild1->GetParentOrShadowHostNode());
+    MOZ_ASSERT_IF(aKind == TreeKind::DOM, aChild1->GetParentNode());
+    MOZ_ASSERT_IF(aKind != TreeKind::DOM, aChild1->GetParentOrShadowHostNode());
     return Some(-1);
   }
 
@@ -3406,9 +3396,15 @@ Maybe<int32_t> nsContentUtils::CompareChildNodes(
     }
   }
 
-  MOZ_ASSERT(aChild1->GetParentOrShadowHostNode());
-  const nsINode& commonParentNode = *aChild1->GetParentOrShadowHostNode();
-  MOZ_ASSERT(aChild2->GetParentOrShadowHostNode() == &commonParentNode);
+  MOZ_ASSERT_IF(aKind == TreeKind::DOM, aChild1->GetParentNode());
+  MOZ_ASSERT_IF(aKind != TreeKind::DOM, aChild1->GetParentOrShadowHostNode());
+  const nsINode& commonParentNode = aKind == TreeKind::DOM
+                                        ? *aChild1->GetParentNode()
+                                        : *aChild1->GetParentOrShadowHostNode();
+  MOZ_ASSERT_IF(aKind == TreeKind::DOM,
+                aChild2->GetParentNode() == &commonParentNode);
+  MOZ_ASSERT_IF(aKind != TreeKind::DOM,
+                aChild2->GetParentOrShadowHostNode() == &commonParentNode);
   if (aChild1->GetNextSibling() == aChild2) {
     return Some(-1);
   }
@@ -3474,12 +3470,16 @@ Maybe<int32_t> nsContentUtils::CompareChildNodes(
 }
 
 /* static */
-template <TreeKind aKind, typename Dummy>
+template <TreeKind aKind>
 Maybe<int32_t> nsContentUtils::CompareClosestCommonAncestorChildren(
     const nsINode& aParent, const nsINode* aChild1, const nsINode* aChild2,
     nsContentUtils::NodeIndexCache* aIndexCache) {
-  MOZ_ASSERT_IF(aChild1, GetParentOrShadowHostNode(aChild1));
-  MOZ_ASSERT_IF(aChild2, GetParentOrShadowHostNode(aChild2));
+  MOZ_ASSERT_IF(aChild1 && aKind == TreeKind::DOM, aChild1->GetParentNode());
+  MOZ_ASSERT_IF(aChild2 && aKind == TreeKind::DOM, aChild2->GetParentNode());
+  MOZ_ASSERT_IF(aChild1 && aKind != TreeKind::DOM,
+                aChild1->GetParentOrShadowHostNode());
+  MOZ_ASSERT_IF(aChild2 && aKind != TreeKind::DOM,
+                aChild2->GetParentOrShadowHostNode());
 
   if (aChild1 && aChild2) {
     if (MOZ_UNLIKELY(aChild1->IsShadowRoot())) {
@@ -3526,7 +3526,7 @@ Maybe<int32_t> nsContentUtils::CompareClosestCommonAncestorChildren(
 }
 
 /* static */
-template <TreeKind aKind, typename Dummy>
+template <TreeKind aKind>
 Maybe<int32_t> nsContentUtils::CompareChildOffsetAndChildNode(
     uint32_t aOffset1, const nsINode& aChild2,
     NodeIndexCache* aIndexCache /* = nullptr */) {
@@ -3605,7 +3605,7 @@ Maybe<int32_t> nsContentUtils::CompareChildOffsetAndChildNode(
 }
 
 /* static */
-template <TreeKind aKind, typename Dummy>
+template <TreeKind aKind>
 Maybe<int32_t> nsContentUtils::CompareChildNodeAndChildOffset(
     const nsINode& aChild1, uint32_t aOffset2,
     NodeIndexCache* aIndexCache /* = nullptr */) {
@@ -3618,7 +3618,7 @@ Maybe<int32_t> nsContentUtils::CompareChildNodeAndChildOffset(
 }
 
 /* static */
-template <TreeKind aKind, typename Dummy>
+template <TreeKind aKind>
 Maybe<int32_t> nsContentUtils::ComparePointsWithIndices(
     const nsINode* aParent1, uint32_t aOffset1, const nsINode* aParent2,
     uint32_t aOffset2, NodeIndexCache* aIndexCache) {
@@ -3653,8 +3653,8 @@ Maybe<int32_t> nsContentUtils::ComparePointsWithIndices(
     // aParent1 is the common ancestor.
     MOZ_ASSERT(GetParentFuncForComparison<aKind>(closestCommonAncestorChild2) ==
                aParent1);
-    if (ChildNodeIsInShadowDOMHostedByParent(aParent1,
-                                             closestCommonAncestorChild2)) {
+    if (aKind != TreeKind::DOM && ChildNodeIsInShadowDOMHostedByParent(
+                                      aParent1, closestCommonAncestorChild2)) {
       // Comparing a shadow host with its shadow root.
       // We consider:
       // [aParent1, 0] < closestCommonAncestorChild2 < [aParent1, 1]
@@ -3692,8 +3692,8 @@ Maybe<int32_t> nsContentUtils::ComparePointsWithIndices(
   MOZ_ASSERT(closestCommonAncestorChild1);
   MOZ_ASSERT(GetParentFuncForComparison<aKind>(closestCommonAncestorChild1) ==
              aParent2);
-  if (ChildNodeIsInShadowDOMHostedByParent(aParent2,
-                                           closestCommonAncestorChild1)) {
+  if (aKind != TreeKind::DOM && ChildNodeIsInShadowDOMHostedByParent(
+                                    aParent2, closestCommonAncestorChild1)) {
     // Comparing a shadow host with its shadow root.
     // We consider: [aParent2, 0] < closestCommonAncestorChild1 < [aParent2, 1]
     return aOffset2 > 0 ? Some(-1) : Some(1);
@@ -3790,7 +3790,7 @@ Element* nsContentUtils::GetTargetElement(Document* aDocument,
 
 /* static */
 template <TreeKind aKind, typename PT1, typename RT1, typename PT2,
-          typename RT2, typename Dummy>
+          typename RT2>
 Maybe<int32_t> nsContentUtils::ComparePoints(
     const RangeBoundaryBase<PT1, RT1>& aBoundary1,
     const RangeBoundaryBase<PT2, RT2>& aBoundary2,

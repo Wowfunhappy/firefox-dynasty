@@ -152,8 +152,8 @@ bool RangeUtils::IsValidPoints(
       aStartBoundary.GetTreeKind() == TreeKind::Flat
           ? nsContentUtils::ComparePoints<TreeKind::Flat>(aStartBoundary,
                                                           aEndBoundary)
-          : nsContentUtils::ComparePoints<TreeKind::ShadowIncludingDOM>(
-                aStartBoundary, aEndBoundary);
+          : nsContentUtils::ComparePoints<TreeKind::DOM>(aStartBoundary,
+                                                         aEndBoundary);
   if (!order) {
     MOZ_ASSERT_UNREACHABLE();
     return false;
