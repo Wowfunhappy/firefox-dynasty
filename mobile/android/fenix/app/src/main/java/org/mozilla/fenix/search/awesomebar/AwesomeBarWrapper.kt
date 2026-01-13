@@ -69,6 +69,7 @@ class AwesomeBarWrapper @JvmOverloads constructor(
                 onAutoComplete = { suggestion ->
                     onEditSuggestionListener?.invoke(suggestion.editSuggestion!!)
                 },
+                onRemoveClicked = {},
                 onVisibilityStateUpdated = {
                     context.components.core.store.dispatch(AwesomeBarAction.VisibilityStateUpdated(it))
                 },

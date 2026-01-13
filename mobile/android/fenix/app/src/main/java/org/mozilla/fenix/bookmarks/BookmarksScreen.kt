@@ -596,6 +596,7 @@ private fun BookmarksList(
                         onAutoComplete = { suggestion ->
                             searchStore.dispatch(SuggestionSelected(suggestion))
                         },
+                        onRemoveClicked = {},
                         onVisibilityStateUpdated = {
                             browserStore.dispatch(AwesomeBarAction.VisibilityStateUpdated(it))
                         },

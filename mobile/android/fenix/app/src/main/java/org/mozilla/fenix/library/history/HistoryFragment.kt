@@ -504,6 +504,7 @@ class HistoryFragment : LibraryPageFragment<History>(), UserInteractionHandler, 
                                         onAutoComplete = { suggestion ->
                                             searchStore.dispatch(SuggestionSelected(suggestion))
                                         },
+                                        onRemoveClicked = {},
                                         onVisibilityStateUpdated = {
                                             requireComponents.core.store.dispatch(
                                                 AwesomeBarAction.VisibilityStateUpdated(it),

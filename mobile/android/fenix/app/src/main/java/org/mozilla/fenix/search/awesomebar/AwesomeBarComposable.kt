@@ -28,13 +28,20 @@ import androidx.core.graphics.toColorInt
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.coroutineScope
 import androidx.navigation.NavController
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Dispatchers.IO
+import kotlinx.coroutines.withContext
 import mozilla.components.browser.state.action.AwesomeBarAction
 import mozilla.components.browser.state.store.BrowserStore
+import mozilla.components.browser.storage.sync.PlacesHistoryStorage
 import mozilla.components.compose.browser.awesomebar.AwesomeBar
 import mozilla.components.compose.browser.awesomebar.AwesomeBarOrientation
+import mozilla.components.compose.browser.awesomebar.internal.GroupedSuggestion
 import mozilla.components.compose.browser.toolbar.store.BrowserEditToolbarAction.SearchQueryUpdated
 import mozilla.components.compose.browser.toolbar.store.BrowserToolbarStore
 import mozilla.components.compose.browser.toolbar.ui.BrowserToolbarQuery
+import mozilla.components.feature.awesomebar.provider.SearchTermSuggestionsProvider
 import mozilla.components.lib.state.ext.observeAsComposableState
 import mozilla.components.lib.state.helpers.StoreProvider.Companion.fragmentStore
 import mozilla.components.support.ktx.android.view.hideKeyboard
@@ -44,6 +51,8 @@ import org.mozilla.fenix.components.AppStore
 import org.mozilla.fenix.components.Components
 import org.mozilla.fenix.components.appstate.AppAction.SearchAction.SearchEnded
 import org.mozilla.fenix.components.metrics.MetricsUtils
+import org.mozilla.fenix.ext.components
+import org.mozilla.fenix.ext.getRootView
 import org.mozilla.fenix.ext.settings
 import org.mozilla.fenix.search.BrowserStoreToFenixSearchMapperMiddleware
 import org.mozilla.fenix.search.BrowserToolbarToFenixSearchMapperMiddleware
@@ -51,9 +60,12 @@ import org.mozilla.fenix.search.FenixSearchMiddleware
 import org.mozilla.fenix.search.SearchFragmentAction
 import org.mozilla.fenix.search.SearchFragmentAction.SuggestionClicked
 import org.mozilla.fenix.search.SearchFragmentAction.SuggestionSelected
+import org.mozilla.fenix.search.SearchFragmentAction.SuggestionSetToBeDeleted
+import org.mozilla.fenix.search.SearchFragmentAction.SuggestionUnsetToBeDeleted
 import org.mozilla.fenix.search.SearchFragmentStore
 import org.mozilla.fenix.search.createInitialSearchFragmentState
 import org.mozilla.fenix.settings.SupportUtils
+import org.mozilla.fenix.utils.allowUndo
 
 private const val MATERIAL_DESIGN_SCRIM = "#52000000"
 
@@ -196,12 +208,17 @@ class AwesomeBarComposable(
                     AwesomeBar(
                         text = state.query,
                         providers = state.searchSuggestionsProviders,
+                        hiddenSuggestions = state.suggestionsPendingDeletion,
                         orientation = orientation,
                         onSuggestionClicked = { suggestion ->
                             searchStore.dispatch(SuggestionClicked(suggestion))
                         },
                         onAutoComplete = { suggestion ->
                             searchStore.dispatch(SuggestionSelected(suggestion))
+                        },
+                        onRemoveClicked = { suggestion ->
+                            searchStore.dispatch(SuggestionSetToBeDeleted(suggestion))
+                            showDeleteSnackbar(suggestion)
                         },
                         onVisibilityStateUpdated = {
                             browserStore.dispatch(AwesomeBarAction.VisibilityStateUpdated(it))
@@ -282,5 +299,42 @@ class AwesomeBarComposable(
                 ),
             ),
         )
+    }
+
+    private fun showDeleteSnackbar(
+        item: GroupedSuggestion,
+    ) {
+        val historyStorage = activity.components.core.historyStorage
+
+        CoroutineScope(Dispatchers.Main).allowUndo(
+            view = activity.getRootView()!!,
+            message = "Deleting ${item.suggestion.description}",
+            undoActionTitle = activity.getString(R.string.snackbar_deleted_undo),
+            onCancel = { searchStore.dispatch(SuggestionUnsetToBeDeleted(item)) },
+            operation = {
+                delete(
+                    historyStorage = historyStorage,
+                    item = item,
+                )
+            },
+        )
+    }
+
+    private suspend fun delete(
+        historyStorage: PlacesHistoryStorage,
+        item: GroupedSuggestion,
+    ) = withContext(IO) {
+        when (item.suggestion.provider is SearchTermSuggestionsProvider) {
+            true -> {
+                item.suggestion.title?.let {
+                    historyStorage.deleteHistoryMetadata(it)
+                }
+            }
+            else -> {
+                item.suggestion.description?.let {
+                    historyStorage.deleteVisitsFor(it)
+                }
+            }
+        }
     }
 }
