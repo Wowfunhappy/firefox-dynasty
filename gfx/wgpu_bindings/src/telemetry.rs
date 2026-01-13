@@ -14,26 +14,33 @@ pub fn build_telemetry_struct() -> wgh::Telemetry {
 #[cfg(target_os = "windows")]
 fn d3d12_expose_adapter(
     desc: &windows::Win32::Graphics::Dxgi::DXGI_ADAPTER_DESC2,
-    driver_version: [u16; 4],
+    driver_version: Result<[u16; 4], windows::core::HRESULT>,
     result: wgh::D3D12ExposeAdapterResult,
 ) {
     // The key must be under 111 bytes:
     // - backend identifier 'D' = 1 byte
     // - 4 * u32's formatted as hex = 4 * 8 = 32 bytes
-    // - 4 * u16's formatted as dec = 4 * 5 = 20 bytes
-    // - separators = 8 bytes
-    // total = 61 bytes
-    let key = &format!(
-        "D:{:X}:{:X}:{:X}:{:X}:{}.{}.{}.{}",
-        desc.VendorId,
-        desc.DeviceId,
-        desc.SubSysId,
-        desc.Revision,
-        driver_version[0],
-        driver_version[1],
-        driver_version[2],
-        driver_version[3],
-    );
+    // - 5 * ':' separators = 5 bytes
+    // - 4 * u16's formatted as dec + 3 * '.' separators = 4 * 5 + 3 = 23 bytes OR
+    //   'DVE:' + a u32 formatted as hex = 4 + 8 = 12 bytes
+    // total = 61 or 50 bytes
+    let key = match driver_version {
+        Ok(driver_version) => &format!(
+            "D:{:X}:{:X}:{:X}:{:X}:{}.{}.{}.{}",
+            desc.VendorId,
+            desc.DeviceId,
+            desc.SubSysId,
+            desc.Revision,
+            driver_version[0],
+            driver_version[1],
+            driver_version[2],
+            driver_version[3],
+        ),
+        Err(hresult) => &format!(
+            "D:{:X}:{:X}:{:X}:{:X}:DVE:{:X}",
+            desc.VendorId, desc.DeviceId, desc.SubSysId, desc.Revision, hresult.0
+        ),
+    };
     let category = match result {
         wgh::D3D12ExposeAdapterResult::CreateDeviceError(err) => match err {
             wgh::dx12::CreateDeviceError::GetProcAddress => "NONE:GetProcAddress",
@@ -42,6 +49,9 @@ fn d3d12_expose_adapter(
             }
             wgh::dx12::CreateDeviceError::RetDeviceIsNull => "NONE:RetDeviceIsNull",
         },
+        wgh::D3D12ExposeAdapterResult::UnknownFeatureLevel(fl) => {
+            &format!("NONE:UNKNOWN_FL:{}", fl)
+        }
         wgh::D3D12ExposeAdapterResult::ResourceBindingTier2Requirement => "NONE:REQ_RBT2",
         wgh::D3D12ExposeAdapterResult::ShaderModel6Requirement => "NONE:REQ_SM6",
         wgh::D3D12ExposeAdapterResult::Success(feature_level, shader_model) => {
