@@ -6,6 +6,10 @@
   /* override --background-color-canvas from tokens-shared.css */
   background-color: transparent;
 
-  --gradient-button: linear-gradient(97deg, #8341ca -31.39%, #656fff 90.52%);
-  --gradient-selected-border: linear-gradient(117deg, #321bfd -17.87%, #cf30e2 52.93%, #f90 89.02%, #f5c451 109.44%);
+  /* Brand colors  */
+  --aiwindow-brand-soft-purple: #f1e7f8;
+
+  /* AI Window gradients */
+  --aiwindow-gradient-button: linear-gradient(97deg, #8341ca -31.39%, #656fff 90.52%);
+  --aiwindow-input-gradient: linear-gradient(117deg, #321bfd -17.87%, #cf30e2 52.93%, #f90 89.02%, #f5c451 109.44%);
 }
