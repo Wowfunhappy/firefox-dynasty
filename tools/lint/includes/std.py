@@ -424,6 +424,9 @@ api["type_traits"].extend(
 )
 
 capi = {
+    "assert.h": [
+        "assert",
+    ],
     "string.h": [
         "memcpy",
         "memmove",
