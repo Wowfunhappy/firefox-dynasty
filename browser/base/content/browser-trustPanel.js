@@ -12,6 +12,7 @@ ChromeUtils.defineESModuleGetters(this, {
   PanelMultiView:
     "moz-src:///browser/components/customizableui/PanelMultiView.sys.mjs",
   PlacesUtils: "resource://gre/modules/PlacesUtils.sys.mjs",
+  QWACs: "resource://gre/modules/psm/QWACs.sys.mjs",
   SiteDataManager: "resource:///modules/SiteDataManager.sys.mjs",
   UrlbarPrefs: "moz-src:///browser/components/urlbar/UrlbarPrefs.sys.mjs",
 });
@@ -112,6 +113,19 @@ const SMARTBLOCK_EMBED_INFO = [
 class TrustPanel {
   #state = null;
   #secInfo = null;
+
+  /**
+   * If the document is using a qualified website authentication certificate
+   * (QWAC), this may eventually be an nsIX509Cert corresponding to it.
+   */
+  #qwac = null;
+
+  /**
+   * Promise that will resolve when determining if the document is using a QWAC
+   * has resolved.
+   */
+  #qwacStatusPromise = null;
+
   #host = null;
   #uri = null;
   #uriHasHost = null;
@@ -260,6 +274,24 @@ class TrustPanel {
 
   async showPopup(opts = {}) {
     this.#initializePopup();
+
+    // Kick off background determination of QWAC status.
+    if (this.#isSecureContext && !this.#qwacStatusPromise) {
+      let qwacStatusPromise = QWACs.determineQWACStatus(
+        this.#secInfo,
+        this.#uri,
+        gBrowser.selectedBrowser.browsingContext
+      ).then(result => {
+        // Check that when this promise resolves, we're still on the same
+        // document as when it was created.
+        if (qwacStatusPromise == this.#qwacStatusPromise && result) {
+          this.#qwac = result;
+          this.#updateSecurityInformationSubview();
+        }
+      });
+      this.#qwacStatusPromise = qwacStatusPromise;
+    }
+
     await this.#updatePopup();
 
     this.#openingReason = opts.reason;
@@ -292,6 +324,9 @@ class TrustPanel {
     this.#uri = uri;
 
     this.#secInfo = gBrowser.securityUI.secInfo;
+    // Clear any previously-determined QWAC information.
+    this.#qwac = null;
+    this.#qwacStatusPromise = null;
     this.#pageExtensionPolicy = WebExtensionPolicy.getByURI(uri);
     this.#isSecureContext = this.#getIsSecureContext();
 
@@ -453,7 +488,7 @@ class TrustPanel {
     return this.#trackingProtectionEnabled ? "enabled" : "disabled";
   }
 
-  #openSecurityInformationSubview(event) {
+  #updateSecurityInformationSubview() {
     document.l10n.setAttributes(
       document.getElementById("trustpanel-securityInformationView"),
       "trustpanel-site-information-header",
@@ -488,7 +523,10 @@ class TrustPanel {
     document.getElementById("identity-popup-content-verifier").textContent =
       verifier;
     document.getElementById("identity-popup-content-owner").textContent = owner;
+  }
 
+  #openSecurityInformationSubview(event) {
+    this.#updateSecurityInformationSubview();
     document
       .getElementById("trustpanel-popup-multiView")
       .showSubView("trustpanel-securityInformationView", event.target);
@@ -651,9 +689,8 @@ class TrustPanel {
    * Helper to parse out the important parts of _secInfo (of the SSL cert in
    * particular) for use in constructing identity UI strings
    */
-  #getIdentityData() {
+  #getIdentityData(cert = this.#secInfo.serverCert) {
     var result = {};
-    var cert = this.#secInfo.serverCert;
 
     // Human readable name of Subject
     result.subjectOrg = cert.organization;
@@ -851,6 +888,14 @@ class TrustPanel {
     return this.#uri.schemeIs("file");
   }
 
+  /**
+   * Returns a promise that will resolve when determining QWAC status has
+   * finished. Primarily intended for tests.
+   */
+  get qwacStatusPromise() {
+    return this.#qwacStatusPromise;
+  }
+
   #supplementalText() {
     let supplemental = "";
     let verifier = "";
@@ -861,9 +906,10 @@ class TrustPanel {
       verifier = this.#tooltipText();
     }
 
-    // Fill in organization information if we have a valid EV certificate.
-    if (this.#isEV) {
-      let iData = this.#getIdentityData();
+    // Fill in organization information if we have a valid EV certificate or
+    // QWAC.
+    if (this.#isEV || this.#qwac) {
+      let iData = this.#getIdentityData(this.#qwac || this.#secInfo.serverCert);
       owner = iData.subjectOrg;
       verifier = this.#tooltipText();
 
@@ -896,7 +942,7 @@ class TrustPanel {
 
     if (this.#uriHasHost && this.#isSecureConnection) {
       // This is a secure connection.
-      if (!this._isCertUserOverridden) {
+      if (!this.#isCertUserOverridden) {
         // It's a normal cert, verifier is the CA Org.
         tooltip = gNavigatorBundle.getFormattedString(
           "identity.identified.verifier",
@@ -905,7 +951,6 @@ class TrustPanel {
       }
     } else if (this.#isBrokenConnection) {
       if (this.#isMixedActiveContentLoaded) {
-        this._identityBox.classList.add("mixedActiveContent");
         if (
           UrlbarPrefs.getScotchBonnetPref("trimHttps") &&
           warnTextOnInsecure
@@ -917,7 +962,7 @@ class TrustPanel {
       tooltip = gNavigatorBundle.getString("identity.notSecure.tooltip");
     }
 
-    if (this._isCertUserOverridden) {
+    if (this.#isCertUserOverridden) {
       // Cert is trusted because of a security exception, verifier is a special string.
       tooltip = gNavigatorBundle.getString(
         "identity.identified.verified_by_you"
@@ -935,6 +980,8 @@ class TrustPanel {
       connection = "extension";
     } else if (this.#isURILoadedFromFile) {
       connection = "file";
+    } else if (this.#qwac) {
+      connection = "secure-etsi";
     } else if (this.#isEV) {
       connection = "secure-ev";
     } else if (this.#isCertUserOverridden) {
