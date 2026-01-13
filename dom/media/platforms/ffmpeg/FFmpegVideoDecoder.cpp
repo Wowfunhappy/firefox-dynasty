@@ -93,6 +93,7 @@
 #endif
 
 #if defined(MOZ_WIDGET_ANDROID) && defined(FFVPX_VERSION)
+#  include "AnnexB.h"
 #  include "mozilla/MediaDrmRemoteCDMParent.h"
 #endif
 
@@ -2446,6 +2447,65 @@ bool FFmpegVideoDecoder<LIBAV_VER>::CanUseZeroCopyVideoFrame() const {
 #endif
 
 #ifdef MOZ_WIDGET_ANDROID
+#  ifdef USING_MOZFFVPX
+MediaResult FFmpegVideoDecoder<LIBAV_VER>::AllocateExtraData() {
+  // Only H264 requires use to split the extradata between csd-0 and csd-1.
+  // Otherwise the NALU entries in the order that Android expects.
+  if (mCodecID != AV_CODEC_ID_H264) {
+    return FFmpegDataDecoder<LIBAV_VER>::AllocateExtraData();
+  }
+
+  if (!mExtraData) {
+    FFMPEG_LOG("  H264 decoder has no extradata");
+    mCodecContext->extradata_size = 0;
+    return NS_OK;
+  }
+
+  Span<const uint8_t> extradata(*mExtraData);
+  nsTArray<AnnexB::NALEntry> paramSets;
+  AnnexB::ParseNALEntries(extradata, paramSets);
+
+  size_t spsIndex = AnnexB::FindNalType(extradata, paramSets, H264_NAL_SPS,
+                                        /* aStartIndex */ 0);
+  if (spsIndex == SIZE_MAX) {
+    FFMPEG_LOG("  H264 extradata is missing SPS");
+    return NS_OK;
+  }
+
+  size_t ppsIndex = AnnexB::FindNalType(extradata, paramSets, H264_NAL_PPS,
+                                        /* aStartIndex */ 0);
+  if (ppsIndex == SIZE_MAX) {
+    FFMPEG_LOG("  H264 extradata is missing PPS");
+    return NS_OK;
+  }
+
+  const auto& spsEntry = paramSets.ElementAt(spsIndex);
+  const auto& ppsEntry = paramSets.ElementAt(ppsIndex);
+  const auto sps = extradata.Subspan(spsEntry.mOffset, spsEntry.mSize);
+  const auto pps = extradata.Subspan(ppsEntry.mOffset, ppsEntry.mSize);
+
+  CheckedInt<int> extradataSize(sps.Length());
+  extradataSize += pps.Length();
+  if (!extradataSize.isValid()) {
+    return MediaResult(NS_ERROR_DOM_MEDIA_FATAL_ERR,
+                       RESULT_DETAIL("SPS/PPS extradata too large"));
+  }
+
+  mCodecContext->extradata =
+      static_cast<uint8_t*>(mLib->av_malloc(extradataSize.value()));
+  if (!mCodecContext->extradata) {
+    return MediaResult(NS_ERROR_OUT_OF_MEMORY,
+                       RESULT_DETAIL("Couldn't init ffmpeg extradata"));
+  }
+
+  mCodecContext->extradata_size = extradataSize.value();
+  mCodecContext->moz_extradata_offset = sps.Length();
+  memcpy(mCodecContext->extradata, sps.Elements(), sps.Length());
+  memcpy(mCodecContext->extradata + sps.Length(), pps.Elements(), pps.Length());
+  return NS_OK;
+}
+#  endif
+
 MediaResult FFmpegVideoDecoder<LIBAV_VER>::InitMediaCodecDecoder() {
   FFMPEG_LOG("Initialising MediaCodec FFmpeg decoder");
   StaticMutexAutoLock mon(sMutex);
