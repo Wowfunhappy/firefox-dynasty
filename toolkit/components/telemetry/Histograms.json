@@ -10801,7 +10801,8 @@
       "reset_streamfilter",
       "reset_parentapicall",
       "permissions_request",
-      "launchWebAuthFlow"
+      "launchWebAuthFlow",
+      "downloads_saveAs"
     ],
     "releaseChannelCollection": "opt-out",
     "description": "The number of times an event page hit the idle timeout and results in one of the categories, keyed by addon id."
@@ -10822,7 +10823,8 @@
       "reset_streamfilter",
       "reset_parentapicall",
       "permissions_request",
-      "launchWebAuthFlow"
+      "launchWebAuthFlow",
+      "downloads_saveAs"
     ],
     "releaseChannelCollection": "opt-out",
     "description": "The number of times an event page hit the idle timeout and results in one of the categories, keyed by addon id.",
