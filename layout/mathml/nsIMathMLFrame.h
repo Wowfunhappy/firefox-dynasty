@@ -20,7 +20,6 @@ class ReflowOutput;
 // For MathML, this 'type' will be used to determine the spacing between frames
 // Subclasses can return a 'type' that will give them a particular spacing
 enum class MathMLFrameType {
-  Unknown = -1,
   Ordinary,
   OperatorOrdinary,
   OperatorInvisible,
@@ -28,8 +27,9 @@ enum class MathMLFrameType {
   Inner,
   ItalicIdentifier,
   UprightIdentifier,
-  Count
+  Unknown,
 };
+constexpr auto MathMLFrameTypeCount = size_t(MathMLFrameType::Unknown);
 
 // Bits used for the presentation flags -- these bits are set
 // in their relevant situation as they become available
