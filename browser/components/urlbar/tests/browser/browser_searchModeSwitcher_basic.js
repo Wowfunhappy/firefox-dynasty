@@ -100,10 +100,17 @@ add_task(async function disabled_unified_button() {
 
   Assert.equal(
     BrowserTestUtils.isVisible(
-      gURLBar.querySelector(".searchmode-switcher-chicklet")
+      gURLBar.querySelector(".searchmode-switcher-title")
     ),
     false,
-    "Chicklet associated with Unified Search Button should not be visible."
+    "Title label associated with Unified Search Button should not be visible."
+  );
+  Assert.equal(
+    BrowserTestUtils.isVisible(
+      gURLBar.querySelector(".searchmode-switcher-close")
+    ),
+    false,
+    "Close button associated with Unified Search Button should not be visible."
   );
 
   await UrlbarTestUtils.exitSearchMode(window);

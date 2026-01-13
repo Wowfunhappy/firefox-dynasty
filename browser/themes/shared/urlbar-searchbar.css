@@ -1163,12 +1163,8 @@ toolbar[inactive="true"] .urlbar,
 
   .urlbar[searchmode] & {
     background-color: var(--urlbar-box-bgcolor);
-    margin-inline-end: 0;
-    border-start-end-radius: 0;
-    border-end-end-radius: 0;
   }
 
-  /* The background rule should match to .searchmode-switcher-chicklet */
   .urlbar[focused] & {
     background-color: var(--urlbar-box-focus-bgcolor);
   }
@@ -1188,50 +1184,25 @@ toolbar[inactive="true"] .urlbar,
   list-style-image: url("chrome://global/skin/icons/search-glass.svg");
 }
 
-.searchmode-switcher-chicklet {
-  background-color: var(--urlbar-box-bgcolor);
-  border-start-end-radius: var(--urlbar-inner-border-radius);
-  border-end-end-radius: var(--urlbar-inner-border-radius);
-  align-items: center;
-  height: 100%;
-  max-width: 40%;
-  margin-inline-end: var(--urlbar-searchmodeswitcher-margin-inline-end);
-  display: none;
-
-  /* stylelint-disable-next-line media-query-no-invalid */
-  @media -moz-pref("browser.urlbar.searchModeSwitcher.featureGate") or -moz-pref("browser.urlbar.scotchBonnet.enableOverride") {
-    .urlbar[searchmode] & {
-      display: inline-flex;
-    }
-  }
-
-  .urlbar[focused] & {
-    background-color: var(--urlbar-box-focus-bgcolor);
-  }
-}
-
 .searchmode-switcher-title {
+  display: none;
   margin: 0;
   align-items: center;
   text-overflow: ellipsis;
   overflow: hidden;
   white-space: nowrap;
   max-width: var(--search-engine-name-max-width);
-  margin-inline-end: var(--urlbar-searchmodeswitcher-inline-padding);
+  margin-inline: var(--urlbar-searchmodeswitcher-inline-padding);
 
-  &:empty {
-    display: none;
-  }
-
-  #searchbar-new & {
-    display: none;
+  .urlbar:not(#searchbar-new)[searchmode] & {
+    display: inline-flex;
   }
 }
 
 .searchmode-switcher-close {
+  display: none;
   appearance: none;
   pointer-events: all;
-  margin-inline-end: var(--urlbar-searchmodeswitcher-inline-padding);
 
   .urlbar[searchmode] & {
     display: inline-flex;

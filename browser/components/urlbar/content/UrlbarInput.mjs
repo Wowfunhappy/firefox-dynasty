@@ -96,6 +96,11 @@ export class UrlbarInput extends HTMLElement {
           <image class="searchmode-switcher-icon toolbarbutton-icon"/>
           <image class="searchmode-switcher-dropmarker toolbarbutton-icon toolbarbutton-combined-buttons-dropmarker"
                  data-l10n-id="urlbar-searchmode-dropmarker" />
+          <label class="searchmode-switcher-title" />
+          <toolbarbutton class="searchmode-switcher-close toolbarbutton-icon close-button"
+                         data-action="exitsearchmode"
+                         role="button"
+                         data-l10n-id="urlbar-searchmode-exit-button" />
           <menupopup class="searchmode-switcher-popup toolbar-menupopup"
                      consumeoutsideclicks="false">
             <label class="searchmode-switcher-popup-description"
@@ -108,13 +113,6 @@ export class UrlbarInput extends HTMLElement {
                       data-l10n-id="urlbar-searchmode-popup-search-settings-menuitem"/>
           </menupopup>
         </toolbarbutton>
-        <box class="searchmode-switcher-chicklet">
-          <label class="searchmode-switcher-title" />
-          <toolbarbutton class="searchmode-switcher-close toolbarbutton-icon close-button"
-                         data-action="exitsearchmode"
-                         role="button"
-                         data-l10n-id="urlbar-searchmode-exit-button" />
-        </box>
         <moz-urlbar-slot name="site-info"> </moz-urlbar-slot>
         <moz-input-box tooltip="aHTMLTooltip"
                        class="urlbar-input-box"
