@@ -200,10 +200,20 @@ class MozbuildObject(ProcessExecutionMixin):
 
     def build_out_of_date(self, output, dep_file):
         if not os.path.isfile(output):
-            print(" Output reference file not found: %s" % output)
+            self.log(
+                logging.INFO,
+                "build_output",
+                {"output": output},
+                "Output reference file not found: {output}",
+            )
             return True
         if not os.path.isfile(dep_file):
-            print(" Dependency file not found: %s" % dep_file)
+            self.log(
+                logging.INFO,
+                "build_output",
+                {"dep_file": dep_file},
+                "Dependency file not found: {dep_file}",
+            )
             return True
 
         deps = []
@@ -216,11 +226,21 @@ class MozbuildObject(ProcessExecutionMixin):
                 dep_mtime = os.path.getmtime(f)
             except OSError as e:
                 if e.errno == errno.ENOENT:
-                    print(" Input not found: %s" % f)
+                    self.log(
+                        logging.INFO,
+                        "build_output",
+                        {"input": f},
+                        "Input not found: {input}",
+                    )
                     return True
                 raise
             if dep_mtime > mtime:
-                print(" %s is out of date with respect to %s" % (output, f))
+                self.log(
+                    logging.INFO,
+                    "build_output",
+                    {"output": output, "dep": f},
+                    "{output} is out of date with respect to {dep}",
+                )
                 return True
         return False
 
