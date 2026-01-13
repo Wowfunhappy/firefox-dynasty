@@ -46,10 +46,6 @@ export class StructuredLogger {
       status,
     };
 
-    // handle case: known fail
-    if (expected === status && status != "SKIP") {
-      data.status = "PASS";
-    }
     if (expected != status && status != "SKIP") {
       data.expected = expected;
     }
