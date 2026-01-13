@@ -208,7 +208,7 @@ class DCLayerTree {
 
   int GetFrameId() { return mCurrentFrame; }
 
-  void SetPendingCommet() { mPendingCommit = true; }
+  void SetPendingCommit() { mPendingCommit = true; }
 
  protected:
   bool Initialize(HWND aHwnd, nsACString& aError);

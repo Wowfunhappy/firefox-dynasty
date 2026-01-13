@@ -2221,7 +2221,7 @@ void DCSurfaceDCompositionTextureOverlay::Present() {
 
   mContentVisual->SetContent(dcompTexture);
   mPrevRenderTextureHost = mRenderTextureHost;
-  mDCLayerTree->SetPendingCommet();
+  mDCLayerTree->SetPendingCommit();
 }
 
 DCSurfaceVideo::DCSurfaceVideo(bool aIsOpaque, DCLayerTree* aDCLayerTree)
