@@ -141,7 +141,6 @@ private fun TranslationMenuItem(
             Badge(
                 badgeText = translationInfo.translatedLanguage,
                 state = state,
-                badgeBackgroundColor = MaterialTheme.colorScheme.primaryContainer,
             )
         }
     } else {

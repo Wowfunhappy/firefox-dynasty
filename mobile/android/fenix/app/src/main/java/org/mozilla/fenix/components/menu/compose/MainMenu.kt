@@ -422,7 +422,6 @@ private fun ToolsAndActionsMenuGroup(
             Badge(
                 badgeText = badgeText,
                 state = menuItemState,
-                badgeBackgroundColor = badgeBackgroundColor,
             )
         }
 

@@ -39,9 +39,8 @@
 #include <memory>
 #include <utility>
 
-#include "jsdate.h"
-
 #include "builtin/DataViewObject.h"
+#include "builtin/Date.h"
 #include "builtin/MapObject.h"
 #include "gc/GC.h"           // AutoSelectGCHeap
 #include "js/Array.h"        // JS::GetArrayLength, JS::IsArrayObject

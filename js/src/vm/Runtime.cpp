@@ -18,7 +18,6 @@
 #include <string.h>
 
 #include "jsfriendapi.h"
-#include "jsmath.h"
 
 #include "builtin/String.h"
 #include "frontend/CompilationStencil.h"
@@ -37,6 +36,7 @@
 #include "js/Stack.h"  // JS::NativeStackLimitMin
 #include "js/Wrapper.h"
 #include "js/WrapperCallbacks.h"
+#include "util/RandomSeed.h"
 #include "vm/DateTime.h"
 #include "vm/JSFunction.h"
 #include "vm/JSObject.h"

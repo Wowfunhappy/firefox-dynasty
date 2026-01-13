@@ -217,6 +217,7 @@ EXTRA_JS_MODULES += [
 MOZ_SRC_FILES += [
     "ColorPickerPanel.sys.mjs",
     "DateTimePickerPanel.sys.mjs",
+    "FaviconUtils.sys.mjs",
     "InputPickerPanelCommon.sys.mjs",
 ]
 

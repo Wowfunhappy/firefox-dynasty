@@ -26,7 +26,6 @@
 #endif  // XP_WIN
 
 #include "jsapi.h"  // JS_SetNativeStackQuota
-#include "jsexn.h"
 #include "jstypes.h"
 
 #include "builtin/RegExp.h"  // js::RegExpSearcherLastLimitSentinel

@@ -158,6 +158,7 @@
       this._fullscreenMutationObserver.observe(document.documentElement, {
         attributeFilter: ["inFullscreen", "inDOMFullscreen"],
       });
+      window.addEventListener("uidensitychanged", this);
 
       this.boundObserve = (...args) => this.observe(...args);
       Services.prefs.addObserver("privacy.userContext", this.boundObserve);
@@ -803,6 +804,12 @@
         gBrowser.tabGroupMenu.openEditModal(this.ariaFocusedItem.group);
         event.preventDefault();
       }
+    }
+
+    on_uidensitychanged() {
+      this._updateCloseButtons();
+      this.#updateTabMinHeight();
+      this._handleTabSelect(true);
     }
 
     // Utilities
@@ -1492,12 +1499,6 @@
         this.removeAttribute("using-closing-tabs-spacer");
         this._closingTabsSpacer.style.width = 0;
       }
-    }
-
-    uiDensityChanged() {
-      this._updateCloseButtons();
-      this.#updateTabMinHeight();
-      this._handleTabSelect(true);
     }
 
     _notifyBackgroundTab(aTab) {

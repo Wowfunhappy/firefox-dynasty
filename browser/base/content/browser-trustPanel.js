@@ -321,6 +321,7 @@ class TrustPanel {
       icon.classList.add("inactive");
     }
 
+    icon.setAttribute("tooltiptext", this.#tooltipText());
     icon.classList.toggle("chickletShown", this.#isSecureInternalUI);
   }
 
@@ -332,10 +333,7 @@ class TrustPanel {
     } else {
       this.#host = "";
     }
-    this.#popup.setAttribute(
-      "connection",
-      this.#isSecurePage() ? "secure" : "not-secure"
-    );
+    this.#popup.setAttribute("connection", this.#connectionState());
     this.#popup.setAttribute(
       "tracking-protection",
       this.#trackingProtectionStatus()
@@ -867,7 +865,7 @@ class TrustPanel {
     if (this.#isEV) {
       let iData = this.#getIdentityData();
       owner = iData.subjectOrg;
-      verifier = this._identityIconLabel.tooltipText;
+      verifier = this.#tooltipText();
 
       // Build an appropriate supplemental block out of whatever location data we have
       if (iData.city) {

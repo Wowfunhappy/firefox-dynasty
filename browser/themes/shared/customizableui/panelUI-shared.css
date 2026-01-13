@@ -2445,9 +2445,14 @@ radiogroup:focus-visible > .subviewradio[focused="true"] {
   width: 400px;
 }
 
+#PanelUI-ipprotection > toolbarseparator {
+  display: none;
+}
+
 #ipprotection-experiment-badge {
   margin-inline-start: var(--space-xsmall);
   display: inline-block;
+  color: var(--text-color-deemphasized);
 }
 
 #ipprotection-header-button {

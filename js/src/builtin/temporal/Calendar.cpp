@@ -28,10 +28,10 @@
 #include <stdint.h>
 
 #include "diplomat_runtime.hpp"
-#include "jsnum.h"
 #include "jstypes.h"
 #include "NamespaceImports.h"
 
+#include "builtin/Number.h"
 #include "builtin/temporal/CalendarFields.h"
 #include "builtin/temporal/Duration.h"
 #include "builtin/temporal/Era.h"

@@ -242,11 +242,7 @@ static void WriteValTo(WasmGcObject* owner, const Val& val, StorageType ty,
       *((V128*)dest) = val.v128();
       break;
     case StorageType::Ref:
-      if (owner->isTenured()) {
-        *((GCPtr<AnyRef>*)dest) = val.ref();
-      } else {
-        *((PreBarriered<AnyRef>*)dest) = val.ref();
-      }
+      BarrieredSet(owner, dest, val.ref());
       break;
   }
 }

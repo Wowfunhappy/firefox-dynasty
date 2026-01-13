@@ -18,7 +18,7 @@
 
 #include "wasm/WasmValue.h"
 
-#include "jsmath.h"
+#include "builtin/Math.h"
 #include "js/friend/ErrorMessages.h"  // JSMSG_*
 #include "js/Printf.h"
 #include "js/Value.h"
@@ -88,11 +88,21 @@ void Val::readFromHeapLocation(const void* loc) {
   memcpy(&cell_, loc, type_.size());
 }
 
-void Val::writeToHeapLocation(void* loc) const {
+void Val::writeToHeapLocation(gc::Cell* owner, void* loc) const {
   if (isAnyRef()) {
-    *((GCPtr<AnyRef>*)loc) = toAnyRef();
+    BarrieredSet(owner, loc, toAnyRef());
     return;
   }
+
+  memcpy(loc, &cell_, type_.size());
+}
+
+void Val::writeToTenuredHeapLocation(void* loc) const {
+  if (isAnyRef()) {
+    BarrieredSet(false, loc, toAnyRef());
+    return;
+  }
+
   memcpy(loc, &cell_, type_.size());
 }
 

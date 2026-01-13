@@ -119,7 +119,7 @@
         TaskbarTabs: "resource:///modules/taskbartabs/TaskbarTabs.sys.mjs",
         UrlbarProviderOpenTabs:
           "moz-src:///browser/components/urlbar/UrlbarProviderOpenTabs.sys.mjs",
-        FaviconUtils: "moz-src:///browser/modules/FaviconUtils.sys.mjs",
+        FaviconUtils: "moz-src:///toolkit/modules/FaviconUtils.sys.mjs",
       });
       ChromeUtils.defineLazyGetter(this, "tabLocalization", () => {
         return new Localization(
@@ -1157,7 +1157,7 @@
           ) {
             // 16px is hardcoded for .tab-icon-image in tabs.css
             let size = Math.floor(16 * window.devicePixelRatio);
-            url = this.FaviconUtils.getMozRemoteImageURL(url, size);
+            url = this.FaviconUtils.getMozRemoteImageURL(url, { size });
           }
           aTab.setAttribute("image", url);
         } else {
@@ -9894,8 +9894,13 @@ var TabContextMenu = {
       );
 
       let pinnedTabs = this.contextTabs.filter(t => t.pinned);
+      let customizeTabs = this.contextTabs.filter(t =>
+        t.hasAttribute("customizemode")
+      );
       contextMoveTabToNewSplitView.disabled =
-        this.contextTabs.length > 2 || pinnedTabs.length;
+        this.contextTabs.length > 2 ||
+        pinnedTabs.length ||
+        customizeTabs.length;
     }
 
     // Only one of Reload_Tab/Reload_Selected_Tabs should be visible.

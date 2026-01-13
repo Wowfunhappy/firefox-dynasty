@@ -24,8 +24,7 @@
 #include <algorithm>
 #include <utility>
 
-#include "jsmath.h"
-
+#include "builtin/Math.h"
 #include "builtin/String.h"
 #include "gc/Barrier.h"
 #include "gc/Marking.h"
@@ -1619,18 +1618,9 @@ static bool ArrayCopyFromElem(JSContext* cx, Handle<WasmArrayObject*> arrayObj,
     return false;
   }
 
-  auto copyElements = [&](auto* dst) {
-    for (uint32_t i = 0; i < numElements; i++) {
-      dst[arrayIndex + i] = seg[segOffset + i];
-    }
-  };
-
-  if (arrayObj->isTenured()) {
-    copyElements(reinterpret_cast<GCPtr<AnyRef>*>(arrayObj->data_));
-  } else {
-    copyElements(reinterpret_cast<PreBarriered<AnyRef>*>(arrayObj->data_));
-  }
-
+  AnyRef* dst = reinterpret_cast<AnyRef*>(arrayObj->data_) + arrayIndex;
+  AnyRef* src = seg.begin()->unbarrieredAddress() + segOffset;
+  BarrieredCopyRange(arrayObj, dst, src, numElements);
   return true;
 }
 
@@ -1914,20 +1904,7 @@ static bool ArrayCopyFromElem(JSContext* cx, Handle<WasmArrayObject*> arrayObj,
   }
 
   AnyRef* src = (AnyRef*)srcBase;
-  // Using std::copy will call set() on the barrier wrapper under the hood.
-  auto copyElements = [&](auto* dst) {
-    if (uintptr_t(dst) < uintptr_t(src)) {
-      std::copy(src, src + numElements, dst);
-    } else {
-      std::copy_backward(src, src + numElements, dst + numElements);
-    }
-  };
-
-  if (dstArrayObj->isTenured()) {
-    copyElements((GCPtr<AnyRef>*)dstBase);
-  } else {
-    copyElements((PreBarriered<AnyRef>*)dstBase);
-  }
+  BarrieredMoveRange(dstArrayObj, dstBase, src, numElements);
 
   return 0;
 }
@@ -2620,6 +2597,11 @@ bool Instance::init(JSContext* cx, const JSObjectVector& funcImports,
   }
 #endif
 
+  // We use writeToTenuredHeapLocation below as WasmInstanceObject is always
+  // tenured.
+  Rooted<WasmInstanceObject*> instanceObj(cx, object());
+  MOZ_ASSERT(instanceObj->isTenured());
+
   // Initialize globals in the instance data.
   //
   // This must be performed after we have initialized runtime types as a global
@@ -2647,14 +2629,13 @@ bool Instance::init(JSContext* cx, const JSObjectVector& funcImports,
           *(void**)globalAddr =
               (void*)&globalObjs[imported]->val().get().cell();
         } else {
-          globalImportValues[imported].writeToHeapLocation(globalAddr);
+          globalImportValues[imported].writeToTenuredHeapLocation(globalAddr);
         }
         break;
       }
       case GlobalKind::Variable: {
         RootedVal val(cx);
         const InitExpr& init = global.initExpr();
-        Rooted<WasmInstanceObject*> instanceObj(cx, object());
         if (!init.evaluate(cx, instanceObj, &val)) {
           return false;
         }
@@ -2666,7 +2647,7 @@ bool Instance::init(JSContext* cx, const JSObjectVector& funcImports,
           // Link to the cell
           *(void**)globalAddr = globalObjs[i]->addressOfCell();
         } else {
-          val.get().writeToHeapLocation(globalAddr);
+          val.get().writeToTenuredHeapLocation(globalAddr);
         }
         break;
       }
