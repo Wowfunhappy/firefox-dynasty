@@ -94,8 +94,6 @@ class nsCSSPseudoElements {
 
   static bool EnabledInContent(Type aType) {
     switch (aType) {
-      case Type::highlight:
-        return mozilla::StaticPrefs::dom_customHighlightAPI_enabled();
       case Type::targetText:
         return mozilla::StaticPrefs::dom_text_fragments_enabled();
       case Type::sliderTrack:

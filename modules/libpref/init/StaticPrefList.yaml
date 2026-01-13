@@ -2615,13 +2615,6 @@
   value: true
   mirror: always
 
-# Disable custom highlight API; implementation pending.
-- name: dom.customHighlightAPI.enabled
-  type: RelaxedAtomicBool
-  value: true
-  mirror: always
-  rust: true
-
 # Allow control characters appear in composition string.
 # When this is false, control characters except
 # CHARACTER TABULATION (horizontal tab) are removed from
