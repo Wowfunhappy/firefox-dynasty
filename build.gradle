@@ -527,10 +527,31 @@ subprojects { project ->
     }
 }
 
+// These are convenience helpers to run lints over all the subprojects
+def mobileProjects = [":fenix", ":focus-android", ":android-components"]
+tasks.register("lint") {
+    group = "verification"
+    description = "Runs lint on all mobile projects."
+    mobileProjects.each { dependsOn "${it}:lint" }
+}
+tasks.register("ktlint") {
+    group = "verification"
+    description = "Runs ktlint on all mobile projects."
+    mobileProjects.each { dependsOn "${it}:ktlint" }
+}
+tasks.register("ktlintFormat") {
+    group = "formatting"
+    description = "Runs ktlintFormat on all mobile projects."
+    mobileProjects.each { dependsOn "${it}:ktlintFormat" }
+}
+tasks.named("detekt").configure {
+    // NOTE: We are replacing the default 'detekt' task.
+    description = "Runs detekt on all mobile projects."
+    mobileProjects.each { dependsOn "${it}:detekt" }
+}
+
 tasks.register("lint-a-c") {
-    subprojects.each{
-        if (it.tasks.findByName("lint") != null && it.projectDir.absolutePath.contains("android-components")) {
-            dependsOn it.tasks.named("lint")
-        }
-    }
+    group = "verification"
+    description = "(Deprecated) alias for :android-components:lint"
+    dependsOn ":android-components:lint"
 }

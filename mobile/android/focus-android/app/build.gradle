@@ -715,3 +715,24 @@ afterEvaluate {
         }
     }
 }
+
+tasks.register("ktlint", Exec) {
+    group = "verification"
+    description = "Check Kotlin code style."
+    workingDir file("${gradle.mozconfig.topsrcdir}")
+    commandLine "./mach", "gradle", "-p", "mobile/android/focus-android", ":ktlint"
+}
+
+tasks.register("ktlintFormat", Exec) {
+    group = "formatting"
+    description = "Fix Kotlin code style deviations."
+    workingDir file("${gradle.mozconfig.topsrcdir}")
+    commandLine "./mach", "gradle", "-p", "mobile/android/focus-android", ":ktlintFormat"
+}
+
+tasks.register("detekt", Exec) {
+    group = "verification"
+    description = "Run detekt static analysis."
+    workingDir file("${gradle.mozconfig.topsrcdir}")
+    commandLine "./mach", "gradle", "-p", "mobile/android/focus-android", ":detekt"
+}

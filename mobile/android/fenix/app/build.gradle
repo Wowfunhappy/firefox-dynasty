@@ -938,3 +938,24 @@ tasks.withType(DependencyTask).configureEach { task ->
     // make the dependency task depend on its cleanup task.
     task.dependsOn(tasks.named(cleanUpTaskName))
 }
+
+tasks.register("ktlint", Exec) {
+    group = "verification"
+    description = "Check Kotlin code style."
+    workingDir file("${gradle.mozconfig.topsrcdir}")
+    commandLine "./mach", "gradle", "-p", "mobile/android/fenix", ":ktlint"
+}
+
+tasks.register("ktlintFormat", Exec) {
+    group = "formatting"
+    description = "Fix Kotlin code style deviations."
+    workingDir file("${gradle.mozconfig.topsrcdir}")
+    commandLine "./mach", "gradle", "-p", "mobile/android/fenix", ":ktlintFormat"
+}
+
+tasks.register("detekt", Exec) {
+    group = "verification"
+    description = "Run detekt static analysis."
+    workingDir file("${gradle.mozconfig.topsrcdir}")
+    commandLine "./mach", "gradle", "-p", "mobile/android/fenix", ":detekt"
+}
