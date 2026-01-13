@@ -1126,8 +1126,8 @@ Tester.prototype = {
 
       this.structuredLogger.testEnd(
         this.currentTest.path,
-        "OK",
-        undefined,
+        this.currentTest.failCount > 0 ? "FAIL" : "PASS",
+        "PASS",
         "finished in " + time + "ms"
       );
       this.currentTest.setDuration(time);

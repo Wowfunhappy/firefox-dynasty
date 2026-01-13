@@ -69,17 +69,13 @@ export class StructuredLogger {
   testEnd(
     test,
     status,
-    expected = "OK",
+    expected = "PASS",
     message = null,
     stack = null,
     extra = null
   ) {
     var data = { test: this.#testId(test), status };
 
-    // handle case: known fail
-    if (expected === status && status != "SKIP") {
-      data.status = "OK";
-    }
     if (expected != status && status != "SKIP") {
       data.expected = expected;
     }
