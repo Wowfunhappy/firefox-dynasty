@@ -1975,11 +1975,11 @@ static bool CalendarFieldEraYearMatchesYear(JSContext* cx, CalendarId calendar,
 
   // The user requested year must match the actual (extended/epoch) year.
   if (intYear != yearFromEraYear) {
-    ToCStringBuf yearCbuf;
-    const char* yearStr = NumberToCString(&yearCbuf, intYear);
+    Int32ToCStringBuf yearCbuf;
+    const char* yearStr = Int32ToCString(&yearCbuf, intYear);
 
-    ToCStringBuf fromEraCbuf;
-    const char* fromEraStr = NumberToCString(&fromEraCbuf, yearFromEraYear);
+    Int32ToCStringBuf fromEraCbuf;
+    const char* fromEraStr = Int32ToCString(&fromEraCbuf, yearFromEraYear);
 
     JS_ReportErrorNumberASCII(cx, GetErrorMessage, nullptr,
                               JSMSG_TEMPORAL_CALENDAR_INCOMPATIBLE_YEAR,
