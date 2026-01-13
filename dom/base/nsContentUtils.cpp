@@ -821,6 +821,15 @@ static bool AreNodesInSameSlot(const nsINode* aNode1, const nsINode* aNode2) {
   return false;
 }
 
+static bool ChildNodeIsInShadowDOMHostedByParent(const nsINode* aParent,
+                                                 const nsINode* aChild) {
+  ShadowRoot* const shadowRoot = aParent->GetShadowRoot();
+  if (!shadowRoot) {
+    return false;
+  }
+  return shadowRoot == aChild->GetContainingShadow();
+}
+
 template <TreeKind aKind,
           typename = std::enable_if_t<aKind == TreeKind::ShadowIncludingDOM ||
                                       aKind == TreeKind::Flat>>
@@ -3641,12 +3650,14 @@ Maybe<int32_t> nsContentUtils::ComparePointsWithIndices(
   }
 
   if (closestCommonAncestorChild2) {
+    // aParent1 is the common ancestor.
     MOZ_ASSERT(GetParentFuncForComparison<aKind>(closestCommonAncestorChild2) ==
                aParent1);
-    if (aParent1->GetShadowRoot() == closestCommonAncestorChild2) {
+    if (ChildNodeIsInShadowDOMHostedByParent(aParent1,
+                                             closestCommonAncestorChild2)) {
       // Comparing a shadow host with its shadow root.
-      // We consider: [aParent1, 0] < closestCommonAncestorChild2 < [aParent1,
-      // 1]
+      // We consider:
+      // [aParent1, 0] < closestCommonAncestorChild2 < [aParent1, 1]
       return aOffset1 > 0 ? Some(1) : Some(-1);
     }
 
@@ -3677,15 +3688,17 @@ Maybe<int32_t> nsContentUtils::ComparePointsWithIndices(
     return comp;
   }
 
-  if (aParent2->GetShadowRoot() == closestCommonAncestorChild1) {
+  // aParent2 is the common ancestor.
+  MOZ_ASSERT(closestCommonAncestorChild1);
+  MOZ_ASSERT(GetParentFuncForComparison<aKind>(closestCommonAncestorChild1) ==
+             aParent2);
+  if (ChildNodeIsInShadowDOMHostedByParent(aParent2,
+                                           closestCommonAncestorChild1)) {
     // Comparing a shadow host with its shadow root.
     // We consider: [aParent2, 0] < closestCommonAncestorChild1 < [aParent2, 1]
     return aOffset2 > 0 ? Some(-1) : Some(1);
   }
 
-  MOZ_ASSERT(closestCommonAncestorChild1);
-  MOZ_ASSERT(GetParentFuncForComparison<aKind>(closestCommonAncestorChild1) ==
-             aParent2);
   // FIXME: bug 1946001, bug 1946003 and bug 1946008.
   if (MOZ_UNLIKELY(
           closestCommonAncestorChild1->IsRootOfNativeAnonymousSubtree() ||
