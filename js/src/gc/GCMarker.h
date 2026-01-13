@@ -576,6 +576,9 @@ class GCMarker {
 
   void delayMarkingChildrenOnOOM(gc::Cell* cell);
 
+  // Called by stop() and reset().
+  void deactivate();
+
   /*
    * The JSTracer used for marking. This can change depending on the current
    * state.

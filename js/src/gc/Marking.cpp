@@ -2247,6 +2247,18 @@ static void ClearEphemeronEdges(JSRuntime* rt) {
   }
 }
 
+void GCMarker::deactivate() {
+  MOZ_ASSERT(markColor() == MarkColor::Black);
+  MOZ_ASSERT(!haveSwappedStacks);
+
+  state = NotActive;
+
+  MOZ_ASSERT(isDrained());
+  ClearEphemeronEdges(runtime());
+  otherStack.clearAndFreeStack();
+  unmarkGrayStack.clearAndFree();
+}
+
 void GCMarker::stop() {
   MOZ_ASSERT(isDrained());
   MOZ_ASSERT(markColor() == MarkColor::Black);
@@ -2255,25 +2267,14 @@ void GCMarker::stop() {
   if (state == NotActive) {
     return;
   }
-  state = NotActive;
 
-  otherStack.clearAndFreeStack();
-  ClearEphemeronEdges(runtime());
-  unmarkGrayStack.clearAndFree();
+  deactivate();
 }
 
 void GCMarker::reset() {
-  state = NotActive;
-
   stack.clearAndResetCapacity();
-  otherStack.clearAndFreeStack();
-  ClearEphemeronEdges(runtime());
-  MOZ_ASSERT(isDrained());
-
   setMarkColor(MarkColor::Black);
-  MOZ_ASSERT(!haveSwappedStacks);
-
-  unmarkGrayStack.clearAndFree();
+  deactivate();
 }
 
 void GCMarker::setMarkColor(gc::MarkColor newColor) {
