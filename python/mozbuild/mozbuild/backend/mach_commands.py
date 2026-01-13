@@ -154,7 +154,6 @@ def setup_vscode_or_vscodium(ide, command_context, interactive):
     new_settings = {
         **new_settings,
         "files.associations": {
-            "*.jsm": "javascript",
             "*.sjs": "javascript",
         },
         "files.exclude": {"obj-*": True, relobjdir: True},
