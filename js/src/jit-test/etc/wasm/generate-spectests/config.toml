@@ -12,16 +12,18 @@ excluded_tests = [
 [[repos]]
 name = "spec"
 url = "https://github.com/WebAssembly/spec"
-branch = "wasm-3.0"
+branch = "main"
 excluded_tests = []
 directive = "; test-also=--no-avx; skip-variant-if: --no-avx, !getBuildConfiguration('x86') && !getBuildConfiguration('x64') || getBuildConfiguration('simulator')"
 
 [[repos]]
 name = "threads"
 url = "https://github.com/WebAssembly/threads"
-# As of this writing, the main branch is "miserably out of date":
+# As of 2023, the main branch was "miserably out of date":
 # https://github.com/WebAssembly/threads/issues/198
-branch = "upstream-rebuild"
+# Now in 2025, main has been forcibly moved to upstream-rebuild, and the
+# upstream-rebuild branch deleted. So I guess we are on main now.
+branch = "main"
 parent = "spec"
 excluded_tests = [
   # tests that are unrelated and out of date
