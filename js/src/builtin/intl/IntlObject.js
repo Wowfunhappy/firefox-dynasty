@@ -28,33 +28,25 @@ function Intl_getCalendarInfo(locales) {
   // 1. Let requestLocales be ? CanonicalizeLocaleList(locales).
   var requestedLocales = CanonicalizeLocaleList(locales);
 
-  var DateTimeFormat = dateTimeFormatInternalProperties;
-
-  // 2. Let localeData be %DateTimeFormat%.[[localeData]].
-  var localeData = DateTimeFormat.localeData;
-
-  // 3. Let localeOpt be a new Record.
+  // 2. Let localeOpt be a new Record.
   var localeOpt = NEW_RECORD();
 
-  // 4. Set localeOpt.[[localeMatcher]] to "best fit".
+  // 3. Set localeOpt.[[localeMatcher]] to "best fit".
   localeOpt.localeMatcher = "best fit";
 
-  // 5. Let r be ResolveLocale(%DateTimeFormat%.[[availableLocales]],
-  //    requestedLocales, localeOpt,
-  //    %DateTimeFormat%.[[relevantExtensionKeys]], localeData).
-  var r = ResolveLocale(
+  // 4. Let r be ResolveLocale(%DateTimeFormat%.[[availableLocales]],
+  //    requestedLocales, localeOpt).
+  var r = intl_ResolveLocale(
     "DateTimeFormat",
     requestedLocales,
     localeOpt,
-    DateTimeFormat.relevantExtensionKeys,
-    localeData
   );
 
-  // 6. Let result be GetCalendarInfo(r.[[locale]]).
+  // 5. Let result be GetCalendarInfo(r.[[locale]]).
   var result = intl_GetCalendarInfo(r.locale);
   DefineDataProperty(result, "calendar", r.ca);
   DefineDataProperty(result, "locale", r.locale);
 
-  // 7. Return result.
+  // 6. Return result.
   return result;
 }
