@@ -46,24 +46,12 @@ skip-if = [
 ["browser_privatebrowsing_about_focus_promo.js"]
 
 ["browser_privatebrowsing_about_nimbus.js"]
-skip-if = [
-  "true", # Bug 2009869
-]
 
 ["browser_privatebrowsing_about_nimbus_dismiss.js"]
-skip-if = [
-  "true", # Bug 2009869
-]
 
 ["browser_privatebrowsing_about_nimbus_impressions.js"]
-skip-if = [
-  "true", # Bug 2009869
-]
 
 ["browser_privatebrowsing_about_nimbus_messaging.js"]
-skip-if = [
-  "true", # Bug 2009869
-]
 
 ["browser_privatebrowsing_about_search_banner.js"]
 
