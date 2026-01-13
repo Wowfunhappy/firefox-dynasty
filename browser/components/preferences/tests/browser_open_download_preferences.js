@@ -41,7 +41,7 @@ async function selectItemInPopup(item, list) {
   await popupShown;
   let popupHidden = BrowserTestUtils.waitForEvent(popup, "popuphidden");
 
-  item.doCommand();
+  item.click();
   popup.hidePopup();
   await popupHidden;
   return item;
