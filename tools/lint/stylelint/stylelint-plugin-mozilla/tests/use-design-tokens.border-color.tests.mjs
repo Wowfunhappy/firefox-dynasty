@@ -328,6 +328,45 @@ testRule({
       description:
         "1px solid var(--custom-token) should use a border-color design token.",
     },
+    {
+      code: ".a { border-color: FieldText; }",
+      message: messages.rejected("FieldText", [
+        "border-color",
+        "border",
+        "outline",
+      ]),
+      description: "FieldText should use a border-color design token.",
+    },
+    {
+      code: ".a { border-color: ButtonBorder; }",
+      message: messages.warning("ButtonBorder", "var(--button-border-color)"),
+      description:
+        "ButtonBorder should use var(--button-border-color) instead.",
+    },
+    {
+      code: `
+        :root { --custom-token: ButtonBorder; }
+        .a { border: var(--border-width) solid var(--custom-token); }
+      `,
+      message: messages.warning(
+        "var(--border-width) solid var(--custom-token), which resolves to var(--border-width) solid ButtonBorder,",
+        "var(--border-width) solid var(--button-border-color)"
+      ),
+      description:
+        "var(--border-width) solid var(--custom-token) should use a border-color design token.",
+    },
+    {
+      code: `
+        :root { --fallback-token: ButtonBorder; }
+        .a { border: var(--border-width) solid var(--custom-token, var(--fallback-token)); }
+      `,
+      message: messages.warning(
+        "var(--border-width) solid var(--custom-token, var(--fallback-token)), which resolves to var(--border-width) solid ButtonBorder,",
+        "var(--border-width) solid var(--button-border-color)"
+      ),
+      description:
+        "var(--border-width) solid var(--custom-token, var(--fallback-token)) should use a border-color design token.",
+    },
   ],
 });
 

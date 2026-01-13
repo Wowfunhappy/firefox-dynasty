@@ -98,8 +98,12 @@ testRule({
     },
     {
       code: ".a { color: AccentColorText; }",
-      message: messages.rejected("AccentColorText", ["text-color"]),
-      description: "AccentColorText should use a text-color design token.",
+      message: messages.warning(
+        "AccentColorText",
+        "var(--button-text-color-primary)"
+      ),
+      description:
+        "AccentColorText should use var(--button-text-color-primary).",
     },
     {
       code: ".a { color: var(--random-color, #000); }",
@@ -144,6 +148,38 @@ testRule({
       ),
       description:
         "color-mix inside a light-dark function should use a text-color design token.",
+    },
+    {
+      code: ".a { color: FieldText; }",
+      message: messages.rejected("FieldText", ["text-color"]),
+      description: "FieldText should use a text-color design token.",
+    },
+    {
+      code: ".a { color: ButtonText; }",
+      message: messages.warning("ButtonText", "var(--button-text-color)"),
+      description: "ButtonText should use var(--button-text-color) instead.",
+    },
+    {
+      code: `
+        :root { --custom-token: CanvasText; }
+        .a { color: var(--custom-token); }
+      `,
+      message: messages.warning(
+        "var(--custom-token), which resolves to CanvasText,",
+        "var(--text-color)"
+      ),
+      description: "CanvasText should use var(--text-color) instead.",
+    },
+    {
+      code: `
+        :root { --fallback-token: CanvasText; }
+        .a { color: var(--custom-token, var(--fallback-token)); }
+      `,
+      message: messages.warning(
+        "var(--custom-token, var(--fallback-token)), which resolves to CanvasText,",
+        "var(--text-color)"
+      ),
+      description: "CanvasText should use var(--text-color) instead.",
     },
   ],
 });

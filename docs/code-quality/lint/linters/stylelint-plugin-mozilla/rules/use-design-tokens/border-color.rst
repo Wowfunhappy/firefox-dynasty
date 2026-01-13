@@ -231,3 +231,24 @@ appropriate color names. Examples of autofixable violations:
   .a {
     border-color: black;
   }
+
+System Colors
+-------------
+
+Using system colors, especially for forced colors or high contrast, is allowed.
+However, it may be better to use a design system token that already accounts for
+those situations and avoid needing the extra media query.
+
+.. code-block:: css
+
+  /* Good */
+  @media (prefers-contrast) {
+    .a {
+      border-color: ButtonBorder;
+    }
+  }
+
+  /* Better */
+  .a {
+    border-color: var(--button-border-color);
+  }

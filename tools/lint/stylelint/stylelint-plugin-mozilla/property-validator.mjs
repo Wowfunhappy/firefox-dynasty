@@ -36,6 +36,8 @@ export class PropertyValidator {
   allowUnits;
   /** @type {Record<string, string>} */
   customFixes;
+  /** @type {Record<string, string>} */
+  customSuggestions;
 
   constructor(config) {
     this.config = config;
@@ -61,13 +63,18 @@ export class PropertyValidator {
       .map(type => type.customFixes)
       .filter(Boolean)
       .reduce((acc, fixes) => ({ ...acc, ...fixes }), {});
+    this.customSuggestions = this.config.validTypes
+      .map(type => type.customSuggestions)
+      .filter(Boolean)
+      .reduce((acc, fixes) => ({ ...acc, ...fixes }), {});
   }
 
-  getFixedValue(parsedValue) {
+  getFixedValue(value, lookupMap = {}) {
+    const parsedValue = valueParser(value);
     let hasFixes = false;
     parsedValue.walk(node => {
       if (node.type == "word") {
-        const token = this.customFixes[node.value.trim().toLowerCase()];
+        const token = lookupMap[node.value.trim().toLowerCase()];
         if (token) {
           hasFixes = true;
           node.value = token;
@@ -224,5 +231,30 @@ export class PropertyValidator {
         valueParser(localVar).nodes.every(n => this.isValidNode(n))) ||
       (fallback && this.isValidNode(fallback))
     );
+  }
+
+  // Find local var uses and replace them with the locally defined value
+  getResolvedValue(value) {
+    let resolvedValue = value;
+    const pattern = /var\(([\-a-z\d]+)(,\s?var\([\-a-z\d]+\))?\)/gi;
+    const matches = [...value.matchAll(pattern)];
+    matches.forEach(([match, varName, fallbackVar]) => {
+      const localVar = this.localVars[varName];
+      if (localVar) {
+        resolvedValue = resolvedValue.replace(match, localVar);
+        return;
+      }
+
+      if (fallbackVar) {
+        const fallbackVarValue = this.getResolvedValue(
+          fallbackVar.replace(/,\s+/, "")
+        );
+        if (fallbackVarValue) {
+          resolvedValue = resolvedValue.replace(match, fallbackVarValue);
+        }
+      }
+    });
+
+    return resolvedValue;
   }
 }

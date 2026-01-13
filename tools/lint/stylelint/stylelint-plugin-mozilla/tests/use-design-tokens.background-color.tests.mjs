@@ -206,7 +206,6 @@ testRule({
       description: "Using color-mix() with valid token and keyword is valid.",
     },
   ],
-
   reject: [
     {
       code: ".bg { background-color: #666; }",
@@ -242,8 +241,14 @@ testRule({
     },
     {
       code: ".bg { background-color: ButtonFace; }",
-      message: messages.rejected("ButtonFace", ["background-color"]),
-      description: "ButtonFace should use a background-color design token.",
+      message: messages.warning("ButtonFace", "var(--button-background-color)"),
+      description:
+        "ButtonFace should use var(--button-background-color) instead.",
+    },
+    {
+      code: ".bg { background-color: Field; }",
+      message: messages.rejected("Field", ["background-color"]),
+      description: "Field should use a background-color design token.",
     },
     {
       code: ".bg { background-color: var(--random-token, oklch(69% 0.19 15)); }",
@@ -261,6 +266,41 @@ testRule({
       message: messages.rejected("var(--custom-token)", ["background-color"]),
       description:
         "var(--custom-token) should use a background-color design token.",
+    },
+    {
+      code: `
+        :root { --fallback-token: #666; }
+        .bg { background-color: var(--custom-token, var(--fallback-token)); }
+      `,
+      message: messages.rejected("var(--custom-token, var(--fallback-token))", [
+        "background-color",
+      ]),
+      description:
+        "var(--custom-token, var(--fallback-token)) should use a background-color design token.",
+    },
+    {
+      code: `
+        :root { --custom-token: ButtonFace; }
+        .bg { background-color: var(--custom-token); }
+      `,
+      message: messages.warning(
+        "var(--custom-token), which resolves to ButtonFace,",
+        "var(--button-background-color)"
+      ),
+      description:
+        "Locally defined variables using system colors should be warnings.",
+    },
+    {
+      code: `
+        :root { --fallback-token: ButtonFace; }
+        .bg { background-color: var(--custom-token, var(--fallback-token)); }
+      `,
+      message: messages.warning(
+        "var(--custom-token, var(--fallback-token)), which resolves to ButtonFace,",
+        "var(--button-background-color)"
+      ),
+      description:
+        "Locally defined variables using system colors should be warnings.",
     },
     {
       code: ".bg { background: #666; }",
@@ -382,14 +422,11 @@ testRule({
     },
     {
       code: ".bg { background: url('image.png') Canvas; }",
-      message: messages.rejected("url('image.png') Canvas", [
-        "background-color",
-        "size",
-        "space",
-        "icon-size",
-      ]),
-      description:
-        "url('image.png') Canvas should use a background design token.",
+      message: messages.warning(
+        "url('image.png') Canvas",
+        "url('image.png') var(--background-color-canvas)"
+      ),
+      description: "Canvas should use var(--background-color-canvas) instead.",
     },
     {
       code: `
@@ -437,6 +474,33 @@ testRule({
         "background-color",
       ]),
       description: "color-mix() with invalid second color should be rejected.",
+    },
+    {
+      code: ".bg { background-color: color-mix(in srgb, ButtonFace 10%, #fff); }",
+      message: messages.rejected(
+        "color-mix(in srgb, ButtonFace 10%, #fff)",
+        ["background-color"],
+        "color-mix(in srgb, ButtonFace 10%, white)"
+      ),
+      description:
+        "Fixable errors in values with multiple problems should be prioritized.",
+    },
+    {
+      code: ".bg { background-color: color-mix(in srgb, ButtonFace 10%, white); }",
+      message: messages.warning(
+        "color-mix(in srgb, ButtonFace 10%, white)",
+        "color-mix(in srgb, var(--button-background-color) 10%, white)"
+      ),
+      description:
+        "Warnings should be reported after autofixable problems have been fixed.",
+    },
+    {
+      code: ".bg { background-color: color-mix(in srgb, ButtonFace 10%, #ccc); }",
+      message: messages.rejected("color-mix(in srgb, ButtonFace 10%, #ccc)", [
+        "background-color",
+      ]),
+      description:
+        "When a warning and non-autofixable error appear in the same value, prioritize the error.",
     },
   ],
 });

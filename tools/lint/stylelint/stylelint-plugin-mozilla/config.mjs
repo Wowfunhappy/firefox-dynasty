@@ -13,6 +13,7 @@ import { createRawValuesObject } from "./helpers.mjs";
  * @property {string[]} [allowFunctions] Allowed CSS function names (e.g., "url", "linear-gradient")
  * @property {boolean} [allowUnits] Whether values with CSS units (e.g., "10px", "50%") are allowed
  * @property {Record<string, string>} [customFixes] Map of raw values to their token replacements for autofix
+ * @property {Record<string, string>} [customSuggestions] Map of raw values to their token replacements for suggested fixes
  */
 
 const customColorFixes = {
@@ -20,6 +21,52 @@ const customColorFixes = {
   "#000000": "black",
   "#fff": "white",
   "#ffffff": "white",
+};
+
+const systemColorSuggestions = {
+  accentcolor: "var(--color-accent-primary)",
+  accentcolortext: "var(--button-text-color-primary)",
+  activetext: "var(--link-color-active)",
+  buttonborder: "var(--button-border-color)",
+  buttonface: "var(--button-background-color)",
+  buttontext: "var(--button-text-color)",
+  canvas: "var(--background-color-canvas)",
+  canvastext: "var(--text-color)",
+  field: null,
+  fieldtext: null,
+  graytext: "var(--text-color-disabled)",
+  highlight: null,
+  highlighttext: null,
+  linktext: "var(--link-color)",
+  mark: null,
+  marktext: null,
+  selecteditem: "var(--color-accent-primary-selected)",
+  selecteditemtext: "var(--text-color-accent-primary-selected)",
+  visitedtext: "var(--link-color-visited)",
+  // deprecated system colors, point to the same tokens as their modern equivalents
+  activeborder: "var(--button-border-color)",
+  activecaption: "var(--background-color-canvas)",
+  appworkspace: "var(--background-color-canvas)",
+  background: "var(--background-color-canvas)",
+  buttonhighlight: "var(--button-background-color)",
+  buttonshadow: "var(--button-background-color)",
+  captiontext: "var(--text-color)",
+  inactiveborder: "var(--button-border-color)",
+  inactivecaption: "var(--background-color-canvas)",
+  inactivecaptiontext: "var(--text-color-disabled)",
+  infobackground: "var(--background-color-canvas)",
+  infotext: "var(--text-color)",
+  menu: "var(--background-color-canvas)",
+  menutext: "var(--text-color)",
+  scrollbar: "var(--background-color-canvas)",
+  threeddarkshadow: "var(--button-border-color)",
+  threedface: "var(--button-background-color)",
+  threedhighlight: "var(--button-border-color)",
+  threedlightshadow: "var(--button-border-color)",
+  threedshadow: "var(--button-border-color)",
+  window: "var(--background-color-canvas)",
+  windowframe: "var(--button-border-color)",
+  windowtext: "var(--text-color)",
 };
 
 /** @type {PropertyTypeConfig} */
@@ -35,6 +82,7 @@ const BackgroundColor = {
   ],
   tokenTypes: ["background-color"],
   customFixes: customColorFixes,
+  customSuggestions: systemColorSuggestions,
 };
 
 /** @type {PropertyTypeConfig} */
@@ -136,6 +184,7 @@ const BorderColor = {
   ],
   tokenTypes: ["border-color", "border", "outline"],
   customFixes: customColorFixes,
+  customSuggestions: systemColorSuggestions,
 };
 
 /** @type {PropertyTypeConfig} */
@@ -173,6 +222,7 @@ const TextColor = {
   allow: ["currentColor", "white", "black"],
   tokenTypes: ["text-color"],
   customFixes: customColorFixes,
+  customSuggestions: systemColorSuggestions,
 };
 
 /** @type {PropertyTypeConfig} */

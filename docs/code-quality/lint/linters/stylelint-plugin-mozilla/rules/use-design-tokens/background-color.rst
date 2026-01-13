@@ -182,3 +182,24 @@ appropriate color names. Examples of autofixable violations:
   .custom-background {
     background: url('image.png') white;
   }
+
+System Colors
+-------------
+
+Using system colors, especially for forced colors or high contrast, is allowed.
+However, it may be better to use a design system token that already accounts for
+those situations and avoid needing the extra media query.
+
+.. code-block:: css
+
+  /* Good */
+  @media (prefers-contrast) {
+    .custom-background {
+      background-color: ButtonFace;
+    }
+  }
+
+  /* Better */
+  .custom-background {
+    background-color: var(--button-background-color);
+  }
