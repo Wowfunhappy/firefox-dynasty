@@ -11,8 +11,6 @@
 #include "nsStringFwd.h"
 #include "nsStringIterator.h"
 
-#include <string.h>
-
 #include "nsStringFlags.h"
 #include "nsTStringRepr.h"
 #include "nsTSubstring.h"
