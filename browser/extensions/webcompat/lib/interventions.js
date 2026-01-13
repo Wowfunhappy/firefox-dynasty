@@ -25,6 +25,8 @@ class Interventions {
 
     this._readyPromise = new Promise(done => (this._resolveReady = done));
 
+    this._appVersion = browser.appConstants.getAppVersion();
+
     this._disabledPrefListeners = {};
 
     this._availableInterventions = this._reformatSourceJSON(
@@ -190,14 +192,11 @@ class Interventions {
 
     const skipped = [];
 
-    const channel = await browser.appConstants.getEffectiveUpdateChannel();
-    const version =
-      this.versionForTesting ??
-      (await browser.runtime.getBrowserInfo()).version;
+    const channel = browser.appConstants.getEffectiveUpdateChannel();
+    const version = this.versionForTesting ?? this._appVersion;
     const cleanVersion = parseFloat(version.match(/\d+(\.\d+)?/)[0]);
 
-    const os = await InterventionHelpers.getOS();
-    this.currentPlatform = os;
+    this.currentPlatform = InterventionHelpers.getOS();
 
     const customFunctionNames = new Set(Object.keys(this._customFunctions));
 
@@ -259,7 +258,7 @@ class Interventions {
         ) {
           continue;
         }
-        if (!(await InterventionHelpers.checkPlatformMatches(intervention))) {
+        if (!InterventionHelpers.checkPlatformMatches(intervention)) {
           // special case: allow platforms=[] to indicate "disabled by default"
           if (
             intervention.platforms &&
@@ -359,8 +358,8 @@ class Interventions {
         );
         contentScriptsToRegister.push(...contentScriptsForIntervention);
       }
-      await this._enableUAOverrides(label, intervention, matches);
-      await this._enableRequestBlocks(label, intervention, blocks);
+      this._enableUAOverrides(label, intervention, matches);
+      this._enableRequestBlocks(label, intervention, blocks);
       somethingWasEnabled = true;
       intervention.enabled = true;
     }
@@ -438,7 +437,7 @@ class Interventions {
     }
   }
 
-  async _enableUAOverrides(label, intervention, matches) {
+  _enableUAOverrides(label, intervention, matches) {
     if (!("ua_string" in intervention)) {
       return;
     }
@@ -494,7 +493,7 @@ class Interventions {
     debugLog(`Enabled UA override for ${label}`);
   }
 
-  async _enableRequestBlocks(label, intervention, blocks) {
+  _enableRequestBlocks(label, intervention, blocks) {
     if (!blocks.length) {
       return;
     }

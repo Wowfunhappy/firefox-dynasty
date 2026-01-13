@@ -16,27 +16,23 @@ const loggingPrefValue = browser.aboutConfigPrefs.getPref(
   "disable_debug_logging"
 );
 
-const releaseBranchPromise = browser.appConstants.getReleaseBranch();
+const releaseBranch = browser.appConstants.getReleaseBranch();
 
-const platformPromise = browser.runtime.getPlatformInfo().then(info => {
-  return info.os === "android" ? "android" : "desktop";
-});
+const platform =
+  browser.appConstants.getPlatform() === "android" ? "android" : "desktop";
 
 let debug = async function () {
-  if (
-    loggingPrefValue !== true &&
-    (await releaseBranchPromise) !== "release_or_beta"
-  ) {
+  if (loggingPrefValue !== true && releaseBranch !== "release_or_beta") {
     console.debug.apply(this, arguments);
   }
 };
 let error = async function () {
-  if ((await releaseBranchPromise) !== "release_or_beta") {
+  if (releaseBranch !== "release_or_beta") {
     console.error.apply(this, arguments);
   }
 };
 let warn = async function () {
-  if ((await releaseBranchPromise) !== "release_or_beta") {
+  if (releaseBranch !== "release_or_beta") {
     console.warn.apply(this, arguments);
   }
 };
@@ -138,30 +134,27 @@ class Shim {
     }, pref);
 
     this._disabledPrefValue = browser.aboutConfigPrefs.getPref(pref);
-    this.ready = Promise.all([platformPromise, releaseBranchPromise]).then(
-      ([platform, branch]) => {
-        this._disabledByPlatform =
-          this.platform !== "all" && this.platform !== platform;
 
-        this._disabledByReleaseBranch = false;
-        for (const supportedBranchAndPlatform of this.branches || []) {
-          const [supportedBranch, supportedPlatform] =
-            supportedBranchAndPlatform.split(":");
-          if (
-            (!supportedPlatform || supportedPlatform == platform) &&
-            supportedBranch != branch
-          ) {
-            this._disabledByReleaseBranch = true;
-          }
-        }
+    this._disabledByPlatform =
+      this.platform !== "all" && this.platform !== platform;
 
-        this._preprocessOptions(platform, branch);
-        this._onEnabledStateChanged();
+    this._disabledByReleaseBranch = false;
+    for (const supportedBranchAndPlatform of this.branches || []) {
+      const [supportedBranch, supportedPlatform] =
+        supportedBranchAndPlatform.split(":");
+      if (
+        (!supportedPlatform || supportedPlatform == platform) &&
+        supportedBranch != releaseBranch
+      ) {
+        this._disabledByReleaseBranch = true;
       }
-    );
+    }
+
+    this._preprocessOptions();
+    this.ready = this._onEnabledStateChanged();
   }
 
-  _preprocessOptions(platform, branch) {
+  _preprocessOptions() {
     // options may be any value, but can optionally be gated for specified
     // platform/branches, if in the format `{value, branches, platform}`
     this.options = {};
@@ -169,7 +162,7 @@ class Shim {
       if (v?.value) {
         if (
           (!v.platform || v.platform === platform) &&
-          (!v.branches || v.branches.includes(branch))
+          (!v.branches || v.branches.includes(releaseBranch))
         ) {
           this.options[k] = v.value;
         }
@@ -482,17 +475,15 @@ class Shim {
         continue;
       }
       const { branches, patterns, platforms } = unblock;
-      if (platforms?.length) {
-        const platform = await platformPromise;
-        if (platform !== "all" && !platforms.includes(platform)) {
-          continue;
-        }
+      if (
+        platforms?.length &&
+        platform !== "all" &&
+        !platforms.includes(platform)
+      ) {
+        continue;
       }
-      if (branches?.length) {
-        const branch = await releaseBranchPromise;
-        if (!branches.includes(branch)) {
-          continue;
-        }
+      if (branches?.length && !branches.includes(releaseBranch)) {
+        continue;
       }
       optins.push.apply(optins, patterns);
     }
@@ -1056,8 +1047,8 @@ class Shims {
     if (message === "getOptions") {
       return Object.assign(
         {
-          platform: await platformPromise,
-          releaseBranch: await releaseBranchPromise,
+          platform,
+          releaseBranch,
         },
         shim.options
       );

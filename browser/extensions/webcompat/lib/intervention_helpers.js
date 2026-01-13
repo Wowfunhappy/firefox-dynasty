@@ -391,26 +391,23 @@ var InterventionHelpers = {
     return false;
   },
 
-  async getOS() {
-    const os =
+  getOS() {
+    return (
       browser.aboutConfigPrefs.getPref("platform_override") ??
-      (await browser.runtime.getPlatformInfo()).os;
-    if (os === "win") {
-      return "windows";
-    }
-    return os;
+      browser.appConstants.getPlatform()
+    );
   },
 
-  async getPlatformMatches() {
+  getPlatformMatches() {
     if (!InterventionHelpers._platformMatches) {
-      const os = await this.getOS();
+      const os = this.getOS();
       InterventionHelpers._platformMatches = [
         "all",
         os,
         os == "android" ? "android" : "desktop",
       ];
       if (os == "android") {
-        const packageName = await browser.appConstants.getAndroidPackageName();
+        const packageName = browser.appConstants.getAndroidPackageName();
         if (packageName.includes("fenix") || packageName.includes("firefox")) {
           InterventionHelpers._platformMatches.push("fenix");
         }
@@ -419,14 +416,14 @@ var InterventionHelpers = {
     return InterventionHelpers._platformMatches;
   },
 
-  async checkPlatformMatches(intervention) {
+  checkPlatformMatches(intervention) {
     let desired = intervention.platforms;
     let undesired = intervention.not_platforms;
     if (!desired && !undesired) {
       return true;
     }
 
-    const actual = await InterventionHelpers.getPlatformMatches();
+    const actual = InterventionHelpers.getPlatformMatches();
     if (undesired) {
       if (!Array.isArray(undesired)) {
         undesired = [undesired];
