@@ -128,6 +128,7 @@ DIRS += [
     "/third_party/libwebrtc/api/video_codecs/builtin_video_decoder_factory_gn",
     "/third_party/libwebrtc/api/video_codecs/rtc_software_fallback_wrappers_gn",
     "/third_party/libwebrtc/api/video_codecs/scalability_mode_gn",
+    "/third_party/libwebrtc/api/video_codecs/scalability_mode_helper_gn",
     "/third_party/libwebrtc/api/video_codecs/video_codecs_api_gn",
     "/third_party/libwebrtc/api/video_codecs/video_encoder_factory_template_gn",
     "/third_party/libwebrtc/api/video_codecs/video_encoder_factory_template_libaom_av1_adapter_gn",
