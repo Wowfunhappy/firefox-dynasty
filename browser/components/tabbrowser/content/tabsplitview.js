@@ -227,6 +227,17 @@
     }
 
     /**
+     * Reset custom width on the right panel, allowing it to fill the rest of
+     * the available space.
+     */
+    resetRightPanelWidth() {
+      const panel = this.panels[1];
+      this.#storedPanelWidths.delete(panel);
+      panel.removeAttribute("width");
+      panel.style.removeProperty("width");
+    }
+
+    /**
      * add tabs to the split view wrapper
      *
      * @param {MozTabbrowserTab[]} tabs
