@@ -244,8 +244,6 @@ NS_EVENT_MESSAGE(eLegacyDOMFocusOut)
 NS_EVENT_MESSAGE(ePageShow)
 NS_EVENT_MESSAGE(ePageHide)
 
-NS_EVENT_MESSAGE(ePageReveal)
-
 // Canvas events
 NS_EVENT_MESSAGE(eContextLost)
 NS_EVENT_MESSAGE(eContextRestored)

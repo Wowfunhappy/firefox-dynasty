@@ -16,8 +16,8 @@ namespace mozilla {
 // Steps in https://html.spec.whatwg.org/#update-the-rendering
 // When updating this, please update sRenderingPhaseNames in nsRefreshDriver.
 enum class RenderingPhase : uint8_t {
-  Reveal = 0,
-  FlushAutoFocusCandidates,
+  // TODO: Reveal docs.
+  FlushAutoFocusCandidates = 0,
   ResizeSteps,
   ScrollSteps,
   EvaluateMediaQueriesAndReportChanges,
@@ -38,7 +38,6 @@ enum class RenderingPhase : uint8_t {
 using RenderingPhases = EnumSet<RenderingPhase, uint16_t>;
 inline constexpr RenderingPhases AllRenderingPhases() {
   return {
-      RenderingPhase::Reveal,
       RenderingPhase::FlushAutoFocusCandidates,
       RenderingPhase::ResizeSteps,
       RenderingPhase::ScrollSteps,

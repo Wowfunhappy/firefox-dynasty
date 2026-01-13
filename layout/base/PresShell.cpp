@@ -4138,8 +4138,6 @@ void PresShell::UnsuppressAndInvalidate() {
 
   ScheduleBeforeFirstPaint();
 
-  mDocument->MaybeScheduleRenderingPhases({RenderingPhase::Reveal});
-
   PROFILER_MARKER_UNTYPED("UnsuppressAndInvalidate", GRAPHICS);
 
   mPaintingSuppressed = false;
