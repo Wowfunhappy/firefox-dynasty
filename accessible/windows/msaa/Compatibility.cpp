@@ -234,6 +234,21 @@ bool Compatibility::IsUiaEnabled() {
   if (!(sConsumers & UIAUTOMATION)) {
     InitConsumers();
   }
-  return !IsJAWS() && !IsOldJAWS() && !IsVisperoShared() &&
-         !(sConsumers & NVDA);
+  if (sConsumers & NVDA) {
+    // Cache to avoid repeated version checks.
+    static Maybe<bool> sIsNvdaVersionSupported;
+    if (sIsNvdaVersionSupported.isNothing()) {
+      if (HMODULE nvdaHandle = ::GetModuleHandleW(L"nvdaHelperRemote")) {
+        // NVDA 2025.1 and later handles UIA correctly in Gecko. Out of an
+        // abundance of caution, we check for >= 2025.2 just in case someone is
+        // running an old 2025.1 alpha which doesn't include this change.
+        sIsNvdaVersionSupported = Some(!IsModuleVersionLessThan(
+            nvdaHandle, MAKE_FILE_VERSION(2025, 2, 0, 0)));
+      } else {
+        sIsNvdaVersionSupported = Some(false);
+      }
+    }
+    return *sIsNvdaVersionSupported;
+  }
+  return !IsJAWS() && !IsOldJAWS() && !IsVisperoShared();
 }

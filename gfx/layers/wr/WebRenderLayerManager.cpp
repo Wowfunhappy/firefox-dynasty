@@ -278,9 +278,8 @@ bool WebRenderLayerManager::EndEmptyTransaction(EndTransactionFlags aFlags) {
 
   mDisplayItemCache.SkipWaitingForPartialDisplayList();
 
-  // Don't block on hidden windows on Linux as it may block all rendering.
-  const bool throttle = mWidget->IsMapped();
-  mLatestTransactionId = mTransactionIdAllocator->GetTransactionId(throttle);
+  mLatestTransactionId =
+      mTransactionIdAllocator->GetTransactionId(/*aThrottle*/ true);
 
   if (aFlags & EndTransactionFlags::END_NO_COMPOSITE &&
       !mWebRenderCommandBuilder.NeedsEmptyTransaction()) {
@@ -432,9 +431,8 @@ void WebRenderLayerManager::EndTransactionWithoutLayer(
   // an empty transaction.
   ClearAndNotifyOfFullTransactionPendingScrollInfoUpdate();
 
-  // Don't block on hidden windows on Linux as it may block all rendering.
-  const bool throttle = mWidget->IsMapped() && !aRenderOffscreen;
-  mLatestTransactionId = mTransactionIdAllocator->GetTransactionId(throttle);
+  mLatestTransactionId = mTransactionIdAllocator->GetTransactionId(
+      /*aThrottle*/ !aRenderOffscreen);
 
   // Get the time of when the refresh driver start its tick (if available),
   // otherwise use the time of when LayerManager::BeginTransaction was called.

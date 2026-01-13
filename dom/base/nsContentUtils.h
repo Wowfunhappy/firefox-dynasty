@@ -243,6 +243,15 @@ enum EventNameType {
 
 enum class TreeKind : uint8_t { DOM, ShadowIncludingDOM, Flat };
 
+inline std::ostream& operator<<(std::ostream& aStream, TreeKind aTreeKind) {
+  constexpr static const char* sNames[] = {
+      "DOM",
+      "ShadowIncludingDOM",
+      "Flat",
+  };
+  return aStream << sNames[static_cast<uint8_t>(aTreeKind)];
+}
+
 enum class SerializeShadowRoots : uint8_t { Yes, No };
 
 struct EventNameMapping {
@@ -716,9 +725,7 @@ class nsContentUtils {
    *          0 if point1 == point2.
    *          `Nothing` if the two nodes aren't in the same connected subtree.
    */
-  template <TreeKind aKind = TreeKind::ShadowIncludingDOM,
-            typename = std::enable_if_t<aKind == TreeKind::ShadowIncludingDOM ||
-                                        aKind == TreeKind::Flat>>
+  template <TreeKind aKind = TreeKind::ShadowIncludingDOM>
   static mozilla::Maybe<int32_t> ComparePointsWithIndices(
       const nsINode* aParent1, uint32_t aOffset1, const nsINode* aParent2,
       uint32_t aOffset2, NodeIndexCache* aIndexCache = nullptr);
@@ -734,9 +741,7 @@ class nsContentUtils {
    *          `Nothing` if the two nodes aren't in the same connected subtree.
    */
   template <TreeKind aKind = TreeKind::ShadowIncludingDOM, typename PT1,
-            typename RT1, typename PT2, typename RT2,
-            typename = std::enable_if_t<aKind == TreeKind::ShadowIncludingDOM ||
-                                        aKind == TreeKind::Flat>>
+            typename RT1, typename PT2, typename RT2>
   static mozilla::Maybe<int32_t> ComparePoints(
       const mozilla::RangeBoundaryBase<PT1, RT1>& aBoundary1,
       const mozilla::RangeBoundaryBase<PT2, RT2>& aBoundary2,
@@ -752,9 +757,7 @@ class nsContentUtils {
    * traditional behavior. If you want to use this in new code, it means that
    * you **should** check the offset values and call `ComparePoints` instead.
    */
-  template <TreeKind aKind = TreeKind::ShadowIncludingDOM,
-            typename = std::enable_if_t<aKind == TreeKind::ShadowIncludingDOM ||
-                                        aKind == TreeKind::Flat>>
+  template <TreeKind aKind = TreeKind::ShadowIncludingDOM>
   static mozilla::Maybe<int32_t> ComparePoints_AllowNegativeOffsets(
       const nsINode* aParent1, int64_t aOffset1, const nsINode* aParent2,
       int64_t aOffset2) {
@@ -2970,6 +2973,12 @@ class nsContentUtils {
   static nsresult GetHostOrIPv6WithBrackets(nsIPrincipal* aPrincipal,
                                             nsACString& aHost);
 
+  /**
+   * Like GetHostOrIPv6WithBrackets, but returns the ASCII (punycode) host.
+   */
+  static nsresult GetAsciiHostOrIPv6WithBrackets(nsIURI* aURI,
+                                                 nsACString& aHost);
+
   /*
    * Call the given callback on all remote children of the given top-level
    * window. Return Callstate::Stop from the callback to stop calling further
@@ -3636,9 +3645,7 @@ class nsContentUtils {
    * node.
    * Return Nothing if aChild1 is a root of the native anonymous subtree.
    */
-  template <TreeKind aKind,
-            typename = std::enable_if_t<aKind == TreeKind::ShadowIncludingDOM ||
-                                        aKind == TreeKind::Flat>>
+  template <TreeKind aKind>
   static mozilla::Maybe<int32_t> CompareChildNodes(
       const nsINode* aChild1, const nsINode* aChild2,
       NodeIndexCache* aIndexCache = nullptr);
@@ -3649,9 +3656,7 @@ class nsContentUtils {
    * Return 1 if aChild2 is a preceding sibling of a child at aOffset1.
    * Return Nothing if aChild2 is a root of the native anonymous subtree.
    */
-  template <TreeKind aKind,
-            typename = std::enable_if_t<aKind == TreeKind::ShadowIncludingDOM ||
-                                        aKind == TreeKind::Flat>>
+  template <TreeKind aKind>
   static mozilla::Maybe<int32_t> CompareChildOffsetAndChildNode(
       uint32_t aOffset1, const nsINode& aChild2,
       NodeIndexCache* aIndexCache = nullptr);
@@ -3662,9 +3667,7 @@ class nsContentUtils {
    * Return 1 if aChild1 is a following sibling of a child at aOffset2.
    * Return Nothing if aChild1 is a root of the native anonymous subtree.
    */
-  template <TreeKind aKind,
-            typename = std::enable_if_t<aKind == TreeKind::ShadowIncludingDOM ||
-                                        aKind == TreeKind::Flat>>
+  template <TreeKind aKind>
   static mozilla::Maybe<int32_t> CompareChildNodeAndChildOffset(
       const nsINode& aChild1, uint32_t aOffset2,
       NodeIndexCache* aIndexCache = nullptr);
@@ -3674,9 +3677,7 @@ class nsContentUtils {
    * includes odd traditional behavior. Therefore, do not use this method as a
    * utility method.
    */
-  template <TreeKind aKind = TreeKind::ShadowIncludingDOM,
-            typename = std::enable_if_t<aKind == TreeKind::ShadowIncludingDOM ||
-                                        aKind == TreeKind::Flat>>
+  template <TreeKind aKind = TreeKind::ShadowIncludingDOM>
   static mozilla::Maybe<int32_t> CompareClosestCommonAncestorChildren(
       const nsINode&, const nsINode*, const nsINode*,
       NodeIndexCache* = nullptr);

@@ -41,6 +41,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.painter.BitmapPainter
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
@@ -58,6 +59,7 @@ import org.mozilla.fenix.tabstray.TabSearchAction
 import org.mozilla.fenix.tabstray.TabsTrayAction
 import org.mozilla.fenix.tabstray.TabsTrayState
 import org.mozilla.fenix.tabstray.TabsTrayStore
+import org.mozilla.fenix.tabstray.TabsTrayTestTag
 import org.mozilla.fenix.tabstray.ext.toDisplayTitle
 import org.mozilla.fenix.tabstray.redux.middleware.TabSearchMiddleware
 import org.mozilla.fenix.tabstray.redux.state.TabSearchState
@@ -138,6 +140,7 @@ fun TabSearchScreen(
                     searchResults = state.searchResults,
                     modifier = Modifier
                         .padding(horizontal = SearchResultsPadding),
+                    onSearchResultClicked = { store.dispatch(TabSearchAction.SearchResultClicked(it)) },
                 )
             }
         }
@@ -149,11 +152,13 @@ fun TabSearchScreen(
  *
  * @param searchResults List of search results.
  * @param modifier The [Modifier] to be applied.
+ * @param onSearchResultClicked Invoked when a search result item is clicked.
  */
 @Composable
 private fun TabSearchResults(
     searchResults: List<TabSessionState>,
     modifier: Modifier = Modifier,
+    onSearchResultClicked: (TabSessionState) -> Unit,
 ) {
     val lastIndex = searchResults.lastIndex
     val maxWidth = FirefoxTheme.layout.size.containerMaxWidth
@@ -196,11 +201,10 @@ private fun TabSearchResults(
                 modifier = Modifier
                     .clip(itemShape)
                     .widthIn(max = maxWidth)
-                    .background(MaterialTheme.colorScheme.surfaceContainerLowest),
+                    .background(MaterialTheme.colorScheme.surfaceContainerLowest)
+                    .testTag(tag = TabsTrayTestTag.TAB_ITEM_ROOT),
                 faviconPainter = faviconPainter,
-                onClick = {
-                    // TODO (Bug 2005595): Handle search result clicks
-                },
+                onClick = { onSearchResultClicked(tab) },
             )
 
             if (index < lastIndex) {

@@ -886,7 +886,7 @@ void nsIFrame::Destroy(DestroyContext& aContext) {
   MaybeScheduleReflowSVGNonDisplayText(this);
 
   SVGObserverUtils::InvalidateDirectRenderingObservers(
-      this, SVGObserverUtils::INVALIDATE_DESTROY);
+      this, SVGObserverUtils::InvalidationFlag::FrameBeingDestroyed);
 
   const auto* disp = StyleDisplay();
   if (disp->mPosition == StylePositionProperty::Sticky) {
@@ -7597,8 +7597,7 @@ void nsIFrame::DidReflow(nsPresContext* aPresContext,
     return;
   }
 
-  SVGObserverUtils::InvalidateDirectRenderingObservers(
-      this, SVGObserverUtils::INVALIDATE_REFLOW);
+  SVGObserverUtils::InvalidateDirectRenderingObservers(this);
 
   RemoveStateBits(NS_FRAME_IN_REFLOW | NS_FRAME_FIRST_REFLOW |
                   NS_FRAME_IS_DIRTY | NS_FRAME_HAS_DIRTY_CHILDREN);

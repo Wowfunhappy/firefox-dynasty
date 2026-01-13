@@ -1073,8 +1073,13 @@ class SelectableProfileServiceClass extends EventEmitter {
 
     const sharedPrefs = await this.getAllDBPrefs();
 
+    const filteredPrefs = sharedPrefs.filter(
+      pref =>
+        !SelectableProfileServiceClass.ignoredSharedPrefs.includes(pref.name)
+    );
+
     const prefsJs = [];
-    for (let pref of sharedPrefs) {
+    for (let pref of filteredPrefs) {
       prefsJs.push(
         `user_pref("${pref.name}", ${
           pref.type === "string" ? `"${pref.value}"` : `${pref.value}`
@@ -1574,6 +1579,14 @@ class SelectableProfileServiceClass extends EventEmitter {
   // Starts tracking a new shared pref across the profiles.
   async trackPref(aPrefName) {
     await this.flushSharedPrefToDatabase(aPrefName);
+  }
+
+  async deleteDBPref(aPrefName) {
+    if (!Cu.isInAutomation) {
+      return;
+    }
+
+    await this.#deleteDBPref(aPrefName);
   }
 
   /**

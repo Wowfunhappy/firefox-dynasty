@@ -602,6 +602,14 @@ uiaRawElmProvider::GetPropertyValue(PROPERTYID aPropertyId,
         }
         ariaProperties.AppendLiteral("hasactions=true");
       }
+      nsAutoString current;
+      if (acc->GetStringARIAAttr(nsGkAtoms::aria_current, current)) {
+        if (!ariaProperties.IsEmpty()) {
+          ariaProperties += ';';
+        }
+        ariaProperties.AppendLiteral("current=");
+        ariaProperties.Append(current);
+      }
       if (!ariaProperties.IsEmpty()) {
         aPropertyValue->vt = VT_BSTR;
         aPropertyValue->bstrVal = ::SysAllocString(ariaProperties.get());

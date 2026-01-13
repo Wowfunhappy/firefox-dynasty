@@ -575,7 +575,7 @@ add_task(async function tabNotesTests() {
   info("validate the presentation of an eligible tab with no note");
   await openTabPreview(tab);
   Assert.equal(
-    previewPanel.querySelector(".tab-note-text-container").innerText,
+    previewPanel.querySelector(".tab-preview-note-text").innerText,
     "",
     "Preview panel contains no tab note"
   );
@@ -627,7 +627,7 @@ add_task(async function tabNotesTests() {
   await openTabPreview(tab);
 
   Assert.equal(
-    previewPanel.querySelector(".tab-note-text-container").innerText,
+    previewPanel.querySelector(".tab-preview-note-text").innerText,
     noteText,
     "New tab note is visible in preview panel"
   );
@@ -636,6 +636,45 @@ add_task(async function tabNotesTests() {
     addNoteButton.hasAttribute("hidden"),
     "add note button should be hidden on an eligible tab with a tab note"
   );
+  await closeTabPreviews();
+
+  info(
+    "test that notes beyond a specified length trigger truncation and a 'read more' button"
+  );
+  Assert.ok(
+    !previewPanel.hasAttribute("note-overflow"),
+    "Sanity check: panel does not have note-overflow attribute"
+  );
+  Assert.ok(
+    !previewPanel.hasAttribute("note-expanded"),
+    "Sanity check: panel does not have note-expanded attribute"
+  );
+
+  const tabNoteEdited = BrowserTestUtils.waitForEvent(tab, "TabNote:Edited");
+  TabNotes.set(tab, "x".repeat(999));
+  await tabNoteEdited;
+
+  await openTabPreview(tab);
+
+  Assert.ok(
+    previewPanel.hasAttribute("note-overflow"),
+    "Panel has note-overflow attribute when note is too long to display in non-expanded mode"
+  );
+  Assert.ok(
+    !previewPanel.hasAttribute("note-expanded"),
+    "Sanity check: panel does not have note-expanded attribute"
+  );
+
+  previewPanel.querySelector(".tab-preview-note-expand").click();
+
+  await BrowserTestUtils.waitForCondition(() => {
+    return previewPanel.hasAttribute("note-expanded");
+  }, "Waiting for note-expanded attribute to be set");
+  Assert.ok(
+    previewPanel.hasAttribute("note-expanded"),
+    "Panel has been expanded"
+  );
+
   await closeTabPreviews();
 
   info(
@@ -650,7 +689,7 @@ add_task(async function tabNotesTests() {
   );
   await openTabPreview(tab);
   Assert.equal(
-    previewPanel.querySelector(".tab-note-text-container").innerText,
+    previewPanel.querySelector(".tab-preview-note-text").innerText,
     "",
     "Preview panel contains no tab note after delete"
   );

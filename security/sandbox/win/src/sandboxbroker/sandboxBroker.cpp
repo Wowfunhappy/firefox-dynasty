@@ -1343,6 +1343,11 @@ void SandboxBroker::SetSecurityLevelForGPUProcess(int32_t aSandboxLevel) {
     initialMitigations |= sandbox::MITIGATION_CET_COMPAT_MODE;
   }
 
+  // Bug 2008960 tracks removing the pref if we have seen no issues.
+  if (StaticPrefs::security_sandbox_gpu_extension_point_disable()) {
+    initialMitigations |= sandbox::MITIGATION_EXTENSION_POINT_DISABLE;
+  }
+
   sandbox::MitigationFlags delayedMitigations =
       sandbox::MITIGATION_STRICT_HANDLE_CHECKS |
       sandbox::MITIGATION_DLL_SEARCH_ORDER;

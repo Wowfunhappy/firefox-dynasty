@@ -17284,6 +17284,12 @@
     type: RelaxedAtomicBool
     value: true
     mirror: always
+
+  # Whether MITIGATION_EXTENSION_POINT_DISABLE is used for the GPU sandbox.
+-   name: security.sandbox.gpu.extension-point-disable
+    type: RelaxedAtomicBool
+    value: true
+    mirror: always
 #endif
 
 #if defined(XP_LINUX) && defined(MOZ_SANDBOX)

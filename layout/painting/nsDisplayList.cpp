@@ -8715,7 +8715,7 @@ void nsDisplayFilters::PrintEffects(nsACString& aTo) {
   // filters.  If we have invalid references to SVG filters then we paint
   // nothing, but otherwise we will apply one or more filters.
   if (SVGObserverUtils::GetAndObserveFilters(firstFrame, nullptr) !=
-      SVGObserverUtils::eHasRefsSomeInvalid) {
+      SVGObserverUtils::ReferenceState::HasRefsSomeInvalid) {
     if (!first) {
       aTo += ", ";
     }

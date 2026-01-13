@@ -189,6 +189,7 @@ Preferences.addAll([
     id: "privacy.userContext.newTabContainerOnLeftClick.enabled",
     type: "bool",
   },
+  { id: "nimbus.rollouts.enabled", type: "bool" },
 
   // Picture-in-Picture
   {
@@ -2205,6 +2206,59 @@ SettingGroupManager.registerGroups({
       },
     ],
   },
+  customHomepage: {
+    inProgress: true,
+    headingLevel: 2,
+    items: [
+      {
+        id: "customHomepageCard",
+        control: "moz-card",
+        l10nId: "home-custom-homepage-card",
+        iconSrc: "chrome://global/skin/icons/link.svg",
+        items: [
+          {
+            id: "customHomepageBoxGroup",
+            control: "moz-box-group",
+            controlAttrs: {
+              type: "list",
+            },
+            items: [
+              {
+                id: "customHomepageBoxForm",
+                control: "moz-box-item",
+                items: [
+                  {
+                    id: "customHomepagePlaceholderButton",
+                    control: "moz-button",
+                  },
+                ],
+              },
+              {
+                id: "customHomepageBoxUrlList",
+                control: "moz-box-item",
+                items: [
+                  {
+                    id: "customHomepagePlaceholderButton",
+                    control: "moz-button",
+                  },
+                ],
+              },
+              {
+                id: "customHomepageBoxActions",
+                control: "moz-box-item",
+                items: [
+                  {
+                    id: "customHomepagePlaceholderButton",
+                    control: "moz-button",
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  },
   home: {
     inProgress: true,
     headingLevel: 2,
@@ -3536,6 +3590,26 @@ SettingGroupManager.registerGroups({
             control: "moz-message-bar",
           },
         ],
+      },
+    ],
+  },
+  searchShortcuts: {
+    inProgress: true,
+    l10nId: "search-one-click-header-3",
+    headingLevel: 2,
+    items: [
+      {
+        id: "addEngineButton",
+        l10nId: "search-add-engine-2",
+        control: "moz-button",
+        iconSrc: "chrome://global/skin/icons/plus.svg",
+      },
+      {
+        id: "engineList",
+        control: "moz-box-group",
+        controlAttrs: {
+          type: "reorderable-list",
+        },
       },
     ],
   },

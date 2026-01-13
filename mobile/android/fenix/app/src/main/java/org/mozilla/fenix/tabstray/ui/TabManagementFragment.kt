@@ -87,6 +87,7 @@ import org.mozilla.fenix.tabstray.controller.TabManagerController
 import org.mozilla.fenix.tabstray.controller.TabManagerInteractor
 import org.mozilla.fenix.tabstray.navigation.TabManagerNavDestination
 import org.mozilla.fenix.tabstray.redux.middleware.TabSearchMiddleware
+import org.mozilla.fenix.tabstray.redux.middleware.TabSearchNavigationMiddleware
 import org.mozilla.fenix.tabstray.syncedtabs.SyncedTabsIntegration
 import org.mozilla.fenix.tabstray.ui.animation.defaultPredictivePopTransitionSpec
 import org.mozilla.fenix.tabstray.ui.animation.defaultTransitionSpec
@@ -180,6 +181,7 @@ class TabManagementFragment : DialogFragment() {
                 middlewares = listOf(
                     TabsTrayTelemetryMiddleware(requireComponents.nimbus.events),
                     TabSearchMiddleware(),
+                    TabSearchNavigationMiddleware(onSearchResultClicked = ::onTabClick),
                 ),
             )
         }

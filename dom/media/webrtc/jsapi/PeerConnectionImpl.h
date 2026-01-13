@@ -92,11 +92,7 @@ typedef NS_ConvertUTF8toUTF16 PCObserverString;
 }  // namespace dom
 }  // namespace mozilla
 
-#if defined(__cplusplus) && __cplusplus >= 201103L
 typedef struct Timecard Timecard;
-#else
-#  include "common/time_profiling/timecard.h"
-#endif
 
 // To preserve blame, convert nsresult to ErrorResult with wrappers. These
 // macros help declare wrappers w/function being wrapped when there are no

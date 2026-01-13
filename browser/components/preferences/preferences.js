@@ -290,6 +290,11 @@ const CONFIG_PANES = Object.freeze({
     l10nId: "history-header2",
     groupIds: ["historyAdvanced"],
   },
+  customHomepage: {
+    parent: "home",
+    l10nId: "home-custom-homepage-subpage",
+    groupIds: ["customHomepage"],
+  },
 });
 
 var gLastCategory = { category: undefined, subcategory: undefined };

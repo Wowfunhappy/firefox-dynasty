@@ -149,7 +149,11 @@ bool RangeUtils::IsValidPoints(
   }
 
   const Maybe<int32_t> order =
-      nsContentUtils::ComparePoints(aStartBoundary, aEndBoundary);
+      aStartBoundary.GetTreeKind() == TreeKind::Flat
+          ? nsContentUtils::ComparePoints<TreeKind::Flat>(aStartBoundary,
+                                                          aEndBoundary)
+          : nsContentUtils::ComparePoints<TreeKind::DOM>(aStartBoundary,
+                                                         aEndBoundary);
   if (!order) {
     MOZ_ASSERT_UNREACHABLE();
     return false;

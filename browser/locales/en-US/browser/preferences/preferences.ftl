@@ -851,8 +851,15 @@ home-homepage-custom-homepage-button =
 
 home-custom-homepage-header = Custom Homepage
 
+home-custom-homepage-subpage =
+    .heading = Custom Homepage
+
 # Subheader on the Custom Homepage subpage. Followed by a form to enter URLs and a list of URLs already saved, if any.
 home-custom-homepage-subheader = Website address(es)
+
+# Subheader on the Custom Homepage subpage. Followed by a form to enter URLs and a list of URLs already saved, if any.
+home-custom-homepage-card =
+    .heading = Website address(es)
 
 home-custom-homepage-address =
     .placeholder = Enter address
@@ -1024,7 +1031,6 @@ search-show-suggestions-private-windows-2 =
 search-suggestions-cant-show-2 =
     .message = Search suggestions will not be shown in location bar results because you have configured { -brand-short-name } to never remember history.
 
-
 addressbar-header-1 =
     .label = Address Bar
     .description = Choose which suggestions display in your address bar
@@ -1091,8 +1097,10 @@ addressbar-restore-dismissed-suggestions-button-2 =
     .label = Restore suggestions
 
 search-one-click-header2 = Search Shortcuts
-
 search-one-click-desc = Choose the alternative search engines that appear below the address bar and search bar when you start to enter a keyword.
+search-one-click-header-3 =
+    .label = Additional search engines
+    .description = Choose which search engines and shortcuts appear in your address bar.
 
 search-choose-engine-column =
     .label = Search Engine
@@ -1108,6 +1116,9 @@ search-remove-engine =
     .accesskey = R
 search-add-engine =
     .label = Add
+    .accesskey = A
+search-add-engine-2 =
+    .label = Add search engine
     .accesskey = A
 search-edit-engine =
     .label = Edit
@@ -1926,6 +1937,10 @@ collection-studies2 =
     .label = Install and run studies
 collection-studies-description = Try out features and ideas before they’re released to everyone.
 collection-studies-link = View { -brand-short-name } studies
+
+nimbus-rollouts-enabled =
+    .label = Allow { -brand-short-name } to improve features, performance, and stability between updates
+nimbus-rollouts-enabled-description = Changes will be applied remotely.
 
 addon-recommendations2 =
     .label = Allow personalized extension recommendations
