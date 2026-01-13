@@ -45,6 +45,31 @@ hr {
   padding: 0 var(--space-large) var(--space-small);
 }
 
+#upgrade-vpn-title {
+  /* Intentionally using a larger font size for clearer visual hierarchy
+ * stylelint-disable-next-line stylelint-plugin-mozilla/use-design-tokens */
+  font-size: 1.4em;
+  font-weight: var(--font-weight-semibold);
+  padding-top: var(--space-large);
+  padding-bottom: var(--space-xsmall);
+  margin-block: 0;
+}
+
+#upgrade-vpn-description {
+  /* Intentionally using a larger font size for clearer visual hierarchy
+/* stylelint-disable-next-line stylelint-plugin-mozilla/use-design-tokens */
+  font-size: 1.23em;
+  color: var(--text-color-deemphasized);
+}
+
+#upgrade-vpn-button {
+  /* Intentionally using a larger font size for clearer visual hierarchy
+/* stylelint-disable-next-line stylelint-plugin-mozilla/use-design-tokens */
+  font-size: 1.2em;
+  display: block;
+  padding-top: var(--space-medium);
+}
+
 @media (prefers-color-scheme: dark) {
   #signed-out-vpn-img {
     content: url("chrome://browser/content/ipprotection/assets/ipprotection-darkmode.svg");

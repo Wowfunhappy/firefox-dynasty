@@ -33,10 +33,6 @@ ipprotection-feature-introduction-button-secondary-no-thanks = No thanks
 
 ## Panel
 
-upgrade-vpn-title = Get peace of mind with full-device protection
-upgrade-vpn-paragraph = Protect yourself beyond the browser with <a data-l10n-name="learn-more-vpn">{ -mozilla-vpn-brand-name }</a>. Customize your VPN location, set site-specific locations, and enjoy enhanced security whether you’re at home or on public Wi-Fi.
-upgrade-vpn-button = Upgrade
-
 signed-out-vpn-title = Sign in to boost your browser’s privacy with free VPN
 signed-out-vpn-message = You’ve been selected for early access to our new, <a data-l10n-name="learn-more-vpn-signed-out">built-in VPN</a>. Enhance your browser’s protection by hiding your location and encrypting your traffic.
 sign-in-vpn = Next
@@ -76,6 +72,14 @@ ipprotection-toggle-inactive =
 ipprotection-button-turn-vpn-off = Turn off VPN
 # Button to turn on the VPN
 ipprotection-button-turn-vpn-on = Turn on VPN
+
+## VPN paused state
+
+ipprotection-connection-status-paused-title = VPN paused
+ipprotection-connection-status-paused-description = You’ve used all 150 GB of your VPN data. Access will reset next month.
+upgrade-vpn-title = Get extra protection beyond the browser
+upgrade-vpn-description = Choose your VPN location, use VPN for all of your apps and up to 5 devices, and stay secure on any network — at home or on public Wi-Fi.
+upgrade-vpn-button = Try { -mozilla-vpn-brand-name }
 
 ## Messages and errors
 

@@ -79,7 +79,6 @@ export default class IPProtectionStatusCard extends MozLitElement {
     this._toggleEnabled = isEnabled;
   }
 
-  // TODO: Move button handling logic and button to new ipprotection-status-box component in Bug 2008854
   handleOnOffButtonClick() {
     let isEnabled = !this._toggleEnabled;
 
