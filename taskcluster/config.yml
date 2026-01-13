@@ -875,6 +875,16 @@ mac-signing:
                   globs:
                       - "/Contents/MacOS/media-plugin-helper.app"
 
+                # /!\ This code has been previously backed out for causing bug 2006928.
+                #     The fix is in D278125 and ensures that we only consider this entry
+                #     for builds for which milestone.is_nightly holds.
+                - deep: false
+                  runtime: true
+                  force: true
+                  entitlements: public/build/security/security-module-helper.xml
+                  globs:
+                      - "/Contents/MacOS/security-module-helper.app"
+
                 - deep: false
                   runtime: true
                   force: true
@@ -923,6 +933,16 @@ mac-signing:
                   entitlements: public/build/security/media-plugin-helper.xml
                   globs:
                       - "/Contents/MacOS/media-plugin-helper.app"
+
+                # /!\ This code has been previously backed out for causing bug 2006928.
+                #     The fix is in D278125 and ensures that we only consider this entry
+                #     for builds for which milestone.is_nightly holds.
+                - deep: false
+                  runtime: true
+                  force: true
+                  entitlements: public/build/security/security-module-helper.xml
+                  globs:
+                      - "/Contents/MacOS/security-module-helper.app"
 
                 - deep: false
                   runtime: true
