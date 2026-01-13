@@ -180,44 +180,6 @@ bool js::intl_BestAvailableLocale(JSContext* cx, unsigned argc, Value* vp) {
   return true;
 }
 
-bool js::intl_LookupMatcher(JSContext* cx, unsigned argc, Value* vp) {
-  CallArgs args = CallArgsFromVp(argc, vp);
-  MOZ_ASSERT(args.length() == 2);
-
-  AvailableLocaleKind kind;
-  {
-    JSLinearString* typeStr = args[0].toString()->ensureLinear(cx);
-    if (!typeStr) {
-      return false;
-    }
-
-    kind = ToAvailableLocaleKind(typeStr);
-  }
-
-  Rooted<ArrayObject*> locales(cx, &args[1].toObject().as<ArrayObject>());
-
-  Rooted<LookupMatcherResult> result(cx);
-  if (!LookupMatcher(cx, kind, locales, &result)) {
-    return false;
-  }
-
-  auto* array = NewDenseFullyAllocatedArray(cx, 2);
-  if (!array) {
-    return false;
-  }
-  array->setDenseInitializedLength(2);
-
-  array->initDenseElement(0, StringValue(result.locale()));
-  if (auto extension = result.extension()) {
-    array->initDenseElement(1, StringValue(extension));
-  } else {
-    array->initDenseElement(1, UndefinedValue());
-  }
-
-  args.rval().setObject(*array);
-  return true;
-}
-
 bool js::intl_ResolveLocale(JSContext* cx, unsigned argc, Value* vp) {
   CallArgs args = CallArgsFromVp(argc, vp);
   MOZ_ASSERT(args.length() == 3 || args.length() == 4);

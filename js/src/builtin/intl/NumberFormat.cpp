@@ -236,38 +236,6 @@ void js::NumberFormatObject::finalize(JS::GCContext* gcx, JSObject* obj) {
   }
 }
 
-bool js::intl_numberingSystem(JSContext* cx, unsigned argc, Value* vp) {
-  CallArgs args = CallArgsFromVp(argc, vp);
-  MOZ_ASSERT(args.length() == 1);
-  MOZ_ASSERT(args[0].isString());
-
-  UniqueChars locale = intl::EncodeLocale(cx, args[0].toString());
-  if (!locale) {
-    return false;
-  }
-
-  auto numberingSystem =
-      mozilla::intl::NumberingSystem::TryCreate(locale.get());
-  if (numberingSystem.isErr()) {
-    intl::ReportInternalError(cx, numberingSystem.unwrapErr());
-    return false;
-  }
-
-  auto name = numberingSystem.inspect()->GetName();
-  if (name.isErr()) {
-    intl::ReportInternalError(cx, name.unwrapErr());
-    return false;
-  }
-
-  JSString* jsname = NewStringCopy<CanGC>(cx, name.unwrap());
-  if (!jsname) {
-    return false;
-  }
-
-  args.rval().setString(jsname);
-  return true;
-}
-
 #if DEBUG || MOZ_SYSTEM_ICU
 bool js::intl_availableMeasurementUnits(JSContext* cx, unsigned argc,
                                         Value* vp) {
