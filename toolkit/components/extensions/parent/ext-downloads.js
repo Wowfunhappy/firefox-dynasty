@@ -925,10 +925,6 @@ this.downloads = class extends ExtensionAPIPersistent {
               downloadLastDir.setFile(extension.baseURI, lastDir);
             }
 
-            // Use windowTracker to find a window, rather than Services.wm,
-            // so that this doesn't break where navigator:browser isn't the
-            // main window (e.g. Thunderbird).
-            const window = global.windowTracker.getTopWindow().window;
             const basename = PathUtils.filename(target);
             const ext = basename.match(/\.([^.]+)$/)?.[1];
 
@@ -945,8 +941,15 @@ this.downloads = class extends ExtensionAPIPersistent {
             const picker = Cc["@mozilla.org/filepicker;1"].createInstance(
               Ci.nsIFilePicker
             );
+            // The picker requires a BrowsingContext to associate DOM File
+            // objects. Since this caller is a system principal, and the file
+            // saving operation should outlast the extension context, we use an
+            // arbitrary chrome window's browsingContext.
+            // We cannot use the extension context's browsingContext, because
+            // its canOpenModalPicker may be false for non-foreground tabs,
+            // which would cause the modal to be blocked.
             picker.init(
-              window.browsingContext,
+              context.browsingContext.topChromeWindow.browsingContext,
               null,
               Ci.nsIFilePicker.modeSave
             );
