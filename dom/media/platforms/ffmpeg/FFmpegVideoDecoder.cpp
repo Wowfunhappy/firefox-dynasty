@@ -1504,8 +1504,10 @@ void FFmpegVideoDecoder<LIBAV_VER>::QueueResumeDrain() {
     return;
   }
 
-  MOZ_ALWAYS_SUCCEEDS(mTaskQueue->Dispatch(NS_NewRunnableFunction(
-      __func__, [self = RefPtr{this}] { self->ResumeDrain(); })));
+  // It is possible we may attempt to dispatch after the task queue is shutdown
+  // because we still had frames we had yet to release. We can ignore the error.
+  (void)mTaskQueue->Dispatch(NS_NewRunnableFunction(
+      __func__, [self = RefPtr{this}] { self->ResumeDrain(); }));
 }
 #endif
 
@@ -2022,6 +2024,9 @@ AVCodecID FFmpegVideoDecoder<LIBAV_VER>::GetCodecId(
 
 void FFmpegVideoDecoder<LIBAV_VER>::ProcessShutdown() {
   MOZ_ASSERT(mTaskQueue->IsOnCurrentThread());
+#ifdef MOZ_WIDGET_ANDROID
+  mShouldResumeDrain = false;
+#endif
 #if defined(MOZ_USE_HWDECODE) && defined(MOZ_WIDGET_GTK)
   mVideoFramePool = nullptr;
   if (IsHardwareAccelerated()) {
