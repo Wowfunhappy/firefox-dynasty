@@ -1938,6 +1938,7 @@ static const JSFunctionSpec intrinsic_functions[] = {
           intrinsic_IsWrappedInstanceOfBuiltin<NumberFormatObject>, 1, 0),
     JS_FN("intl_LookupMatcher", intl_LookupMatcher, 2, 0),
     JS_FN("intl_NumberFormat", intl_NumberFormat, 2, 0),
+    JS_FN("intl_ResolveLocale", intl_ResolveLocale, 3, 0),
     JS_FN("intl_SelectPluralRule", intl_SelectPluralRule, 2, 0),
     JS_FN("intl_SelectPluralRuleRange", intl_SelectPluralRuleRange, 3, 0),
     JS_FN("intl_TryValidateAndCanonicalizeLanguageTag",

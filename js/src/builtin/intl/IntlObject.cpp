@@ -218,6 +218,83 @@ bool js::intl_LookupMatcher(JSContext* cx, unsigned argc, Value* vp) {
   return true;
 }
 
+bool js::intl_ResolveLocale(JSContext* cx, unsigned argc, Value* vp) {
+  CallArgs args = CallArgsFromVp(argc, vp);
+  MOZ_ASSERT(args.length() == 3 || args.length() == 4);
+
+  AvailableLocaleKind kind;
+  {
+    JSLinearString* typeStr = args[0].toString()->ensureLinear(cx);
+    if (!typeStr) {
+      return false;
+    }
+
+    kind = ToAvailableLocaleKind(typeStr);
+  }
+
+  Rooted<ArrayObject*> requestedLocales(cx,
+                                        &args[1].toObject().as<ArrayObject>());
+  Rooted<JSObject*> options(cx, &args[2].toObject());
+
+  bool collatorSearchOrMozDisplay = args.get(3).isTrue();
+
+  auto localeData = LocaleData::Default;
+
+  mozilla::EnumSet<UnicodeExtensionKey> relevantExtensionKeys{};
+  switch (kind) {
+    case AvailableLocaleKind::Collator:
+      relevantExtensionKeys = {
+          UnicodeExtensionKey::Collation,
+          UnicodeExtensionKey::CollationCaseFirst,
+          UnicodeExtensionKey::CollationNumeric,
+      };
+      if (collatorSearchOrMozDisplay) {
+        localeData = LocaleData::CollatorSearch;
+      }
+      break;
+    case AvailableLocaleKind::DateTimeFormat:
+      relevantExtensionKeys = {
+          UnicodeExtensionKey::Calendar,
+          UnicodeExtensionKey::HourCycle,
+          UnicodeExtensionKey::NumberingSystem,
+      };
+      break;
+    case AvailableLocaleKind::DurationFormat:
+    case AvailableLocaleKind::NumberFormat:
+    case AvailableLocaleKind::RelativeTimeFormat:
+      relevantExtensionKeys = {
+          UnicodeExtensionKey::NumberingSystem,
+      };
+      break;
+    case AvailableLocaleKind::DisplayNames:
+      if (collatorSearchOrMozDisplay) {
+        relevantExtensionKeys = {
+            UnicodeExtensionKey::Calendar,
+        };
+        break;
+      }
+      [[fallthrough]];
+    case AvailableLocaleKind::ListFormat:
+    case AvailableLocaleKind::PluralRules:
+    case AvailableLocaleKind::Segmenter:
+      // No support for additional Unicode extension keys.
+      break;
+  }
+
+  Rooted<ResolvedLocale> resolved(cx);
+  if (!ResolveLocale(cx, kind, requestedLocales, options, relevantExtensionKeys,
+                     localeData, &resolved)) {
+    return false;
+  }
+
+  auto* result = ResolveLocaleToObject(cx, resolved, relevantExtensionKeys);
+  if (!result) {
+    return false;
+  }
+  args.rval().setObject(*result);
+  return true;
+}
+
 using StringList = GCVector<JSLinearString*>;
 
 /**
