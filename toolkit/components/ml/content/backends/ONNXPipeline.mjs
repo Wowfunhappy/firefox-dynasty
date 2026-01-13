@@ -105,9 +105,8 @@ export async function importTransformers(backend) {
   }
   if (AppConstants.NIGHTLY_BUILD) {
     lazy.console.debug("Nightly detected. Using transformers-dev.js");
-    transformers = await import(
-      "chrome://global/content/ml/transformers-dev.js"
-    );
+    transformers =
+      await import("chrome://global/content/ml/transformers-dev.js");
   } else {
     lazy.console.debug("Beta or Release detected, using transformers.js");
     transformers = await import("chrome://global/content/ml/transformers.js");

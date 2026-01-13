@@ -133,18 +133,14 @@ function customize(all, baseTypes) {
 
 // Preprocess, convert, merge and customize webidl, emit and postprocess dts.
 async function emitDom(webidls, builtin = "builtin.webidl") {
-  const { merge, baseTypeConversionMap } = await import(
-    "@typescript/dom-lib-generator/lib/build/helpers.js"
-  );
-  const { emitWebIdl } = await import(
-    "@typescript/dom-lib-generator/lib/build/emitter.js"
-  );
-  const { convert } = await import(
-    "@typescript/dom-lib-generator/lib/build/widlprocess.js"
-  );
-  const { getExposedTypes } = await import(
-    "@typescript/dom-lib-generator/lib/build/expose.js"
-  );
+  const { merge, baseTypeConversionMap } =
+    await import("@typescript/dom-lib-generator/lib/build/helpers.js");
+  const { emitWebIdl } =
+    await import("@typescript/dom-lib-generator/lib/build/emitter.js");
+  const { convert } =
+    await import("@typescript/dom-lib-generator/lib/build/widlprocess.js");
+  const { getExposedTypes } =
+    await import("@typescript/dom-lib-generator/lib/build/expose.js");
 
   function mergePartial(partials, bases) {
     for (let p of partials) {

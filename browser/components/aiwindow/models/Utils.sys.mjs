@@ -391,39 +391,33 @@ export class openAIEngine {
   async #loadLocalPrompt(feature) {
     switch (feature) {
       case MODEL_FEATURES.CHAT: {
-        const { assistantPrompt } = await import(
-          "moz-src:///browser/components/aiwindow/models/prompts/AssistantPrompts.sys.mjs"
-        );
+        const { assistantPrompt } =
+          await import("moz-src:///browser/components/aiwindow/models/prompts/AssistantPrompts.sys.mjs");
         return assistantPrompt;
       }
       case MODEL_FEATURES.TITLE_GENERATION: {
-        const { titleGenerationPrompt } = await import(
-          "moz-src:///browser/components/aiwindow/models/prompts/TitleGenerationPrompts.sys.mjs"
-        );
+        const { titleGenerationPrompt } =
+          await import("moz-src:///browser/components/aiwindow/models/prompts/TitleGenerationPrompts.sys.mjs");
         return titleGenerationPrompt;
       }
       case MODEL_FEATURES.CONVERSATION_SUGGESTIONS_SIDEBAR_STARTER: {
-        const { conversationStarterPrompt } = await import(
-          "moz-src:///browser/components/aiwindow/models/prompts/ConversationSuggestionsPrompts.sys.mjs"
-        );
+        const { conversationStarterPrompt } =
+          await import("moz-src:///browser/components/aiwindow/models/prompts/ConversationSuggestionsPrompts.sys.mjs");
         return conversationStarterPrompt;
       }
       case MODEL_FEATURES.CONVERSATION_SUGGESTIONS_FOLLOWUP: {
-        const { conversationFollowupPrompt } = await import(
-          "moz-src:///browser/components/aiwindow/models/prompts/ConversationSuggestionsPrompts.sys.mjs"
-        );
+        const { conversationFollowupPrompt } =
+          await import("moz-src:///browser/components/aiwindow/models/prompts/ConversationSuggestionsPrompts.sys.mjs");
         return conversationFollowupPrompt;
       }
       case MODEL_FEATURES.CONVERSATION_SUGGESTIONS_ASSISTANT_LIMITATIONS: {
-        const { assistantLimitations } = await import(
-          "moz-src:///browser/components/aiwindow/models/prompts/ConversationSuggestionsPrompts.sys.mjs"
-        );
+        const { assistantLimitations } =
+          await import("moz-src:///browser/components/aiwindow/models/prompts/ConversationSuggestionsPrompts.sys.mjs");
         return assistantLimitations;
       }
       case MODEL_FEATURES.CONVERSATION_SUGGESTIONS_MEMORIES: {
-        const { conversationMemoriesPrompt } = await import(
-          "moz-src:///browser/components/aiwindow/models/prompts/ConversationSuggestionsPrompts.sys.mjs"
-        );
+        const { conversationMemoriesPrompt } =
+          await import("moz-src:///browser/components/aiwindow/models/prompts/ConversationSuggestionsPrompts.sys.mjs");
         return conversationMemoriesPrompt;
       }
       // TODO: add local memories prompts imports for each feature

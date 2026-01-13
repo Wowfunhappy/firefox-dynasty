@@ -654,9 +654,8 @@ async function captureProfile() {
       throw profileCaptureResult.error;
     }
     if (!gProfileSaveOrUpload) {
-      const { ProfileSaveOrUploadDialog } = await import(
-        "chrome://global/content/aboutLogging/profileSaveUploadLogic.mjs"
-      );
+      const { ProfileSaveOrUploadDialog } =
+        await import("chrome://global/content/aboutLogging/profileSaveUploadLogic.mjs");
       gProfileSaveOrUpload = new ProfileSaveOrUploadDialog();
     }
     gProfileSaveOrUpload.init(new Uint8Array(profileCaptureResult.profile));
