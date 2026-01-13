@@ -233,6 +233,8 @@ var SidebarController = {
         revampL10nId: "sidebar-menu-contextual-password-manager-label",
         iconUrl: "chrome://browser/skin/login.svg",
         gleanEvent: Glean.contextualManager.sidebarToggle,
+        gleanClickEvent: Glean.sidebar.passwordsIconClick,
+        recordSidebarVersion: true,
       }
     );
 
