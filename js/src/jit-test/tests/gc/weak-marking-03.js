@@ -510,14 +510,10 @@ function grayKeyMap() {
   enqueueMark(vals.key);
   enqueueMark("yield");
 
-  // Wait until we are gray marking, then mark the map gray.
+  // Wait until we are gray marking.
   enqueueMark("set-color-gray");
   enqueueMark(vals.m);
-  enqueueMark("yield");
-
-  // The map marking will be deferred, so force it through.
   enqueueMark("unset-color");
-  enqueueMark("trace-deferred");
   enqueueMark("yield");
 
   enqueueMark("set-color-black");
@@ -534,8 +530,7 @@ function grayKeyMap() {
   // created additional zones.
   schedulezone(vals);
 
-  startGCMarking(2);
-
+  startGCMarking();
   // getMarks() returns map/key/value
   reportMarks("1: ");
   assertEq(getMarks().join("/"), "unmarked/black/unmarked",
@@ -550,16 +545,11 @@ function grayKeyMap() {
 
   gcslice(100000);
   reportMarks("3: ");
-  assertEq(getMarks().join("/"), "gray/black/unmarked",
-           "marked the map object gray, deferred the map tracing");
-
-  gcslice(100000);
-  reportMarks("4: ");
   assertEq(getMarks().join("/"), "gray/black/gray",
-           "deferred gray marking of map marked the value");
+           "marked the map gray, which marked the value when map scanned");
 
   finishgc(); // Finish the GC
-  reportMarks("5: ");
+  reportMarks("4: ");
   assertEq(getMarks().join("/"), "black/black/black",
            "further marked the map black, so value should also be blackened");
 

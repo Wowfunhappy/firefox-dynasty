@@ -1309,7 +1309,6 @@ IncrementalProgress GCRuntime::endMarkingSweepGroup(JS::GCContext* gcx,
   }
 
   MOZ_ASSERT(marker().isDrained());
-  MOZ_ASSERT(!hasAnyDeferredWeakMaps());
 
   // We must not yield after this point before we start sweeping the group.
   safeToYield = false;
@@ -1867,8 +1866,7 @@ IncrementalProgress GCRuntime::markDuringSweeping(JS::GCContext* gcx,
   MOZ_ASSERT(markTask.isIdle());
 
   if (markOnBackgroundThreadDuringSweeping) {
-    if (!marker().isDrained() || hasDelayedMarking() ||
-        hasAnyDeferredWeakMaps()) {
+    if (!marker().isDrained() || hasDelayedMarking()) {
       AutoLockHelperThreadState lock;
       MOZ_ASSERT(markTask.isIdle(lock));
       markTask.setBudget(budget);

@@ -639,24 +639,6 @@ class GCRuntime {
   // Allocator internals.
   static void* refillFreeListInGC(Zone* zone, AllocKind thingKind);
 
-  // Deferred WeakMap marking.
-  WeakMapList& deferredMapsList(MarkColor color) {
-    return (color == MarkColor::Black ? blackDeferredMaps : grayDeferredMaps)
-        .ref();
-  }
-  const WeakMapList& deferredMapsList(MarkColor color) const {
-    return (color == MarkColor::Black ? blackDeferredMaps : grayDeferredMaps)
-        .ref();
-  }
-  bool hasAnyDeferredWeakMaps() const {
-    return !blackDeferredMaps.ref().isEmpty() ||
-           !grayDeferredMaps.ref().isEmpty();
-  }
-  bool hasDeferredWeakMaps(MarkColor color) const {
-    return !deferredMapsList(color).isEmpty();
-  }
-  void resetDeferredWeakMaps();
-
   // Delayed marking.
   void delayMarkingChildren(gc::Cell* cell, MarkColor color);
   bool hasDelayedMarking() const;
@@ -869,6 +851,8 @@ class GCRuntime {
 
   bool reserveMarkingThreads(size_t count);
   void releaseMarkingThreads();
+
+  bool hasMarkingWork(MarkColor color) const;
 
   void drainMarkStack();
 
@@ -1272,12 +1256,6 @@ class GCRuntime {
 
   /* Index of current sweep group (for stats). */
   MainThreadData<unsigned> sweepGroupIndex;
-
-  // WeakMaps whose children have been deferred until the mark stack is empty
-  // (everything reachable without going through a WeakMap entry has been
-  // marked).
-  MainThreadOrGCTaskData<WeakMapList> blackDeferredMaps;
-  MainThreadOrGCTaskData<WeakMapList> grayDeferredMaps;
 
   /*
    * Incremental sweep state.
