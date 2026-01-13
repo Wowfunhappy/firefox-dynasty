@@ -1361,10 +1361,14 @@ bool GCMarker::markOneColor(SliceBudget& budget) {
 }
 
 void GCMarker::markDeferredWeakMapChildren(WeakMapList& deferred) {
+  // Even if this is called while parallel marking, there will only be one
+  // thread running at this time.
+  enterSingleThreadedMode();
   while (js::WeakMapBase* map = deferred.popFirst()) {
     (void)map->markEntries(this);
     map->zone()->gcWeakMapList().insertBack(map);
   }
+  leaveSingleThreadedMode();
 }
 
 bool GCMarker::markCurrentColorInParallel(ParallelMarkTask* task,
@@ -2360,6 +2364,20 @@ void GCMarker::enterParallelMarkingMode() {
 
 void GCMarker::leaveParallelMarkingMode() {
   setMarkingStateAndTracer<MarkingTracer>(ParallelMarking, RegularMarking);
+}
+
+void GCMarker::enterSingleThreadedMode() {
+  if (state == ParallelMarking) {
+    setMarkingStateAndTracer<ParallelMarkingTracer>(
+        ParallelMarking, ParallelMarkingSingleThread);
+  }
+}
+
+void GCMarker::leaveSingleThreadedMode() {
+  if (state == ParallelMarkingSingleThread) {
+    setMarkingStateAndTracer<MarkingTracer>(ParallelMarkingSingleThread,
+                                            ParallelMarking);
+  }
 }
 
 // It may not be worth the overhead of donating very few mark stack entries. For

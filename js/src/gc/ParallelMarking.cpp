@@ -217,8 +217,7 @@ void ParallelMarkTask::markDeferredWeakmaps(AutoLockHelperThreadState& lock) {
   MOZ_ASSERT(!pm->hasActiveTasks(lock));
 
   {
-    // No other marking threads are running, but still unlock helper thread
-    // state because marking may need to lock the GC.
+    // No other marking threads are running. Unlock helper thread state.
     AutoUnlockHelperThreadState unlock(lock);
     marker->markDeferredWeakMapChildren(gc->deferredMapsList(pm->color));
   }

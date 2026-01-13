@@ -172,7 +172,7 @@ bool WeakMap<K, V, AP>::markEntry(GCMarker* marker, gc::CellColor mapColor,
                                   Enum& iter, bool populateWeakKeysTable) {
 #ifdef DEBUG
   MOZ_ASSERT(IsMarked(mapColor));
-  if (marker->isParallelMarking()) {
+  if (marker->isParallelMarkingMultipleThreads()) {
     marker->runtime()->gc.assertCurrentThreadHasLockedGC();
   }
 #endif
@@ -277,6 +277,13 @@ void WeakMap<K, V, AP>::trace(JSTracer* trc) {
     MOZ_ASSERT(trc->weakMapAction() == JS::WeakMapTraceAction::Expand);
     GCMarker* marker = GCMarker::fromTracer(trc);
     if (markMap(marker->markColor())) {
+      // Lock during parallel marking to synchronize updates to the ephemeron
+      // edges table or the weakmap list links.
+      mozilla::Maybe<AutoLockGC> lock;
+      if (marker->isParallelMarkingMultipleThreads()) {
+        lock.emplace(marker->runtime());
+      }
+
       if (!memberOf) {
         (void)markEntries(marker);
         return;
@@ -293,12 +300,6 @@ void WeakMap<K, V, AP>::trace(JSTracer* trc) {
       // one WeakMap WM1 has a value that is a key in another WeakMap WM2, and
       // WM2's children are traced before WM1's, then at the time of tracing the
       // key will not yet be marked and so will be entered into the table.
-
-      // If marking in parallel, lock the GC to manipulate the map list links.
-      mozilla::Maybe<AutoLockGC> lock;
-      if (marker->isParallelMarking()) {
-        lock.emplace(marker->runtime());
-      }
 
       // Deferred maps are segregated into separate lists by color. Note that a
       // black map can produce gray values, but putting a black map into the
@@ -348,13 +349,6 @@ bool WeakMap<K, V, AP>::markEntries(GCMarker* marker) {
   // This method is called whenever the map's mark color changes. Mark values
   // (and keys with delegates) as required for the new color and populate the
   // ephemeron edges if we're in incremental marking mode.
-
-  // Lock during parallel marking to synchronize updates to the ephemeron edges
-  // table.
-  mozilla::Maybe<AutoLockGC> lock;
-  if (marker->isParallelMarking()) {
-    lock.emplace(marker->runtime());
-  }
 
   MOZ_ASSERT(IsMarked(mapColor()));
   bool markedAny = false;
