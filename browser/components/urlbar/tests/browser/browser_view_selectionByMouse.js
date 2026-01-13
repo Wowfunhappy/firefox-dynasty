@@ -364,7 +364,8 @@ add_task(async function buttons() {
     ],
   });
 
-  UrlbarProvidersManager.registerProvider(provider);
+  let providersManager = ProvidersManager.getInstanceForSap("urlbar");
+  providersManager.registerProvider(provider);
 
   let assertResultMenuOpen = () => {
     Assert.equal(
@@ -530,7 +531,7 @@ add_task(async function buttons() {
     }
   }
 
-  UrlbarProvidersManager.unregisterProvider(provider);
+  providersManager.unregisterProvider(provider);
 });
 
 async function waitForElements(selectors) {

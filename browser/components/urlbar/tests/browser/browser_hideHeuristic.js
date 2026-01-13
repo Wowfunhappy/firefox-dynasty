@@ -49,7 +49,8 @@ add_task(async function extension() {
           }),
         ],
       });
-      UrlbarProvidersManager.registerProvider(provider);
+      let providersManager = ProvidersManager.getInstanceForSap("urlbar");
+      providersManager.registerProvider(provider);
 
       // Do a search that fetches the provider's result and check it.
       let heuristic = await search({
@@ -64,7 +65,7 @@ add_task(async function extension() {
       // Press enter to verify the heuristic result is loaded.
       await synthesizeEnterAndAwaitLoad(url);
 
-      UrlbarProvidersManager.unregisterProvider(provider);
+      providersManager.unregisterProvider(provider);
     });
   });
 });

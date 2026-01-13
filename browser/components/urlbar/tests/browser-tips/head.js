@@ -19,7 +19,7 @@ ChromeUtils.defineESModuleGetters(this, {
   TelemetryTestUtils: "resource://testing-common/TelemetryTestUtils.sys.mjs",
   UrlbarProviderInterventions:
     "moz-src:///browser/components/urlbar/UrlbarProviderInterventions.sys.mjs",
-  UrlbarProvidersManager:
+  ProvidersManager:
     "moz-src:///browser/components/urlbar/UrlbarProvidersManager.sys.mjs",
   UrlbarResult: "moz-src:///browser/components/urlbar/UrlbarResult.sys.mjs",
 });
@@ -706,7 +706,7 @@ function resetSearchTipsProvider() {
   Services.prefs.clearUserPref(
     `browser.urlbar.tipShownCount.${UrlbarProviderSearchTips.TIP_TYPE.REDIRECT}`
   );
-  UrlbarProvidersManager.getProvider(
+  ProvidersManager.getInstanceForSap("urlbar").getProvider(
     "UrlbarProviderSearchTips"
   ).disableTipsForCurrentSession = false;
 }

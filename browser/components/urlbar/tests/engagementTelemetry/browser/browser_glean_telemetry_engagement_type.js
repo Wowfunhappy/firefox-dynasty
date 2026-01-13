@@ -120,7 +120,8 @@ add_task(async function engagement_type_help() {
       }),
     ],
   });
-  UrlbarProvidersManager.registerProvider(provider);
+  let providersManager = ProvidersManager.getInstanceForSap("urlbar");
+  providersManager.registerProvider(provider);
 
   await doTest(async () => {
     await openPopup("test");
@@ -134,7 +135,7 @@ add_task(async function engagement_type_help() {
     assertEngagementTelemetry([{ engagement_type: "help" }]);
   });
 
-  UrlbarProvidersManager.unregisterProvider(provider);
+  providersManager.unregisterProvider(provider);
 });
 
 add_task(async function engagement_type_manage() {

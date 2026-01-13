@@ -37,9 +37,9 @@ const GOOGLE_DOMAINS = [
   "www.google.com.au",
   "www.google.co.nz",
 ];
-let tipsProviderInstance = UrlbarProvidersManager.getProvider(
-  "UrlbarProviderSearchTips"
-);
+let tipsProviderInstance = ProvidersManager.getInstanceForSap(
+  "urlbar"
+).getProvider("UrlbarProviderSearchTips");
 
 add_setup(async function () {
   await PlacesUtils.history.clear();

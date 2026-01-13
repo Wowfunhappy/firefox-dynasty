@@ -453,7 +453,8 @@ async function withSuggestions(callback, enableSuggestions = true) {
 async function doSuggestedIndexTest(expectedProps) {
   await addHistory();
   let provider = new TestProvider();
-  UrlbarProvidersManager.registerProvider(provider);
+  let providersManager = ProvidersManager.getInstanceForSap("urlbar");
+  providersManager.registerProvider(provider);
 
   let context = await UrlbarTestUtils.promiseAutocompleteResultPopup({
     window,
@@ -462,7 +463,7 @@ async function doSuggestedIndexTest(expectedProps) {
   checkResults(context.results, expectedProps);
   await UrlbarTestUtils.promisePopupClose(window);
 
-  UrlbarProvidersManager.unregisterProvider(provider);
+  providersManager.unregisterProvider(provider);
   await PlacesUtils.history.clear();
 }
 

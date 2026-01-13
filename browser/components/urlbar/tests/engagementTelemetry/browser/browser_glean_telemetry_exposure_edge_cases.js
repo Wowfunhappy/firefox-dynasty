@@ -6,7 +6,7 @@
 "use strict";
 
 ChromeUtils.defineESModuleGetters(this, {
-  UrlbarProvidersManager:
+  ProvidersManager:
     "moz-src:///browser/components/urlbar/UrlbarProvidersManager.sys.mjs",
   UrlbarResult: "moz-src:///browser/components/urlbar/UrlbarResult.sys.mjs",
   UrlbarUtils: "moz-src:///browser/components/urlbar/UrlbarUtils.sys.mjs",
@@ -37,7 +37,8 @@ add_setup(async function () {
   Services.fog.testResetFOG();
 
   gProvider = new TestProvider();
-  UrlbarProvidersManager.registerProvider(gProvider);
+  let providersManager = ProvidersManager.getInstanceForSap("urlbar");
+  providersManager.registerProvider(gProvider);
 
   // This test specifically checks the view's behavior before and after it
   // removes stale rows, so it needs to control when that occurs. There are two
@@ -50,7 +51,7 @@ add_setup(async function () {
 
   registerCleanupFunction(() => {
     UrlbarView.removeStaleRowsTimeout = originalRemoveStaleRowsTimeout;
-    UrlbarProvidersManager.unregisterProvider(gProvider);
+    providersManager.unregisterProvider(gProvider);
   });
 });
 

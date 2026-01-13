@@ -6,7 +6,7 @@
 /* import-globals-from head.js */
 
 ChromeUtils.defineESModuleGetters(this, {
-  UrlbarProvidersManager:
+  ProvidersManager:
     "moz-src:///browser/components/urlbar/UrlbarProvidersManager.sys.mjs",
 });
 
@@ -223,9 +223,10 @@ async function doClipboardTest({ trigger, assert }) {
     await assert();
   });
   SpecialPowers.clipboardCopyString("");
-  UrlbarProvidersManager.getProvider(
-    "UrlbarProviderClipboard"
-  ).setPreviousClipboardValue("");
+  let providersManager = ProvidersManager.getInstanceForSap("urlbar");
+  providersManager
+    .getProvider("UrlbarProviderClipboard")
+    .setPreviousClipboardValue("");
   await SpecialPowers.popPrefEnv();
 }
 

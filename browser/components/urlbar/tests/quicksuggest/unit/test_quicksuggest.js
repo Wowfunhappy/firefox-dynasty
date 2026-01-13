@@ -459,10 +459,11 @@ add_task(async function emptySearchStringsAndSpaces() {
       context,
       matches: [],
     });
+    let providersManager = ProvidersManager.getInstanceForSap("urlbar");
     Assert.ok(
-      !(await UrlbarProvidersManager.getProvider(
-        UrlbarProviderQuickSuggest.name
-      ).isActive(context)),
+      !(await providersManager
+        .getProvider(UrlbarProviderQuickSuggest.name)
+        .isActive(context)),
       "Provider should not be active for search string: " + msg
     );
   }
@@ -744,7 +745,8 @@ add_task(async function maxResults() {
   // Spy on `muxer.sort()` so we can verify the provider limited the number of
   // results it added to the query.
   let muxerName = context.muxer || "UnifiedComplete";
-  let muxer = UrlbarProvidersManager.muxers.get(muxerName);
+  let providersManager = ProvidersManager.getInstanceForSap("urlbar");
+  let muxer = providersManager.muxers.get(muxerName);
   Assert.ok(!!muxer, "Muxer should exist");
 
   let sandbox = sinon.createSandbox();
@@ -870,7 +872,8 @@ async function doManySuggestResultsTest({
   }
 
   let provider = new UrlbarTestUtils.TestProvider({ results: otherResults });
-  UrlbarProvidersManager.registerProvider(provider);
+  let providersManager = ProvidersManager.getInstanceForSap("urlbar");
+  providersManager.registerProvider(provider);
 
   // Do a search that matches all the Suggest suggestions and the test
   // provider's results. The Suggest suggestion(s) should be first since its
@@ -886,7 +889,7 @@ async function doManySuggestResultsTest({
     ],
   });
 
-  UrlbarProvidersManager.unregisterProvider(provider);
+  providersManager.unregisterProvider(provider);
 }
 
 add_task(async function dedupeAgainstURL_samePrefix() {

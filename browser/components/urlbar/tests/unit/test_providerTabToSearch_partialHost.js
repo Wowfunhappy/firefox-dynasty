@@ -175,13 +175,14 @@ add_task(async function test() {
 
   info("Test non-matching cases");
 
+  let providersManager = ProvidersManager.getInstanceForSap("urlbar");
   for (let searchStr of ["www.en", "www.ex", "https://ex"]) {
     info("Searching for " + searchStr);
     let context = createContext(searchStr, { isPrivate: false });
     // We don't want to generate all the possible results here, just check
     // the heuristic result is not autofill.
     let controller = UrlbarTestUtils.newMockController();
-    await UrlbarProvidersManager.startQuery(context, controller);
+    await providersManager.startQuery(context, controller);
     Assert.ok(context.results[0].heuristic, "Check heuristic result");
     Assert.notEqual(context.results[0].providerName, "UrlbarProviderAutofill");
   }
@@ -251,7 +252,7 @@ add_task(async function test() {
     sources: [UrlbarUtils.RESULT_SOURCE.HISTORY],
   });
   let controller = UrlbarTestUtils.newMockController();
-  await UrlbarProvidersManager.startQuery(context, controller);
+  await providersManager.startQuery(context, controller);
   Assert.ok(context.results[0].heuristic, "Check heuristic result");
   Assert.notEqual(context.results[0].providerName, "UrlbarProviderAutofill");
 

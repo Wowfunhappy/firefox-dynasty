@@ -2465,7 +2465,7 @@ export class UrlbarQueryContext {
   /**
    * @type {string[]}
    *   List of registered provider names. Providers can be registered through
-   *   the UrlbarProvidersManager.
+   *   the ProvidersManager.
    */
   providers;
 
