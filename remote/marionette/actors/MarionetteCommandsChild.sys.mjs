@@ -151,12 +151,17 @@ export class MarionetteCommandsChild extends JSWindowActorChild {
   #toBrowserWindowCoordinates(options, _context) {
     const { position } = options;
 
-    return lazy.LayoutUtils.rectToTopLevelWidgetRect(this.contentWindow, {
-      left: position[0],
-      top: position[1],
+    const [x, y] = position;
+    const dpr = this.contentWindow.devicePixelRatio;
+
+    const val = lazy.LayoutUtils.rectToTopLevelWidgetRect(this.contentWindow, {
+      left: x,
+      top: y,
       height: 0,
       width: 0,
     });
+
+    return [val.x / dpr, val.y / dpr];
   }
 
   // eslint-disable-next-line complexity
