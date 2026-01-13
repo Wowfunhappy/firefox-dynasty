@@ -57,6 +57,23 @@ extern const JSClass IntlClass;
  */
 [[nodiscard]] extern bool intl_BestAvailableLocale(JSContext* cx, unsigned argc,
                                                    JS::Value* vp);
+
+/**
+ * Compares a BCP 47 language priority list against the set of locales in
+ * availableLocales and determines the best available language to meet the
+ * request. Options specified through Unicode extension subsequences are
+ * ignored in the lookup, but information about such subsequences is returned
+ * separately.
+ *
+ * This variant is based on the Lookup algorithm of RFC 4647 section 3.4.
+ *
+ * Spec: ECMAScript Internationalization API Specification, 9.2.3.
+ * Spec: RFC 4647, section 3.4.
+ *
+ * Usage: result = intl_LookupMatcher(availableLocales, requestedLocales)
+ */
+[[nodiscard]] extern bool intl_LookupMatcher(JSContext* cx, unsigned argc,
+                                             JS::Value* vp);
 }  // namespace js
 
 #endif /* builtin_intl_IntlObject_h */

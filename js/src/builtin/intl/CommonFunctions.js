@@ -86,35 +86,6 @@ function endOfUnicodeExtensions(locale, start) {
 }
 
 /**
- * Removes Unicode locale extension sequences from the given language tag.
- */
-function removeUnicodeExtensions(locale) {
-  assertIsValidAndCanonicalLanguageTag(
-    locale,
-    "locale with possible Unicode extension"
-  );
-
-  var start = startOfUnicodeExtensions(locale);
-  if (start < 0) {
-    return locale;
-  }
-
-  var end = endOfUnicodeExtensions(locale, start);
-
-  var left = Substring(locale, 0, start);
-  var right = Substring(locale, end, locale.length - end);
-  var combined = left + right;
-
-  assertIsValidAndCanonicalLanguageTag(combined, "the recombined locale");
-  assert(
-    startOfUnicodeExtensions(combined) < 0,
-    "recombination failed to remove all Unicode locale extension sequences"
-  );
-
-  return combined;
-}
-
-/**
  * Returns Unicode locale extension sequences from the given language tag.
  */
 function getUnicodeExtensions(locale) {
@@ -241,42 +212,21 @@ function BestAvailableLocaleIgnoringDefault(availableLocales, locale) {
  * Spec: RFC 4647, section 3.4.
  */
 function LookupMatcher(availableLocales, requestedLocales) {
-  // Step 1.
-  var result = NEW_RECORD();
+  var array = intl_LookupMatcher(availableLocales, requestedLocales);
+  assert(
+    IsPackedArray(array) && array.length === 2,
+    "intl_LookupMatcher returns a two-element array"
+  );
+  assert(typeof array[0] === "string", "array[0] is a string");
+  assert(
+    typeof array[1] === "string" || array[1] === undefined,
+    "array[1] is a string or undefined"
+  );
 
-  // Step 2.
-  for (var i = 0; i < requestedLocales.length; i++) {
-    var locale = requestedLocales[i];
-
-    // Step 2.a.
-    var noExtensionsLocale = removeUnicodeExtensions(locale);
-
-    // Step 2.b.
-    var availableLocale = BestAvailableLocale(
-      availableLocales,
-      noExtensionsLocale
-    );
-
-    // Step 2.c.
-    if (availableLocale !== undefined) {
-      // Step 2.c.i.
-      result.locale = availableLocale;
-
-      // Step 2.c.ii.
-      if (locale !== noExtensionsLocale) {
-        result.extension = getUnicodeExtensions(locale);
-      }
-
-      // Step 2.c.iii.
-      return result;
-    }
-  }
-
-  // Steps 3-4.
-  result.locale = intl_DefaultLocale();
-
-  // Step 5.
-  return result;
+  return {
+    locale: array[0],
+    extension: array[1],
+  };
 }
 
 /**

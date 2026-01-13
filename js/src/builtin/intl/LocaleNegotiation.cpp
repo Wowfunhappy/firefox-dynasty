@@ -8,10 +8,12 @@
 
 #include "mozilla/Assertions.h"
 #include "mozilla/intl/Locale.h"
+#include "mozilla/Range.h"
 
 #include <algorithm>
 #include <iterator>
 #include <stddef.h>
+#include <utility>
 
 #include "builtin/Array.h"
 #include "builtin/intl/CommonFunctions.h"
@@ -341,6 +343,175 @@ static bool SupportedLocales(JSContext* cx,
   // We don't yet support anything better than the lookup matcher.
   return LookupSupportedLocales(cx, availableLocales, requestedLocales,
                                 supportedLocales);
+}
+
+/**
+ * Returns the start and end indices of a "Unicode locale extension sequence",
+ * which the specification defines as: "any substring of a language tag that
+ * starts with a separator '-' and the singleton 'u' and includes the maximum
+ * sequence of following non-singleton subtags and their preceding '-'
+ * separators."
+ *
+ * Alternatively, this may be defined as: the components of a language tag that
+ * match the `unicode_locale_extensions` production in UTS 35.
+ *
+ * Spec: ECMAScript Internationalization API Specification, 6.2.1.
+ */
+template <typename CharT>
+static std::pair<size_t, size_t> FindUnicodeExtensionSequence(
+    mozilla::Range<const CharT> locale) {
+  // Return early if the locale string is too small to hold any Unicode
+  // extension sequences. (This is the common case, so handle it first.)
+  //
+  // Smallest language subtag has two characters.
+  // Smallest Unicode extension sequence has five characters
+  if (locale.length() < (2 + 5)) {
+    return {};
+  }
+
+  // Search for the start of a Unicode extension sequence.
+  //
+  // Begin searching after the smallest possible language subtag, namely
+  // |2alpha|. End searching once the remaining characters can't fit the
+  // smallest possible Unicode extension sequence, namely |"-u-" 2alphanum|.
+  // Note the reduced end-limit means indexing inside the loop is always
+  // in-range.
+  size_t start = 0;
+  for (size_t i = 2; i <= locale.length() - 5; i++) {
+    // Search for "-u-" marking the start of a Unicode extension sequence.
+    if (locale[i] == '-' && locale[i + 1] == 'u' && locale[i + 2] == '-') {
+      start = i;
+      break;
+    }
+
+    // And search for "-x-" marking the start of any privateuse component to
+    // handle the case when "-u-" was only found within a privateuse subtag.
+    if (locale[i] == '-' && locale[i + 1] == 'x' && locale[i + 2] == '-') {
+      break;
+    }
+  }
+
+  // Return if no Unicode extension sequence was found.
+  if (start == 0) {
+    return {};
+  }
+
+  // Search for the start of the next singleton or privateuse subtag.
+  //
+  // Begin searching after the smallest possible Unicode locale extension
+  // sequence, namely |"-u-" 2alphanum|. End searching once the remaining
+  // characters can't fit the smallest possible privateuse subtag, namely
+  // |"-x-" alphanum|. Note the reduced end-limit means indexing inside the loop
+  // is always in-range.
+  for (size_t i = start + 5; i <= locale.length() - 4; i++) {
+    if (locale[i] != '-') {
+      continue;
+    }
+    if (locale[i + 2] == '-') {
+      return {start, i};
+    }
+
+    // Skip over (i + 1) and (i + 2) because we've just verified they aren't
+    // "-", so the next possible delimiter can only be at (i + 3).
+    i += 2;
+  }
+
+  // If no singleton or privateuse subtag was found, the Unicode extension
+  // sequence extends until the end of the string.
+  return {start, locale.length()};
+}
+
+static auto FindUnicodeExtensionSequence(const JSLinearString* locale) {
+  JS::AutoCheckCannotGC nogc;
+  if (locale->hasLatin1Chars()) {
+    return FindUnicodeExtensionSequence(locale->latin1Range(nogc));
+  }
+  return FindUnicodeExtensionSequence(locale->twoByteRange(nogc));
+}
+
+void js::intl::LookupMatcherResult::trace(JSTracer* trc) {
+  TraceNullableRoot(trc, &locale_, "LookupMatcherResult::locale");
+  TraceNullableRoot(trc, &extension_, "LookupMatcherResult::extension");
+}
+
+/**
+ * LookupMatchingLocaleByPrefix ( availableLocales, requestedLocales )
+ */
+bool js::intl::LookupMatcher(JSContext* cx,
+                             AvailableLocaleKind availableLocales,
+                             Handle<ArrayObject*> locales,
+                             MutableHandle<LookupMatcherResult> result) {
+  MOZ_RELEASE_ASSERT(IsPackedArray(locales));
+
+  Rooted<JSLinearString*> defaultLocale(
+      cx, cx->global()->globalIntlData().defaultLocale(cx));
+  if (!defaultLocale) {
+    return false;
+  }
+
+  // Step 1. (Not applicable)
+
+  // Step 2.
+  Rooted<JSLinearString*> locale(cx);
+  Rooted<JSLinearString*> noExtensionsLocale(cx);
+  Rooted<JSLinearString*> availableLocale(cx);
+  for (size_t i = 0, length = locales->length(); i < length; i++) {
+    locale = locales->getDenseElement(i).toString()->ensureLinear(cx);
+    if (!locale) {
+      return false;
+    }
+
+    // Step 2.a.
+    //
+    // Use the base name to ignore any extension sequences.
+    noExtensionsLocale =
+        NewDependentString(cx, locale, 0, BaseNameLength(locale));
+    if (!noExtensionsLocale) {
+      return false;
+    }
+
+    // Step 2.b.
+    JS_TRY_VAR_OR_RETURN_FALSE(
+        cx, availableLocale,
+        BestAvailableLocale(cx, availableLocales, noExtensionsLocale,
+                            defaultLocale));
+
+    // Step 2.c.
+    if (availableLocale) {
+      // Step 2.c.i. (Not applicable)
+
+      // Step 2.c.ii.
+      //
+      // Search for Unicode extension sequences if |locale| contains any
+      // extension subtags.
+      JSLinearString* extension = nullptr;
+      if (locale->length() > noExtensionsLocale->length()) {
+        auto [startOfUnicodeExtensions, endOfUnicodeExtensions] =
+            FindUnicodeExtensionSequence(locale);
+
+        // Extract the Unicode extension sequence of |locale|.
+        if (startOfUnicodeExtensions) {
+          MOZ_ASSERT(startOfUnicodeExtensions < endOfUnicodeExtensions);
+          MOZ_ASSERT(endOfUnicodeExtensions <= locale->length());
+
+          extension = NewDependentString(
+              cx, locale, startOfUnicodeExtensions,
+              endOfUnicodeExtensions - startOfUnicodeExtensions);
+          if (!extension) {
+            return false;
+          }
+        }
+      }
+
+      // Step 2.c.iii.
+      result.set({availableLocale, extension});
+      return true;
+    }
+  }
+
+  // Steps 3-5.
+  result.set({defaultLocale, nullptr});
+  return true;
 }
 
 ArrayObject* js::intl::LocalesListToArray(JSContext* cx,

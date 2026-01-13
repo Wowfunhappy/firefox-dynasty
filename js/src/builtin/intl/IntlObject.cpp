@@ -106,6 +106,35 @@ bool js::intl_GetCalendarInfo(JSContext* cx, unsigned argc, Value* vp) {
   return true;
 }
 
+static auto ToAvailableLocaleKind(JSLinearString* string) {
+  if (StringEqualsLiteral(string, "Collator")) {
+    return AvailableLocaleKind::Collator;
+  }
+  if (StringEqualsLiteral(string, "DateTimeFormat")) {
+    return AvailableLocaleKind::DateTimeFormat;
+  }
+  if (StringEqualsLiteral(string, "DisplayNames")) {
+    return AvailableLocaleKind::DisplayNames;
+  }
+  if (StringEqualsLiteral(string, "DurationFormat")) {
+    return AvailableLocaleKind::DurationFormat;
+  }
+  if (StringEqualsLiteral(string, "ListFormat")) {
+    return AvailableLocaleKind::ListFormat;
+  }
+  if (StringEqualsLiteral(string, "NumberFormat")) {
+    return AvailableLocaleKind::NumberFormat;
+  }
+  if (StringEqualsLiteral(string, "PluralRules")) {
+    return AvailableLocaleKind::PluralRules;
+  }
+  if (StringEqualsLiteral(string, "RelativeTimeFormat")) {
+    return AvailableLocaleKind::RelativeTimeFormat;
+  }
+  MOZ_ASSERT(StringEqualsLiteral(string, "Segmenter"));
+  return AvailableLocaleKind::Segmenter;
+}
+
 // 9.2.2 BestAvailableLocale ( availableLocales, locale )
 //
 // Carries an additional third argument in our implementation to provide the
@@ -114,8 +143,6 @@ bool js::intl_BestAvailableLocale(JSContext* cx, unsigned argc, Value* vp) {
   CallArgs args = CallArgsFromVp(argc, vp);
   MOZ_ASSERT(args.length() == 3);
 
-  using AvailableLocaleKind = js::intl::AvailableLocaleKind;
-
   AvailableLocaleKind kind;
   {
     JSLinearString* typeStr = args[0].toString()->ensureLinear(cx);
@@ -123,26 +150,7 @@ bool js::intl_BestAvailableLocale(JSContext* cx, unsigned argc, Value* vp) {
       return false;
     }
 
-    if (StringEqualsLiteral(typeStr, "Collator")) {
-      kind = AvailableLocaleKind::Collator;
-    } else if (StringEqualsLiteral(typeStr, "DateTimeFormat")) {
-      kind = AvailableLocaleKind::DateTimeFormat;
-    } else if (StringEqualsLiteral(typeStr, "DisplayNames")) {
-      kind = AvailableLocaleKind::DisplayNames;
-    } else if (StringEqualsLiteral(typeStr, "DurationFormat")) {
-      kind = AvailableLocaleKind::DurationFormat;
-    } else if (StringEqualsLiteral(typeStr, "ListFormat")) {
-      kind = AvailableLocaleKind::ListFormat;
-    } else if (StringEqualsLiteral(typeStr, "NumberFormat")) {
-      kind = AvailableLocaleKind::NumberFormat;
-    } else if (StringEqualsLiteral(typeStr, "PluralRules")) {
-      kind = AvailableLocaleKind::PluralRules;
-    } else if (StringEqualsLiteral(typeStr, "RelativeTimeFormat")) {
-      kind = AvailableLocaleKind::RelativeTimeFormat;
-    } else {
-      MOZ_ASSERT(StringEqualsLiteral(typeStr, "Segmenter"));
-      kind = AvailableLocaleKind::Segmenter;
-    }
+    kind = ToAvailableLocaleKind(typeStr);
   }
 
   Rooted<JSLinearString*> locale(cx, args[1].toString()->ensureLinear(cx));
@@ -169,6 +177,44 @@ bool js::intl_BestAvailableLocale(JSContext* cx, unsigned argc, Value* vp) {
   } else {
     args.rval().setUndefined();
   }
+  return true;
+}
+
+bool js::intl_LookupMatcher(JSContext* cx, unsigned argc, Value* vp) {
+  CallArgs args = CallArgsFromVp(argc, vp);
+  MOZ_ASSERT(args.length() == 2);
+
+  AvailableLocaleKind kind;
+  {
+    JSLinearString* typeStr = args[0].toString()->ensureLinear(cx);
+    if (!typeStr) {
+      return false;
+    }
+
+    kind = ToAvailableLocaleKind(typeStr);
+  }
+
+  Rooted<ArrayObject*> locales(cx, &args[1].toObject().as<ArrayObject>());
+
+  Rooted<LookupMatcherResult> result(cx);
+  if (!LookupMatcher(cx, kind, locales, &result)) {
+    return false;
+  }
+
+  auto* array = NewDenseFullyAllocatedArray(cx, 2);
+  if (!array) {
+    return false;
+  }
+  array->setDenseInitializedLength(2);
+
+  array->initDenseElement(0, StringValue(result.locale()));
+  if (auto extension = result.extension()) {
+    array->initDenseElement(1, StringValue(extension));
+  } else {
+    array->initDenseElement(1, UndefinedValue());
+  }
+
+  args.rval().setObject(*array);
   return true;
 }
 
