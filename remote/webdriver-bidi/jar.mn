@@ -8,6 +8,7 @@ remote.jar:
   content/webdriver-bidi/NewSessionHandler.sys.mjs (NewSessionHandler.sys.mjs)
   content/webdriver-bidi/ProxyPerUserContextManager.sys.mjs (ProxyPerUserContextManager.sys.mjs)
   content/webdriver-bidi/RemoteValue.sys.mjs (RemoteValue.sys.mjs)
+  content/webdriver-bidi/UserPromptHandlerManager.sys.mjs (UserPromptHandlerManager.sys.mjs)
   content/webdriver-bidi/WebDriverBiDi.sys.mjs (WebDriverBiDi.sys.mjs)
   content/webdriver-bidi/WebDriverBiDiConnection.sys.mjs (WebDriverBiDiConnection.sys.mjs)
 

@@ -136,7 +136,7 @@ export class PromptListener {
    * `domwindowopened` - when a new chrome window opened,
    * `geckoview-prompt-show` - when a modal dialog opened on Android.
    */
-  observe(subject, topic) {
+  async observe(subject, topic) {
     let curBrowser = this.#curBrowserFn && this.#curBrowserFn();
     switch (topic) {
       case "common-dialog-loaded": {
@@ -156,10 +156,14 @@ export class PromptListener {
           curBrowser = { contentBrowser: browsingContext.embedderElement };
         }
 
+        const prompt = new lazy.modal.Dialog(subject);
         this.emit("opened", {
           browsingContext,
           contentBrowser: curBrowser.contentBrowser,
-          prompt: new lazy.modal.Dialog(subject),
+          prompt,
+          // Resolve prompt details here to avoid sending an open event
+          // with the data that is resolved after a prompt is handled.
+          promptDetails: await this.#getPromptDetails(prompt),
         });
 
         break;
@@ -189,9 +193,13 @@ export class PromptListener {
               continue;
             }
 
+            const dialog = new lazy.modal.Dialog(prompt);
             this.emit("opened", {
               contentBrowser,
-              prompt: new lazy.modal.Dialog(prompt),
+              prompt: dialog,
+              // Resolve prompt details here to avoid sending an open event
+              // with the data that is resolved after a prompt is handled.
+              promptDetails: await this.#getPromptDetails(dialog),
             });
             return;
           }
@@ -217,6 +225,14 @@ export class PromptListener {
 
     this.#unregister();
     this.#listening = false;
+  }
+
+  async #getPromptDetails(prompt) {
+    return {
+      defaultValue:
+        prompt.promptType === "prompt" ? await prompt.getInputText() : null,
+      message: await prompt.getText(),
+    };
   }
 
   #hasCommonDialog(contentBrowser, window, prompt) {
