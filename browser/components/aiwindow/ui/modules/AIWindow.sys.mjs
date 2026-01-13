@@ -12,6 +12,8 @@ const FIRSTRUN_URI = Services.io.newURI(FIRSTRUN_URL);
 
 const lazy = {};
 ChromeUtils.defineESModuleGetters(lazy, {
+  AIWindowAccountAuth:
+    "moz-src:///browser/components/aiwindow/ui/modules/AIWindowAccountAuth.sys.mjs",
   AIWindowMenu:
     "moz-src:///browser/components/aiwindow/ui/modules/AIWindowMenu.sys.mjs",
 
@@ -22,6 +24,12 @@ ChromeUtils.defineESModuleGetters(lazy, {
     "moz-src:///browser/components/customizableui/PanelMultiView.sys.mjs",
   PrivateBrowsingUtils: "resource://gre/modules/PrivateBrowsingUtils.sys.mjs",
 });
+
+XPCOMUtils.defineLazyPreferenceGetter(
+  lazy,
+  "hasFirstrunCompleted",
+  "browser.aiwindow.firstrun.hasCompleted"
+);
 
 /**
  * AI Window Service
@@ -108,7 +116,11 @@ export const AIWindow = {
       const aiWindowURI = Cc["@mozilla.org/supports-string;1"].createInstance(
         Ci.nsISupportsString
       );
-      aiWindowURI.data = restoreSession ? "" : AIWINDOW_URL;
+      let initialURL = "";
+      if (!restoreSession) {
+        initialURL = lazy.hasFirstrunCompleted ? AIWINDOW_URL : FIRSTRUN_URL;
+      }
+      aiWindowURI.data = initialURL;
       args.appendElement(aiWindowURI);
 
       const aiOption = Cc["@mozilla.org/hash-property-bag;1"].createInstance(
@@ -155,7 +167,7 @@ export const AIWindow = {
           this.toggleAIWindow(win, false);
           break;
         case "ai-window-switch-ai":
-          this.toggleAIWindow(win, true);
+          this.launchWindow(win.gBrowser.selectedBrowser);
           break;
       }
     });
@@ -256,6 +268,10 @@ export const AIWindow = {
     return AIWINDOW_URL;
   },
 
+  get firstrunURL() {
+    return FIRSTRUN_URL;
+  },
+
   /**
    * Performs a search in the default search engine with
    * passed query in the current tab.
@@ -293,6 +309,27 @@ export const AIWindow = {
       win.document.documentElement.toggleAttribute("ai-window");
       Services.obs.notifyObservers(win, "ai-window-state-changed");
     }
+  },
+
+  async launchWindow(browser) {
+    if (!this.isAIWindowEnabled()) {
+      Services.prefs.setBoolPref("browser.aiwindow.enabled", true);
+    }
+
+    if (!(await lazy.AIWindowAccountAuth.ensureAIWindowAccess(browser))) {
+      return false;
+    }
+
+    this.toggleAIWindow(browser.ownerGlobal, true);
+
+    if (!lazy.hasFirstrunCompleted) {
+      browser.ownerGlobal.gBrowser.loadURI(Services.io.newURI(FIRSTRUN_URL), {
+        triggeringPrincipal:
+          Services.scriptSecurityManager.getSystemPrincipal(),
+      });
+    }
+
+    return true;
   },
 };
 

@@ -12,6 +12,7 @@ ChromeUtils.defineESModuleGetters(lazy, {
 });
 const MODEL_PREF = "browser.aiwindow.firstrun.modelChoice";
 const AUTO_ADVANCE_PREF = "browser.aiwindow.firstrun.autoAdvanceMS";
+const FIRST_RUN_COMPLETE_PREF = "browser.aiwindow.firstrun.hasCompleted";
 const BRAND_DARK_PURPLE = "#210340";
 
 const autoAdvanceMS = Services.prefs.getIntPref(AUTO_ADVANCE_PREF);
@@ -176,6 +177,13 @@ const AI_WINDOW_CONFIG = {
             string_id: "aiwindow-firstrun-button",
           },
           action: {
+            type: "SET_PREF",
+            data: {
+              pref: {
+                name: FIRST_RUN_COMPLETE_PREF,
+                value: true,
+              },
+            },
             navigate: true,
           },
         },

@@ -97,7 +97,7 @@ export const AIWindowAccountAuth = {
     }
   },
 
-  async launchAIWindow(browser) {
+  async ensureAIWindowAccess(browser) {
     if (!(await this.canAccessAIWindow())) {
       const signedIn = await this.promptSignIn(browser);
       if (!signedIn) {
@@ -105,9 +105,6 @@ export const AIWindowAccountAuth = {
         return false;
       }
     }
-    // Proceed with launching the AI window
-    // Tobe updated with window switching toggleWindow call implemented with fix of bug 2006469
-    browser.ownerGlobal.OpenBrowserWindow({ aiWindow: true });
     return true;
   },
 };

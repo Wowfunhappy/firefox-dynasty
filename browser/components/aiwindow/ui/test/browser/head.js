@@ -7,7 +7,10 @@ const AIWINDOW_URL = "chrome://browser/content/aiwindow/aiWindow.html";
 
 add_setup(async function () {
   await SpecialPowers.pushPrefEnv({
-    set: [["browser.aiwindow.enabled", true]],
+    set: [
+      ["browser.aiwindow.enabled", true],
+      ["browser.aiwindow.firstrun.hasCompleted", true],
+    ],
   });
 });
 

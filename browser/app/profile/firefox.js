@@ -2273,6 +2273,7 @@ pref("browser.aiwindow.endpoint", "https://mlpa-prod-prod-mozilla.global.ssl.fas
 pref("browser.aiwindow.memories", false);
 pref("browser.aiwindow.memoriesLogLevel", "Warn");
 pref("browser.aiwindow.firstrun.autoAdvanceMS", 3000);
+pref("browser.aiwindow.firstrun.hasCompleted", false);
 pref("browser.aiwindow.firstrun.modelChoice", "");
 pref("browser.aiwindow.model", "qwen3-235b-a22b-instruct-2507-maas");
 pref("browser.aiwindow.preferences.enabled", false);
