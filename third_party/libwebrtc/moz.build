@@ -294,6 +294,7 @@ DIRS += [
     "/third_party/libwebrtc/modules/congestion_controller/goog_cc/probe_controller_gn",
     "/third_party/libwebrtc/modules/congestion_controller/goog_cc/pushback_controller_gn",
     "/third_party/libwebrtc/modules/congestion_controller/goog_cc/send_side_bwe_gn",
+    "/third_party/libwebrtc/modules/congestion_controller/rtp/congestion_controller_feedback_stats_gn",
     "/third_party/libwebrtc/modules/congestion_controller/rtp/control_handler_gn",
     "/third_party/libwebrtc/modules/congestion_controller/rtp/transport_feedback_gn",
     "/third_party/libwebrtc/modules/congestion_controller/scream/delay_based_congestion_control_gn",
