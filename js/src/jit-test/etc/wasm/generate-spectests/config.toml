@@ -123,6 +123,14 @@ excluded_tests = [
 ]
 directive = "; skip-if: !wasmCustomPageSizesEnabled(); test-also=-P wasm_custom_page_sizes; test-also=--wasm-compiler=baseline -P wasm_custom_page_sizes; test-also=--wasm-compiler=optimizing -P wasm_custom_page_sizes; test-also=--disable-wasm-huge-memory -P wasm_custom_page_sizes"
 
+[[repos]]
+name = "compact-import-section"
+url = "https://github.com/WebAssembly/compact-import-section"
+branch = "main"
+parent = "spec"
+excluded_tests = []
+directive = "; skip-if: !wasmCompactImportsEnabled(); test-also=-P wasm_compact_imports"
+
 # Example proposal config:
 #
 # [[repos]]
