@@ -309,7 +309,6 @@ export class SidebarTabRow extends FxviewTabRowBase {
         tabindex="-1"
         title=${!this.primaryL10nId ? this.url : null}
         @click=${this.primaryActionHandler}
-        @auxclick=${this.auxActionHandler}
         @keydown=${this.primaryActionHandler}
       >
         ${this.faviconTemplate()} ${this.titleTemplate()}
