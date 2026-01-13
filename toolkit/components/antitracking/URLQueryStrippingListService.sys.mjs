@@ -69,11 +69,7 @@ function combineAndParseLists(mainList, arrOfLists) {
       if (Object.hasOwn(mainList, key)) {
         mainList[key].queryParams.push(...additionalList[key].queryParams);
 
-        // Ensure empty origins in global rules function as intended
-        mainList[key].origins ??= [];
-        additionalList[key].origins ??= [];
-
-        mainList[key].origins.push(...additionalList[key].origins);
+        mainList[key].topLevelSites.push(...additionalList[key].topLevelSites);
       } else {
         mainList[key] = additionalList[key];
       }
@@ -85,12 +81,12 @@ function combineAndParseLists(mainList, arrOfLists) {
       param.toLowerCase()
     );
 
-    mainList[key].origins = mainList[key].origins.map(param =>
+    mainList[key].topLevelSites = mainList[key].topLevelSites.map(param =>
       param.toLowerCase()
     );
 
-    // Removes duplicates origins
-    mainList[key].origins = [...new Set(mainList[key].origins)];
+    // Removes duplicates topLevelSites
+    mainList[key].topLevelSites = [...new Set(mainList[key].topLevelSites)];
 
     // Removes duplicates queryParams
     mainList[key].queryParams = [...new Set(mainList[key].queryParams)];
