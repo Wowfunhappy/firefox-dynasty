@@ -852,8 +852,6 @@ class GCRuntime {
   bool reserveMarkingThreads(size_t count);
   void releaseMarkingThreads();
 
-  bool hasMarkingWork(MarkColor color) const;
-
   void drainMarkStack();
 
 #ifdef DEBUG

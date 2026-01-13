@@ -50,6 +50,7 @@ class alignas(TypicalCacheLineSize) ParallelMarkTask : public GCParallelTask {
  private:
   bool tryMarking(AutoLockHelperThreadState& lock);
   bool requestWork(AutoLockHelperThreadState& lock);
+  void resumeWaitingTasks(AutoLockHelperThreadState& lock);
 
   void waitUntilResumed(AutoLockHelperThreadState& lock);
   void resume();
