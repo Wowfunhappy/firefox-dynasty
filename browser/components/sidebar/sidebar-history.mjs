@@ -178,6 +178,15 @@ export class SidebarHistory extends SidebarPage {
     this.controller.deleteFromHistory().catch(console.error);
   }
 
+  onAuxAction(e) {
+    if (this.isMultipleRowsSelected) {
+      // Avoid opening multiple links at once.
+      return;
+    }
+    navigateToLink(e, e.originalTarget.url, { forceNewTab: true });
+    this.treeView.clearSelection();
+  }
+
   /**
    * The template to use for cards-container.
    */
@@ -349,6 +358,7 @@ export class SidebarHistory extends SidebarPage {
       .tabItems=${tabItems}
       @fxview-tab-list-primary-action=${this.onPrimaryAction}
       @fxview-tab-list-secondary-action=${this.onSecondaryAction}
+      @fxview-tab-list-aux-action=${this.onAuxAction}
     >
     </sidebar-tab-list>`;
   }
