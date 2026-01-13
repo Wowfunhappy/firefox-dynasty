@@ -54,33 +54,20 @@ struct SecondsAndNanoseconds {
   // Nanoseconds part in the range [0, 999'999'999].
   int32_t nanoseconds = 0;
 
-  constexpr bool operator==(const SecondsAndNanoseconds& other) const {
-    return seconds == other.seconds && nanoseconds == other.nanoseconds;
-  }
-
-  constexpr bool operator<(const SecondsAndNanoseconds& other) const {
+  constexpr auto operator<=>(const SecondsAndNanoseconds& other) const {
     // The compiler can optimize expressions like |epochNs < EpochNanoseconds{}|
     // to a single right-shift operation when we propagate the range of
     // nanoseconds.
     JS_ASSUME(nanoseconds >= 0);
     JS_ASSUME(other.nanoseconds >= 0);
-    return (seconds < other.seconds) ||
-           (seconds == other.seconds && nanoseconds < other.nanoseconds);
+    auto r = seconds <=> other.seconds;
+    if (r != 0) {
+      return r;
+    }
+    return nanoseconds <=> other.nanoseconds;
   }
 
-  // Other operators are implemented in terms of operator== and operator<.
-  constexpr bool operator!=(const SecondsAndNanoseconds& other) const {
-    return !(*this == other);
-  }
-  constexpr bool operator>(const SecondsAndNanoseconds& other) const {
-    return other < *this;
-  }
-  constexpr bool operator<=(const SecondsAndNanoseconds& other) const {
-    return !(other < *this);
-  }
-  constexpr bool operator>=(const SecondsAndNanoseconds& other) const {
-    return !(*this < other);
-  }
+  constexpr bool operator==(const SecondsAndNanoseconds&) const = default;
 
  protected:
   template <typename T, typename U, class R = Derived>
