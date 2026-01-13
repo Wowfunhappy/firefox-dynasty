@@ -94,7 +94,7 @@
        * this is needed) */
       linear-gradient(black, black) 0 0 / 100% calc(100% - 1lh) no-repeat,
       /* Mask 2: Fade out the end of the last line */
-        linear-gradient(
+      linear-gradient(
           90deg,
           black calc(100% - var(--tab-note-expand-toggle-width) - var(--gradient-width) - var(--gradient-offset)),
           transparent calc(100% - var(--tab-note-expand-toggle-width) - var(--gradient-offset))
