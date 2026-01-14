@@ -488,6 +488,8 @@ var gSync = {
   _syncStartTime: 0,
   _syncAnimationTimer: 0,
   _obs: ["weave:engine:sync:finish", "quit-application", UIState.ON_UPDATE],
+  // Track whether send tab exposure events have been recorded for current context menu session
+  _sendTabExposureRecorded: new Set(),
 
   get log() {
     if (!this._log) {
@@ -811,6 +813,25 @@ var gSync = {
     if (ctaCopyVariant) {
       NimbusFeatures.fxaAvatarMenuItem.recordExposureEvent();
     }
+
+    // Record Send Tab exposure if the option is visible
+    const sendTabButton = PanelMultiView.getViewNode(
+      document,
+      "PanelUI-fxa-menu-sendtab-button"
+    );
+    if (sendTabButton && !sendTabButton.hidden) {
+      const targets = this.getSendTabTargets();
+      // Use the FxA toolbar button as the trigger node
+      const triggerNode =
+        panelview.triggerNode ||
+        document.getElementById("fxa-toolbar-menu-button") ||
+        document.getElementById("appMenu-fxa-label2");
+      if (triggerNode) {
+        this.emitFxaToolbarTelemetry("send_tab_exposed", triggerNode, {
+          device_count: String(targets.length),
+        });
+      }
+    }
   },
 
   onFxAPanelViewHiding(panelview) {
@@ -992,7 +1013,10 @@ var gSync = {
     }
 
     this.showSendToDeviceView(anchor);
-    this.emitFxaToolbarTelemetry("send_tab", anchor);
+    // Record that the user opened the Send Tab submenu
+    this.emitFxaToolbarTelemetry("send_tab_opened", anchor, {
+      device_count: String(targets.length),
+    });
   },
 
   _populateSendTabToDevicesView(panelViewNode, reloadDevices = true) {
@@ -1005,12 +1029,9 @@ var gSync = {
 
     // This is on top because it also clears the device list between state
     // changes.
-    this.populateSendTabToDevicesMenu(
-      bodyNode,
-      uri,
-      title,
+    this.populateSendTabToDevicesMenu(bodyNode, uri, title, {
       multiselected,
-      (clientId, name, clientType, lastModified) => {
+      createDeviceNodeFn: (clientId, name, clientType, lastModified) => {
         if (!name) {
           return document.createXULElement("toolbarseparator");
         }
@@ -1040,8 +1061,8 @@ var gSync = {
         });
         return item;
       },
-      true
-    );
+      isFxaMenu: true,
+    });
 
     bodyNode.removeAttribute("state");
     // If the app just started, we won't have fetched the device list yet. Sync
@@ -1419,7 +1440,7 @@ var gSync = {
   // This is mis-named - it can be used to record any FxA UI telemetry, whether from
   // the toolbar or not. The required `sourceElement` param is enough to help us know
   // how to record the interaction.
-  emitFxaToolbarTelemetry(type, sourceElement) {
+  emitFxaToolbarTelemetry(type, sourceElement, extraOpts = {}) {
     if (UIState.isReady()) {
       const state = UIState.get();
       const hasAvatar = state.avatarURL && !state.avatarIsDefault;
@@ -1427,6 +1448,7 @@ var gSync = {
         fxa_status: state.status,
         fxa_avatar: hasAvatar ? "true" : "false",
         fxa_sync_on: state.syncEnabled,
+        ...extraOpts,
       };
 
       let eventName = this._getEntryPointForElement(sourceElement);
@@ -1438,13 +1460,31 @@ var gSync = {
       } else {
         return;
       }
-      Glean[category][
-        "click" +
+
+      // Handle the new Send Tab event types:
+      // - send_tab_exposed -> sendTabExposed
+      // - send_tab_opened -> sendTabOpened
+      // - send_tab -> clickSendTab (legacy click format)
+      let methodName;
+      if (type.startsWith("send_tab_")) {
+        // Convert send_tab_exposed -> sendTabExposed
+        methodName = type
+          .split("_")
+          .map((word, i) =>
+            i === 0 ? word : word[0].toUpperCase() + word.slice(1)
+          )
+          .join("");
+      } else {
+        // Legacy format: click + capitalized type (e.g., "sync_now" -> "clickSyncNow")
+        methodName =
+          "click" +
           type
             .split("_")
             .map(word => word[0].toUpperCase() + word.slice(1))
-            .join("")
-      ]?.record(extraOptions);
+            .join("");
+      }
+
+      Glean[category][methodName]?.record(extraOptions);
     }
   },
 
@@ -1763,25 +1803,21 @@ var gSync = {
     return numFailed < targets.length; // Good enough.
   },
 
-  populateSendTabToDevicesMenu(
-    devicesPopup,
-    uri,
-    title,
-    multiselected,
-    createDeviceNodeFn,
-    isFxaMenu = false
-  ) {
+  populateSendTabToDevicesMenu(devicesPopup, uri, title, options = {}) {
+    const {
+      multiselected = false,
+      createDeviceNodeFn = (targetId, name) => {
+        let eltName = name ? "menuitem" : "menuseparator";
+        return document.createXULElement(eltName);
+      },
+      isFxaMenu = false,
+      contextMenuType = null,
+    } = options;
     uri = BrowserUtils.getShareableURL(uri);
     if (!uri) {
       // log an error as everyone should have already checked this.
       this.log.error("Ignoring request to share a non-sharable URL");
       return;
-    }
-    if (!createDeviceNodeFn) {
-      createDeviceNodeFn = (targetId, name) => {
-        let eltName = name ? "menuitem" : "menuseparator";
-        return document.createXULElement(eltName);
-      };
     }
 
     // remove existing menu items
@@ -1810,8 +1846,17 @@ var gSync = {
           uri.spec,
           title,
           multiselected,
-          isFxaMenu
+          isFxaMenu,
+          contextMenuType
         );
+
+        if (contextMenuType) {
+          this._recordSendTabTelemetry(
+            "send_tab_opened",
+            targets.length,
+            contextMenuType
+          );
+        }
       } else {
         this._appendSendTabSingleDevice(fragment, createDeviceNodeFn);
       }
@@ -1841,7 +1886,8 @@ var gSync = {
     url,
     title,
     multiselected,
-    isFxaMenu = false
+    isFxaMenu = false,
+    contextMenuType = null
   ) {
     let tabsToSend = multiselected
       ? gBrowser.selectedTabs.map(t => {
@@ -1878,11 +1924,45 @@ var gSync = {
     };
     const onSendAllCommand = () => {
       send(targets);
+      // Record Send Tab clicked telemetry for "Send to All Devices"
+      if (isFxaMenu) {
+        const triggerNode =
+          document.getElementById("fxa-toolbar-menu-button") ||
+          document.getElementById("appMenu-fxa-label2");
+        this.emitFxaToolbarTelemetry("send_tab", triggerNode, {
+          device_count: String(targets.length),
+          action: "all_devices",
+        });
+      } else if (contextMenuType) {
+        this._recordSendTabTelemetry(
+          "click_send_tab",
+          targets.length,
+          contextMenuType,
+          "all_devices"
+        );
+      }
     };
     const onTargetDeviceCommand = event => {
       const targetId = event.target.getAttribute("clientId");
       const target = targets.find(t => t.id == targetId);
       send([target]);
+      // Record Send Tab clicked telemetry for specific device
+      if (isFxaMenu) {
+        const triggerNode =
+          document.getElementById("fxa-toolbar-menu-button") ||
+          document.getElementById("appMenu-fxa-label2");
+        this.emitFxaToolbarTelemetry("send_tab", triggerNode, {
+          device_count: String(targets.length),
+          action: "device",
+        });
+      } else if (contextMenuType) {
+        this._recordSendTabTelemetry(
+          "click_send_tab",
+          targets.length,
+          contextMenuType,
+          "device"
+        );
+      }
     };
 
     function addTargetDevice(targetId, name, targetType, lastModified) {
@@ -1948,13 +2028,77 @@ var gSync = {
       );
       targetDevice.addEventListener(
         "command",
-        () => gSync.openDevicesManagementPage("sendtab"),
+        () => {
+          gSync.openDevicesManagementPage("sendtab");
+          // Record Send Tab clicked telemetry for "Manage Devices"
+          if (isFxaMenu) {
+            const triggerNode =
+              document.getElementById("fxa-toolbar-menu-button") ||
+              document.getElementById("appMenu-fxa-label2");
+            this.emitFxaToolbarTelemetry("send_tab", triggerNode, {
+              device_count: String(targets.length),
+              action: "manage_devices",
+            });
+          } else if (contextMenuType) {
+            this._recordSendTabTelemetry(
+              "click_send_tab",
+              targets.length,
+              contextMenuType,
+              "manage_devices"
+            );
+          }
+        },
         true
       );
       targetDevice.classList.add("sync-menuitem", "sendtab-target");
       targetDevice.setAttribute("label", manageDevicesLabel);
       fragment.appendChild(targetDevice);
     }
+  },
+
+  _resetSendTabExposureTracking() {
+    this._sendTabExposureRecorded.clear();
+  },
+
+  _recordSendTabTelemetry(eventType, deviceCount, contextType, action = null) {
+    const extraParams = {
+      device_count: String(deviceCount),
+    };
+
+    if (action) {
+      extraParams.action = action;
+    }
+
+    // Map context types to Glean categories
+    const categoryMap = {
+      tab: "tabContextMenu",
+      page: "pageContextMenu",
+      link: "pageContextMenu",
+    };
+
+    // Map event types to method names
+    const methodMap = {
+      send_tab_exposed: "sendTabExposed",
+      send_tab_opened: "sendTabOpened",
+      click_send_tab: "clickSendTab",
+    };
+
+    const category = categoryMap[contextType];
+    const method = methodMap[eventType];
+
+    if (!category || !method) {
+      this.log.error(
+        `Invalid telemetry parameters: eventType=${eventType}, contextType=${contextType}`
+      );
+      return;
+    }
+
+    // Add context_type for page/link context menus
+    if (contextType === "page" || contextType === "link") {
+      extraParams.context_type = contextType;
+    }
+
+    Glean[category][method].record(extraParams);
   },
 
   _appendSendTabSingleDevice(fragment, createDeviceNodeFn) {
@@ -2056,6 +2200,19 @@ var gSync = {
       );
       sendTabsToDevice.hidden = false;
       sendTabToDeviceSeparator.hidden = false;
+
+      if (enabled) {
+        const targets = this.getSendTabTargets();
+        const exposureKey = "tab-context";
+        if (targets.length && !this._sendTabExposureRecorded.has(exposureKey)) {
+          this._recordSendTabTelemetry(
+            "send_tab_exposed",
+            targets.length,
+            "tab"
+          );
+          this._sendTabExposureRecorded.add(exposureKey);
+        }
+      }
     }
   },
 
@@ -2108,6 +2265,20 @@ var gSync = {
       "disabled",
       !enabled || null
     );
+
+    if (!hideItems && enabled) {
+      const targets = this.getSendTabTargets();
+      const exposureKey = showSendLink ? "link-context" : "page-context";
+      if (targets.length && !this._sendTabExposureRecorded.has(exposureKey)) {
+        this._recordSendTabTelemetry(
+          "send_tab_exposed",
+          targets.length,
+          showSendLink ? "link" : "page"
+        );
+        this._sendTabExposureRecorded.add(exposureKey);
+      }
+    }
+
     // return true if context menu items are visible
     return !hideItems && (showSendPage || showSendLink);
   },
