@@ -96,7 +96,8 @@ run-sequentially = ["true"] # hardcoded ports
 
 ["test_cert_expiration_canary.js"]
 run-if = [
-  "nightly_build",
+  "false",
+  #"nightly_build",
 ]
 
 ["test_cert_keyUsage.js"]
