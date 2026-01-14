@@ -9,4 +9,6 @@ export type GetTextOptions = Partial<{
   sufficientLength: number;
   // Just include the viewport content.
   justViewport: boolean;
+  // Format inline links as markdown [text](url) and return all link URLs separately.
+  includeLinks: boolean;
 }>;

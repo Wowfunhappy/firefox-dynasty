@@ -54,7 +54,11 @@ export class PageExtractorChild extends JSWindowActorChild {
         return this.getReaderModeContent(data);
       case "PageExtractorParent:GetText":
         if (this.isAboutReader()) {
-          return this.getAboutReaderContent();
+          const text = this.getAboutReaderContent();
+          return {
+            text: text ?? "",
+            links: data.includeLinks ? [] : undefined,
+          };
         }
         return this.getText(data);
       case "PageExtractorParent:WaitForPageReady":
@@ -126,22 +130,22 @@ export class PageExtractorChild extends JSWindowActorChild {
    * @see PageExtractorParent#getText for docs
    *
    * @param {GetTextOptions} options
-   * @returns {string}
+   * @returns {{ text: string, links?: string[] }}
    */
-  getText(options) {
+  getText(options = {}) {
     const window = this.browsingContext?.window;
     const document = window?.document;
 
     if (!document) {
-      return "";
+      return { text: "", links: options.includeLinks ? [] : undefined };
     }
 
-    const text = lazy.extractTextFromDOM(document, options);
+    const result = lazy.extractTextFromDOM(document, options);
 
     lazy.console.log("GetText", options);
-    lazy.console.debug(text);
+    lazy.console.debug(result);
 
-    return text;
+    return result;
   }
 
   /**
