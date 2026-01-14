@@ -427,6 +427,11 @@ nsresult TRRService::ReadPrefs(const char* name) {
     parseExcludedDomains(TRR_PREF("builtin-excluded-domains"));
     clearEntireCache = true;
   }
+  if (!name || !strcmp(name, TRR_PREF("force_http3_first"))) {
+    nsAutoCString uri;
+    GetURI(uri);
+    AsyncCreateTRRConnectionInfo(uri);
+  }
 
   // if name is null, then we're just now initializing. In that case we don't
   // need to clear the cache.
