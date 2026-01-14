@@ -6,9 +6,9 @@
 
 #include "mozilla/dom/CredentialsContainer.h"
 
-#include "mozilla/StaticPrefs_dom.h"
 #include "mozilla/StaticPrefs_security.h"
 #include "mozilla/dom/Credential.h"
+#include "mozilla/dom/DigitalCredentialHandler.h"
 #include "mozilla/dom/FeaturePolicyUtils.h"
 #include "mozilla/dom/Promise.h"
 #include "mozilla/dom/WebAuthnHandler.h"
@@ -21,7 +21,8 @@
 namespace mozilla::dom {
 
 NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE(CredentialsContainer, mParent,
-                                      mWebAuthnHandler)
+                                      mWebAuthnHandler,
+                                      mDigitalCredentialHandler)
 NS_IMPL_CYCLE_COLLECTING_ADDREF(CredentialsContainer)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(CredentialsContainer)
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(CredentialsContainer)
@@ -101,6 +102,14 @@ void CredentialsContainer::EnsureWebAuthnHandler() {
   }
 }
 
+void CredentialsContainer::EnsureDigitalCredentialHandler() {
+  MOZ_ASSERT(NS_IsMainThread());
+
+  if (!mDigitalCredentialHandler) {
+    mDigitalCredentialHandler = new DigitalCredentialHandler(mParent);
+  }
+}
+
 already_AddRefed<WebAuthnHandler> CredentialsContainer::GetWebAuthnHandler() {
   MOZ_ASSERT(NS_IsMainThread());
 
@@ -115,19 +124,21 @@ JSObject* CredentialsContainer::WrapObject(JSContext* aCx,
 }
 
 already_AddRefed<Promise> CredentialsContainer::Get(
-    const CredentialRequestOptions& aOptions, ErrorResult& aRv) {
+    JSContext* aCx, const CredentialRequestOptions& aOptions,
+    ErrorResult& aRv) {
   RefPtr<Promise> promise = Promise::Create(mParent->AsGlobal(), aRv);
   if (aRv.Failed()) {
     return nullptr;
   }
 
   uint64_t totalOptions = 0;
-  if (aOptions.mPublicKey.WasPassed() &&
-      StaticPrefs::security_webauth_webauthn()) {
+  if (aOptions.mPublicKey.WasPassed()) {
     totalOptions += 1;
   }
-  if (aOptions.mIdentity.WasPassed() &&
-      StaticPrefs::dom_security_credentialmanagement_identity_enabled()) {
+  if (aOptions.mIdentity.WasPassed()) {
+    totalOptions += 1;
+  }
+  if (aOptions.mDigital.WasPassed()) {
     totalOptions += 1;
   }
   if (totalOptions > 1) {
@@ -145,8 +156,7 @@ already_AddRefed<Promise> CredentialsContainer::Get(
 
   bool conditionallyMediated =
       aOptions.mMediation == CredentialMediationRequirement::Conditional;
-  if (aOptions.mPublicKey.WasPassed() &&
-      StaticPrefs::security_webauth_webauthn()) {
+  if (aOptions.mPublicKey.WasPassed()) {
     MOZ_ASSERT(mParent);
     if (!FeaturePolicyUtils::IsFeatureAllowed(
             mParent->GetExtantDoc(), u"publickey-credentials-get"_ns) ||
@@ -170,8 +180,7 @@ already_AddRefed<Promise> CredentialsContainer::Get(
     return promise.forget();
   }
 
-  if (aOptions.mIdentity.WasPassed() &&
-      StaticPrefs::dom_security_credentialmanagement_identity_enabled()) {
+  if (aOptions.mIdentity.WasPassed()) {
     if (conditionallyMediated) {
       promise->MaybeRejectWithTypeError<MSG_INVALID_ENUM_VALUE>(
           "mediation", "conditional", "CredentialMediationRequirement");
@@ -193,13 +202,21 @@ already_AddRefed<Promise> CredentialsContainer::Get(
     return promise.forget();
   }
 
+  if (aOptions.mDigital.WasPassed()) {
+    EnsureDigitalCredentialHandler();
+    mDigitalCredentialHandler->GetDigitalCredential(
+        aCx, aOptions.mDigital.Value(), aOptions.mSignal, promise);
+    return promise.forget();
+  }
+
   promise->MaybeRejectWithNotSupportedError(
       "CredentialsContainer request is not supported."_ns);
   return promise.forget();
 }
 
 already_AddRefed<Promise> CredentialsContainer::Create(
-    const CredentialCreationOptions& aOptions, ErrorResult& aRv) {
+    JSContext* aCx, const CredentialCreationOptions& aOptions,
+    ErrorResult& aRv) {
   RefPtr<Promise> promise = Promise::Create(mParent->AsGlobal(), aRv);
   if (aRv.Failed()) {
     return nullptr;
@@ -207,8 +224,10 @@ already_AddRefed<Promise> CredentialsContainer::Create(
 
   // Count the types of options provided. Must not be >1.
   uint64_t totalOptions = 0;
-  if (aOptions.mPublicKey.WasPassed() &&
-      StaticPrefs::security_webauth_webauthn()) {
+  if (aOptions.mPublicKey.WasPassed()) {
+    totalOptions += 1;
+  }
+  if (aOptions.mDigital.WasPassed()) {
     totalOptions += 1;
   }
   if (totalOptions > 1) {
@@ -224,8 +243,7 @@ already_AddRefed<Promise> CredentialsContainer::Create(
     return promise.forget();
   }
 
-  if (aOptions.mPublicKey.WasPassed() &&
-      StaticPrefs::security_webauth_webauthn()) {
+  if (aOptions.mPublicKey.WasPassed()) {
     MOZ_ASSERT(mParent);
     // In a cross-origin iframe this request consumes user activation, i.e.
     // subsequent requests cannot be made without further user interaction.
@@ -247,6 +265,13 @@ already_AddRefed<Promise> CredentialsContainer::Create(
     return promise.forget();
   }
 
+  if (aOptions.mDigital.WasPassed()) {
+    EnsureDigitalCredentialHandler();
+    mDigitalCredentialHandler->CreateDigitalCredential(
+        aCx, aOptions.mDigital.Value(), aOptions.mSignal, promise);
+    return promise.forget();
+  }
+
   promise->MaybeRejectWithNotSupportedError(
       "CredentialsContainer request is not supported."_ns);
   return promise.forget();
@@ -261,8 +286,7 @@ already_AddRefed<Promise> CredentialsContainer::Store(
 
   nsString type;
   aCredential.GetType(type);
-  if (type.EqualsLiteral("public-key") &&
-      StaticPrefs::security_webauth_webauthn()) {
+  if (type.EqualsLiteral("public-key")) {
     if (!IsSameOriginWithAncestors(mParent) || !IsInActiveTab(mParent)) {
       promise->MaybeRejectWithNotAllowedError(
           "CredentialsContainer request is not allowed."_ns);

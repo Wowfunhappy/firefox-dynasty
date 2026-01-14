@@ -88,6 +88,9 @@ with Files("Crypto.webidl"):
 with Files("Device*"):
     BUG_COMPONENT = ("Core", "DOM: Device Interfaces")
 
+with Files("DigitalCredential.webidl"):
+    BUG_COMPONENT = ("Core", "DOM: Credential Management")
+
 with Files("Directory.webidl"):
     BUG_COMPONENT = ("Core", "DOM: Device Interfaces")
 
@@ -563,6 +566,7 @@ WEBIDL_FILES = [
     "DedicatedWorkerGlobalScope.webidl",
     "DelayNode.webidl",
     "DeviceMotionEvent.webidl",
+    "DigitalCredential.webidl",
     "Directory.webidl",
     "Document.webidl",
     "DocumentFragment.webidl",
