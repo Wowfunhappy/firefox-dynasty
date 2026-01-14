@@ -16784,11 +16784,6 @@
   value: 900
   mirror: always
 
-- name: privacy.sanitize.useOldClearHistoryDialog
-  type: RelaxedAtomicBool
-  value: true
-  mirror: always
-
 - name: privacy.sanitize.sanitizeOnShutdown
   type: RelaxedAtomicBool
   value: false
