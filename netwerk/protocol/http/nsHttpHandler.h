@@ -338,9 +338,10 @@ class nsHttpHandler final : public nsIHttpProtocolHandler,
   already_AddRefed<AltSvcMapping> GetAltServiceMapping(
       const nsACString& scheme, const nsACString& host, int32_t port, bool pb,
       const OriginAttributes& originAttributes, bool aHttp2Allowed,
-      bool aHttp3Allowed) {
-    return mAltSvcCache->GetAltServiceMapping(
-        scheme, host, port, pb, originAttributes, aHttp2Allowed, aHttp3Allowed);
+      bool aHttp3Allowed, bool aForceHttp3First = false) {
+    return mAltSvcCache->GetAltServiceMapping(scheme, host, port, pb,
+                                              originAttributes, aHttp2Allowed,
+                                              aHttp3Allowed, aForceHttp3First);
   }
 
   //
