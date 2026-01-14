@@ -20,6 +20,8 @@ ChromeUtils.defineESModuleGetters(lazy, {
   SearchUIUtils: "moz-src:///browser/components/search/SearchUIUtils.sys.mjs",
   ChatStore:
     "moz-src:///browser/components/aiwindow/ui/modules/ChatStore.sys.mjs",
+  NewTabPagePreloading:
+    "moz-src:///browser/components/tabbrowser/NewTabPagePreloading.sys.mjs",
   PanelMultiView:
     "moz-src:///browser/components/customizableui/PanelMultiView.sys.mjs",
   PrivateBrowsingUtils: "resource://gre/modules/PrivateBrowsingUtils.sys.mjs",
@@ -62,10 +64,38 @@ export const AIWindow = {
     this._initialized = true;
   },
 
+  _reconcileNewTabPages(win, previousNewTabURL) {
+    const newTabURI = Services.io.newURI(win.BROWSER_NEW_TAB_URL);
+    const oldTabURI = Services.io.newURI(previousNewTabURL);
+    const aboutNewTabURI = Services.io.newURI("about:newtab");
+    const aboutHomeURI = Services.io.newURI("about:home");
+    const triggeringPrincipal =
+      Services.scriptSecurityManager.getSystemPrincipal();
+
+    for (let tab of win.gBrowser.tabs) {
+      const browser = tab.linkedBrowser;
+      if (!browser?.currentURI) {
+        continue;
+      }
+
+      const currentURI = browser.currentURI;
+
+      if (
+        currentURI.equalsExceptRef(oldTabURI) ||
+        currentURI.equalsExceptRef(aboutNewTabURI) ||
+        currentURI.equalsExceptRef(aboutHomeURI)
+      ) {
+        browser.loadURI(newTabURI, { triggeringPrincipal });
+      }
+    }
+  },
+
   _onAIWindowEnabledPrefChange() {
     ChromeUtils.nondeterministicGetWeakMapKeys(this._windowStates).forEach(
       win => {
-        this._updateButtonVisibility(win);
+        if (win && !win.closed) {
+          this._updateButtonVisibility(win);
+        }
       }
     );
   },
@@ -303,10 +333,16 @@ export const AIWindow = {
     });
   },
 
-  async toggleAIWindow(win, isTogglingToAIWindow) {
+  toggleAIWindow(win, isTogglingToAIWindow) {
     let isActive = this.isAIWindowActive(win);
     if (isActive != isTogglingToAIWindow) {
+      lazy.NewTabPagePreloading.removePreloadedBrowser(win);
+
+      const previousNewTabURL = win.BROWSER_NEW_TAB_URL;
+
       win.document.documentElement.toggleAttribute("ai-window");
+
+      this._reconcileNewTabPages(win, previousNewTabURL);
       Services.obs.notifyObservers(win, "ai-window-state-changed");
     }
   },
