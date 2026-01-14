@@ -183,6 +183,7 @@ nsresult TRRService::Init(bool aNativeHTTPSQueryEnabled) {
     prefBranch->AddObserver(TRR_PREF_PREFIX, this, true);
     prefBranch->AddObserver(kRolloutURIPref, this, true);
     prefBranch->AddObserver(kRolloutModePref, this, true);
+    prefBranch->AddObserver(kRolloutHttp3FirstPref, this, true);
   }
 
   sTRRServicePtr = this;
@@ -383,6 +384,9 @@ nsresult TRRService::ReadPrefs(const char* name) {
       !strcmp(name, kRolloutURIPref) || !strcmp(name, TRR_PREF("ohttp.uri")) ||
       !strcmp(name, TRR_PREF("use_ohttp"))) {
     OnTRRURIChange();
+  }
+  if (!name || !strcmp(name, kRolloutHttp3FirstPref)) {
+    mHttp3FirstEnabled = Preferences::GetBool(kRolloutHttp3FirstPref, false);
   }
   if (!name || !strcmp(name, TRR_PREF("credentials"))) {
     MutexAutoLock lock(mLock);
