@@ -1320,6 +1320,12 @@ fxa_avatar_menu:
         "signedin" and "login_failed".
       fxa_avatar: Boolean for whether or not account has set an avatar
       fxa_sync_on: Boolean for whether or not sync was configured at the time the event fired
+      device_count: >
+        Number of connected devices available to send tabs to (optional, only populated for send_tab)
+      action: >
+        The action selected by the user (optional, only populated for send_tab). Possible values
+        are "device" (sent to specific device), "all_devices" (sent to all devices), or
+        "manage_devices" (opened device management).
 
 fxa_app_menu:
   click:
@@ -1356,6 +1362,12 @@ fxa_app_menu:
         "signedin" and "login_failed".
       fxa_avatar: Boolean for whether or not account has set an avatar
       fxa_sync_on: Boolean for whether or not sync was configured at the time the event fired.
+      device_count: >
+        Number of connected devices available to send tabs to (optional, only populated for send_tab)
+      action: >
+        The action selected by the user (optional, only populated for send_tab). Possible values
+        are "device" (sent to specific device), "all_devices" (sent to all devices), or
+        "manage_devices" (opened device management).
 
 messaging_experiments:
   reach:
