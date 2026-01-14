@@ -29,45 +29,6 @@ NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(CredentialsContainer)
   NS_INTERFACE_MAP_ENTRY(nsISupports)
 NS_INTERFACE_MAP_END
 
-already_AddRefed<Promise> CreatePromise(nsPIDOMWindowInner* aParent,
-                                        ErrorResult& aRv) {
-  MOZ_ASSERT(aParent);
-  nsCOMPtr<nsIGlobalObject> global = do_QueryInterface(aParent);
-  if (NS_WARN_IF(!global)) {
-    aRv.Throw(NS_ERROR_FAILURE);
-    return nullptr;
-  }
-  RefPtr<Promise> promise = Promise::Create(global, aRv);
-  if (NS_WARN_IF(aRv.Failed())) {
-    return nullptr;
-  }
-  return promise.forget();
-}
-
-already_AddRefed<Promise> CreateAndRejectWithNotAllowed(
-    nsPIDOMWindowInner* aParent, ErrorResult& aRv) {
-  MOZ_ASSERT(aParent);
-  RefPtr<Promise> promise = CreatePromise(aParent, aRv);
-  if (!promise) {
-    return nullptr;
-  }
-  promise->MaybeRejectWithNotAllowedError(
-      "CredentialContainer request is not allowed."_ns);
-  return promise.forget();
-}
-
-already_AddRefed<Promise> CreateAndRejectWithNotSupported(
-    nsPIDOMWindowInner* aParent, ErrorResult& aRv) {
-  MOZ_ASSERT(aParent);
-  RefPtr<Promise> promise = CreatePromise(aParent, aRv);
-  if (!promise) {
-    return nullptr;
-  }
-  promise->MaybeRejectWithNotSupportedError(
-      "CredentialContainer request is not supported."_ns);
-  return promise.forget();
-}
-
 static bool IsInActiveTab(nsPIDOMWindowInner* aParent) {
   // Returns whether aParent is an inner window somewhere in the active tab.
   // The active tab is the selected (i.e. visible) tab in the focused window.
@@ -155,6 +116,11 @@ JSObject* CredentialsContainer::WrapObject(JSContext* aCx,
 
 already_AddRefed<Promise> CredentialsContainer::Get(
     const CredentialRequestOptions& aOptions, ErrorResult& aRv) {
+  RefPtr<Promise> promise = Promise::Create(mParent->AsGlobal(), aRv);
+  if (aRv.Failed()) {
+    return nullptr;
+  }
+
   uint64_t totalOptions = 0;
   if (aOptions.mPublicKey.WasPassed() &&
       StaticPrefs::security_webauth_webauthn()) {
@@ -165,7 +131,9 @@ already_AddRefed<Promise> CredentialsContainer::Get(
     totalOptions += 1;
   }
   if (totalOptions > 1) {
-    return CreateAndRejectWithNotSupported(mParent, aRv);
+    promise->MaybeRejectWithNotSupportedError(
+        "CredentialsContainer request is not supported."_ns);
+    return promise.forget();
   }
 
   bool conditionallyMediated =
@@ -176,33 +144,27 @@ already_AddRefed<Promise> CredentialsContainer::Get(
     if (!FeaturePolicyUtils::IsFeatureAllowed(
             mParent->GetExtantDoc(), u"publickey-credentials-get"_ns) ||
         !(IsInActiveTab(mParent) || conditionallyMediated)) {
-      return CreateAndRejectWithNotAllowed(mParent, aRv);
+      promise->MaybeRejectWithNotAllowedError(
+          "CredentialsContainer request is not allowed."_ns);
+      return promise.forget();
     }
 
     if (conditionallyMediated &&
         !StaticPrefs::security_webauthn_enable_conditional_mediation()) {
-      RefPtr<Promise> promise = CreatePromise(mParent, aRv);
-      if (!promise) {
-        return nullptr;
-      }
       promise->MaybeRejectWithTypeError<MSG_INVALID_ENUM_VALUE>(
           "mediation", "conditional", "CredentialMediationRequirement");
       return promise.forget();
     }
 
     EnsureWebAuthnHandler();
-    return mWebAuthnHandler->GetAssertion(aOptions.mPublicKey.Value(),
-                                          conditionallyMediated,
-                                          aOptions.mSignal, aRv);
+    mWebAuthnHandler->GetAssertion(aOptions.mPublicKey.Value(),
+                                   conditionallyMediated, aOptions.mSignal,
+                                   promise);
+    return promise.forget();
   }
 
   if (aOptions.mIdentity.WasPassed() &&
       StaticPrefs::dom_security_credentialmanagement_identity_enabled()) {
-    RefPtr<Promise> promise = CreatePromise(mParent, aRv);
-    if (!promise) {
-      return nullptr;
-    }
-
     if (conditionallyMediated) {
       promise->MaybeRejectWithTypeError<MSG_INVALID_ENUM_VALUE>(
           "mediation", "conditional", "CredentialMediationRequirement");
@@ -224,11 +186,18 @@ already_AddRefed<Promise> CredentialsContainer::Get(
     return promise.forget();
   }
 
-  return CreateAndRejectWithNotSupported(mParent, aRv);
+  promise->MaybeRejectWithNotSupportedError(
+      "CredentialsContainer request is not supported."_ns);
+  return promise.forget();
 }
 
 already_AddRefed<Promise> CredentialsContainer::Create(
     const CredentialCreationOptions& aOptions, ErrorResult& aRv) {
+  RefPtr<Promise> promise = Promise::Create(mParent->AsGlobal(), aRv);
+  if (aRv.Failed()) {
+    return nullptr;
+  }
+
   // Count the types of options provided. Must not be >1.
   uint64_t totalOptions = 0;
   if (aOptions.mPublicKey.WasPassed() &&
@@ -236,7 +205,9 @@ already_AddRefed<Promise> CredentialsContainer::Create(
     totalOptions += 1;
   }
   if (totalOptions > 1) {
-    return CreateAndRejectWithNotSupported(mParent, aRv);
+    promise->MaybeRejectWithNotSupportedError(
+        "CredentialsContainer request is not supported."_ns);
+    return promise.forget();
   }
 
   if (aOptions.mPublicKey.WasPassed() &&
@@ -251,32 +222,47 @@ already_AddRefed<Promise> CredentialsContainer::Create(
     if (!FeaturePolicyUtils::IsFeatureAllowed(
             mParent->GetExtantDoc(), u"publickey-credentials-create"_ns) ||
         !hasRequiredActivation) {
-      return CreateAndRejectWithNotAllowed(mParent, aRv);
+      promise->MaybeRejectWithNotAllowedError(
+          "CredentialsContainer request is not allowed."_ns);
+      return promise.forget();
     }
 
     EnsureWebAuthnHandler();
-    return mWebAuthnHandler->MakeCredential(aOptions.mPublicKey.Value(),
-                                            aOptions.mSignal, aRv);
+    mWebAuthnHandler->MakeCredential(aOptions.mPublicKey.Value(),
+                                     aOptions.mSignal, promise);
+    return promise.forget();
   }
 
-  return CreateAndRejectWithNotSupported(mParent, aRv);
+  promise->MaybeRejectWithNotSupportedError(
+      "CredentialsContainer request is not supported."_ns);
+  return promise.forget();
 }
 
 already_AddRefed<Promise> CredentialsContainer::Store(
     const Credential& aCredential, ErrorResult& aRv) {
+  RefPtr<Promise> promise = Promise::Create(mParent->AsGlobal(), aRv);
+  if (aRv.Failed()) {
+    return nullptr;
+  }
+
   nsString type;
   aCredential.GetType(type);
   if (type.EqualsLiteral("public-key") &&
       StaticPrefs::security_webauth_webauthn()) {
     if (!IsSameOriginWithAncestors(mParent) || !IsInActiveTab(mParent)) {
-      return CreateAndRejectWithNotAllowed(mParent, aRv);
+      promise->MaybeRejectWithNotAllowedError(
+          "CredentialsContainer request is not allowed."_ns);
+      return promise.forget();
     }
 
     EnsureWebAuthnHandler();
-    return mWebAuthnHandler->Store(aCredential, aRv);
+    mWebAuthnHandler->Store(aCredential, promise);
+    return promise.forget();
   }
 
-  return CreateAndRejectWithNotSupported(mParent, aRv);
+  promise->MaybeRejectWithNotSupportedError(
+      "CredentialsContainer request is not supported."_ns);
+  return promise.forget();
 }
 
 already_AddRefed<Promise> CredentialsContainer::PreventSilentAccess(
