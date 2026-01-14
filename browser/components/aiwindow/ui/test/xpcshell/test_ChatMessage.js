@@ -27,9 +27,9 @@ add_task(function test_ChatMessage_constructor_defaults() {
       "params",
       "usage",
       "convId",
-      "insightsEnabled",
-      "insightsFlagSource",
-      "insightsApplied",
+      "memoriesEnabled",
+      "memoriesFlagSource",
+      "memoriesApplied",
       "webSearchQueries",
     ];
 

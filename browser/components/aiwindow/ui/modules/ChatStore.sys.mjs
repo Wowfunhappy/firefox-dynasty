@@ -51,7 +51,7 @@ export { ChatMessage, ChatMinimal } from "./ChatMessage.sys.mjs";
 export {
   CONVERSATION_STATUS,
   MESSAGE_ROLE,
-  INSIGHTS_FLAG_SOURCE,
+  MEMORIES_FLAG_SOURCE,
 } from "./ChatConstants.sys.mjs";
 
 import {
@@ -178,9 +178,9 @@ export class ChatStore {
           usage: toJSONOrNull(m.usage),
           page_url: m.pageUrl?.href || "",
           turn_index: m.turnIndex,
-          insights_enabled: m.insightsEnabled,
-          insights_flag_source: m.insightsFlagSource,
-          insights_applied_jsonb: toJSONOrNull(m.insightsApplied),
+          memories_enabled: m.memoriesEnabled,
+          memories_flag_source: m.memoriesFlagSource,
+          memories_applied_jsonb: toJSONOrNull(m.memoriesApplied),
           web_search_queries_jsonb: toJSONOrNull(m.webSearchQueries),
         }));
         await this.#conn.executeCached(MESSAGE_INSERT, messages);
@@ -830,18 +830,18 @@ export class ChatStore {
         return;
       }
 
-      await this.applyMigrations();
+      await this.applyMigrations(version);
       await this.setSchemaVersion(this.CURRENT_SCHEMA_VERSION);
     });
   }
 
-  async applyMigrations() {
+  async applyMigrations(version) {
     for (const migration of migrations) {
       if (typeof migration !== "function") {
         continue;
       }
 
-      await migration(this.#conn, this.CURRENT_SCHEMA_VERSION);
+      await migration(this.#conn, version);
     }
   }
 

@@ -67,14 +67,13 @@ export class AIChatContent extends MozLitElement {
    */
 
   handleAIResponseEvent(event) {
-    // TODO (bug 2009434): update reference to insights
-    const { ordinal, id: messageId, content, insightsApplied } = event.detail;
+    const { ordinal, id: messageId, content, memoriesApplied } = event.detail;
 
     this.conversationState[ordinal] = {
       role: "assistant",
       messageId,
       body: content.body,
-      appliedMemories: insightsApplied ?? [],
+      appliedMemories: memoriesApplied ?? [],
     };
 
     this.requestUpdate();

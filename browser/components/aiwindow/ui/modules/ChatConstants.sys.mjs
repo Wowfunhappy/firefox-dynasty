@@ -6,7 +6,7 @@
 /**
  * The current SQLite database schema version
  */
-export const CURRENT_SCHEMA_VERSION = 2;
+export const CURRENT_SCHEMA_VERSION = 3;
 
 /**
  * The directory that the SQLite database lives in
@@ -26,6 +26,6 @@ export const PREF_BRANCH = "browser.aiWindow.chatHistory";
 export {
   CONVERSATION_STATUS,
   MESSAGE_ROLE,
-  INSIGHTS_FLAG_SOURCE,
+  MEMORIES_FLAG_SOURCE,
   SYSTEM_PROMPT_TYPE,
 } from "./ChatEnums.sys.mjs";

@@ -220,7 +220,7 @@ export class ChatConversation {
   /**
    * Add a system message to the conversation
    *
-   * @param {string} type - The assistant message type: text|injected_insights|injected_real_time_info
+   * @param {string} type - The assistant message type: text|injected_memories|injected_real_time_info
    * @param {string} contentBody - The system message object to be saved as JSON
    */
   addSystemMessage(type, contentBody) {
@@ -331,13 +331,13 @@ export class ChatConversation {
    *    role: string;
    *    tool_call_id: string;
    *    content: string;
-   *  }} InsightsApiFunctionParams
+   *  }} MemoryApiFunctionReturn
    *
    *  @typedef {
-   *    (message: string) => Promise<null | InsightsContextParams>
-   *  } InsightsApiFunction
+   *    (message: string) => Promise<null | MemoryApiFunctionReturn>
+   *  } MemoriesApiFunction
    *
-   * @param {InsightsApiFunction} [constructMemories=constructRelevantMemoriesContextMessage]
+   * @param {MemoriesApiFunction} [constructMemories=constructRelevantMemoriesContextMessage]
    * Function that returns promise that resolves with memories data
    */
   async getMemoriesContext(
@@ -348,7 +348,7 @@ export class ChatConversation {
       return;
     }
 
-    this.addSystemMessage(SYSTEM_PROMPT_TYPE.INSIGHTS, memoriesContext.content);
+    this.addSystemMessage(SYSTEM_PROMPT_TYPE.MEMORIES, memoriesContext.content);
   }
 
   /**

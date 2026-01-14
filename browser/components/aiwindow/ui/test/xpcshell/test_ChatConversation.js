@@ -218,19 +218,19 @@ add_task(function test_ChatConversation_addAssistantMessage() {
     soft.strictEqual(message.params, null, "params should default to null");
     soft.strictEqual(message.usage, null, "usage should default to null");
     soft.strictEqual(
-      message.insightsEnabled,
+      message.memoriesEnabled,
       false,
-      "insightsEnabled should default to false"
+      "memoriesEnabled should default to false"
     );
     soft.strictEqual(
-      message.insightsFlagSource,
+      message.memoriesFlagSource,
       null,
-      "insightsFlagSource should default to null"
+      "memoriesFlagSource should default to null"
     );
     soft.deepEqual(
-      message.insightsApplied,
+      message.memoriesApplied,
       [],
-      "insightsApplied should default to emtpy array"
+      "memoriesApplied should default to emtpy array"
     );
     soft.deepEqual(
       message.webSearchQueries,
@@ -250,7 +250,7 @@ add_task(function test_opts_ChatConversation_addAssistantMessage() {
     { usage: "data" },
     true,
     1,
-    ["insight"],
+    ["memory"],
     ["search"]
   );
   conversation.addAssistantMessage("text", content, assistantOpts);
@@ -281,24 +281,24 @@ add_task(function test_opts_ChatConversation_addAssistantMessage() {
       'usage should equal {"usage": "data"}'
     );
     soft.strictEqual(
-      message.insightsEnabled,
+      message.memoriesEnabled,
       true,
-      "insightsEnabled should equal true"
+      "memoriesEnabled should equal true"
     );
     soft.strictEqual(
-      message.insightsFlagSource,
+      message.memoriesFlagSource,
       1,
-      "insightsFlagSource equal 1"
+      "memoriesFlagSource equal 1"
     );
     soft.deepEqual(
-      message.insightsApplied,
-      ["insight"],
-      "insightsApplied should equal ['insight']"
+      message.memoriesApplied,
+      ["memory"],
+      "memoriesApplied should equal ['memory']"
     );
     soft.deepEqual(
       message.webSearchQueries,
       ["search"],
-      "insightsApplied should equal ['search']"
+      "memoriesApplied should equal ['search']"
     );
   });
 });
@@ -554,7 +554,7 @@ add_task(async function test_withMemories_ChatConversation_retryMessage() {
   });
 
   sandbox.stub(conversation, "getMemoriesContext").callsFake(() => {
-    conversation.addSystemMessage(SYSTEM_PROMPT_TYPE.INSIGHTS, "insights data");
+    conversation.addSystemMessage(SYSTEM_PROMPT_TYPE.MEMORIES, "memories data");
   });
 
   conversation.addSystemMessage("text", "the system prompt");
@@ -622,8 +622,8 @@ add_task(
 
     sandbox.stub(conversation, "getMemoriesContext").callsFake(() => {
       conversation.addSystemMessage(
-        SYSTEM_PROMPT_TYPE.INSIGHTS,
-        "insights data"
+        SYSTEM_PROMPT_TYPE.MEMORIES,
+        "memories data"
       );
     });
 
@@ -697,7 +697,7 @@ add_task(
     Assert.withSoftAssertions(function (soft) {
       soft.equal(conversation.messages[0].role, 2);
       soft.deepEqual(conversation.messages[0].content, {
-        type: "injected_insights",
+        type: "injected_memories",
         body: "memories data",
       });
     });

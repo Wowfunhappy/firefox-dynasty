@@ -14,7 +14,7 @@ import { html, nothing } from "chrome://global/content/vendor/lit.all.mjs";
  * Custom element that renders the “Memories applied” pill and popover for
  * a single assistant message. The popover shows a list of applied
  * memories and allows the user to:
- *   - Remove an individual applied insight.
+ *   - Remove an individual applied memory.
  *   - Retry the message without any applied memories.
  *
  * @property {string|null} messageId
@@ -33,7 +33,7 @@ import { html, nothing } from "chrome://global/content/vendor/lit.all.mjs";
  *   - "toggle-applied-memories"
  *       detail: { messageId, open }
  *   - "remove-applied-memory"
- *       detail: { messageId, index, insight }
+ *       detail: { messageId, index, memory }
  *   - "retry-without-memories"
  *       detail: { messageId }
  */
@@ -116,16 +116,16 @@ export class AppliedMemoriesButton extends MozLitElement {
     );
   }
 
-  _onRemoveInsight(event, index) {
+  _onRemoveMemory(event, index) {
     event.stopPropagation();
 
     if (!Array.isArray(this.appliedMemories)) {
       return;
     }
 
-    const insight = this.appliedMemories[index];
+    const memory = this.appliedMemories[index];
 
-    // Remove insight visually, but update will be done by parent
+    // Remove memory visually, but update will be done by parent
     this.appliedMemories = this.appliedMemories.filter((_, i) => {
       return i !== index;
     });
@@ -137,7 +137,7 @@ export class AppliedMemoriesButton extends MozLitElement {
         detail: {
           messageId: this.messageId,
           index,
-          insight,
+          memory,
         },
       })
     );
@@ -158,9 +158,9 @@ export class AppliedMemoriesButton extends MozLitElement {
   }
 
   // TODO: Update formatting function once shape of memories passed is confirmed
-  _formatInsightLabel(insight) {
-    if (typeof insight === "string") {
-      return insight;
+  _formatMemoryLabel(memory) {
+    if (typeof memory === "string") {
+      return memory;
     }
     return "";
   }
@@ -181,11 +181,14 @@ export class AppliedMemoriesButton extends MozLitElement {
         @click=${event => this._onPopoverClick(event)}
       >
         <ul class="memories-list">
-          ${visibleMemories.map((insight, index) => {
-            const label = this._formatInsightLabel(insight);
+          ${visibleMemories.map((memory, index) => {
+            const label = this._formatMemoryLabel(memory);
             if (!label) {
               return nothing;
             }
+
+            // @todo Bug 2010069
+            // Localize aria-label
             return html`
               <li class="memories-list-item">
                 <span class="memories-list-label">${label}</span>
@@ -194,8 +197,8 @@ export class AppliedMemoriesButton extends MozLitElement {
                   type="ghost"
                   size="small"
                   iconsrc="chrome://global/skin/icons/close.svg"
-                  aria-label="Remove this insight"
-                  @click=${event => this._onRemoveInsight(event, index)}
+                  aria-label="Remove this memory"
+                  @click=${event => this._onRemoveMemory(event, index)}
                 ></moz-button>
               </li>
             `;
