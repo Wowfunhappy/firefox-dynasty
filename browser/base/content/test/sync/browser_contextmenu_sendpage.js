@@ -76,12 +76,9 @@ add_task(async function test_link_contextmenu() {
     .expects("sendTabToDevice")
     .once()
     .withExactArgs(
-      {
-        url: "https://www.example.org/",
-        title: "Click on me!!",
-        private: false,
-      },
-      [fxaDevices[1]]
+      "https://www.example.org/",
+      [fxaDevices[1]],
+      "Click on me!!"
     );
 
   // Add a link to the page

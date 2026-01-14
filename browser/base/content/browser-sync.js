@@ -26,7 +26,6 @@ ChromeUtils.defineESModuleGetters(this, {
   ExperimentAPI: "resource://nimbus/ExperimentAPI.sys.mjs",
   FxAccounts: "resource://gre/modules/FxAccounts.sys.mjs",
   MenuMessage: "resource:///modules/asrouter/MenuMessage.sys.mjs",
-  PrivateBrowsingUtils: "resource://gre/modules/PrivateBrowsingUtils.sys.mjs",
   SyncedTabs: "resource://services-sync/SyncedTabs.sys.mjs",
   SyncedTabsManagement: "resource://services-sync/SyncedTabs.sys.mjs",
   Weave: "resource://services-sync/main.sys.mjs",
@@ -1712,7 +1711,7 @@ var gSync = {
   },
 
   // Returns true if we managed to send the tab to any targets, false otherwise.
-  async sendTabToDevice(tab, targets) {
+  async sendTabToDevice(url, targets, title) {
     const fxaCommandsDevices = [];
     for (const target of targets) {
       if (fxAccounts.commands.sendTab.isDeviceCompatible(target)) {
@@ -1751,7 +1750,7 @@ var gSync = {
       );
       const report = await fxAccounts.commands.sendTab.send(
         fxaCommandsDevices,
-        tab
+        { url, title }
       );
       for (let { device, error } of report.failed) {
         this.log.error(
@@ -1844,22 +1843,20 @@ var gSync = {
     multiselected,
     isFxaMenu = false
   ) {
-    let isPrivate = PrivateBrowsingUtils.isBrowserPrivate(gBrowser);
     let tabsToSend = multiselected
       ? gBrowser.selectedTabs.map(t => {
           return {
             url: t.linkedBrowser.currentURI.spec,
             title: t.linkedBrowser.contentTitle,
-            private: isPrivate,
           };
         })
-      : [{ url, title, private: isPrivate }];
+      : [{ url, title }];
 
     const send = to => {
       Promise.all(
         tabsToSend.map(t =>
           // sendTabToDevice does not reject.
-          this.sendTabToDevice(t, to)
+          this.sendTabToDevice(t.url, to, t.title)
         )
       ).then(results => {
         // Show the Sent! confirmation if any of the sends succeeded.
