@@ -312,7 +312,10 @@ private fun LoginDetailsPassword(
                     Text.Resource(R.string.saved_login_reveal_password)
                 },
                 isPasswordVisible = isPasswordVisible,
-                onTrailingIconClick = { isPasswordVisible = !isPasswordVisible },
+                onTrailingIconClick = {
+                    isPasswordVisible = !isPasswordVisible
+                    store.dispatch(DetailLoginAction.PasswordVisibilityChanged(isPasswordVisible))
+                },
             )
 
             IconButton(
