@@ -7,7 +7,8 @@ Overview
 
 The ``firefox-devtools-mcp`` is a Model Context Protocol (MCP) server that
 enables AI assistants (such as Claude Code) to automate and interact with
-Firefox through WebDriver BiDi. This tool is particularly useful for:
+Firefox through WebDriver protocols (BiDi and Classic). This tool is
+particularly useful for:
 
 - Automating browser interactions for testing and debugging
 - Attempting to reproduce issues on live websites
@@ -27,6 +28,8 @@ Key Features
 
 - **WebDriver BiDi Protocol**: Uses the modern WebDriver BiDi protocol via
   Selenium WebDriver
+- **WebDriver Classic Fallback**: Uses WebDriver Classic (Marionette) for
+  features not yet ported to BiDi (notably Chrome context usage)
 - **Local Firefox Support**: Can connect to custom Firefox builds (e.g., local
   development builds), or typical release/beta/nightly/esr builds, present on
   the machine
@@ -236,7 +239,7 @@ Common MOZ_LOG Modules
 -----------------------
 
 For a useful list of available MOZ_LOG modules and their descriptions, see
-``toolkit/content/aboutLogging.mjs`` in the Firefox repository, or search
+``toolkit/content/aboutLogging/aboutLogging.mjs`` in the Firefox repository, or search
 searchfox.org with something like this `searchfox query <https://searchfox.org/firefox-main/search?q=LazyLogModule.*%5C%28%22&path=&case=false&regexp=true>`__.
 
 Chrome Context Access
@@ -251,3 +254,9 @@ For debugging privileged Firefox code (chrome/XUL), enable system access:
 Then use ``list_chrome_contexts``, ``select_chrome_context``, and
 ``evaluate_chrome_script`` to access ``gBrowser``, ``Components``, and other
 privileged APIs.
+
+At the moment, the MCP relies on WebDriver Classic (Marionette) for Chrome
+context APIs. While WebDriver BiDi and Classic are meant to work seamlessly
+together, some WebDriver BiDi features might not work when getting executed for
+chrome browsing contexts. Chrome support for WebDriver BiDi is tracked on the
+following `meta bug <https://bugzilla.mozilla.org/show_bug.cgi?id=1722679>`__.
