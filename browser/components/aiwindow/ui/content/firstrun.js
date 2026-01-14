@@ -13,6 +13,7 @@ ChromeUtils.defineESModuleGetters(lazy, {
 const MODEL_PREF = "browser.aiwindow.firstrun.modelChoice";
 const AUTO_ADVANCE_PREF = "browser.aiwindow.firstrun.autoAdvanceMS";
 const FIRST_RUN_COMPLETE_PREF = "browser.aiwindow.firstrun.hasCompleted";
+const EXPLAINER_PAGE_PREF = "browser.aiwindow.firstrun.explainerURL";
 const BRAND_DARK_PURPLE = "#210340";
 
 const autoAdvanceMS = Services.prefs.getIntPref(AUTO_ADVANCE_PREF);
@@ -207,6 +208,16 @@ function renderFirstRun() {
   window.AWGetInstalledAddons = () => [];
   window.AWSendToParent = (name, data) => receive(name)(data);
   window.AWFinish = () => {
+    window.AWSendToParent("SPECIAL_ACTION", {
+      type: "OPEN_URL",
+      data: {
+        args: Services.prefs.getStringPref(
+          EXPLAINER_PAGE_PREF,
+          "https://www.mozilla.org/"
+        ),
+        where: "tab",
+      },
+    });
     window.location.href = lazy.AIWindow.newTabURL;
   };
 

@@ -21,9 +21,12 @@ add_task(async function test_firstrun_welcome_screen_renders() {
   const tab = await openFirstrunPage();
 
   await SpecialPowers.spawn(tab.linkedBrowser, [], async () => {
-    await ContentTaskUtils.waitForCondition(
-      () => content.document.querySelector(".screen.AI_WINDOW_INTRO"),
-      "Wait for the AI Window intro screen to be rendered"
+    const root = content.document.documentElement;
+
+    await ContentTaskUtils.waitForMutationCondition(
+      root,
+      { childList: true, subtree: true },
+      () => content.document.querySelector(".screen.AI_WINDOW_INTRO")
     );
 
     const introScreen = content.document.querySelector(
@@ -34,9 +37,10 @@ add_task(async function test_firstrun_welcome_screen_renders() {
       "The intro screen with class 'screen AI_WINDOW_INTRO' should be present"
     );
 
-    await ContentTaskUtils.waitForCondition(
-      () => content.document.querySelector(".screen.AI_WINDOW_CHOOSE_MODEL"),
-      "Wait for the AI Window choose model screen to be rendered"
+    await ContentTaskUtils.waitForMutationCondition(
+      root,
+      { childList: true, subtree: true, attributes: true },
+      () => content.document.querySelector(".screen.AI_WINDOW_CHOOSE_MODEL")
     );
   });
 
@@ -130,5 +134,97 @@ add_task(async function test_switcher_shows_firstrun_when_not_completed() {
   // Cleanup
   document.documentElement.removeAttribute("ai-window");
   BrowserTestUtils.removeTab(tab);
+  await SpecialPowers.popPrefEnv();
+});
+
+add_task(async function test_firstrun_explainer_page_opens() {
+  const explainerPref = "browser.aiwindow.firstrun.explainerURL";
+  const exampleURL = "https://example.com/";
+
+  await SpecialPowers.pushPrefEnv({
+    set: [
+      ["browser.aiwindow.enabled", true],
+      ["browser.aiwindow.firstrun.hasCompleted", false],
+      [explainerPref, exampleURL],
+    ],
+  });
+
+  const explainerUrlPref = Services.prefs.getStringPref(
+    explainerPref,
+    exampleURL
+  );
+
+  const win = Services.wm.getMostRecentWindow("navigator:browser");
+  let calls = [];
+  const originalOpenLinkIn = win.openLinkIn;
+
+  win.openLinkIn = function (url, where, params) {
+    calls.push({ url, where, params });
+    return null;
+  };
+
+  const aiWindowTab = await BrowserTestUtils.openNewForegroundTab(
+    gBrowser,
+    "about:blank"
+  );
+
+  await AIWindow.launchWindow(gBrowser.selectedBrowser);
+
+  await BrowserTestUtils.waitForCondition(
+    () => gBrowser.selectedBrowser.currentURI.spec === FIRSTRUN_URL,
+    "Should navigate to firstrun.html"
+  );
+
+  const browser = aiWindowTab.linkedBrowser;
+
+  await SpecialPowers.spawn(browser, [], async () => {
+    const root = content.document.documentElement;
+
+    await ContentTaskUtils.waitForMutationCondition(
+      root,
+      { childList: true, subtree: true },
+      () => content.document.querySelector(".screen.AI_WINDOW_INTRO")
+    );
+
+    await ContentTaskUtils.waitForMutationCondition(
+      root,
+      { childList: true, subtree: true, attributes: true },
+      () => content.document.querySelector(".screen.AI_WINDOW_CHOOSE_MODEL")
+    );
+
+    const model1Box = content.document.querySelectorAll(".select-item")[0];
+    const letsGoButton = content.document.querySelector(
+      ".action-buttons > button"
+    );
+
+    Assert.ok(model1Box, "Model 1 box exists");
+    Assert.ok(letsGoButton, "Let's go button exists");
+
+    EventUtils.synthesizeMouseAtCenter(model1Box, {}, content);
+    EventUtils.synthesizeMouseAtCenter(letsGoButton, {}, content);
+  });
+
+  await BrowserTestUtils.waitForCondition(
+    () => calls.length,
+    "openLinkIn function was called"
+  );
+
+  const call = calls[0];
+
+  Assert.ok(
+    call.url.includes(explainerUrlPref),
+    "openLinkIn function was called with the explainer URL"
+  );
+
+  Assert.equal(
+    call.where,
+    "tab",
+    "openLinkIn function opened in a background tab"
+  );
+
+  // Clean up
+  document.documentElement.removeAttribute("ai-window");
+  BrowserTestUtils.removeTab(aiWindowTab);
+  win.openLinkIn = originalOpenLinkIn;
   await SpecialPowers.popPrefEnv();
 });
