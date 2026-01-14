@@ -21,6 +21,11 @@ if (findProject(":geckoview") != null) {
 }
 apply from: versionCodeGradle
 
+// Generated sources location for LocalesList.kt
+def generatedLocaleListBaseDir = project.layout.buildDirectory.dir("generated/source/locales").get().asFile
+def generatedLocaleListDir = new File(generatedLocaleListBaseDir, "org/mozilla/focus/generated")
+def generatedLocaleListFilename = "LocalesList.kt"
+
 import com.android.build.api.variant.FilterConfiguration
 import com.google.android.gms.oss.licenses.plugin.DependencyTask
 import groovy.json.JsonOutput
@@ -176,6 +181,10 @@ android {
                 // and do not need to rely on Robolectric.
                 srcDir "${projectDir}/src/main/assets/"
             }
+        }
+
+        main {
+            java.srcDir generatedLocaleListBaseDir
         }
 
         // Release
@@ -546,9 +555,6 @@ android.applicationVariants.configureEach { variant ->
     }
 }
 
-def generatedLocaleListDir = file('src/main/java/org/mozilla/focus/generated')
-def generatedLocaleListFilename = 'LocalesList.kt'
-
 def enabledLocales = project.provider { getEnabledLocales() }
 
 tasks.register('generateLocaleList') {
@@ -588,13 +594,9 @@ tasks.register('generateLocaleList') {
 }
 
 tasks.configureEach { task ->
-    if (name.contains("compile")) {
-        task.dependsOn generateLocaleList
+    if (task.name.contains("compile")) {
+        task.dependsOn(tasks.named("generateLocaleList"))
     }
-}
-
-clean.doLast {
-    generatedLocaleListDir.deleteDir()
 }
 
 if (project.hasProperty("coverage")) {
