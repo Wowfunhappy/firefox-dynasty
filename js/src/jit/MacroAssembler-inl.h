@@ -897,6 +897,30 @@ void MacroAssembler::canonicalizeDoubleZero(FloatRegister reg,
   mulDouble(scratch, reg);
 }
 
+void MacroAssembler::canonicalizeValueZero(ValueOperand value,
+                                           FloatRegister scratch) {
+  // Don't do anything if this isn't a double value.
+  Label notDouble;
+  branchTestDouble(Assembler::NotEqual, value, &notDouble);
+
+  // Unbox the double.
+  unboxDouble(value, scratch);
+
+  {
+    // Minimize the duration of using the scratch double to avoid
+    // conflict with unboxDouble.
+    ScratchDoubleScope tmpD(*this);
+
+    // Canonicalize the double.
+    canonicalizeDoubleZero(scratch, tmpD);
+
+    // Box the double back into value.
+    boxDouble(scratch, value, tmpD);
+  }
+
+  bind(&notDouble);
+}
+
 // ========================================================================
 // Memory access primitives.
 

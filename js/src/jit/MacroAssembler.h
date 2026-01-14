@@ -2251,6 +2251,9 @@ class MacroAssembler : public MacroAssemblerSpecific {
   // enabled.
   inline void canonicalizeDoubleZero(FloatRegister reg, FloatRegister scratch);
 
+  // If the value is a double, perform canonicalizeDoubleZero on it.
+  inline void canonicalizeValueZero(ValueOperand value, FloatRegister scratch);
+
  public:
   // ========================================================================
   // Memory access primitives.

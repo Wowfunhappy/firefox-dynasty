@@ -3865,8 +3865,8 @@ void LIRGenerator::visitWasmBuiltinTruncateToInt32(
 }
 
 void LIRGenerator::visitWasmAnyRefFromJSValue(MWasmAnyRefFromJSValue* ins) {
-  LWasmAnyRefFromJSValue* lir =
-      new (alloc()) LWasmAnyRefFromJSValue(useBox(ins->input()), tempDouble());
+  LWasmAnyRefFromJSValue* lir = new (alloc())
+      LWasmAnyRefFromJSValue(useBox(ins->input()), tempDouble(), tempBox());
   define(lir, ins);
   assignSafepoint(lir, ins);
 }

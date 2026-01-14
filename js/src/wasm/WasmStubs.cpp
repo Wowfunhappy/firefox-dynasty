@@ -1125,25 +1125,8 @@ static bool GenerateJitEntry(MacroAssembler& masm, size_t funcExportIndex,
         // add a significant cost to many hot-paths. We instead just
         // eagerly canonicalize denormals to +-0.0 here to avoid inconsistent
         // results (see Bug 1971519).
-        Label notDouble;
-        masm.branchTestDouble(Assembler::NotEqual, scratchV, &notDouble);
-
-        // Unbox the double and canonicalize any denormal values
-        masm.unboxDouble(scratchV, scratchF);
-
-        {
-          // Minimize the duration of using the scratch double to avoid
-          // conflict with unboxDouble.
-          ScratchDoubleScope tmpD(masm);
-          masm.canonicalizeDoubleZero(scratchF, tmpD);
-
-          // Box the value back into scratchV and also store it back to the
-          // stack.
-          masm.boxDouble(scratchF, scratchV, tmpD);
-        }
+        masm.canonicalizeValueZero(scratchV, scratchF);
         masm.storeValue(scratchV, jitArgAddr);
-
-        masm.bind(&notDouble);
 
         masm.branchValueConvertsToWasmAnyRefInline(scratchV, scratchG, scratchF,
                                                    &next);
