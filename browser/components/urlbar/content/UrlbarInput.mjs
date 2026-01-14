@@ -3261,6 +3261,14 @@ export class UrlbarInput extends HTMLElement {
    * attributes to appear at the proper side of the urlbar.
    */
   updateTextOverflow() {
+    if (!this.#isAddressbar) {
+      // The main purpose of overflow fading is to make it clear when URLs
+      // overflow. We don't need this in more traditional search inputs where
+      // the text is controlled by the users. Fading also doesn't work correctly
+      // when the search input has a clear button.
+      return;
+    }
+
     if (!this._overflowing) {
       this.removeAttribute("textoverflow");
       return;
