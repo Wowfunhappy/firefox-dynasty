@@ -368,7 +368,6 @@ add_task(async function test_about_glean_event_timeline() {
       getValueCell();
       Assert.equal(valueCell.childElementCount, 2);
       Assert.equal(valueCell.lastChild.tagName, "PRE");
-      console.log(valueCell.lastChild.firstChild.textContent);
       Assert.equal(
         valueCell.lastChild.firstChild.textContent.includes(extra.value),
         true
@@ -532,6 +531,100 @@ add_task(async function test_about_glean_metrics_table_settings() {
         null,
         "Data row for `testOnlyIpc.aBool` should not exist"
       );
+    });
+  });
+});
+
+add_task(async function test_about_glean_export_button() {
+  Services.fog.testResetFOG();
+  registerCleanupFunction(() => {
+    Services.prefs.clearUserPref("about.glean.redesign.enabled");
+  });
+  Services.prefs.setBoolPref("about.glean.redesign.enabled", true);
+
+  await BrowserTestUtils.withNewTab("about:glean", async browser => {
+    await ContentTask.spawn(browser, null, async function () {
+      const { TestUtils } = ChromeUtils.importESModule(
+        "resource://testing-common/TestUtils.sys.mjs"
+      );
+      const { Assert } = ChromeUtils.importESModule(
+        "resource://testing-common/Assert.sys.mjs"
+      );
+      const date = new Date();
+      function sleep(ms) {
+        /* eslint-disable mozilla/no-arbitrary-setTimeout */
+        return new Promise(resolve => setTimeout(resolve, ms));
+      }
+
+      content.document.getElementById("category-metrics-table").click();
+
+      let tableBody;
+      const fetchTableBody = () => {
+        tableBody = content.document.getElementById("metrics-table-body");
+      };
+      fetchTableBody();
+      let currentFirstChild =
+        tableBody.children[0].attributes["data-d3-row"].value;
+
+      const tableFirstChildChanged = () => {
+        fetchTableBody();
+        if (
+          currentFirstChild !=
+          tableBody.children[0].attributes["data-d3-row"].value
+        ) {
+          currentFirstChild =
+            tableBody.children[0].attributes["data-d3-row"].value;
+          return true;
+        }
+        return false;
+      };
+
+      const input = content.document.getElementById("filter-metrics");
+      input.value = "anEvent";
+      input.dispatchEvent(new Event("input"));
+
+      await TestUtils.waitForCondition(
+        tableFirstChildChanged,
+        "Wait for the table's first child to change",
+        100,
+        3
+      );
+
+      let extra = {
+        value: "a value for Telemetry",
+        extra1: "can set extras",
+        extra2: "passing more data",
+      };
+      Glean.testOnlyIpc.anEvent.record(extra);
+
+      content.document
+        .querySelector(
+          "[data-d3-row='testOnlyIpc.anEvent'] button[data-l10n-id='about-glean-button-load-value']"
+        )
+        .click();
+
+      content.document.getElementById("export-data").click();
+      await sleep(500);
+      const downloadDir = Services.dirsvc.get("DfltDwnld", Ci.nsIFile).path;
+      const downloads = await IOUtils.getChildren(downloadDir);
+      const downloadRegex = /about-glean-export-([\d-\.TZ_:]+)\.json/;
+      const newDownloads = downloads
+        .filter(d => downloadRegex.test(d))
+        .map(d => [d, new Date(d.match(downloadRegex)[1].replaceAll("_", ":"))])
+        .filter(([_, fileDate]) => fileDate - date >= 0);
+
+      Assert.equal(
+        1,
+        newDownloads.length,
+        `New downloads has an unexpected value in list of downloads: ${JSON.stringify(downloads.filter(d => d.includes("glean")))}`
+      );
+
+      const data = await IOUtils.readJSON(newDownloads[0][0]);
+      // Clean up downloaded file
+      await IOUtils.remove(newDownloads[0][0]);
+      const index = data.findIndex(d => d.name === "testOnlyIpc.anEvent");
+      Assert.greaterOrEqual(index, 0);
+      Assert.notEqual(undefined, data[index].value);
     });
   });
 });
