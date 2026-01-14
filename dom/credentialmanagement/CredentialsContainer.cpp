@@ -203,6 +203,13 @@ already_AddRefed<Promise> CredentialsContainer::Get(
   }
 
   if (aOptions.mDigital.WasPassed()) {
+    if (!FeaturePolicyUtils::IsFeatureAllowed(mParent->GetExtantDoc(),
+                                              u"digital-credentials-get"_ns)) {
+      promise->MaybeRejectWithNotAllowedError(
+          "The 'digital-credentials-get' feature is not allowed by policy in this document."_ns);
+      return promise.forget();
+    }
+
     EnsureDigitalCredentialHandler();
     mDigitalCredentialHandler->GetDigitalCredential(
         aCx, aOptions.mDigital.Value(), aOptions.mSignal, promise);
@@ -266,6 +273,13 @@ already_AddRefed<Promise> CredentialsContainer::Create(
   }
 
   if (aOptions.mDigital.WasPassed()) {
+    if (!FeaturePolicyUtils::IsFeatureAllowed(
+            mParent->GetExtantDoc(), u"digital-credentials-create"_ns)) {
+      promise->MaybeRejectWithNotAllowedError(
+          "The 'digital-credentials-create' feature is not allowed by policy in this document."_ns);
+      return promise.forget();
+    }
+
     EnsureDigitalCredentialHandler();
     mDigitalCredentialHandler->CreateDigitalCredential(
         aCx, aOptions.mDigital.Value(), aOptions.mSignal, promise);
