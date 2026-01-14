@@ -145,28 +145,21 @@ already_AddRefed<dom::Promise> Instance::RequestAdapter(
              "`dom.webgpu.blocked-domains` pref.");
   }
 
+  // -
+  // Make the request.
+
+  auto* const canvasManager = gfx::CanvasManagerChild::Get();
+  rejectIf(!canvasManager, "Failed to create CanvasManagerChild");
+
+  RefPtr<WebGPUChild> child = canvasManager->GetWebGPUChild();
+  rejectIf(!child, "Failed to create WebGPUChild");
+
   if (rejectionMessage) {
     promise->MaybeResolve(JS::NullValue());
     dom::AutoJSAPI api;
     if (api.Init(mOwner)) {
       JS::WarnUTF8(api.cx(), "%s", rejectionMessage.value().data());
     }
-    return promise.forget();
-  }
-
-  // -
-  // Make the request.
-
-  auto* const canvasManager = gfx::CanvasManagerChild::Get();
-  if (!canvasManager) {
-    promise->MaybeRejectWithInvalidStateError(
-        "Failed to create CanvasManagerChild");
-    return promise.forget();
-  }
-
-  RefPtr<WebGPUChild> child = canvasManager->GetWebGPUChild();
-  if (!child) {
-    promise->MaybeRejectWithInvalidStateError("Failed to create WebGPUChild");
     return promise.forget();
   }
 
