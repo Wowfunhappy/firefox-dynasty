@@ -1790,8 +1790,12 @@ void HTMLInputElement::SetValue(const nsAString& aValue, CallerType aCallerType,
   }
 }
 
-HTMLDataListElement* HTMLInputElement::GetListForBindings() const {
-  return GetListInternal();
+Element* HTMLInputElement::GetListForBindings() const {
+  HTMLDataListElement* list = GetListInternal();
+  if (!StaticPrefs::dom_shadowdom_referenceTarget_enabled()) {
+    return list;
+  }
+  return Element::FromNodeOrNull(nsContentUtils::Retarget(list, this));
 }
 
 HTMLDataListElement* HTMLInputElement::GetListInternal() const {
@@ -1806,8 +1810,9 @@ HTMLDataListElement* HTMLInputElement::GetListInternal() const {
     return nullptr;
   }
 
-  return HTMLDataListElement::FromNodeOrNull(
-      docOrShadow->GetElementById(dataListId));
+  Element* target = docOrShadow->GetElementById(dataListId);
+  Element* list = target ? target->ResolveReferenceTarget() : nullptr;
+  return HTMLDataListElement::FromNodeOrNull(list);
 }
 
 void HTMLInputElement::SetValue(Decimal aValue, CallerType aCallerType) {
