@@ -2,9 +2,10 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-const { openAIEngine, MODEL_FEATURES } = ChromeUtils.importESModule(
-  "moz-src:///browser/components/aiwindow/models/Utils.sys.mjs"
-);
+const { openAIEngine, MODEL_FEATURES, DEFAULT_MODEL } =
+  ChromeUtils.importESModule(
+    "moz-src:///browser/components/aiwindow/models/Utils.sys.mjs"
+  );
 
 const { sinon } = ChromeUtils.importESModule(
   "resource://testing-common/Sinon.sys.mjs"
@@ -194,7 +195,7 @@ add_task(async function test_loadConfig_filters_by_major_version() {
 
 add_task(async function test_loadConfig_fallback_when_user_model_not_found() {
   Services.prefs.setStringPref(PREF_API_KEY, API_KEY);
-  Services.prefs.setStringPref(PREF_ENDPOINT, ENDPOINT);
+  Services.prefs.clearUserPref(PREF_ENDPOINT);
   Services.prefs.setStringPref(PREF_MODEL, "nonexistent-model");
 
   const sb = sinon.createSandbox();
@@ -232,6 +233,133 @@ add_task(async function test_loadConfig_fallback_when_user_model_not_found() {
     Services.prefs.clearUserPref(PREF_MODEL);
   }
 });
+
+add_task(async function test_loadConfig_custom_endpoint_with_custom_model() {
+  Services.prefs.setStringPref(PREF_ENDPOINT, "http://localhost:11434/v1");
+  Services.prefs.setStringPref(PREF_MODEL, "custom-model:7b");
+
+  const sb = sinon.createSandbox();
+  try {
+    const engine = new openAIEngine();
+    const fakeRecords = [
+      {
+        feature: MODEL_FEATURES.CHAT,
+        version: "v1.0",
+        model: "some-other-model",
+        is_default: true,
+      },
+    ];
+
+    const fakeClient = {
+      get: sb.stub().resolves(fakeRecords),
+    };
+    sb.stub(openAIEngine, "getRemoteClient").returns(fakeClient);
+
+    await engine.loadConfig(MODEL_FEATURES.CHAT);
+
+    Assert.equal(
+      engine.model,
+      "custom-model:7b",
+      "Should use custom model with custom endpoint"
+    );
+  } finally {
+    sb.restore();
+    Services.prefs.clearUserPref(PREF_ENDPOINT);
+    Services.prefs.clearUserPref(PREF_MODEL);
+  }
+});
+
+add_task(async function test_loadConfig_custom_endpoint_without_custom_model() {
+  Services.prefs.clearUserPref(PREF_MODEL);
+  Services.prefs.clearUserPref(PREF_ENDPOINT);
+
+  Services.prefs.setStringPref(PREF_ENDPOINT, "http://localhost:11434/v1");
+
+  const sb = sinon.createSandbox();
+  try {
+    const engine = new openAIEngine();
+    const fakeRecords = [
+      {
+        feature: MODEL_FEATURES.CHAT,
+        version: "v1.0",
+        model: "remote-default-model",
+        is_default: true,
+      },
+    ];
+
+    const fakeClient = {
+      get: sb.stub().resolves(fakeRecords),
+    };
+    sb.stub(openAIEngine, "getRemoteClient").returns(fakeClient);
+
+    await engine.loadConfig(MODEL_FEATURES.CHAT);
+
+    Assert.equal(
+      engine.model,
+      "qwen3-235b-a22b-instruct-2507-maas",
+      "Should use default model from pref when custom endpoint is set"
+    );
+  } finally {
+    sb.restore();
+    Services.prefs.clearUserPref(PREF_ENDPOINT);
+    Services.prefs.clearUserPref(PREF_MODEL);
+  }
+});
+
+add_task(
+  async function test_loadConfig_custom_endpoint_no_remote_settings_records() {
+    Services.prefs.setStringPref(PREF_ENDPOINT, "http://localhost:11434/v1");
+    Services.prefs.setStringPref(PREF_MODEL, "local-llama-model");
+
+    const sb = sinon.createSandbox();
+    try {
+      const engine = new openAIEngine();
+      const fakeClient = {
+        get: sb.stub().resolves([]),
+      };
+      sb.stub(openAIEngine, "getRemoteClient").returns(fakeClient);
+
+      await engine.loadConfig(MODEL_FEATURES.CHAT);
+
+      Assert.equal(
+        engine.model,
+        "local-llama-model",
+        "Should use custom model even when Remote Settings has no records"
+      );
+    } finally {
+      sb.restore();
+      Services.prefs.clearUserPref(PREF_ENDPOINT);
+      Services.prefs.clearUserPref(PREF_MODEL);
+    }
+  }
+);
+
+add_task(
+  async function test_loadConfig_no_custom_endpoint_no_remote_settings() {
+    Services.prefs.clearUserPref(PREF_ENDPOINT);
+    Services.prefs.setStringPref(PREF_MODEL, "some-model");
+
+    const sb = sinon.createSandbox();
+    try {
+      const engine = new openAIEngine();
+      const fakeClient = {
+        get: sb.stub().resolves([]),
+      };
+      sb.stub(openAIEngine, "getRemoteClient").returns(fakeClient);
+
+      await engine.loadConfig(MODEL_FEATURES.CHAT);
+
+      Assert.equal(
+        engine.model,
+        DEFAULT_MODEL[MODEL_FEATURES.CHAT],
+        "Should fall back to default model when no custom endpoint and no Remote Settings"
+      );
+    } finally {
+      sb.restore();
+      Services.prefs.clearUserPref(PREF_MODEL);
+    }
+  }
+);
 
 add_task(async function test_loadPrompt_from_remote_settings() {
   Services.prefs.setStringPref(PREF_API_KEY, API_KEY);

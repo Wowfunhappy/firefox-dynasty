@@ -23,6 +23,7 @@ const lazy = XPCOMUtils.declareLazy({
 });
 
 const MODEL_PREF = "browser.aiwindow.model";
+const ENDPOINT_PREF = "browser.aiwindow.endpoint";
 
 /**
  * Default engine ID used for all AI Window features
@@ -255,6 +256,20 @@ export class openAIEngine {
   }
 
   /**
+   * Overrides the model when using a custom endpoint.
+   * Only called after Remote Settings config has been loaded.
+   *
+   * @private
+   */
+  _applyCustomEndpointModel() {
+    const userModel = Services.prefs.getStringPref(MODEL_PREF, "");
+    console.warn(
+      `Using custom endpoint with model "${userModel}" for feature: ${this.feature}`
+    );
+    this.model = userModel;
+  }
+
+  /**
    * Applies default configuration fallback when Remote Settings selection fails
    *
    * @param {string} feature - The feature identifier
@@ -267,31 +282,20 @@ export class openAIEngine {
   }
 
   /**
-   * Loads configuration from Remote Settings with version-aware selection.
+   * Applies configuration from Remote Settings with version-aware selection.
    *
-   * Selection logic:
-   * 1. Filters configs by feature and major version compatibility
-   * 2. If user has model preference, finds latest minor for that model
-   * 3. Otherwise, finds latest minor among default configs
-   * 4. Falls back to latest minor overall if no defaults
-   * 5. Falls back to local defaults if no matching major version
-   *
-   * @param {string} feature - The feature identifier from MODEL_FEATURES
-   * @returns {Promise<void>}
-   *   Sets this.feature to the feature name
-   *   Sets this.model to the selected model ID
-   *   Sets this.#configs to contain feature's and additional_components' configs
+   * @param {string} feature - The feature identifier
+   * @param {Array} allRecords - All Remote Settings records
+   * @param {Array} featureConfigs - Remote Settings configs for this feature
+   * @param {number} majorVersion - Required major version
+   * @private
    */
-  async loadConfig(feature) {
-    const client = openAIEngine.getRemoteClient();
-    const allRecords = await client.get();
-
-    // Filter to configs for this feature
-    const featureConfigs = allRecords.filter(
-      record => record.feature === feature
-    );
-
-    // Fallback to default if no remote settings records for given feature
+  _applyRemoteSettingsConfig(
+    feature,
+    allRecords,
+    featureConfigs,
+    majorVersion
+  ) {
     if (!featureConfigs.length) {
       console.warn(
         `No Remote Settings records found for feature: ${feature}, using default`
@@ -300,13 +304,12 @@ export class openAIEngine {
       return;
     }
 
-    const majorVersion = FEATURE_MAJOR_VERSIONS[feature];
     const userModel = Services.prefs.getStringPref(MODEL_PREF, "");
+    const hasCustomModel = Services.prefs.prefHasUserValue(MODEL_PREF);
 
-    // Find matching config with version and provided userModel pref
     const mainConfig = selectMainConfig(featureConfigs, {
       majorVersion,
-      userModel,
+      userModel: hasCustomModel ? userModel : "",
     });
 
     if (!mainConfig) {
@@ -317,7 +320,6 @@ export class openAIEngine {
       return;
     }
 
-    // Store the selected configuration
     this.feature = feature;
     this.model = mainConfig.model;
 
@@ -342,6 +344,46 @@ export class openAIEngine {
           );
         }
       }
+    }
+  }
+
+  /**
+   * Loads configuration from Remote Settings with version-aware selection.
+   *
+   * Selection logic:
+   * 1. Filter configs by feature and major version compatibility
+   * 2. If user has model preference, find latest minor for that model
+   * 3. Otherwise, find latest minor among default configs
+   * 4. Fall back to latest minor overall if no defaults
+   * 5. Fall back to local defaults if no matching major version
+   * 6. If custom endpoint is set, override model with pref value
+   *
+   * @param {string} feature - The feature identifier from MODEL_FEATURES
+   * @returns {Promise<void>}
+   *   Sets this.feature to the feature name
+   *   Sets this.model to the selected model ID
+   *   Sets this.#configs to contain feature's and additional_components' configs
+   */
+  async loadConfig(feature) {
+    const client = openAIEngine.getRemoteClient();
+    const allRecords = await client.get();
+
+    const featureConfigs = allRecords.filter(
+      record => record.feature === feature
+    );
+
+    const majorVersion = FEATURE_MAJOR_VERSIONS[feature];
+
+    this._applyRemoteSettingsConfig(
+      feature,
+      allRecords,
+      featureConfigs,
+      majorVersion
+    );
+
+    const hasCustomEndpoint = Services.prefs.prefHasUserValue(ENDPOINT_PREF);
+    if (hasCustomEndpoint) {
+      this._applyCustomEndpointModel();
     }
   }
 

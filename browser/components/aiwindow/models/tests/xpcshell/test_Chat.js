@@ -91,8 +91,8 @@ add_task(
       );
       Assert.equal(
         opts.modelId,
-        "qwen3-235b-a22b-instruct-2507-maas",
-        "modelId should fallback to default"
+        "nonexistent-model",
+        "modelId should use custom model with custom endpoint"
       );
     } finally {
       sb.restore();
@@ -370,3 +370,91 @@ add_task(
     }
   }
 );
+
+add_task(async function test_Chat_modelId_reads_from_pref() {
+  const defaultModelId = "qwen3-235b-a22b-instruct-2507-maas";
+  const customModelId = "custom-model-id";
+
+  Services.prefs.clearUserPref(PREF_MODEL);
+
+  Assert.equal(
+    Chat.modelId,
+    defaultModelId,
+    "Should use default modelId when pref is not set"
+  );
+
+  Services.prefs.setStringPref(PREF_MODEL, customModelId);
+
+  Assert.equal(
+    Chat.modelId,
+    customModelId,
+    "Should read modelId from pref after it is set"
+  );
+
+  Services.prefs.clearUserPref(PREF_MODEL);
+
+  Assert.equal(
+    Chat.modelId,
+    defaultModelId,
+    "Should revert to default modelId after pref is cleared"
+  );
+});
+
+add_task(async function test_Chat_fetchWithHistory_uses_modelId_from_pref() {
+  const sb = sinon.createSandbox();
+  try {
+    const customModelId = "test-custom-model-123";
+    Services.prefs.setStringPref(PREF_MODEL, customModelId);
+
+    const fakeRecords = [
+      {
+        feature: MODEL_FEATURES.CHAT,
+        version: "v1.0",
+        model: customModelId,
+        is_default: true,
+      },
+    ];
+
+    const fakeClient = {
+      get: sb.stub().resolves(fakeRecords),
+    };
+    sb.stub(openAIEngine, "getRemoteClient").returns(fakeClient);
+
+    const fakeEngineInstance = {
+      runWithGenerator(_options) {
+        async function* gen() {
+          yield { text: "Test response" };
+        }
+        return gen();
+      },
+    };
+
+    const createEngineStub = sb
+      .stub(openAIEngine, "_createEngine")
+      .resolves(fakeEngineInstance);
+
+    const conversation = new ChatConversation({
+      title: "chat title",
+      description: "chat desc",
+      pageUrl: new URL("https://www.firefox.com"),
+      pageMeta: {},
+    });
+
+    const generator = Chat.fetchWithHistory(conversation);
+    await generator.next();
+
+    Assert.ok(
+      createEngineStub.calledOnce,
+      "_createEngine should be called once"
+    );
+    const createEngineArgs = createEngineStub.firstCall.args[0];
+    Assert.equal(
+      createEngineArgs.modelId,
+      customModelId,
+      "Engine should be created with the custom model from pref"
+    );
+  } finally {
+    sb.restore();
+    Services.prefs.clearUserPref(PREF_MODEL);
+  }
+});
