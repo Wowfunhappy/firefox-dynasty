@@ -5,8 +5,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef _MozAccessible_H_
-#define _MozAccessible_H_
+#ifndef MozAccessible_H_
+#define MozAccessible_H_
 
 #include "AccessibleWrap.h"
 #include "RemoteAccessible.h"

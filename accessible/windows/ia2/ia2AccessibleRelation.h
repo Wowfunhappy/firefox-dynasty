@@ -5,8 +5,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef _NS_ACCESSIBLE_RELATION_WRAP_H
-#define _NS_ACCESSIBLE_RELATION_WRAP_H
+#ifndef NS_ACCESSIBLE_RELATION_WRAP_H
+#define NS_ACCESSIBLE_RELATION_WRAP_H
 
 #include "MsaaAccessible.h"
 #include "IUnknownImpl.h"
