@@ -84,10 +84,12 @@ add_task(async function test_getPageContent_exact_url_match() {
 
     setupBrowserWindowTracker(sb, createFakeWindow(tabs));
 
-    const result = await GetPageContent.getPageContent(
-      { url: targetUrl },
+    const result_array = await GetPageContent.getPageContent(
+      { url_list: [targetUrl] },
       new Set([targetUrl])
     );
+
+    const result = result_array[0];
 
     Assert.ok(result.includes("Example Page"), "Should include page title");
     Assert.ok(
@@ -114,10 +116,12 @@ add_task(async function test_getPageContent_hostname_match() {
 
     setupBrowserWindowTracker(sb, createFakeWindow(tabs));
 
-    const result = await GetPageContent.getPageContent(
-      { url: "http://example.com/different" },
+    const result_array = await GetPageContent.getPageContent(
+      { url_list: ["http://example.com/different"] },
       new Set(["http://example.com/different"])
     );
+
+    const result = result_array[0];
 
     Assert.ok(
       result.includes("Example Page"),
@@ -145,10 +149,12 @@ add_task(async function test_getPageContent_tab_not_found_with_allowed_url() {
     setupBrowserWindowTracker(sb, createFakeWindow(tabs));
 
     const allowedUrls = new Set([targetUrl]);
-    const result = await GetPageContent.getPageContent(
-      { url: targetUrl },
+    const result_array = await GetPageContent.getPageContent(
+      { url_list: [targetUrl] },
       allowedUrls
     );
+
+    const result = result_array[0];
 
     // Headless extraction doesn't work in xpcshell environment
     // In real usage, this would attempt headless extraction for allowed URLs
@@ -183,7 +189,10 @@ add_task(
       // This doesn't work in xpcshell, so we expect an error
       let errorThrown = false;
       try {
-        await GetPageContent.getPageContent({ url: targetUrl }, allowedUrls);
+        await GetPageContent.getPageContent(
+          { url_list: [targetUrl] },
+          allowedUrls
+        );
       } catch (error) {
         errorThrown = true;
         Assert.ok(
@@ -211,10 +220,11 @@ add_task(async function test_getPageContent_no_browsing_context() {
 
     setupBrowserWindowTracker(sb, createFakeWindow(tabs));
 
-    const result = await GetPageContent.getPageContent(
-      { url: targetUrl },
+    const result_array = await GetPageContent.getPageContent(
+      { url_list: [targetUrl] },
       new Set([targetUrl])
     );
+    const result = result_array[0];
 
     Assert.ok(
       result.includes("Cannot access content"),
@@ -252,10 +262,12 @@ add_task(async function test_getPageContent_successful_extraction() {
 
     setupBrowserWindowTracker(sb, createFakeWindow([tab]));
 
-    const result = await GetPageContent.getPageContent(
-      { url: targetUrl },
+    const result_array = await GetPageContent.getPageContent(
+      { url_list: [targetUrl] },
       new Set([targetUrl])
     );
+
+    const result = result_array[0];
 
     Assert.ok(result.includes("Content (full page)"), "Should indicate mode");
     Assert.ok(result.includes("Article"), "Should include tab title");
@@ -285,10 +297,11 @@ add_task(async function test_getPageContent_content_truncation() {
 
     setupBrowserWindowTracker(sb, createFakeWindow([tab]));
 
-    const result = await GetPageContent.getPageContent(
-      { url: targetUrl },
+    const result_array = await GetPageContent.getPageContent(
+      { url_list: [targetUrl] },
       new Set([targetUrl])
     );
+    const result = result_array[0];
 
     const contentMatch = result.match(/Content \(full page\) from.*:\s*(.*)/s);
     Assert.ok(contentMatch, "Should match content pattern");
@@ -326,10 +339,12 @@ add_task(async function test_getPageContent_empty_content() {
 
     setupBrowserWindowTracker(sb, createFakeWindow([tab]));
 
-    const result = await GetPageContent.getPageContent(
-      { url: targetUrl },
+    const result_array = await GetPageContent.getPageContent(
+      { url_list: [targetUrl] },
       new Set([targetUrl])
     );
+
+    const result = result_array[0];
 
     // Whitespace content is normalized but still returns success
     Assert.ok(
@@ -365,10 +380,12 @@ add_task(async function test_getPageContent_extraction_error() {
 
     setupBrowserWindowTracker(sb, createFakeWindow([tab]));
 
-    const result = await GetPageContent.getPageContent(
-      { url: targetUrl },
+    const result_array = await GetPageContent.getPageContent(
+      { url_list: [targetUrl] },
       new Set([targetUrl])
     );
+
+    const result = result_array[0];
 
     Assert.ok(
       result.includes("returned no content"),
@@ -399,10 +416,12 @@ add_task(async function test_getPageContent_reader_mode_string() {
 
     setupBrowserWindowTracker(sb, createFakeWindow([tab]));
 
-    const result = await GetPageContent.getPageContent(
-      { url: targetUrl },
+    const result_array = await GetPageContent.getPageContent(
+      { url_list: [targetUrl] },
       new Set([targetUrl])
     );
+
+    const result = result_array[0];
 
     Assert.ok(
       result.includes("Content (reader mode)"),
@@ -427,10 +446,11 @@ add_task(async function test_getPageContent_invalid_url_format() {
     setupBrowserWindowTracker(sb, createFakeWindow(tabs));
 
     // Add URL to allowed list so it searches tabs instead of trying headless
-    const result = await GetPageContent.getPageContent(
-      { url: targetUrl },
+    const result_array = await GetPageContent.getPageContent(
+      { url_list: [targetUrl] },
       new Set([targetUrl])
     );
+    const result = result_array[0];
 
     Assert.ok(
       result.includes("Cannot find URL"),
