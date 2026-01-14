@@ -136,6 +136,13 @@ already_AddRefed<Promise> CredentialsContainer::Get(
     return promise.forget();
   }
 
+  if (aOptions.mSignal.WasPassed() && aOptions.mSignal.Value().Aborted()) {
+    JS::Rooted<JS::Value> reason(aCx);
+    aOptions.mSignal.Value().GetReason(aCx, &reason);
+    promise->MaybeReject(reason);
+    return promise.forget();
+  }
+
   bool conditionallyMediated =
       aOptions.mMediation == CredentialMediationRequirement::Conditional;
   if (aOptions.mPublicKey.WasPassed() &&
@@ -207,6 +214,13 @@ already_AddRefed<Promise> CredentialsContainer::Create(
   if (totalOptions > 1) {
     promise->MaybeRejectWithNotSupportedError(
         "CredentialsContainer request is not supported."_ns);
+    return promise.forget();
+  }
+
+  if (aOptions.mSignal.WasPassed() && aOptions.mSignal.Value().Aborted()) {
+    JS::Rooted<JS::Value> reason(aCx);
+    aOptions.mSignal.Value().GetReason(aCx, &reason);
+    promise->MaybeReject(reason);
     return promise.forget();
   }
 
