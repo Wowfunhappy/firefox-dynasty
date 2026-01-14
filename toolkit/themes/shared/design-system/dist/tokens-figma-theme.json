@@ -40,8 +40,8 @@
     "forcedColors": "{Theme$background/color/canvas}"
   },
   "background/color/list/item/hover": {
-    "light": "color-mix(in srgb, var(--color-accent-primary) 20%, transparent)",
-    "dark": "color-mix(in srgb, var(--color-accent-primary) 20%, transparent)",
+    "light": "color-mix(in srgb, {Theme$color/accent/primary} 20%, transparent)",
+    "dark": "color-mix(in srgb, {Theme$color/accent/primary} 20%, transparent)",
     "forcedColors": "{HCM Theme$SelectedItem}"
   },
   "border/color": {
