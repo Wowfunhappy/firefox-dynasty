@@ -6,8 +6,8 @@
 
 /* atom list for CSS pseudo-elements */
 
-#ifndef nsCSSPseudoElements_h___
-#define nsCSSPseudoElements_h___
+#ifndef nsCSSPseudoElements_h_
+#define nsCSSPseudoElements_h_
 
 #include "mozilla/CSSEnabledState.h"
 #include "mozilla/PseudoStyleType.h"
@@ -151,4 +151,4 @@ class nsCSSPseudoElements {
   static const uint32_t kPseudoElementFlags[size_t(Type::CSSPseudoElementsEnd)];
 };
 
-#endif /* nsCSSPseudoElements_h___ */
+#endif /* nsCSSPseudoElements_h_ */

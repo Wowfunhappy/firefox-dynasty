@@ -9,8 +9,8 @@
  * boxes, also used for various anonymous boxes
  */
 
-#ifndef nsBlockFrame_h___
-#define nsBlockFrame_h___
+#ifndef nsBlockFrame_h_
+#define nsBlockFrame_h_
 
 #include "mozilla/IntrinsicISizesCache.h"
 #include "nsCSSPseudoElements.h"
@@ -1171,4 +1171,4 @@ class nsBlockInFlowLineIterator {
   bool FindValidLine();
 };
 
-#endif /* nsBlockFrame_h___ */
+#endif /* nsBlockFrame_h_ */

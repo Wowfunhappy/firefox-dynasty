@@ -3,8 +3,8 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-#ifndef nsListControlFrame_h___
-#define nsListControlFrame_h___
+#ifndef nsListControlFrame_h_
+#define nsListControlFrame_h_
 
 #include "mozilla/Attributes.h"
 #include "mozilla/ScrollContainerFrame.h"
@@ -299,4 +299,4 @@ class nsListControlFrame final : public mozilla::ScrollContainerFrame,
   RefPtr<mozilla::HTMLSelectEventListener> mEventListener;
 };
 
-#endif /* nsListControlFrame_h___ */
+#endif /* nsListControlFrame_h_ */

@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef nsMathMLContainerFrame_h___
-#define nsMathMLContainerFrame_h___
+#ifndef nsMathMLContainerFrame_h_
+#define nsMathMLContainerFrame_h_
 
 #include "mozilla/Likely.h"
 #include "nsBlockFrame.h"
@@ -509,4 +509,4 @@ class nsMathMLmathInlineFrame final : public nsInlineFrame,
   virtual ~nsMathMLmathInlineFrame() = default;
 };
 
-#endif /* nsMathMLContainerFrame_h___ */
+#endif /* nsMathMLContainerFrame_h_ */

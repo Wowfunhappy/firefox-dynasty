@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef nsMathMLFrame_h___
-#define nsMathMLFrame_h___
+#ifndef nsMathMLFrame_h_
+#define nsMathMLFrame_h_
 
 #include "nsBoundingMetrics.h"
 #include "nsFontMetrics.h"
@@ -287,4 +287,4 @@ class nsMathMLFrame : public nsIMathMLFrame {
   nsPoint mReference;
 };
 
-#endif /* nsMathMLFrame_h___ */
+#endif /* nsMathMLFrame_h_ */
