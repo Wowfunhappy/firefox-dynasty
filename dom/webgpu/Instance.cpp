@@ -146,7 +146,11 @@ already_AddRefed<dom::Promise> Instance::RequestAdapter(
   }
 
   if (rejectionMessage) {
-    promise->MaybeRejectWithNotSupportedError(ToCString(*rejectionMessage));
+    promise->MaybeResolve(JS::NullValue());
+    dom::AutoJSAPI api;
+    if (api.Init(mOwner)) {
+      JS::WarnUTF8(api.cx(), "%s", rejectionMessage.value().data());
+    }
     return promise.forget();
   }
 
