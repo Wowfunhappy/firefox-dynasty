@@ -1986,6 +1986,7 @@ function getTestServerForContentSignatureTests() {
     readStringFromFile(do_get_file("content_signing_int.pem")),
   ];
   testServer.registerPathHandler(validX5uPath, (req, res) => {
+    res.setHeader("content-type", "binary/octet-stream");
     res.write(validCertChain.join("\n"));
   });
   const validX5uUrl = baseUri + validX5uPath;
