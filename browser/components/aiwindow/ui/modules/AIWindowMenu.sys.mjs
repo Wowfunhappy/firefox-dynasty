@@ -116,13 +116,11 @@ export class AIWindowMenu {
       return;
     }
 
-    newBrowserTabUrl += `#convId/${convId}`;
-
     const win = event.target.ownerGlobal;
-    let newBrowserTabUrl = win.BROWSER_NEW_TAB_URL;
+    let newBrowserTabUrl = `${win.BROWSER_NEW_TAB_URL}#convId/${convId}`;
     const site = conversation.getMostRecentPageVisited();
     if (site) {
-      newBrowserTabUrl += `#convId/${convId}/site/${site}`;
+      newBrowserTabUrl = `${win.BROWSER_NEW_TAB_URL}#convId/${convId}/site/${site}`;
     }
 
     let where = lazy.BrowserUtils.whereToOpenLink(event);

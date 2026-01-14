@@ -153,22 +153,26 @@ export class ChatConversation {
    * Limit/filter out data uris from message data
    *
    * @param {string} contentBody - The user message content
-   * @param {string?} [pageUrl=""] - The current page url when message was submitted
+   * @param {URL?} [pageUrl=null] - The current page url when message was submitted
    * @param {UserRoleOpts} [userOpts=new UserRoleOpts()] - User message options
    */
-  addUserMessage(contentBody, pageUrl = "", userOpts = new UserRoleOpts()) {
+  addUserMessage(contentBody, pageUrl = null, userOpts = new UserRoleOpts()) {
     const content = {
       type: "text",
       body: contentBody,
     };
 
-    let url = URL.parse(pageUrl);
-
     let currentTurn = this.currentTurnIndex();
     const newTurnIndex =
       this.#messages.length === 1 ? currentTurn : currentTurn + 1;
 
-    this.addMessage(MESSAGE_ROLE.USER, content, url, newTurnIndex, userOpts);
+    this.addMessage(
+      MESSAGE_ROLE.USER,
+      content,
+      pageUrl,
+      newTurnIndex,
+      userOpts
+    );
   }
 
   /**
@@ -191,7 +195,7 @@ export class ChatConversation {
     this.addMessage(
       MESSAGE_ROLE.ASSISTANT,
       content,
-      "",
+      null,
       this.currentTurnIndex(),
       assistantOpts
     );
@@ -207,7 +211,7 @@ export class ChatConversation {
     this.addMessage(
       MESSAGE_ROLE.TOOL,
       content,
-      "",
+      null,
       this.currentTurnIndex(),
       toolOpts
     );
@@ -222,7 +226,12 @@ export class ChatConversation {
   addSystemMessage(type, contentBody) {
     const content = { type, body: contentBody };
 
-    this.addMessage(MESSAGE_ROLE.SYSTEM, content, "", this.currentTurnIndex());
+    this.addMessage(
+      MESSAGE_ROLE.SYSTEM,
+      content,
+      null,
+      this.currentTurnIndex()
+    );
   }
 
   /**

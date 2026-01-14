@@ -157,7 +157,7 @@ add_task(function test_ChatConversation_addUserMessage() {
   const conversation = new ChatConversation({});
 
   const content = "user to assistant msg";
-  conversation.addUserMessage(content, "https://www.mozilla.com");
+  conversation.addUserMessage(content, new URL("https://www.mozilla.com"));
 
   const message = conversation.messages[0];
 
@@ -374,12 +374,12 @@ add_task(function test_ChatConversation_getSitesList() {
   const conversation = new ChatConversation({});
 
   const content = "user to assistant msg";
-  conversation.addUserMessage(content, "https://www.mozilla.com");
-  conversation.addUserMessage(content, "https://www.mozilla.com");
-  conversation.addUserMessage(content, "https://www.firefox.com");
-  conversation.addUserMessage(content, "https://www.cnn.com");
-  conversation.addUserMessage(content, "https://www.espn.com");
-  conversation.addUserMessage(content, "https://www.espn.com");
+  conversation.addUserMessage(content, new URL("https://www.mozilla.com"));
+  conversation.addUserMessage(content, new URL("https://www.mozilla.com"));
+  conversation.addUserMessage(content, new URL("https://www.firefox.com"));
+  conversation.addUserMessage(content, new URL("https://www.cnn.com"));
+  conversation.addUserMessage(content, new URL("https://www.espn.com"));
+  conversation.addUserMessage(content, new URL("https://www.espn.com"));
 
   const sites = conversation.getSitesList();
 
@@ -395,12 +395,12 @@ add_task(function test_ChatConversation_getMostRecentPageVisited() {
   const conversation = new ChatConversation({});
 
   const content = "user to assistant msg";
-  conversation.addUserMessage(content, "https://www.mozilla.com");
-  conversation.addUserMessage(content, "https://www.mozilla.com");
-  conversation.addUserMessage(content, "https://www.firefox.com");
-  conversation.addUserMessage(content, "https://www.cnn.com");
-  conversation.addUserMessage(content, "https://www.espn.com");
-  conversation.addUserMessage(content, "https://www.espn.com");
+  conversation.addUserMessage(content, new URL("https://www.mozilla.com"));
+  conversation.addUserMessage(content, new URL("https://www.mozilla.com"));
+  conversation.addUserMessage(content, new URL("https://www.firefox.com"));
+  conversation.addUserMessage(content, new URL("https://www.cnn.com"));
+  conversation.addUserMessage(content, new URL("https://www.espn.com"));
+  conversation.addUserMessage(content, new URL("https://www.espn.com"));
 
   const mostRecentPageVisited = conversation.getMostRecentPageVisited();
 
@@ -411,8 +411,8 @@ add_task(function test_noBrowsing_ChatConversation_getMostRecentPageVisited() {
   const conversation = new ChatConversation({});
 
   const content = "user to assistant msg";
-  conversation.addUserMessage(content, "about:aiwindow");
-  conversation.addUserMessage(content, "");
+  conversation.addUserMessage(content, new URL("about:aiwindow"));
+  conversation.addUserMessage(content, null);
   conversation.addUserMessage(content, null);
 
   const mostRecentPageVisited = conversation.getMostRecentPageVisited();

@@ -145,8 +145,12 @@ export class AIWindow extends MozLitElement {
 
     const nextTurnIndex = this.#conversation.currentTurnIndex() + 1;
     try {
+      const pageUrl = URL.fromURI(
+        window.browsingContext.topChromeWindow.gBrowser.currentURI
+      );
+
       const stream = lazy.Chat.fetchWithHistory(
-        await this.#conversation.generatePrompt(this.userPrompt)
+        await this.#conversation.generatePrompt(this.userPrompt, pageUrl)
       );
       this.#updateConversation();
       this.#addConversationTitle();

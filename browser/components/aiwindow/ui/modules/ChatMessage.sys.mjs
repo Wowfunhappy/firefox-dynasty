@@ -35,7 +35,7 @@ export class ChatMessage {
    * @param {object} param.content - The message content object
    * @param {number} param.turnIndex - The message turn, different than ordinal,
    * prompt/reply for example would be one turn
-   * @param {string} [param.pageUrl = null] - A URL object defining which page
+   * @param {URL} [param.pageUrl = null] - A URL object defining which page
    * the user was on when submitting a message if role == user
    * @param {string} [param.id = makeGuid()] - The row.message_id of the
    * message in the database
@@ -104,7 +104,7 @@ export class ChatMessage {
     this.usage = usage;
     this.content = content;
     this.convId = convId;
-    this.pageUrl = pageUrl ? new URL(pageUrl) : null;
+    this.pageUrl = pageUrl;
     this.turnIndex = turnIndex;
     this.insightsEnabled = insightsEnabled;
     this.insightsFlagSource = insightsFlagSource;
