@@ -828,7 +828,7 @@ this.downloads = class extends ExtensionAPIPersistent {
             return true;
           }
 
-          async function createTarget(downloadsDir) {
+          async function createTarget() {
             if (!filename) {
               let uri = Services.io.newURI(options.url);
               if (uri instanceof Ci.nsIURL) {
@@ -842,7 +842,7 @@ this.downloads = class extends ExtensionAPIPersistent {
             }
 
             let target = PathUtils.joinRelative(
-              downloadsDir,
+              await Downloads.getPreferredDownloadsDirectory(),
               filename || "download"
             );
 
@@ -976,8 +976,24 @@ this.downloads = class extends ExtensionAPIPersistent {
             });
           }
 
-          const downloadsDir = await Downloads.getPreferredDownloadsDirectory();
-          const target = await createTarget(downloadsDir);
+          const targetPromise = createTarget();
+          if (context.isBackgroundContext) {
+            // Prevent event page suspension, so extensions can be notified of
+            // the download ID for the download they just initiated.
+            // This work-around is also needed for blob:-URLs, at least until
+            // blob:-URLs can outlive an extension context (bug 2005952).
+            //
+            // Note: Although there may be other async code before and after
+            // this point, they are not captured by this waitUntil logic,
+            // because these async calls are not using an unbounded amount of
+            // time. The resolution of targetPromise can take an unbounded
+            // amount of time if we wait for user input in the file picker.
+            extension.emit("background-script-idle-waituntil", {
+              promise: targetPromise,
+              reason: "downloads_saveAs",
+            });
+          }
+          const target = await targetPromise;
           const uri = Services.io.newURI(options.url);
           const cookieJarSettings = Cc[
             "@mozilla.org/cookieJarSettings;1"
