@@ -892,11 +892,11 @@ bool DefineLegacyUnforgeableAttributes(
 #ifdef _MSC_VER
 #  define HAS_MEMBER_CHECK(_name) \
     template <typename V>         \
-    static yes& Check##_name(char(*)[(&V::_name == 0) + 1])
+    static yes& Check##_name(char (*)[(&V::_name == 0) + 1])
 #else
 #  define HAS_MEMBER_CHECK(_name) \
     template <typename V>         \
-    static yes& Check##_name(char(*)[sizeof(&V::_name) + 1])
+    static yes& Check##_name(char (*)[sizeof(&V::_name) + 1])
 #endif
 
 #define HAS_MEMBER(_memberName, _valueName) \

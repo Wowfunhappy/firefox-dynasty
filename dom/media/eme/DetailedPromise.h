@@ -42,7 +42,7 @@ class DetailedPromise : public Promise {
     Promise::MaybeRejectWith##name(aMessage);                     \
   }                                                               \
   template <int N>                                                \
-  void MaybeRejectWith##name(const char(&aMessage)[N]) {          \
+  void MaybeRejectWith##name(const char (&aMessage)[N]) {         \
     MaybeRejectWith##name(nsLiteralCString(aMessage));            \
   }
 
