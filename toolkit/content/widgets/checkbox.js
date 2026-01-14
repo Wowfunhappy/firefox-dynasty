@@ -39,13 +39,7 @@
 
     set checked(val) {
       val = !!val;
-      let change = val != this.hasAttribute("checked");
       this.toggleAttribute("checked", val);
-      if (change) {
-        let event = document.createEvent("Events");
-        event.initEvent("CheckboxStateChange", true, true);
-        this.dispatchEvent(event);
-      }
     }
 
     get checked() {

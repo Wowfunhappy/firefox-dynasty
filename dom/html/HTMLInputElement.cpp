@@ -1062,12 +1062,6 @@ UploadLastDir::Observe(nsISupports* aSubject, char const* aTopic,
   return NS_OK;
 }
 
-#ifdef ACCESSIBILITY
-// Helper method
-static nsresult FireEventForAccessibility(HTMLInputElement* aTarget,
-                                          EventMessage aEventMessage);
-#endif
-
 //
 // construction, destruction
 //
@@ -4237,21 +4231,6 @@ void HTMLInputElement::ActivationBehavior(EventChainPostVisitor& aVisitor) {
     nsContentUtils::DispatchTrustedEvent<WidgetEvent>(
         OwnerDoc(), static_cast<Element*>(this), eFormChange, CanBubble::eYes,
         Cancelable::eNo);
-#ifdef ACCESSIBILITY
-    // Fire an event to notify accessibility
-    if (mType == FormControlType::InputCheckbox) {
-      if (nsContentUtils::MayHaveFormCheckboxStateChangeListeners()) {
-        FireEventForAccessibility(this, eFormCheckboxStateChange);
-      }
-    } else if (nsContentUtils::MayHaveFormRadioStateChangeListeners()) {
-      FireEventForAccessibility(this, eFormRadioStateChange);
-      // Fire event for the previous selected radio.
-      nsCOMPtr<nsIContent> content = do_QueryInterface(aVisitor.mItemData);
-      if (auto* previous = HTMLInputElement::FromNodeOrNull(content)) {
-        FireEventForAccessibility(previous, eFormRadioStateChange);
-      }
-    }
-#endif
   }
 
   switch (mType) {
@@ -6016,16 +5995,6 @@ void HTMLInputElement::ShowPicker(ErrorResult& aRv) {
     }
   }
 }
-
-#ifdef ACCESSIBILITY
-/*static*/ nsresult FireEventForAccessibility(HTMLInputElement* aTarget,
-                                              EventMessage aEventMessage) {
-  Element* element = static_cast<Element*>(aTarget);
-  return nsContentUtils::DispatchTrustedEvent<WidgetEvent>(
-      element->OwnerDoc(), element, aEventMessage, CanBubble::eYes,
-      Cancelable::eYes);
-}
-#endif
 
 void HTMLInputElement::UpdateApzAwareFlag() {
 #if !defined(ANDROID) && !defined(XP_MACOSX)

@@ -1115,24 +1115,32 @@ void DocAccessible::ElementStateChanged(dom::Document* aDocument,
   }
 
   if (aStateMask.HasState(dom::ElementState::CHECKED)) {
+    const bool checked = aElement->State().HasState(dom::ElementState::CHECKED);
     LocalAccessible* widget = accessible->ContainerWidget();
     if (widget && widget->IsSelect()) {
       // Changing selection here changes what we cache for
       // the viewport.
       SetViewportCacheDirty(true);
       AccSelChangeEvent::SelChangeType selChangeType =
-          aElement->State().HasState(dom::ElementState::CHECKED)
-              ? AccSelChangeEvent::eSelectionAdd
-              : AccSelChangeEvent::eSelectionRemove;
+          checked ? AccSelChangeEvent::eSelectionAdd
+                  : AccSelChangeEvent::eSelectionRemove;
       RefPtr<AccEvent> event =
           new AccSelChangeEvent(widget, accessible, selChangeType);
       FireDelayedEvent(event);
+
+      if (aElement->IsXULElement(nsGkAtoms::radio) && checked) {
+        FocusMgr()->ActiveItemChanged(accessible);
+#ifdef A11Y_LOG
+        if (logging::IsEnabled(logging::eFocus)) {
+          logging::ActiveItemChangeCausedBy("RadioStateChange", accessible);
+        }
+#endif
+      }
       return;
     }
 
-    RefPtr<AccEvent> event = new AccStateChangeEvent(
-        accessible, states::CHECKED,
-        aElement->State().HasState(dom::ElementState::CHECKED));
+    RefPtr<AccEvent> event =
+        new AccStateChangeEvent(accessible, states::CHECKED, checked);
     FireDelayedEvent(event);
   }
 
