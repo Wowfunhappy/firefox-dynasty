@@ -123,7 +123,7 @@ class Shim {
       const [supportedBranch, supportedPlatform] =
         supportedBranchAndPlatform.split(":");
       if (
-        (!supportedPlatform || supportedPlatform == platform) &&
+        (supportedPlatform && supportedPlatform != platform) ||
         supportedBranch != releaseBranch
       ) {
         this._disabledByReleaseBranch = true;
@@ -1329,6 +1329,7 @@ class Shims {
 
     for (const shim of shims ?? this.shims.values()) {
       if (
+        shim.disabledReason ||
         !shim.contentScripts.length ||
         shim._contentScriptRegistrations.length
       ) {
