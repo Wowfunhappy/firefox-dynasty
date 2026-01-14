@@ -5,13 +5,13 @@
 ## Chrome
 
 appmenuitem-new-ai-window =
-    .label = New AI window
+    .label = New Smart window
 
 appmenuitem-new-classic-window =
     .label = New classic window
 
 menu-file-new-ai-window =
-    .label = New AI Window
+    .label = New Smart Window
 
 menu-file-new-classic-window =
     .label = New Classic Window
@@ -22,17 +22,17 @@ menu-history-chats =
 menu-history-chats-recent =
     .label = Recent Chats
 
-## AI Window Toggle Button
+## Smart Window Toggle Button
 
 toolbar-button-ai-window-toggle =
-    .label = AI window
-    .tooltiptext = Switch between AI and Classic windows.
+    .label = Smart window
+    .tooltiptext = Switch between Smart and Classic windows.
 
 ai-window-toggleview-switch-classic =
     .label = Classic Window
 
 ai-window-toggleview-switch-ai =
-    .label = AI Window
+    .label = Smart Window
 
 ai-window-toggleview-switch-private =
     .label = Private Window
@@ -40,7 +40,7 @@ ai-window-toggleview-switch-private =
 ai-window-toggleview-open-private =
     .label = Open New Private Window
 
-ai-window-toggleview-status-label-active = AI Window
+ai-window-toggleview-status-label-active = Smart Window
 
 ai-window-toggleview-status-label-inactive = Classic Window
 
