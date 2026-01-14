@@ -7481,8 +7481,7 @@ void MacroAssembler::branchValueConvertsToWasmAnyRefInline(
   bind(&checkDouble);
   {
     unboxDouble(src, scratchFloat);
-    convertDoubleToInt32(scratchFloat, scratchInt, &fallthrough,
-                         /*negativeZeroCheck=*/false);
+    convertDoubleToInt32(scratchFloat, scratchInt, &fallthrough);
     branch32(Assembler::GreaterThan, scratchInt,
              Imm32(wasm::AnyRef::MaxI31Value), &fallthrough);
     branch32(Assembler::LessThan, scratchInt, Imm32(wasm::AnyRef::MinI31Value),
@@ -7511,8 +7510,7 @@ void MacroAssembler::convertValueToWasmAnyRef(ValueOperand src, Register dest,
   bind(&doubleValue);
   {
     unboxDouble(src, scratchFloat);
-    convertDoubleToInt32(scratchFloat, dest, oolConvert,
-                         /*negativeZeroCheck=*/false);
+    convertDoubleToInt32(scratchFloat, dest, oolConvert);
     branch32(Assembler::GreaterThan, dest, Imm32(wasm::AnyRef::MaxI31Value),
              oolConvert);
     branch32(Assembler::LessThan, dest, Imm32(wasm::AnyRef::MinI31Value),
