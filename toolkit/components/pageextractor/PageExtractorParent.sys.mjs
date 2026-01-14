@@ -56,14 +56,13 @@ export class PageExtractorParent extends JSWindowActorParent {
    * @see PageExtractorChild#getText
    *
    * @param {Partial<GetTextOptions>} options
-   * @returns {Promise<{ text: string, links?: string[] }>}
+   * @returns {Promise<string | null>}
    */
-  async getText(options = {}) {
+  getText(options = {}) {
     if (this.#isPDF()) {
-      const text = await this.browsingContext.currentWindowGlobal
+      return this.browsingContext.currentWindowGlobal
         .getActor("Pdfjs")
         .getTextContent();
-      return { text, links: options.includeLinks ? [] : undefined };
     }
     return this.sendQuery("PageExtractorParent:GetText", options);
   }

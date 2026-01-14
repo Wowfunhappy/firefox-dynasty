@@ -24,16 +24,12 @@ add_task(async function test_headless_extraction() {
     </html>
   `);
 
-  const result = await PageExtractorParent.getHeadlessExtractor(
+  const text = await PageExtractorParent.getHeadlessExtractor(
     url,
     async pageExtractor => pageExtractor.getText()
   );
 
-  is(
-    result.text,
-    "This is a headless document",
-    "The page's content is extracted"
-  );
+  is(text, "This is a headless document", "The page's content is extracted");
 
   await serverClosed;
 });
@@ -61,13 +57,13 @@ add_task(async function test_headless_extraction_404() {
     404
   );
 
-  const result = await PageExtractorParent.getHeadlessExtractor(
+  const text = await PageExtractorParent.getHeadlessExtractor(
     url,
     async pageExtractor => pageExtractor.getText()
   );
 
   is(
-    result.text,
+    text,
     "404 page not found.",
     "The page's content is extracted even if it's a 404"
   );
