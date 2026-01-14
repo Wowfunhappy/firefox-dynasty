@@ -232,18 +232,10 @@ nsIFrame* nsSubDocumentFrame::GetSubdocumentRootFrame() {
 
 mozilla::PresShell* nsSubDocumentFrame::GetSubdocumentPresShellForPainting(
     uint32_t aFlags) {
-  mozilla::PresShell* ps = GetSubdocumentPresShell();
-  if (ps) {
-    if (auto* pc = ps->GetPresContext()) {
-      if (pc->Type() == nsPresContext::eContext_Print &&
-          pc->Type() != PresContext()->Type()) {
-        // Don't paint from non-print to print frames.
-        return nullptr;
-      }
-    }
-    if (!ps->IsPaintingSuppressed() || (aFlags & IGNORE_PAINT_SUPPRESSION)) {
-      return ps;
-    }
+  mozilla::PresShell* presShell = GetSubdocumentPresShell();
+  if (presShell && (!presShell->IsPaintingSuppressed() ||
+                    (aFlags & IGNORE_PAINT_SUPPRESSION))) {
+    return presShell;
   }
   // If painting is suppressed in the presshell or there's no presShell, we try
   // to look for a better presshell to use.
@@ -253,7 +245,7 @@ mozilla::PresShell* nsSubDocumentFrame::GetSubdocumentPresShellForPainting(
       return old;
     }
   }
-  return ps;
+  return presShell;
 }
 
 nsRect nsSubDocumentFrame::GetDestRect() const {
