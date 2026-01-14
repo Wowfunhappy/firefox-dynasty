@@ -19615,15 +19615,15 @@ void CodeGenerator::visitLoadDataViewElement(LLoadDataViewElement* lir) {
       break;
     case Scalar::Float16:
       masm.moveGPRToFloat16(temp1, out.fpu(), temp2, volatileRegs);
-      masm.canonicalizeFloat(out.fpu());
+      masm.canonicalizeFloatNaN(out.fpu());
       break;
     case Scalar::Float32:
       masm.moveGPRToFloat32(temp1, out.fpu());
-      masm.canonicalizeFloat(out.fpu());
+      masm.canonicalizeFloatNaN(out.fpu());
       break;
     case Scalar::Float64:
       masm.moveGPR64ToDouble(temp64, out.fpu());
-      masm.canonicalizeDouble(out.fpu());
+      masm.canonicalizeDoubleNaN(out.fpu());
       break;
     case Scalar::Int8:
     case Scalar::Uint8:
@@ -23073,14 +23073,14 @@ void CodeGenerator::visitCanonicalizeNaND(LCanonicalizeNaND* ins) {
   auto output = ToFloatRegister(ins->output());
   MOZ_ASSERT(output == ToFloatRegister(ins->input()));
 
-  masm.canonicalizeDouble(output);
+  masm.canonicalizeDoubleNaN(output);
 }
 
 void CodeGenerator::visitCanonicalizeNaNF(LCanonicalizeNaNF* ins) {
   auto output = ToFloatRegister(ins->output());
   MOZ_ASSERT(output == ToFloatRegister(ins->input()));
 
-  masm.canonicalizeFloat(output);
+  masm.canonicalizeFloatNaN(output);
 }
 
 template <size_t NumDefs>

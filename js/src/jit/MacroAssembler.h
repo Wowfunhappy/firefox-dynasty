@@ -2239,9 +2239,9 @@ class MacroAssembler : public MacroAssemblerSpecific {
 
   // ========================================================================
   // Canonicalization primitives.
-  inline void canonicalizeDouble(FloatRegister reg);
+  inline void canonicalizeDoubleNaN(FloatRegister reg);
 
-  inline void canonicalizeFloat(FloatRegister reg);
+  inline void canonicalizeFloatNaN(FloatRegister reg);
 
  public:
   // ========================================================================
