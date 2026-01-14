@@ -352,9 +352,6 @@ class WindowGlobalParent final : public WindowContext,
 
   already_AddRefed<dom::PWebIdentityParent> AllocPWebIdentityParent();
 
-  already_AddRefed<dom::PDigitalCredentialParent>
-  AllocPDigitalCredentialParent();
-
  private:
   WindowGlobalParent(CanonicalBrowsingContext* aBrowsingContext,
                      uint64_t aInnerWindowId, uint64_t aOuterWindowId,

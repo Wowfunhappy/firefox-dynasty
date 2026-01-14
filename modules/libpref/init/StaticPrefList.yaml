@@ -4677,12 +4677,6 @@
   value: false
   mirror: always
 
-# pref controls `digital` credentials being exposed
-- name: dom.security.credentialmanagement.digital.enabled
-  type: bool
-  value: false
-  mirror: always
-
 # pref controls `identity` credentials being exposed
 - name: dom.security.credentialmanagement.identity.enabled
   type: bool
