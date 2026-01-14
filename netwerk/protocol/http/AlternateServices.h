@@ -84,8 +84,8 @@ class AltSvcMapping {
   bool RouteEquals(AltSvcMapping* map);
   bool HTTPS() { return mHttps; }
 
-  virtual void GetConnectionInfo(nsHttpConnectionInfo** outCI, nsProxyInfo* pi,
-                                 const OriginAttributes& originAttributes);
+  void GetConnectionInfo(nsHttpConnectionInfo** outCI, nsProxyInfo* pi,
+                         const OriginAttributes& originAttributes);
 
   int32_t TTL();
   int32_t StorageEpoch() { return mStorageEpoch; }
@@ -108,14 +108,7 @@ class AltSvcMapping {
   const nsCString& NPNToken() const { return mNPNToken; }
   SupportedAlpnRank AlpnRank() const { return mAlpnRank; }
 
- protected:
-  // Used by Http3FirstAltSvcMapping
-  AltSvcMapping(const nsACString& originScheme, const nsACString& originHost,
-                int32_t originPort, const nsACString& username,
-                bool privateBrowsing, const nsACString& alternateHost,
-                int32_t alternatePort, const nsACString& npnToken,
-                const OriginAttributes& originAttributes, bool aIsHttp3,
-                SupportedAlpnRank aRank);
+ private:
   virtual ~AltSvcMapping() = default;
   void SyncString(const nsCString& str);
   nsCOMPtr<nsIDataStorage> mStorage;
@@ -150,22 +143,6 @@ class AltSvcMapping {
   bool mSyncOnlyOnSuccess{false};
   bool mIsHttp3{false};
   SupportedAlpnRank mAlpnRank{SupportedAlpnRank::NOT_SUPPORTED};
-};
-
-class Http3FirstAltSvcMapping : public AltSvcMapping {
- public:
-  Http3FirstAltSvcMapping(const nsACString& originScheme,
-                          const nsACString& originHost, int32_t originPort,
-                          const nsACString& username, bool privateBrowsing,
-                          const nsACString& alternateHost,
-                          int32_t alternatePort, const nsACString& npnToken,
-                          const OriginAttributes& originAttributes,
-                          bool aIsHttp3, SupportedAlpnRank aRank);
-  void GetConnectionInfo(nsHttpConnectionInfo** outCI, nsProxyInfo* pi,
-                         const OriginAttributes& originAttributes) override;
-
- private:
-  ~Http3FirstAltSvcMapping();
 };
 
 class AltSvcOverride : public nsIInterfaceRequestor,
@@ -223,7 +200,7 @@ class AltSvcCache {
   already_AddRefed<AltSvcMapping> GetAltServiceMapping(
       const nsACString& scheme, const nsACString& host, int32_t port,
       bool privateBrowsing, const OriginAttributes& originAttributes,
-      bool aHttp2Allowed, bool aHttp3Allowed, bool aForceHttp3First = false);
+      bool aHttp2Allowed, bool aHttp3Allowed);
   void ClearAltServiceMappings();
   void ClearHostMapping(const nsACString& host, int32_t port,
                         const OriginAttributes& originAttributes);

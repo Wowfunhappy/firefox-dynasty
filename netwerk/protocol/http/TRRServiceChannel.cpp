@@ -410,9 +410,7 @@ nsresult TRRServiceChannel::BeginConnect() {
       (scheme.EqualsLiteral("http") || scheme.EqualsLiteral("https")) &&
       (mapping = gHttpHandler->GetAltServiceMapping(
            scheme, host, port, mPrivateBrowsing, OriginAttributes(),
-           http2Allowed, http3Allowed,
-           StaticPrefs::network_trr_force_http3_first() ||
-               TRRService::Get()->Http3FirstEnabled()))) {
+           http2Allowed, http3Allowed))) {
     LOG(("TRRServiceChannel %p Alt Service Mapping Found %s://%s:%d [%s]\n",
          this, scheme.get(), mapping->AlternateHost().get(),
          mapping->AlternatePort(), mapping->HashKey().get()));

@@ -183,7 +183,6 @@ nsresult TRRService::Init(bool aNativeHTTPSQueryEnabled) {
     prefBranch->AddObserver(TRR_PREF_PREFIX, this, true);
     prefBranch->AddObserver(kRolloutURIPref, this, true);
     prefBranch->AddObserver(kRolloutModePref, this, true);
-    prefBranch->AddObserver(kRolloutHttp3FirstPref, this, true);
   }
 
   sTRRServicePtr = this;
@@ -385,9 +384,6 @@ nsresult TRRService::ReadPrefs(const char* name) {
       !strcmp(name, TRR_PREF("use_ohttp"))) {
     OnTRRURIChange();
   }
-  if (!name || !strcmp(name, kRolloutHttp3FirstPref)) {
-    mHttp3FirstEnabled = Preferences::GetBool(kRolloutHttp3FirstPref, false);
-  }
   if (!name || !strcmp(name, TRR_PREF("credentials"))) {
     MutexAutoLock lock(mLock);
     Preferences::GetCString(TRR_PREF("credentials"), mPrivateCred);
@@ -430,11 +426,6 @@ nsresult TRRService::ReadPrefs(const char* name) {
     parseExcludedDomains(TRR_PREF("excluded-domains"));
     parseExcludedDomains(TRR_PREF("builtin-excluded-domains"));
     clearEntireCache = true;
-  }
-  if (!name || !strcmp(name, TRR_PREF("force_http3_first"))) {
-    nsAutoCString uri;
-    GetURI(uri);
-    AsyncCreateTRRConnectionInfo(uri);
   }
 
   // if name is null, then we're just now initializing. In that case we don't

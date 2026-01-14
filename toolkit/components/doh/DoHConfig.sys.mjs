@@ -112,9 +112,6 @@ function makeBaseConfigObject() {
     get fallbackProviderURI() {
       return this.providerList[0]?.uri;
     },
-    get http3FirstEnabled() {
-      return this.providerList[0]?.http3First;
-    },
     trrSelection: {},
     providerSteering: {},
   };

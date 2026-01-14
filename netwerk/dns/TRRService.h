@@ -102,8 +102,6 @@ class TRRService : public TRRServiceBase,
 
   void DontUseTRRThread() { mDontUseTRRThread = true; }
 
-  bool Http3FirstEnabled() const { return mHttp3FirstEnabled; }
-
  private:
   virtual ~TRRService();
 
@@ -154,7 +152,6 @@ class TRRService : public TRRServiceBase,
       false};  // set when captive portal check is passed
   Atomic<bool, Relaxed> mShutdown{false};
   Atomic<bool, Relaxed> mDontUseTRRThread{false};
-  Atomic<bool, Relaxed> mHttp3FirstEnabled{false};
 
   // TRR Blocklist storage
   // mTRRBLStorage is only modified on the main thread, but we query whether it

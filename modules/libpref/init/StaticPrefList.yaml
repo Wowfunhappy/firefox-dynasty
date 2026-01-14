@@ -15544,12 +15544,6 @@
   mirror: always
   rust: true
 
-# When true, force TRR connections to use HTTP/3 first
-- name: network.trr.force_http3_first
-  type: RelaxedAtomicBool
-  value: false
-  mirror: always
-
 # When true, a http request will be upgraded to https when HTTPS RR is
 # available.
 - name: network.dns.upgrade_with_https_rr
