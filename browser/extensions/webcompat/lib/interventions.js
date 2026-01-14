@@ -290,7 +290,11 @@ class Interventions {
         console.error("Error enabling intervention(s) for", config.label, e);
       }
     }
-    this._registerContentScripts(contentScriptsToRegister);
+    InterventionHelpers._registerContentScripts(
+      contentScriptsToRegister,
+      "webcompat",
+      debugLog
+    );
 
     if (skipped.length) {
       debugLog(
@@ -364,7 +368,11 @@ class Interventions {
       intervention.enabled = true;
     }
     if (registerContentScripts) {
-      this._registerContentScripts(contentScriptsToRegister);
+      InterventionHelpers._registerContentScripts(
+        contentScriptsToRegister,
+        "webcompat",
+        debugLog
+      );
     }
 
     if (!this._getActiveInterventionById(config.id)) {
@@ -514,49 +522,6 @@ class Interventions {
 
     listeners.onBeforeRequest = listener;
     debugLog(`Blocking requests as specified for ${label}`);
-  }
-
-  async _registerContentScripts(scriptsToReg) {
-    // Try to avoid re-registering scripts already registered
-    // (e.g. if the webcompat background page is restarted
-    // after an extension process crash, after having registered
-    // the content scripts already once), but do not prevent
-    // to try registering them again if the getRegisteredContentScripts
-    // method returns an unexpected rejection.
-
-    const ids = scriptsToReg.map(s => s.id);
-    if (!ids.length) {
-      return;
-    }
-    try {
-      const alreadyRegged = await browser.scripting.getRegisteredContentScripts(
-        { ids }
-      );
-      const alreadyReggedIds = alreadyRegged.map(script => script.id);
-      const stillNeeded = scriptsToReg.filter(
-        ({ id }) => !alreadyReggedIds.includes(id)
-      );
-      await browser.scripting.registerContentScripts(stillNeeded);
-      debugLog(
-        `Registered still-not-active webcompat content scripts`,
-        stillNeeded
-      );
-    } catch (e) {
-      try {
-        await browser.scripting.registerContentScripts(scriptsToReg);
-        debugLog(
-          `Registered all webcompat content scripts after error registering just non-active ones`,
-          scriptsToReg,
-          e
-        );
-      } catch (e2) {
-        console.error(
-          `Error while registering webcompat content scripts:`,
-          e2,
-          scriptsToReg
-        );
-      }
-    }
   }
 
   async _disableContentScripts(label, intervention) {

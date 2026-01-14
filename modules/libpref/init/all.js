@@ -4122,11 +4122,6 @@ pref("dom.sitepermsaddon-provider.separatedBlocklistedDomains", "shopee.co.th,sh
 // Log level for logger in URLQueryStrippingListService
 pref("privacy.query_stripping.listService.logLevel", "Error");
 
-// Signal to the webcompat site intervention add-on to use the MV3
-// scripting.registerContentScripts API instead of the older MV2
-// contentScripts.register API.
-pref("extensions.webcompat.useScriptingAPI", true);
-
 // Controls the log level for Fingerprinting Remote Overrides.
 pref("privacy.fingerprintingProtection.WebCompatService.logLevel", "Error");
 // To test strip on share site specific parameters by enabling a different list to be used

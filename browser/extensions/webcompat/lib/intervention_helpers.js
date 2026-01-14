@@ -494,4 +494,47 @@ var InterventionHelpers = {
   matchPatternsForGoogle(base, suffix = "/*") {
     return InterventionHelpers.matchPatternsForTLDs(base, suffix, GOOGLE_TLDS);
   },
+
+  async _registerContentScripts(scriptsToReg, typeStr, logger) {
+    // Try to avoid re-registering scripts already registered
+    // (e.g. if the webcompat background page is restarted
+    // after an extension process crash, after having registered
+    // the content scripts already once), but do not prevent
+    // to try registering them again if the getRegisteredContentScripts
+    // method returns an unexpected rejection.
+
+    const ids = scriptsToReg.map(s => s.id);
+    if (!ids.length) {
+      return;
+    }
+    try {
+      const alreadyRegged = await browser.scripting.getRegisteredContentScripts(
+        { ids }
+      );
+      const alreadyReggedIds = alreadyRegged.map(script => script.id);
+      const stillNeeded = scriptsToReg.filter(
+        ({ id }) => !alreadyReggedIds.includes(id)
+      );
+      await browser.scripting.registerContentScripts(stillNeeded);
+      logger(
+        `Registered still-not-active ${typeStr} content scripts`,
+        stillNeeded
+      );
+    } catch (e) {
+      try {
+        await browser.scripting.registerContentScripts(scriptsToReg);
+        logger(
+          `Registered all ${typeStr} content scripts after error registering just non-active ones`,
+          scriptsToReg,
+          e
+        );
+      } catch (e2) {
+        console.error(
+          `Error while registering ${typeStr} content scripts:`,
+          e2,
+          scriptsToReg
+        );
+      }
+    }
+  },
 };
