@@ -8,7 +8,7 @@
 # documentation and how to modify this file.
 repo: mozilla-central
 created_at: '2021-10-14T12:50:40.073465'
-updated_at: '2026-01-06T20:18:20.713926+00:00'
+updated_at: '2026-01-14T14:31:15.419745+00:00'
 export:
   path: ./docs/mots/index.rst
   format: rst
@@ -4152,6 +4152,7 @@ modules:
       - *glandium
       - *marco
       - *Sylvestre
+      - *ahochheiden
     meta:
       components:
         - 'Developer Infrastructure :: Lint and Formatting'
@@ -4668,5 +4669,5 @@ modules:
         - Ryan Tilder
       group: dev-platform
 hashes:
-  config: 3cf0f5ab20db1a5c5120fe66954f6c6e1f4a3018
-  export: 81a7a835536803c8ec5b654be6f52cb73746d7e0
+  config: 1c3f9e7420e6576c0c6aab0284e24065cef693cd
+  export: 893801873e863ce0fa52beee166bf7b357e6582a
