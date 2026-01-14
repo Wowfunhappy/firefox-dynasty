@@ -308,7 +308,6 @@ GMPInstallManager.prototype = {
       res = await ProductAddonChecker.getProductAddonList(
         url,
         /* allowNonBuiltIn */ true,
-        /* allowedCerts */ null,
         /* verifyContentSignature */ true,
         trustedContentSignatureRoot
       );
