@@ -1126,12 +1126,13 @@ ThenableJob* NewThenableJob(JSContext* cx, ThenableJob::TargetFunction target,
 
 static void AddPromiseFlags(PromiseObject& promise, int32_t flag) {
   int32_t flags = promise.flags();
-  promise.setFixedSlot(PromiseSlot_Flags, Int32Value(flags | flag));
+  promise.setNeverGCThingFixedSlot(PromiseSlot_Flags, Int32Value(flags | flag));
 }
 
 static void RemovePromiseFlags(PromiseObject& promise, int32_t flag) {
   int32_t flags = promise.flags();
-  promise.setFixedSlot(PromiseSlot_Flags, Int32Value(flags & ~flag));
+  promise.setNeverGCThingFixedSlot(PromiseSlot_Flags,
+                                   Int32Value(flags & ~flag));
 }
 
 static bool PromiseHasAnyFlag(PromiseObject& promise, int32_t flag) {
@@ -2015,7 +2016,7 @@ static bool PromiseReactionJob(JSContext* cx, unsigned argc, Value* vp);
   if (state == JS::PromiseState::Fulfilled) {
     flags |= PROMISE_FLAG_FULFILLED;
   }
-  promise->setFixedSlot(PromiseSlot_Flags, Int32Value(flags));
+  promise->setNeverGCThingFixedSlot(PromiseSlot_Flags, Int32Value(flags));
 
   // Also null out the resolve/reject functions so they can be GC'd.
   promise->setFixedSlot(PromiseSlot_RejectFunction, UndefinedValue());
