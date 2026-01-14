@@ -3,6 +3,9 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#ifndef GFX_GL_WGLLIBRARY_H_
+#define GFX_GL_WGLLIBRARY_H_
+
 #include "GLContextTypes.h"
 #include "GLLibraryLoader.h"
 #include "mozilla/UniquePtr.h"
@@ -112,3 +115,5 @@ extern WGLLibrary sWGLLib;
 
 } /* namespace gl */
 } /* namespace mozilla */
+
+#endif  // GFX_GL_WGLLIBRARY_H_
