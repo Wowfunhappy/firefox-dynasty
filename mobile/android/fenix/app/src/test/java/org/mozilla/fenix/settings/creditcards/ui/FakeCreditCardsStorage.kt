@@ -55,7 +55,7 @@ class FakeCreditCardsStorage(
 
     override suspend fun getCreditCard(guid: String): CreditCard? = null
 
-    override suspend fun getAllCreditCards(): List<CreditCard> = emptyList()
+    override suspend fun getAllCreditCards(): Result<List<CreditCard>> = Result.success(emptyList())
 
     override suspend fun deleteCreditCard(guid: String): Boolean {
         deletedCard = guid
