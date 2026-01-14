@@ -813,7 +813,7 @@ GMPDownloader.prototype = {
     }
     return ProductAddonChecker.downloadAddon(gmpAddon).then(
       zipPath => {
-        let now = Math.round(Date.now() / 1000);
+        now = Math.round(Date.now() / 1000);
         GMPPrefs.setInt(GMPPrefs.KEY_PLUGIN_LAST_DOWNLOAD, now, gmpAddon.id);
         log.info(
           `install to directory path: ${gmpAddon.id}/${gmpAddon.version}`
@@ -827,7 +827,7 @@ GMPDownloader.prototype = {
           .then(
             extractedPaths => {
               // Success, set the prefs
-              let now = Math.round(Date.now() / 1000);
+              now = Math.round(Date.now() / 1000);
               GMPPrefs.setInt(
                 GMPPrefs.KEY_PLUGIN_LAST_UPDATE,
                 now,
@@ -865,7 +865,7 @@ GMPDownloader.prototype = {
                 reason,
                 gmpAddon.id
               );
-              let now = Math.round(Date.now() / 1000);
+              now = Math.round(Date.now() / 1000);
               GMPPrefs.setInt(
                 GMPPrefs.KEY_PLUGIN_LAST_INSTALL_FAILED,
                 now,
@@ -890,7 +890,7 @@ GMPDownloader.prototype = {
           reason,
           gmpAddon.id
         );
-        let now = Math.round(Date.now() / 1000);
+        now = Math.round(Date.now() / 1000);
         GMPPrefs.setInt(
           GMPPrefs.KEY_PLUGIN_LAST_DOWNLOAD_FAILED,
           now,
