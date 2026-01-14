@@ -86,12 +86,6 @@ class BrowsingContextGroup final : public nsWrapperCache {
   // BrowsingContextGroup, if possible.
   ContentParent* GetHostProcess(const nsACString& aRemoteType);
 
-  // Check if the process which sent the message being read from aReader is
-  // aware of this BrowsingContextGroup's existence.
-  // If this returns false, it will first set a fatal error on aReader with more
-  // details.
-  bool IsKnownForMessageReader(IPC::MessageReader* aReader);
-
   // When a BrowsingContext is being discarded, we may want to keep the
   // corresponding BrowsingContextGroup alive until the other process
   // acknowledges that the BrowsingContext has been discarded. A `KeepAlive`
