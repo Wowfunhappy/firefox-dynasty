@@ -586,7 +586,7 @@ class TrustPanel {
     document.l10n.setAttributes(
       document.getElementById("trustpanel-clearcookiesView"),
       "trustpanel-clear-cookies-header",
-      { host: window.gIdentityHandler.getHostForDisplay() }
+      { host: this.#host }
     );
     document
       .getElementById("trustpanel-popup-multiView")
