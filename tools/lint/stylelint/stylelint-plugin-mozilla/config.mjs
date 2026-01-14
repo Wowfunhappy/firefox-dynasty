@@ -5,11 +5,14 @@
  */
 
 import { createRawValuesObject } from "./helpers.mjs";
+import { SYSTEM_COLORS } from "./referenceColors.mjs";
 
 /**
  * @typedef {object} PropertyTypeConfig
  * @property {string[]} allow Allowed keyword values (e.g., "auto", "none", "transparent")
+ * @property {string[]} allowAlias Allowed keyword values that should only be used via local variables
  * @property {string[]} [tokenTypes] Token categories from tokens-table.mjs whose tokens are valid
+ * @property {string[]} [aliasTokenTypes] Token categories from tokens-table.mjs whose tokens are valid only when used through local custom properties
  * @property {string[]} [allowFunctions] Allowed CSS function names (e.g., "url", "linear-gradient")
  * @property {boolean} [allowUnits] Whether values with CSS units (e.g., "10px", "50%") are allowed
  * @property {Record<string, string>} [customFixes] Map of raw values to their token replacements for autofix
@@ -80,7 +83,9 @@ const BackgroundColor = {
     "white",
     "black",
   ],
+  allowAlias: [...SYSTEM_COLORS],
   tokenTypes: ["background-color"],
+  aliasTokenTypes: ["color", "text-color", "border-color"],
   customFixes: customColorFixes,
   customSuggestions: systemColorSuggestions,
 };
@@ -182,7 +187,9 @@ const BorderColor = {
     "none",
     "0",
   ],
+  allowAlias: [...SYSTEM_COLORS],
   tokenTypes: ["border-color", "border", "outline"],
+  aliasTokenTypes: ["color", "background-color", "text-color"],
   customFixes: customColorFixes,
   customSuggestions: systemColorSuggestions,
 };
@@ -220,7 +227,9 @@ const BorderRadius = {
 /** @type {PropertyTypeConfig} */
 const TextColor = {
   allow: ["currentColor", "white", "black"],
+  allowAlias: [...SYSTEM_COLORS],
   tokenTypes: ["text-color"],
+  aliasTokenTypes: ["color", "background-color", "border-color"],
   customFixes: customColorFixes,
   customSuggestions: systemColorSuggestions,
 };

@@ -205,6 +205,82 @@ testRule({
       code: ".bg { background-color: color-mix(in srgb, var(--background-color-box) 20%, transparent); }",
       description: "Using color-mix() with valid token and keyword is valid.",
     },
+    {
+      code: ".bg { background-color: oklch(from var(--background-color-box-info) l c h / 30%); }",
+      description: "Using oklch() with valid colors is valid.",
+    },
+    {
+      code: `
+        :root { --custom-token: var(--color-blue-50); }
+        .bg { background-color: var(--custom-token); }
+      `,
+      description:
+        "Using a custom token that resolves to a base color token is valid.",
+    },
+    {
+      code: `
+        :root { --custom-token: oklch(from var(--color-blue-50) l c h / 20%); }
+        .bg { background-color: var(--custom-token); }
+      `,
+      description:
+        "Using a custom token that resolves to a base color token in a color function is valid.",
+    },
+    {
+      code: `
+        :root { --custom-token: color-mix(in oklch, var(--color-blue-50) 20%, transparent); }
+        .bg { background-color: var(--custom-token); }
+      `,
+      description:
+        "Using a custom token that resolves to a base color token in a color-mix function is valid.",
+    },
+    {
+      code: `
+        :root { --custom-token: light-dark(var(--color-gray-05), var(--color-gray-100)); }
+        .bg { background-color: var(--custom-token); }
+      `,
+      description:
+        "Using a custom token that resolves to a base color token in a light-dark function is valid.",
+    },
+    {
+      code: `
+        :root { --custom-token: var(--color-orange-100); }
+        .bg { background-color: var(--random-token, var(--custom-token)); }
+      `,
+      description:
+        "Using a custom token with a fallback that resolves to a base color token is valid.",
+    },
+    {
+      code: `
+        :root { --custom-token: var(--text-color); }
+        .bg { background-color: var(--custom-token); }
+      `,
+      description:
+        "Using a custom token that resolves to a text-color token is valid.",
+    },
+    {
+      code: `
+        :root { --custom-token: var(--border-color); }
+        .bg { background-color: var(--custom-token); }
+      `,
+      description:
+        "Using a custom token that resolves to a border-color token is valid.",
+    },
+    {
+      code: `
+        :root { --custom-token: ButtonFace; }
+        .bg { background-color: var(--custom-token); }
+      `,
+      description:
+        "Using a custom token that resolves to a system color is valid.",
+    },
+    {
+      code: `
+        :root { --custom-token: ButtonText; }
+        .bg { background-color: var(--custom-token); }
+      `,
+      description:
+        "Using a custom token that resolves to a system color, even if non-semantic, is valid.",
+    },
   ],
   reject: [
     {
@@ -259,6 +335,14 @@ testRule({
         "var(--random-token, oklch(69% 0.19 15)) should use a background-color design token.",
     },
     {
+      code: ".bg { background-color: var(--random-token, var(--color-gray-30)); }",
+      message: messages.rejected("var(--random-token, var(--color-gray-30))", [
+        "background-color",
+      ]),
+      description:
+        "var(--random-token, var(--color-gray-30)) should use a background-color design token.",
+    },
+    {
       code: `
         :root { --custom-token: #666; }
         .bg { background-color: var(--custom-token); }
@@ -280,27 +364,20 @@ testRule({
     },
     {
       code: `
-        :root { --custom-token: ButtonFace; }
-        .bg { background-color: var(--custom-token); }
+        :root { --custom-token: #666; }
+        .bg { background-color: var(--random-token, var(--custom-token)); }
       `,
-      message: messages.warning(
-        "var(--custom-token), which resolves to ButtonFace,",
-        "var(--button-background-color)"
-      ),
+      message: messages.rejected("var(--random-token, var(--custom-token))", [
+        "background-color",
+      ]),
       description:
-        "Locally defined variables using system colors should be warnings.",
+        "var(--random-token, var(--custom-token)) should use a background-color design token.",
     },
     {
-      code: `
-        :root { --fallback-token: ButtonFace; }
-        .bg { background-color: var(--custom-token, var(--fallback-token)); }
-      `,
-      message: messages.warning(
-        "var(--custom-token, var(--fallback-token)), which resolves to ButtonFace,",
-        "var(--button-background-color)"
-      ),
+      code: ".bg { background-color: var(--color-blue-50); }",
+      message: messages.rejected("var(--color-blue-50)", ["background-color"]),
       description:
-        "Locally defined variables using system colors should be warnings.",
+        "var(--color-blue-50) should use a background-color design token",
     },
     {
       code: ".bg { background: #666; }",
@@ -362,6 +439,31 @@ testRule({
       ]),
       description:
         "rgba(42 42 42 / 0.15) should use a background design token.",
+    },
+    {
+      code: ".bg { background-color: light-dark(#666, #333); }",
+      message: messages.rejected("light-dark(#666, #333)", [
+        "background-color",
+      ]),
+      description:
+        "light-dark(#666, #333) should use a background-color design token.",
+    },
+    {
+      code: ".bg { background-color: color-mix(in oklch, #666 20%, transparent); }",
+      message: messages.rejected("color-mix(in oklch, #666 20%, transparent)", [
+        "background-color",
+      ]),
+      description:
+        "color-mix(in oklch, #666 20%, transparent) should use a background-color design token.",
+    },
+    {
+      code: ".bg { background-color: oklch(from var(--color-blue-50) l c h / 20%); }",
+      message: messages.rejected(
+        "oklch(from var(--color-blue-50) l c h / 20%)",
+        ["background-color"]
+      ),
+      description:
+        "oklch(from var(--color-blue-50) l c h / 20%) should use a background-color design token.",
     },
     {
       code: ".bg { background: border-box #666; }",
