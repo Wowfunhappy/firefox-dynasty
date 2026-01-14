@@ -7882,13 +7882,8 @@ JS::AutoDebuggerJobQueueInterruption::AutoDebuggerJobQueueInterruption()
     : cx(nullptr) {}
 
 JS::AutoDebuggerJobQueueInterruption::~AutoDebuggerJobQueueInterruption() {
-#ifdef DEBUG
-  if (initialized() && !cx->jobQueue->isDrainingStopped()) {
-    MOZ_ASSERT_IF(JS::Prefs::use_js_microtask_queue(),
-                  !JS::HasRegularMicroTasks(cx));
-    MOZ_ASSERT_IF(!JS::Prefs::use_js_microtask_queue(), cx->jobQueue->empty());
-  }
-#endif
+  MOZ_ASSERT_IF(initialized() && !cx->jobQueue->isDrainingStopped(),
+                cx->jobQueue->empty());
 }
 
 bool JS::AutoDebuggerJobQueueInterruption::init(JSContext* cx) {

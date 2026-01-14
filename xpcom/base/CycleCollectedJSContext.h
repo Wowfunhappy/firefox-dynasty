@@ -92,6 +92,20 @@ class MicroTaskRunnable : public LinkedListElement<MicroTaskRunnable> {
   }
 };
 
+// Store the suppressed mictotasks in another microtask so that operations
+// for the microtask queue as a whole keep working.
+class SuppressedMicroTasks : public MicroTaskRunnable {
+ public:
+  explicit SuppressedMicroTasks(CycleCollectedJSContext* aContext);
+
+  MOZ_CAN_RUN_SCRIPT_BOUNDARY void Run(AutoSlowOperation& aAso) final {}
+  virtual bool Suppressed();
+
+  CycleCollectedJSContext* mContext;
+  uint64_t mSuppressionGeneration;
+  std::deque<RefPtr<MicroTaskRunnable>> mSuppressedMicroTaskRunnables;
+};
+
 // A gecko wrapper for the JS::MicroTask type. Used to enforce both
 // that this is handled move only, but also that we have succesfully
 // consumed this microtask before destruction.
@@ -359,6 +373,9 @@ class CycleCollectedJSContext : dom::PerThreadAtomCache, public JS::JobQueue {
   already_AddRefed<dom::Exception> GetPendingException() const;
   void SetPendingException(dom::Exception* aException);
 
+  std::deque<RefPtr<MicroTaskRunnable>>& GetMicroTaskQueue();
+  std::deque<RefPtr<MicroTaskRunnable>>& GetDebuggerMicroTaskQueue();
+
   void TraceMicroTasks(JSTracer* aTracer);
 
   JSContext* Context() const {
@@ -542,6 +559,10 @@ class CycleCollectedJSContext : dom::PerThreadAtomCache, public JS::JobQueue {
   uint32_t mMicroTaskLevel;
 
   uint32_t mSyncOperations;
+
+  std::deque<RefPtr<MicroTaskRunnable>> mPendingMicroTaskRunnables;
+  std::deque<RefPtr<MicroTaskRunnable>> mDebuggerMicroTaskQueue;
+  RefPtr<SuppressedMicroTasks> mSuppressedMicroTasks;
 
   RefPtr<SuppressedMicroTaskList> mSuppressedMicroTaskList;
 
