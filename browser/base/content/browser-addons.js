@@ -20,6 +20,8 @@ ChromeUtils.defineESModuleGetters(lazy, {
   PERMISSION_L10N: "resource://gre/modules/ExtensionPermissionMessages.sys.mjs",
   SITEPERMS_ADDON_TYPE:
     "resource://gre/modules/addons/siteperms-addon-utils.sys.mjs",
+  getSitePermsInstallPromptStringIds:
+    "resource://gre/modules/addons/siteperms-addon-utils.sys.mjs",
 });
 ChromeUtils.defineLazyGetter(lazy, "l10n", function () {
   return new Localization(
@@ -1253,6 +1255,7 @@ var gXPInstallObserver = {
     Services.console.logMessage(consoleMsg);
   },
 
+  // eslint-disable-next-line complexity
   async observe(aSubject, aTopic) {
     var installInfo = aSubject.wrappedJSObject;
     var browser = installInfo.browser;
@@ -1261,6 +1264,17 @@ var gXPInstallObserver = {
     if (!browser || !gBrowser.browsers.includes(browser)) {
       return;
     }
+
+    const cancelInstallation = () => {
+      for (let install of installInfo.installs) {
+        if (install.state != AddonManager.STATE_CANCELLED) {
+          install.cancel();
+        }
+      }
+      if (installInfo.cancel) {
+        installInfo.cancel();
+      }
+    };
 
     // Make notifications persistent
     var options = {
@@ -1364,12 +1378,22 @@ var gXPInstallObserver = {
         let hasHost = false;
         let headerId, msgId;
         if (isSitePermissionAddon) {
-          // At present, WebMIDI is the only consumer of the site permission
-          // add-on infrastructure, and so we can hard-code a midi string here.
-          // If and when we use it for other things, we'll need to plumb that
-          // information through. See bug 1826747.
-          headerId = "site-permission-install-first-prompt-midi-header";
-          msgId = "site-permission-install-first-prompt-midi-message";
+          const permissionType =
+            installInfo.installs[0].addon.sitePermissions?.[0];
+          const stringIds =
+            lazy.getSitePermsInstallPromptStringIds(permissionType);
+
+          if (stringIds?.header && stringIds?.message) {
+            headerId = stringIds.header;
+            msgId = stringIds.message;
+          } else {
+            console.error(
+              `Unexpected missing or incomplete fluentIds for site permission "${permissionType}", ` +
+                "siteperms-addon-utils.sys.mjs should be updated."
+            );
+            cancelInstallation();
+            return;
+          }
         } else if (options.displayURI) {
           // PopupNotifications.show replaces <> with options.name.
           headerId = { id: "xpinstall-prompt-header", args: { host: "<>" } };
@@ -1451,27 +1475,11 @@ var gXPInstallObserver = {
             "install",
             SitePermissions.BLOCK
           );
-          for (let install of installInfo.installs) {
-            if (install.state != AddonManager.STATE_CANCELLED) {
-              install.cancel();
-            }
-          }
-          if (installInfo.cancel) {
-            installInfo.cancel();
-          }
+          cancelInstallation();
         };
 
         const declineActions = [
-          buildNotificationAction(dontAllowMsg, () => {
-            for (let install of installInfo.installs) {
-              if (install.state != AddonManager.STATE_CANCELLED) {
-                install.cancel();
-              }
-            }
-            if (installInfo.cancel) {
-              installInfo.cancel();
-            }
-          }),
+          buildNotificationAction(dontAllowMsg, cancelInstallation),
           buildNotificationAction(neverAllowMsg, neverAllowCallback),
         ];
 
