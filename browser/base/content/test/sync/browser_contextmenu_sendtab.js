@@ -167,9 +167,12 @@ add_task(async function test_tab_contextmenu() {
     .expects("sendTabToDevice")
     .once()
     .withExactArgs(
-      "about:mozilla",
-      [fxaDevices[1]],
-      "The Book of Mozilla, 6:27"
+      {
+        url: "about:mozilla",
+        title: "The Book of Mozilla, 6:27",
+        private: false,
+      },
+      [fxaDevices[1]]
     )
     .returns(true);
 
