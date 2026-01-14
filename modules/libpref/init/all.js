@@ -3483,25 +3483,6 @@ pref("media.gmp-manager.allowLocalSources", true);
 // Update service URL for GMP install/updates:
 pref("media.gmp-manager.url", "https://aus5.mozilla.org/update/3/GMP/%VERSION%/%BUILD_ID%/%BUILD_TARGET%/%LOCALE%/%CHANNEL%/%OS_VERSION%/%DISTRIBUTION%/%DISTRIBUTION_VERSION%/update.xml");
 
-// When |media.gmp-manager.checkContentSignature| is true, then the reply
-// containing the update xml file is expected to provide a content signature
-// header. Information from this header will be used to validate the response.
-// If this header is not present, is malformed, or cannot be determined as
-// valid then the update will fail.
-// We should eventually remove this pref and any cert pinning code and make
-// the content signature path the sole path. We retain this for now in case
-// we need to debug content sig vs cert pin.
-pref("media.gmp-manager.checkContentSignature", true);
-
-// When |media.gmp-manager.cert.requireBuiltIn| is true or not specified the
-// final certificate and all certificates the connection is redirected to before
-// the final certificate for the url specified in the |media.gmp-manager.url|
-// preference must be built-in. The check related to this pref is not done if
-// |media.gmp-manager.checkContentSignature| is set to true (the content
-// signature check provides protection that supersedes the built in
-// requirement).
-pref("media.gmp-manager.cert.requireBuiltIn", true);
-
 // The |media.gmp-manager.certs.| preference branch contains branches that are
 // sequentially numbered starting at 1 that contain attribute name / value
 // pairs for the certificate used by the server that hosts the update xml file
@@ -3515,9 +3496,7 @@ pref("media.gmp-manager.cert.requireBuiltIn", true);
 // no update available. This validation will not be performed when the
 // |media.gmp-manager.url.override| user preference has been set for testing updates or
 // when the |media.gmp-manager.cert.checkAttributes| preference is set to false.
-// This check will also not be done if the |media.gmp-manager.checkContentSignature|
-// pref is set to true. Also, the |media.gmp-manager.url.override| preference should
-// ONLY be used for testing.
+// Also, the |media.gmp-manager.url.override| preference should ONLY be used for testing.
 // IMPORTANT! app.update.certs.* prefs should also be updated if these
 // are updated.
 pref("media.gmp-manager.cert.checkAttributes", true);
