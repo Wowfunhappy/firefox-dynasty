@@ -731,6 +731,8 @@ internal class BookmarksMiddleware(
             is BookmarksListMenuAction.MultiSelect.DeleteClicked,
             is BookmarksListMenuAction.Folder.DeleteClicked,
             is BookmarksListMenuAction.Bookmark.DeleteClicked,
+            is BookmarksListMenuAction.Folder.SelectClicked,
+            is BookmarksListMenuAction.Bookmark.SelectClicked,
             -> { }
         }
     }

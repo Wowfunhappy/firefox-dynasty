@@ -1771,6 +1771,8 @@
     <string name="bookmark_error_edit_bookmark">Could not edit bookmark</string>
     <!-- Snackbar edit button shown after a bookmark has been created. -->
     <string name="edit_bookmark_snackbar_action">EDIT</string>
+    <!-- Bookmark menu select button -->
+    <string name="bookmark_menu_select_button">Select</string>
     <!-- Bookmark menu move button -->
     <string name="bookmark_menu_move_button">Move</string>
     <!-- Bookmark overflow menu edit button -->

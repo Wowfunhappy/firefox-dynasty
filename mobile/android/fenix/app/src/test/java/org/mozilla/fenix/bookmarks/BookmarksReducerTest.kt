@@ -10,7 +10,6 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import org.mozilla.fenix.components.appstate.AppAction
 
 class BookmarksReducerTest {
     @Test
@@ -1291,6 +1290,46 @@ class BookmarksReducerTest {
         assertTrue(result.selectedItems.isEmpty())
 
         result = bookmarksReducer(state, BookmarksListMenuAction.MultiSelect.ShareClicked)
+        assertTrue(result.selectedItems.isEmpty())
+    }
+
+    @Test
+    fun `GIVEN a folder is not selected WHEN selecting it from the menu THEN it is added to selected items`() {
+        val items = listOf(generateFolder())
+        val state = BookmarksState.default.copy(bookmarkItems = items)
+
+        val result = bookmarksReducer(state, BookmarksListMenuAction.Folder.SelectClicked(items[0]))
+
+        assertEquals(items[0], result.selectedItems[0])
+    }
+
+    @Test
+    fun `GIVEN a folder is already selected WHEN selecting it from the menu THEN it is removed from the selected items`() {
+        val items = listOf(generateFolder())
+        val state = BookmarksState.default.copy(bookmarkItems = items, selectedItems = items)
+
+        val result = bookmarksReducer(state, BookmarksListMenuAction.Folder.SelectClicked(items[0]))
+
+        assertTrue(result.selectedItems.isEmpty())
+    }
+
+    @Test
+    fun `GIVEN a bookmark is not selected WHEN selecting it from the menu THEN it is added to selected items`() {
+        val items = listOf(generateBookmark())
+        val state = BookmarksState.default.copy(bookmarkItems = items)
+
+        val result = bookmarksReducer(state, BookmarksListMenuAction.Bookmark.SelectClicked(items[0]))
+
+        assertEquals(items[0], result.selectedItems[0])
+    }
+
+    @Test
+    fun `GIVEN a bookmark is already selected WHEN selecting it from the menu THEN it is removed from the selected items`() {
+        val items = listOf(generateBookmark())
+        val state = BookmarksState.default.copy(bookmarkItems = items, selectedItems = items)
+
+        val result = bookmarksReducer(state, BookmarksListMenuAction.Bookmark.SelectClicked(items[0]))
+
         assertTrue(result.selectedItems.isEmpty())
     }
 

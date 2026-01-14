@@ -1495,6 +1495,10 @@ private fun BookmarkListItemMenu(
 ) {
     val menuItems = listOf(
         MenuItem.TextItem(
+            text = Text.Resource(R.string.bookmark_menu_select_button),
+            onClick = { store.dispatch(BookmarksListMenuAction.Bookmark.SelectClicked(bookmark)) },
+        ),
+        MenuItem.TextItem(
             text = Text.Resource(R.string.bookmark_menu_edit_button),
             onClick = { store.dispatch(BookmarksListMenuAction.Bookmark.EditClicked(bookmark)) },
         ),
@@ -1535,6 +1539,10 @@ private fun BookmarkListFolderMenu(
     store: BookmarksStore,
 ) {
     val menuItems = listOf(
+        MenuItem.TextItem(
+            text = Text.Resource(R.string.bookmark_menu_select_button),
+            onClick = { store.dispatch(BookmarksListMenuAction.Folder.SelectClicked(folder)) },
+        ),
         MenuItem.TextItem(
             text = Text.Resource(R.string.bookmark_menu_edit_button),
             onClick = { store.dispatch(BookmarksListMenuAction.Folder.EditClicked(folder)) },
