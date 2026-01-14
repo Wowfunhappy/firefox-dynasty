@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef IntegrityPolicyService_h___
-#define IntegrityPolicyService_h___
+#ifndef IntegrityPolicyService_h_
+#define IntegrityPolicyService_h_
 
 #include "mozilla/dom/IntegrityPolicy.h"
 #include "nsIContentPolicy.h"
@@ -35,4 +35,4 @@ class IntegrityPolicyService : public nsIContentPolicy {
 };
 }  // namespace mozilla::dom
 
-#endif /* IntegrityPolicyService_h___ */
+#endif /* IntegrityPolicyService_h_ */

@@ -6,8 +6,8 @@
 
 /* A namespace class for static content utilities. */
 
-#ifndef nsContentUtils_h___
-#define nsContentUtils_h___
+#ifndef nsContentUtils_h_
+#define nsContentUtils_h_
 
 #if defined(XP_WIN)
 #  include <float.h>
@@ -3919,4 +3919,4 @@ class TreeOrderComparator {
     }                                                       \
   }
 
-#endif /* nsContentUtils_h___ */
+#endif /* nsContentUtils_h_ */

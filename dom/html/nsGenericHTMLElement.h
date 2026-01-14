@@ -3,8 +3,8 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-#ifndef nsGenericHTMLElement_h___
-#define nsGenericHTMLElement_h___
+#ifndef nsGenericHTMLElement_h_
+#define nsGenericHTMLElement_h_
 
 #include <cstdint>
 
@@ -1490,4 +1490,4 @@ NS_DECLARE_NS_NEW_HTML_ELEMENT(Track)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(Unknown)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(Video)
 
-#endif /* nsGenericHTMLElement_h___ */
+#endif /* nsGenericHTMLElement_h_ */

@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef nsFrameMessageManager_h__
-#define nsFrameMessageManager_h__
+#ifndef nsFrameMessageManager_h_
+#define nsFrameMessageManager_h_
 
 #include <string.h>
 

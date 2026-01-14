@@ -10,8 +10,8 @@
  * utility methods for subclasses, and so forth.
  */
 
-#ifndef mozilla_dom_Element_h__
-#define mozilla_dom_Element_h__
+#ifndef mozilla_dom_Element_h_
+#define mozilla_dom_Element_h_
 
 #include <cstdint>
 #include <cstdio>
@@ -2601,4 +2601,4 @@ inline mozilla::dom::Element* nsINode::GetNextElementSibling() const {
 #define NS_IMPL_ELEMENT_CLONE_WITH_INIT_AND_PARSER(_elementName) \
   NS_IMPL_ELEMENT_CLONE_WITH_INIT(_elementName, NOT_FROM_PARSER)
 
-#endif  // mozilla_dom_Element_h__
+#endif  // mozilla_dom_Element_h_

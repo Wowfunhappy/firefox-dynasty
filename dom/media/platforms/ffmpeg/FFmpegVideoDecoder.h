@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef __FFmpegVideoDecoder_h__
-#define __FFmpegVideoDecoder_h__
+#ifndef FFmpegVideoDecoder_h_
+#define FFmpegVideoDecoder_h_
 
 #include <atomic>
 
@@ -424,4 +424,4 @@ class ImageBufferWrapper final {
 
 }  // namespace mozilla
 
-#endif  // __FFmpegVideoDecoder_h__
+#endif  // FFmpegVideoDecoder_h_

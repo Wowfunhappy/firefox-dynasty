@@ -10,8 +10,8 @@
  * utility methods for subclasses, and so forth.
  */
 
-#ifndef FragmentOrElement_h___
-#define FragmentOrElement_h___
+#ifndef FragmentOrElement_h_
+#define FragmentOrElement_h_
 
 #include "mozilla/Attributes.h"
 #include "mozilla/EnumSet.h"
@@ -424,4 +424,4 @@ class FragmentOrElement : public nsIContent {
   rv = FragmentOrElement::QueryInterface(aIID, aInstancePtr); \
   NS_INTERFACE_TABLE_TO_MAP_SEGUE
 
-#endif /* FragmentOrElement_h___ */
+#endif /* FragmentOrElement_h_ */

@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef mozilla_dom_shadowroot_h__
-#define mozilla_dom_shadowroot_h__
+#ifndef mozilla_dom_shadowroot_h_
+#define mozilla_dom_shadowroot_h_
 
 #include "mozilla/BindgenUniquePtr.h"
 #include "mozilla/DOMEventTargetHelper.h"
@@ -355,4 +355,4 @@ class ShadowRoot final : public DocumentFragment, public DocumentOrShadowRoot {
 }  // namespace dom
 }  // namespace mozilla
 
-#endif  // mozilla_dom_shadowroot_h__
+#endif  // mozilla_dom_shadowroot_h_

@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef mozilla_Selection_h__
-#define mozilla_Selection_h__
+#ifndef mozilla_Selection_h_
+#define mozilla_Selection_h_
 
 #include "mozilla/AutoRestore.h"
 #include "mozilla/EventForwards.h"
@@ -1297,4 +1297,4 @@ inline nsresult nsISelectionController::ScrollSelectionIntoView(
                                  mozilla::ScrollFlags::None, aMode);
 }
 
-#endif  // mozilla_Selection_h__
+#endif  // mozilla_Selection_h_

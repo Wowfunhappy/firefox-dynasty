@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef XULTextElement_h__
-#define XULTextElement_h__
+#ifndef XULTextElement_h_
+#define XULTextElement_h_
 
 #include "nsXULElement.h"
 
