@@ -15,14 +15,19 @@ async function test(context, commands) {
   const webdriver = context.selenium.webdriver;
 
   if (
-    (typeof context.options.browsertime !== "undefined") &
-    (typeof context.options.browsertime.waitTime !== "undefined")
+    typeof context.options.browsertime !== "undefined" &&
+    typeof context.options.browsertime.waitTime !== "undefined"
   ) {
     waitTime = context.options.browsertime.waitTime;
   }
 
   // Make firefox learn of HTTP/3 server
   await commands.navigate(rootUrl);
+
+  await commands.js.runAndWait(`
+    document.cookie =
+      'SOCS=CAESHAgBEhJnd3NfMjAyNjAxMDgtMF9SQzEaAmVuIAEaBgiAlpbLBg; path=/; domain=.google.com; Secure; SameSite=None';
+  `);
 
   let cycles = 1;
   for (let cycle = 0; cycle < cycles; cycle++) {

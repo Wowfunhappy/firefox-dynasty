@@ -13,8 +13,8 @@ async function test(context, commands) {
   let waitTime = 1000;
 
   if (
-    (typeof context.options.browsertime !== "undefined") &
-    (typeof context.options.browsertime.waitTime !== "undefined")
+    typeof context.options.browsertime !== "undefined" &&
+    typeof context.options.browsertime.waitTime !== "undefined"
   ) {
     waitTime = context.options.browsertime.waitTime;
   }

@@ -12,7 +12,7 @@ async function getNumLoaded(commands) {
   return commands.js.run(`
     let sum = 0;
     document.querySelectorAll("#imgContainer img").forEach(e => {
-      sum += e.complete & e.naturalHeight != 0;
+      sum += (e.complete && e.naturalHeight != 0) ? 1 : 0;
     });
     return sum;
   `);
@@ -71,8 +71,8 @@ async function test(context, commands) {
   let cycles = 5;
 
   if (
-    (typeof context.options.browsertime !== "undefined") &
-    (typeof context.options.browsertime.cycles !== "undefined")
+    typeof context.options.browsertime !== "undefined" &&
+    typeof context.options.browsertime.cycles !== "undefined"
   ) {
     cycles = context.options.browsertime.cycles;
   }

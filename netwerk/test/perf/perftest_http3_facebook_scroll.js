@@ -33,8 +33,8 @@ async function waitForScrollRequestsEnd(
   let stableCount = 0;
 
   while (
-    ((await commands.js.run(`return performance.now();`)) - starttime <
-      timeout) &
+    (await commands.js.run(`return performance.now();`)) - starttime <
+      timeout &&
     changing
   ) {
     // Wait a bit before making another round
