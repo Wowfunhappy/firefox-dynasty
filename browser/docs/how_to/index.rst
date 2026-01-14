@@ -17,6 +17,8 @@ Available Guides
 .. toctree::
    :maxdepth: 1
 
+   add_preview_strings
+
 More guides will be added here as they are written.
 
 Template
