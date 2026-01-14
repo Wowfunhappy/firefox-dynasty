@@ -989,17 +989,20 @@ void nsMathMLContainerFrame::GetIntrinsicISizeMetrics(
 // see spacing table in Chapter 18, TeXBook (p.170)
 // Our table isn't quite identical to TeX because operators have
 // built-in values for lspace & rspace in the Operator Dictionary.
-static int32_t
+static constexpr uint8_t
     kInterFrameSpacingTable[MathMLFrameTypeCount][MathMLFrameTypeCount] = {
-        // in units of muspace.
-        /*           Ord  OpOrd OpInv OpUsr Inner Italic Upright */
-        /*Ord    */ {0x00, 0x00, 0x00, 0x01, 0x01, 0x00, 0x00},
-        /*OpOrd  */ {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
-        /*OpInv  */ {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
-        /*OpUsr  */ {0x01, 0x00, 0x00, 0x01, 0x01, 0x01, 0x01},
-        /*Inner  */ {0x01, 0x00, 0x00, 0x01, 0x01, 0x01, 0x01},
-        /*Italic */ {0x00, 0x00, 0x00, 0x01, 0x01, 0x00, 0x01},
-        /*Upright*/ {0x00, 0x00, 0x00, 0x01, 0x01, 0x01, 0x00}};
+        // clang-format off
+  // in units of muspace.
+  // Ord OpOrd OpInv OpUsr Inner Italic Upright
+  {  0,  0,    0,    1,    1,    0,     0      }, // Ord
+  {  0,  0,    0,    0,    0,    0,     0      }, // OpOrd
+  {  0,  0,    0,    0,    0,    0,     0      }, // OpInv
+  {  1,  0,    0,    1,    1,    1,     1      }, // OpUsr
+  {  1,  0,    0,    1,    1,    1,     1      }, // Inner
+  {  0,  0,    0,    1,    1,    0,     1      }, // Italic
+  {  0,  0,    0,    1,    1,    1,     0      }, // Upright
+        // clang-format on
+};
 
 static int32_t GetInterFrameSpacing(MathMLFrameType aFirstFrameType,
                                     MathMLFrameType aSecondFrameType) {
