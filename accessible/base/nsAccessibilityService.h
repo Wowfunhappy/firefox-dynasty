@@ -222,6 +222,11 @@ class nsAccessibilityService final : public mozilla::a11y::DocManager,
   void RangeValueChanged(mozilla::PresShell* aPresShell, nsIContent* aContent);
 
   /**
+   * Notify accessibility that the value of an <input type="color"> has changed.
+   */
+  void ColorValueChanged(mozilla::PresShell* aPresShell, nsIContent* aContent);
+
+  /**
    * Update the image map.
    */
   void UpdateImageMap(nsImageFrame* aImageFrame);

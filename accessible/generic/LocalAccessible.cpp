@@ -3439,11 +3439,12 @@ already_AddRefed<AccAttributes> LocalAccessible::BundleFieldsForCache(
   }
 
   if (aCacheDomain & CacheDomain::Value) {
-    // We cache the text value in 3 cases:
+    // We cache the text value in 5 cases:
     // 1. Accessible is an HTML input type that holds a number.
     // 2. Accessible has a numeric value and an aria-valuetext.
     // 3. Accessible is an HTML input type that holds text.
     // 4. Accessible is a link, in which case value is the target URL.
+    // 5. Accessible is an HTML input type that holds a color.
     // ... for all other cases we divine the value remotely.
     bool cacheValueText = false;
     if (HasNumericValue()) {
@@ -3455,8 +3456,10 @@ already_AddRefed<AccAttributes> LocalAccessible::BundleFieldsForCache(
                        (mContent->IsElement() &&
                         nsAccUtils::HasARIAAttr(mContent->AsElement(),
                                                 nsGkAtoms::aria_valuetext));
-    } else {
-      cacheValueText = IsTextField() || IsHTMLLink();
+    } else if (IsTextField() || IsHTMLLink()) {
+      cacheValueText = true;
+    } else if (auto* input = dom::HTMLInputElement::FromNode(mContent)) {
+      cacheValueText = input->IsInputColor();
     }
 
     if (cacheValueText) {
