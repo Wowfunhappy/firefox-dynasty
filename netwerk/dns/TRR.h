@@ -69,7 +69,7 @@ class TRR : public Runnable, public nsITimerCallback, public nsIStreamListener {
   TRRSkippedReason SkipReason() const { return mTRRSkippedReason; }
 
  protected:
-  virtual ~TRR() = default;
+  virtual ~TRR();
   virtual DNSPacket* GetOrCreateDNSPacket();
   virtual nsresult CreateQueryURI(nsIURI** aOutURI);
   virtual const char* ContentType() const { return "application/dns-message"; }
