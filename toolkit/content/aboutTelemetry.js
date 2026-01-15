@@ -2426,7 +2426,7 @@ function displayRichPingData(ping, updatePayloadList) {
 
   // We have special rendering code for the payloads from "main" and "event" pings.
   // For any other pings we just render the raw JSON payload.
-  let isMainPing = ping.type == "main";
+  let isMainPing = ping.type == "main" || ping.type == "saved-session";
   let isEventPing = ping.type == "event";
   togglePingSections(isMainPing);
 
