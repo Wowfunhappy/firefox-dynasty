@@ -39,6 +39,7 @@ vendoring:
     - expat_config.h
     - expat_config_moz.h
     - expat_config_rlbox.h
+    - README_MOZILLA
     - rlbox_expat.h
     - rlbox_expat_types.h
     - sources.mozbuild
