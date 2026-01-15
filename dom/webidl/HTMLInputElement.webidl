@@ -4,8 +4,8 @@
  * You can obtain one at http://mozilla.org/MPL/2.0/.
  *
  * The origin of this IDL file is
- * http://www.whatwg.org/specs/web-apps/current-work/#the-input-element
- * http://www.whatwg.org/specs/web-apps/current-work/#other-elements,-attributes-and-apis
+ * https://html.spec.whatwg.org/multipage/input.html#the-input-element
+ * https://html.spec.whatwg.org/multipage/obsolete.html#other-elements%2C-attributes-and-apis
  * https://wicg.github.io/entries-api/#idl-index
  *
  * © Copyright 2004-2011 Apple Computer, Inc., Mozilla Foundation, and
@@ -38,6 +38,8 @@ interface HTMLInputElement : HTMLElement {
            attribute boolean defaultChecked;
   [Pure]
            attribute boolean checked;
+  [CEReactions, Pure, SetterThrows, Pref="dom.forms.colorspace_and_alpha.enabled"]
+           attribute DOMString colorSpace;
   [CEReactions, Pure, SetterThrows]
            attribute DOMString dirName;
   [CEReactions, Pure, SetterThrows]

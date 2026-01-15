@@ -298,6 +298,7 @@ STATIC_ATOMS = [
     Atom("headerContentScriptType", "content-script-type"),
     Atom("headerContentStyleType", "content-style-type"),
     Atom("headerContentType", "content-type"),
+    Atom("colorspace", "colorspace"),
     Atom("consumeanchor", "consumeanchor"),
     Atom("context", "context"),
     Atom("contextmenu", "contextmenu"),

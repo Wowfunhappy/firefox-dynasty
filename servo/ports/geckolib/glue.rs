@@ -8977,21 +8977,23 @@ pub unsafe extern "C" fn Servo_ComputeColor(
     true
 }
 
-// This implements https://html.spec.whatwg.org/#update-a-color-well-control-color,
-// except the actual serialization steps in step 6 of "serialize a color well control color".
 #[no_mangle]
-pub unsafe extern "C" fn Servo_ComputeColorWellControlColor(
+pub unsafe extern "C" fn Servo_ComputeAbsoluteColor(
     raw_data: Option<&PerDocumentStyleData>,
     value: &nsACString,
-    to_color_space: ColorSpace,
     result_color: &mut AbsoluteColor,
 ) -> bool {
     if let Some(color) = compute_color(raw_data, &AbsoluteColor::BLACK, value, ptr::null_mut()) {
-        *result_color = color.result_color.to_color_space(to_color_space);
+        *result_color = color.result_color;
         true
     } else {
         false
     }
+}
+
+#[no_mangle]
+pub extern "C" fn Servo_AbsoluteColor_ToCss(s: &AbsoluteColor, result: &mut nsACString) {
+    s.to_css(&mut CssWriter::new(result)).unwrap()
 }
 
 #[no_mangle]

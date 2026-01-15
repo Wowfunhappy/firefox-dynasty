@@ -3483,6 +3483,11 @@
   mirror: always
 #endif
 
+- name: dom.forms.colorspace_and_alpha.enabled
+  type: bool
+  value: true
+  mirror: always
+
 - name: dom.forms.always_allow_pointer_events.enabled
   type: bool
   value: true
