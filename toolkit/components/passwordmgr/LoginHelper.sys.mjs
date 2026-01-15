@@ -1630,8 +1630,8 @@ export const LoginHelper = {
   },
 
   /**
-   * Shows OS auth dialog if OS auth is enabled or the Primary Password dialog when
-   * the token is locked or OS auth is disabled.
+   * Shows the Primary Password prompt if enabled, or the
+   * OS auth dialog otherwise.
    *
    * @param {Element} browser
    *        The <browser> that the prompt should be shown on
@@ -1685,8 +1685,7 @@ export const LoginHelper = {
       };
     }
     // Use the OS auth dialog if there is no primary password
-    // or if primary password is already unlocked.
-    if ((!token.hasPassword || token.isLoggedIn()) && OSReauthEnabled) {
+    if (!token.hasPassword && OSReauthEnabled) {
       let result;
       try {
         isAuthorized = await this.verifyUserOSAuth(

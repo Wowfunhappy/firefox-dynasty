@@ -12,13 +12,6 @@ let { TelemetryTestUtils } = ChromeUtils.importESModule(
 
 let { MockFilePicker } = SpecialPowers;
 
-add_setup(async function () {
-  registerCleanupFunction(async function () {
-    SpecialPowers.clearUserPref("signon.rustMirror.migrationNeeded");
-    SpecialPowers.clearUserPref("signon.rustMirror.poisoned");
-  });
-});
-
 /**
  * A helper class to deal with Login CSV import UI.
  */
