@@ -1030,6 +1030,49 @@ class nsContentUtils {
                              bool aNamespaceAware = true,
                              const char16_t** aColon = nullptr);
 
+  /**
+   * Validate an element local name per the relaxed rules from current DOM spec.
+   * Valid if it does not contain null, ASCII whitespace, '/', or '>'.
+   * https://dom.spec.whatwg.org/#valid-element-local-name
+   */
+  static bool IsValidElementLocalName(const nsAString& aName);
+
+  /**
+   * Validate an attribute local name per the relaxed rules from current DOM
+   * spec. Valid if it does not contain null, ASCII whitespace, '/', '>', or
+   * '='. https://dom.spec.whatwg.org/#valid-attribute-local-name
+   */
+  static bool IsValidAttributeLocalName(const nsAString& aName);
+
+  /**
+   * Validate a namespace prefix per the relaxed rules from current DOM spec.
+   * Valid if it does not contain null, ASCII whitespace, '/', or '>'.
+   * https://dom.spec.whatwg.org/#valid-namespace-prefix
+   */
+  static bool IsValidNamespacePrefix(const nsAString& aPrefix);
+
+  /**
+   * Validate a doctype name per the relaxed rules from current DOM spec.
+   * Valid if it does not contain null, ASCII whitespace, or '>'.
+   * https://dom.spec.whatwg.org/#valid-doctype-name
+   */
+  static bool IsValidDoctypeName(const nsAString& aName);
+
+  /**
+   * Parse a qualified name and validate it using relaxed rules from DOM spec.
+   * Returns success if the qualified name is valid.
+   * If aColon is non-null, it's set to the position of the first colon
+   * (or null if no colon).
+   * If aLocalNameEnd is non-null, it's set to the end of the local name
+   * (the second colon if present, otherwise the end of the string).
+   * Per "strictly split", "f:o:o" gives prefix="f", localName="o".
+   * aNodeType indicates whether this is for an element or attribute (to
+   * determine the correct local-name validation).
+   */
+  static nsresult ParseQualifiedNameRelaxed(
+      const nsAString& aQualifiedName, uint16_t aNodeType,
+      const char16_t** aColon, const char16_t** aLocalNameEnd = nullptr);
+
   static nsresult SplitQName(const nsIContent* aNamespaceResolver,
                              const nsString& aQName, int32_t* aNamespace,
                              nsAtom** aLocalName);

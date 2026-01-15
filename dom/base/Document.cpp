@@ -9048,8 +9048,9 @@ bool IsLowercaseASCII(const nsAString& aValue) {
 already_AddRefed<Element> Document::CreateElement(
     const nsAString& aTagName, const ElementCreationOptionsOrString& aOptions,
     ErrorResult& rv) {
-  rv = nsContentUtils::CheckQName(aTagName, false);
-  if (rv.Failed()) {
+  // https://dom.spec.whatwg.org/#dom-document-createelement
+  if (!nsContentUtils::IsValidElementLocalName(aTagName)) {
+    rv.ThrowInvalidCharacterError("Invalid element name");
     return nullptr;
   }
 
@@ -9126,8 +9127,9 @@ already_AddRefed<Element> Document::CreateElementNS(
 already_AddRefed<Element> Document::CreateXULElement(
     const nsAString& aTagName, const ElementCreationOptionsOrString& aOptions,
     ErrorResult& aRv) {
-  aRv = nsContentUtils::CheckQName(aTagName, false);
-  if (aRv.Failed()) {
+  // https://dom.spec.whatwg.org/#dom-document-createelement
+  if (!nsContentUtils::IsValidElementLocalName(aTagName)) {
+    aRv.ThrowInvalidCharacterError("Invalid element name");
     return nullptr;
   }
 
@@ -9225,9 +9227,9 @@ already_AddRefed<Attr> Document::CreateAttribute(const nsAString& aName,
     return nullptr;
   }
 
-  nsresult res = nsContentUtils::CheckQName(aName, false);
-  if (NS_FAILED(res)) {
-    rv.Throw(res);
+  // https://dom.spec.whatwg.org/#dom-document-createattribute
+  if (!nsContentUtils::IsValidAttributeLocalName(aName)) {
+    rv.ThrowInvalidCharacterError("Invalid attribute name");
     return nullptr;
   }
 
@@ -9239,8 +9241,9 @@ already_AddRefed<Attr> Document::CreateAttribute(const nsAString& aName,
   }
 
   RefPtr<mozilla::dom::NodeInfo> nodeInfo;
-  res = mNodeInfoManager->GetNodeInfo(name, nullptr, kNameSpaceID_None,
-                                      ATTRIBUTE_NODE, getter_AddRefs(nodeInfo));
+  nsresult res =
+      mNodeInfoManager->GetNodeInfo(name, nullptr, kNameSpaceID_None,
+                                    ATTRIBUTE_NODE, getter_AddRefs(nodeInfo));
   if (NS_FAILED(res)) {
     rv.Throw(res);
     return nullptr;
