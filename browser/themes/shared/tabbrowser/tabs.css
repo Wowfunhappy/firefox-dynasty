@@ -1868,29 +1868,18 @@ tab-group {
 /* Tab Notes */
 .tab-note-editor-panel {
   --panel-width: 300px;
-  --arrowpanel-header-min-height: auto;
-  padding-inline: var(--space-xsmall);
-  padding-block: 0;
   font: menu;
 
-  .panel-header {
-    padding-block-start: 0;
-
-    & > h1 {
-      margin: var(--space-small);
-    }
+  > toolbarseparator {
+    padding-inline: var(--panel-padding);
   }
 
-  toolbarseparator {
-    padding-inline: 0;
+  > .panel-subview-body {
+    padding-top: var(--panel-subview-body-padding-block);
+    padding-inline: var(--panel-padding);
   }
 
-  .panel-body {
-    display: flex;
-    padding-block: var(--space-medium);
-  }
-
-  .panel-action-row {
+  > .panel-action-row {
     display: flex;
     justify-content: space-between;
     gap: var(--space-large);
@@ -1898,7 +1887,6 @@ tab-group {
 }
 
 #tab-note-text {
-  width: 100%;
   padding: var(--space-medium);
   resize: none;
   min-height: 3lh;

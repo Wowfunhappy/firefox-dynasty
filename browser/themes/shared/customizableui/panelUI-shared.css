@@ -231,9 +231,11 @@ panelview {
 }
 
 .panel-subview-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
-  flex: 1;
   padding: var(--panel-subview-body-padding);
 
   &:not(:last-child) {
@@ -1800,6 +1802,7 @@ radiogroup:focus-visible > .subviewradio[focused="true"] {
   align-items: center;
   justify-content: center;
   text-align: center;
+  box-sizing: border-box;
   /* Set the header's padding according to menuitems horizontal padding
      to make sure they are even from all sides and aligned according to that padding. */
   padding: var(--arrowpanel-menuitem-margin-inline);
