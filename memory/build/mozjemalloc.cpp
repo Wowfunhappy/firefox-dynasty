@@ -53,51 +53,43 @@
 // Allocation requests are rounded up to the nearest size class, and no record
 // of the original request size is maintained.  Allocations are broken into
 // categories according to size class.  Assuming runtime defaults, the size
-// classes in each category are as follows (for x86, x86_64 and Apple Silicon):
+// classes in each category are as follows.  These are generally true across OSs
+// and architectures because mozjemalloc uses 4KiB pages internally.
 //
-//   |=========================================================|
-//   | Category | Subcategory    |     x86 |  x86_64 | Mac ARM |
-//   |---------------------------+---------+---------+---------|
-//   | Word size                 |  32 bit |  64 bit |  64 bit |
-//   | Page size                 |    4 Kb |    4 Kb |   16 Kb |
-//   |=========================================================|
-//   | Small    | Quantum-spaced |      16 |      16 |      16 |
-//   |          |                |      32 |      32 |      32 |
-//   |          |                |      48 |      48 |      48 |
-//   |          |                |     ... |     ... |     ... |
-//   |          |                |     480 |     480 |     480 |
-//   |          |                |     496 |     496 |     496 |
-//   |          |----------------+---------|---------|---------|
-//   |          | Quantum-wide-  |     512 |     512 |     512 |
-//   |          | spaced         |     768 |     768 |     768 |
-//   |          |                |     ... |     ... |     ... |
-//   |          |                |    3584 |    3584 |    3584 |
-//   |          |                |    3840 |    3840 |    3840 |
-//   |          |----------------+---------|---------|---------|
-//   |          | Sub-page       |       - |       - |    4096 |
-//   |          |                |       - |       - |    8 kB |
-//   |=========================================================|
-//   | Large                     |    4 kB |    4 kB |       - |
-//   |                           |    8 kB |    8 kB |       - |
-//   |                           |   12 kB |   12 kB |       - |
-//   |                           |   16 kB |   16 kB |   16 kB |
-//   |                           |     ... |     ... |       - |
-//   |                           |   32 kB |   32 kB |   32 kB |
-//   |                           |     ... |     ... |     ... |
-//   |                           | 1008 kB | 1008 kB | 1008 kB |
-//   |                           | 1012 kB | 1012 kB |       - |
-//   |                           | 1016 kB | 1016 kB |       - |
-//   |                           | 1020 kB | 1020 kB |       - |
-//   |=========================================================|
-//   | Huge                      |    1 MB |    1 MB |    1 MB |
-//   |                           |    2 MB |    2 MB |    2 MB |
-//   |                           |    3 MB |    3 MB |    3 MB |
-//   |                           |     ... |     ... |     ... |
-//   |=========================================================|
+//   |==========================================|
+//   | Small    | Quantum-spaced |           16 |
+//   |          |                |           32 |
+//   |          |                |           48 |
+//   |          |                |          ... |
+//   |          |                |          480 |
+//   |          |                |          496 |
+//   |          |----------------+--------------|
+//   |          | Quantum-wide-  |          512 |
+//   |          | spaced         |          768 |
+//   |          |                |          ... |
+//   |          |                |         3584 |
+//   |          |                |         3840 |
+//   |==========================================|
+//   | Large                     |         4 kB |
+//   |                           |         8 kB |
+//   |                           |        12 kB |
+//   |                           |        16 kB |
+//   |                           |          ... |
+//   |                           |        32 kB |
+//   |                           |          ... |
+//   |                           |      1008 kB |
+//   |                           |      1012 kB |
+//   |                           |      1016 kB |
+//   |                           |      1020 kB |
+//   |==========================================|
+//   | Huge                      |         1 MB |
+//   |                           |         2 MB |
+//   |                           |         3 MB |
+//   |                           |          ... |
+//   |==========================================|
 //
 // Legend:
 //   n:    Size class exists for this platform.
-//   -:    This size class doesn't exist for this platform.
 //   ...:  Size classes follow a pattern here.
 //
 // A different mechanism is used for each category:
@@ -232,7 +224,6 @@ class SizeClass {
   enum ClassType {
     Quantum,
     QuantumWide,
-    SubPage,
     Large,
   };
 
@@ -248,9 +239,6 @@ class SizeClass {
     } else if (aSize <= kMaxQuantumWideClass) {
       mType = QuantumWide;
       mSize = QUANTUM_WIDE_CEILING(aSize);
-    } else if (aSize <= gMaxSubPageClass) {
-      mType = SubPage;
-      mSize = SUBPAGE_CEILING(aSize);
     } else if (aSize <= gMaxLargeClass) {
       mType = Large;
       mSize = PAGE_CEILING(aSize);
@@ -2767,10 +2755,6 @@ void* arena_t::MallocSmall(size_t aSize, bool aZero) {
       bin = &mBins[kNumQuantumClasses + (aSize / kQuantumWide) -
                    (kMinQuantumWideClass / kQuantumWide)];
       break;
-    case SizeClass::SubPage:
-      bin = &mBins[kNumQuantumClasses + kNumQuantumWideClasses +
-                   (FloorLog2(aSize) - LOG2(kMinSubPageClass))];
-      break;
     default:
       MOZ_MAKE_COMPILER_ASSUME_IS_UNREACHABLE("Unexpected size class type");
   }
@@ -4327,7 +4311,7 @@ inline void MozJemalloc::jemalloc_stats_internal(
   aStats->quantum_max = kMaxQuantumClass;
   aStats->quantum_wide = kQuantumWide;
   aStats->quantum_wide_max = kMaxQuantumWideClass;
-  aStats->subpage_max = gMaxSubPageClass;
+  aStats->unused = kMaxQuantumWideClass;
   aStats->large_max = gMaxLargeClass;
   aStats->chunksize = kChunkSize;
   aStats->page_size = gPageSize;
