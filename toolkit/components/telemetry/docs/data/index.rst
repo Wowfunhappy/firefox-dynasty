@@ -12,7 +12,6 @@ Data documentation
    main-ping
    crash-ping
    backgroundhangmonitor-ping
-   anonymous-ping
    first-shutdown-ping
    *-ping
 

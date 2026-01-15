@@ -20,7 +20,7 @@ Structure:
 .. code-block:: js
 
     {
-      type: <string>, // "main", "activation", "optout", "saved-session", ...
+      type: <string>, // "main", "activation", "optout", ...
       id: <UUID>, // a UUID that identifies this ping
       creationDate: <ISO date>, // the date the ping was generated
       version: <number>, // the version of the ping format, currently 4
