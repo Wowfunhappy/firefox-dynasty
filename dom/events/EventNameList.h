@@ -310,6 +310,8 @@ WINDOW_EVENT(orientationchange, eOrientationChange,
 #endif
 WINDOW_EVENT(pagehide, ePageHide, EventNameType_HTMLBodyOrFramesetOnly,
              eBasicEventClass)
+WINDOW_EVENT(pagereveal, ePageReveal, EventNameType_HTMLBodyOrFramesetOnly,
+             eBasicEventClass)
 WINDOW_EVENT(pageshow, ePageShow, EventNameType_HTMLBodyOrFramesetOnly,
              eBasicEventClass)
 WINDOW_EVENT(popstate, ePopState,
