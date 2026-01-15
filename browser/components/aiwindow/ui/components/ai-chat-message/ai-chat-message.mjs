@@ -24,6 +24,7 @@ export class AIChatMessage extends MozLitElement {
   static properties = {
     role: { type: String }, // "user" | "assistant"
     message: { type: String },
+    searchTokens: { type: Array },
   };
 
   constructor() {
@@ -97,14 +98,9 @@ export class AIChatMessage extends MozLitElement {
 
   getUserMessage() {
     return html`<div class=${"message-" + this.role}>
-        <!-- TODO: Parse user prompt to add any mentions pills -->
-        ${this.message}
-      </div>
-      <!-- TODO: update props based on assistant response -->
-      <ai-chat-search-button
-        query="Ada Lovelace"
-        label="Ada Lovelace"
-      ></ai-chat-search-button>`;
+      <!-- TODO: Parse user prompt to add any mentions pills -->
+      ${this.message}
+    </div> `;
   }
 
   render() {
@@ -118,6 +114,15 @@ export class AIChatMessage extends MozLitElement {
         ${this.role === "user"
           ? this.getUserMessage()
           : this.getAssistantMessage()}
+        ${this.role === "assistant"
+          ? html`${this.searchTokens.map(
+              token =>
+                html`<ai-chat-search-button
+                  .query=${token}
+                  .label=${token}
+                ></ai-chat-search-button>`
+            )}`
+          : null}
       </article>
     `;
   }

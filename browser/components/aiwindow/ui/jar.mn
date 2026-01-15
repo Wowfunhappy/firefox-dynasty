@@ -28,3 +28,4 @@ browser.jar:
   content/browser/aiwindow/components/applied-memories-button.css   (components/ai-chat-content/chat-assistant-footer/applied-memories-button.css)
   content/browser/aiwindow/components/assistant-message-footer.mjs  (components/ai-chat-content/chat-assistant-footer/assistant-message-footer.mjs)
   content/browser/aiwindow/components/assistant-message-footer.css  (components/ai-chat-content/chat-assistant-footer/assistant-message-footer.css)
+  content/browser/aiwindow/modules/TokenStreamParser.mjs    (modules/TokenStreamParser.mjs)
