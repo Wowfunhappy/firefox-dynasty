@@ -877,7 +877,25 @@ void PerfSpewer::saveDebugInfo(const char* filename, uintptr_t base,
 
   // Populate profiler record with source info
   if (maybeProfilerRecord) {
+#ifdef DEBUG
+    uint32_t lastOffset = 0;
+#endif
+    uint32_t lastLine = 0;
+    uint32_t lastColumn = 0;
+
     for (DebugEntry& entry : debugInfo_) {
+      MOZ_ASSERT(entry.offset >= lastOffset,
+                 "debugInfo_ must be sorted by offset");
+#ifdef DEBUG
+      lastOffset = entry.offset;
+#endif
+
+      // Skip consecutive entries with the same line/column to reduce memory
+      // usage and improve binary search performance.
+      if (entry.line == lastLine && entry.column == lastColumn) {
+        continue;
+      }
+
       JS::JitCodeSourceInfo* srcInfo =
           CreateProfilerSourceEntry(maybeProfilerRecord, lock);
       if (!srcInfo) {
@@ -887,6 +905,9 @@ void PerfSpewer::saveDebugInfo(const char* filename, uintptr_t base,
       srcInfo->lineno = entry.line;
       srcInfo->colno = JS::LimitedColumnNumberOneOrigin::fromUnlimited(
           entry.column == 0 ? 1 : entry.column);
+
+      lastLine = entry.line;
+      lastColumn = entry.column;
     }
   }
 }
