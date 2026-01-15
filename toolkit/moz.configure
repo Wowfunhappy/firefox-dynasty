@@ -1254,7 +1254,6 @@ def printing(value):
 
 set_config("NS_PRINTING", printing)
 set_define("NS_PRINTING", printing)
-set_define("NS_PRINT_PREVIEW", printing)
 
 
 # Speech-dispatcher support

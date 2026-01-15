@@ -259,7 +259,7 @@
 #  include "mozIPlacesPendingOperation.h"
 #endif
 
-#if NS_PRINT_PREVIEW
+#ifdef NS_PRINTING
 #  include "nsIDocumentViewerPrint.h"
 #  include "nsIWebBrowserPrint.h"
 #endif
@@ -14293,12 +14293,11 @@ nsresult nsDocShell::CharsetChangeStopDocumentLoad() {
 }
 
 NS_IMETHODIMP nsDocShell::ExitPrintPreview() {
-#if NS_PRINT_PREVIEW
+#ifdef NS_PRINTING
   nsCOMPtr<nsIWebBrowserPrint> viewer = do_QueryInterface(mDocumentViewer);
-  return viewer->ExitPrintPreview();
-#else
-  return NS_OK;
+  MOZ_TRY(viewer->ExitPrintPreview());
 #endif
+  return NS_OK;
 }
 
 /* [infallible] */
