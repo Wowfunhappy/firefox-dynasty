@@ -32,10 +32,18 @@ class ZeroCopyUsageInfo final {
  public:
   NS_INLINE_DECL_THREADSAFE_REFCOUNTING(ZeroCopyUsageInfo)
 
+  enum class DisableReason : uint8_t {
+    Default,
+    UsingTooManyFrames,
+  };
+
   ZeroCopyUsageInfo() = default;
 
   bool SupportsZeroCopyNV12Texture() { return mSupportsZeroCopyNV12Texture; }
-  void DisableZeroCopyNV12Texture() { mSupportsZeroCopyNV12Texture = false; }
+  void DisableZeroCopyNV12Texture(
+      DisableReason aReason = DisableReason::Default);
+
+  int GetRefCount() { return mRefCnt; }
 
  protected:
   ~ZeroCopyUsageInfo() = default;

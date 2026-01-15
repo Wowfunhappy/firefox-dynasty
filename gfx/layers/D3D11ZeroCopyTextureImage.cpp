@@ -20,6 +20,13 @@ namespace layers {
 
 using namespace gfx;
 
+void ZeroCopyUsageInfo::DisableZeroCopyNV12Texture(DisableReason aReason) {
+  mSupportsZeroCopyNV12Texture = false;
+  if (aReason == DisableReason::UsingTooManyFrames) {
+    gfxCriticalNoteOnce << "Disable zero copy by using too many video frames";
+  }
+}
+
 /* static */
 RefPtr<IMFSampleWrapper> IMFSampleWrapper::Create(IMFSample* aVideoSample) {
   RefPtr<IMFSampleWrapper> wrapper = new IMFSampleWrapper(aVideoSample);
