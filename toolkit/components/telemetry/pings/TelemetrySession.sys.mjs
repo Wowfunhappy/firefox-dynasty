@@ -25,9 +25,11 @@ const Utils = TelemetryUtils;
 // When modifying the payload in incompatible ways, please bump this version number
 const PAYLOAD_VERSION = 4;
 const PING_TYPE_MAIN = "main";
+const PING_TYPE_SAVED_SESSION = "saved-session";
 
 const REASON_ABORTED_SESSION = "aborted-session";
 const REASON_DAILY = "daily";
+const REASON_SAVED_SESSION = "saved-session";
 const REASON_GATHER_PAYLOAD = "gather-payload";
 const REASON_TEST_PING = "test-ping";
 const REASON_ENVIRONMENT_CHANGE = "environment-change";
@@ -67,6 +69,22 @@ export var Policy = {
   generateSessionUUID: () => generateUUID(),
   generateSubsessionUUID: () => generateUUID(),
 };
+
+/**
+ * Get the ping type based on the payload.
+ *
+ * @param {object} aPayload The ping payload.
+ * @return {string} A string representing the ping type.
+ */
+function getPingType(aPayload) {
+  // To remain consistent with server-side ping handling, set "saved-session" as the ping
+  // type for "saved-session" payload reasons.
+  if (aPayload.info.reason == REASON_SAVED_SESSION) {
+    return PING_TYPE_SAVED_SESSION;
+  }
+
+  return PING_TYPE_MAIN;
+}
 
 /**
  * Annotate the current session ID with the crash reporter to map potential
@@ -360,6 +378,7 @@ var Impl = {
    * @return simple measurements as a dictionary.
    */
   getSimpleMeasurements: function getSimpleMeasurements(
+    forSavedSession,
     isSubsession,
     clearSubsession
   ) {
@@ -779,6 +798,7 @@ var Impl = {
       }
 
       let measurements = this.getSimpleMeasurements(
+        reason == REASON_SAVED_SESSION,
         isSubsession,
         clearSubsession
       );
@@ -823,7 +843,7 @@ var Impl = {
       addEnvironment: true,
     };
     return lazy.TelemetryController.submitExternalPing(
-      PING_TYPE_MAIN,
+      getPingType(payload),
       payload,
       options
     );
@@ -836,6 +856,9 @@ var Impl = {
   attachEarlyObservers() {
     if (!this._earlyObserversRegistered) {
       this.addObserver("sessionstore-windows-restored");
+      if (AppConstants.platform === "android") {
+        this.addObserver("application-background");
+      }
       this.addObserver("xul-window-visible");
 
       // Attach the active-ticks related observers.
@@ -963,6 +986,7 @@ var Impl = {
 
   /**
    * On Desktop: Save the "shutdown" ping to disk.
+   * On Android: Save the "saved-session" ping to disk.
    * This needs to be called after TelemetrySend shuts down otherwise pings
    * would be sent instead of getting persisted to disk.
    */
@@ -996,7 +1020,7 @@ var Impl = {
       };
       p.push(
         lazy.TelemetryController.submitExternalPing(
-          PING_TYPE_MAIN,
+          getPingType(shutdownPayload),
           shutdownPayload,
           options
         ).catch(e =>
@@ -1041,20 +1065,43 @@ var Impl = {
       }
     }
 
+    if (
+      AppConstants.platform == "android" &&
+      Services.telemetry.canRecordExtended
+    ) {
+      let payload = this.getSessionPayload(REASON_SAVED_SESSION, false);
+
+      let options = {
+        addClientId: true,
+        addEnvironment: true,
+      };
+      p.push(
+        lazy.TelemetryController.submitExternalPing(
+          getPingType(payload),
+          payload,
+          options
+        ).catch(e =>
+          this._log.error(
+            "saveShutdownPings - failed to submit saved-session ping",
+            e
+          )
+        )
+      );
+    }
+
     // Wait on pings to be saved.
     return Promise.all(p);
   },
 
   testSavePendingPing() {
-    let payload = this.getSessionPayload(REASON_ABORTED_SESSION, false);
+    let payload = this.getSessionPayload(REASON_SAVED_SESSION, false);
     let options = {
       addClientId: true,
       addEnvironment: true,
       overwrite: true,
     };
-
     return lazy.TelemetryController.addPendingPing(
-      PING_TYPE_MAIN,
+      getPingType(payload),
       payload,
       options
     );
@@ -1166,6 +1213,38 @@ var Impl = {
         });
         break;
 
+      case "application-background": {
+        if (AppConstants.platform !== "android") {
+          break;
+        }
+        // On Android, we can get killed without warning once we are in the background,
+        // but we may also submit data and/or come back into the foreground without getting
+        // killed. To deal with this, we save the current session data to file when we are
+        // put into the background. This handles the following post-backgrounding scenarios:
+        // 1) We are killed immediately. In this case the current session data (which we
+        //    save to a file) will be loaded and submitted on a future run.
+        // 2) We submit the data while in the background, and then are killed. In this case
+        //    the file that we saved will be deleted by the usual process in
+        //    finishPingRequest after it is submitted.
+        // 3) We submit the data, and then come back into the foreground. Same as case (2).
+        // 4) We do not submit the data, but come back into the foreground. In this case
+        //    we have the option of either deleting the file that we saved (since we will either
+        //    send the live data while in the foreground, or create the file again on the next
+        //    backgrounding), or not (in which case we will delete it on submit, or overwrite
+        //    it on the next backgrounding). Not deleting it is faster, so that's what we do.
+        let payload = this.getSessionPayload(REASON_SAVED_SESSION, false);
+        let options = {
+          addClientId: true,
+          addEnvironment: true,
+          overwrite: true,
+        };
+        lazy.TelemetryController.addPendingPing(
+          getPingType(payload),
+          payload,
+          options
+        );
+        break;
+      }
       case "user-interaction-active":
         this._onActiveTick(true);
         break;
@@ -1243,7 +1322,7 @@ var Impl = {
     };
 
     let promise = lazy.TelemetryController.submitExternalPing(
-      PING_TYPE_MAIN,
+      getPingType(payload),
       payload,
       options
     );
@@ -1335,14 +1414,18 @@ var Impl = {
       overrideEnvironment: oldEnvironment,
     };
     lazy.TelemetryController.submitExternalPing(
-      PING_TYPE_MAIN,
+      getPingType(payload),
       payload,
       options
     );
   },
 
   _isClassicReason(reason) {
-    const classicReasons = [REASON_GATHER_PAYLOAD, REASON_TEST_PING];
+    const classicReasons = [
+      REASON_SAVED_SESSION,
+      REASON_GATHER_PAYLOAD,
+      REASON_TEST_PING,
+    ];
     return classicReasons.includes(reason);
   },
 

@@ -23,7 +23,10 @@ const { TelemetryReportingPolicy } = ChromeUtils.importESModule(
 
 const PING_FORMAT_VERSION = 4;
 const PING_TYPE_MAIN = "main";
+const PING_TYPE_SAVED_SESSION = "saved-session";
+
 const REASON_ABORTED_SESSION = "aborted-session";
+const REASON_SAVED_SESSION = "saved-session";
 const REASON_SHUTDOWN = "shutdown";
 const REASON_TEST_PING = "test-ping";
 const REASON_DAILY = "daily";
@@ -146,6 +149,7 @@ function checkPayloadInfo(data, reason) {
     "environment-change",
     "shutdown",
     "daily",
+    "saved-session",
     "test-ping",
   ];
   let numberCheck = arg => {
@@ -695,6 +699,8 @@ add_task(async function test_saveLoadPing() {
 
   checkPingFormat(pings[0], PING_TYPE_MAIN, true, true);
   checkPayload(pings[0].payload, REASON_TEST_PING, 0);
+  checkPingFormat(pings[1], PING_TYPE_SAVED_SESSION, true, true);
+  checkPayload(pings[1].payload, REASON_SAVED_SESSION, 0);
 
   await TelemetryController.testShutdown();
 });
@@ -1238,8 +1244,8 @@ add_task(async function test_savedPingsOnShutdown() {
 
   const ping = await PingServer.promiseNextPing();
 
-  let expectedType = PING_TYPE_MAIN;
-  let expectedReason = REASON_SHUTDOWN;
+  let expectedType = gIsAndroid ? PING_TYPE_SAVED_SESSION : PING_TYPE_MAIN;
+  let expectedReason = gIsAndroid ? REASON_SAVED_SESSION : REASON_SHUTDOWN;
 
   checkPingFormat(ping, expectedType, true, true);
   Assert.equal(ping.payload.info.reason, expectedReason);
