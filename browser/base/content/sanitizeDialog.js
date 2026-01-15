@@ -151,6 +151,8 @@ var gSanitizePromptDialog = {
     this._cookiesAndSiteDataCheckbox =
       document.getElementById("cookiesAndStorage");
     this._cacheCheckbox = document.getElementById("cache");
+    this._cookiesLoading = document.getElementById("cookiesAndStorage-loading");
+    this._cacheLoading = document.getElementById("cache-loading");
 
     let midnightTime = Intl.DateTimeFormat(navigator.language, {
       hour: "numeric",
@@ -161,6 +163,9 @@ var gSanitizePromptDialog = {
       "clear-time-duration-value-since-midnight",
       { midnightTime }
     );
+
+    // Show loading spinners while data sizes are being fetched
+    this.showLoadingSpinners();
 
     document
       .getElementById("sanitizeDurationChoice")
@@ -335,6 +340,30 @@ var gSanitizePromptDialog = {
   },
 
   /**
+   * Show loading indicators (spinner + text) next to cookies and cache checkboxes
+   */
+  showLoadingSpinners() {
+    if (this._cookiesLoading) {
+      this._cookiesLoading.hidden = false;
+    }
+    if (this._cacheLoading) {
+      this._cacheLoading.hidden = false;
+    }
+  },
+
+  /**
+   * Hide loading indicators after data sizes are calculated
+   */
+  hideLoadingSpinners() {
+    if (this._cookiesLoading) {
+      this._cookiesLoading.hidden = true;
+    }
+    if (this._cacheLoading) {
+      this._cacheLoading.hidden = true;
+    }
+  },
+
+  /**
    * Gets the latest usage data and then updates the UI
    *
    * @returns {Promise} resolves when updating the UI is complete
@@ -370,6 +399,9 @@ var gSanitizePromptDialog = {
 
     this._dataSizesUpdated = true;
     await this.updateDataSizesInUI();
+
+    // Hide loading spinners after data is loaded
+    this.hideLoadingSpinners();
   },
 
   /**
