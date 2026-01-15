@@ -5931,7 +5931,10 @@ class CopyCutController {
  */
 class AddSearchEngineHelper {
   /**
-   * @type {UrlbarSearchOneOffs}
+   * The one-off search buttons in the urlbar.
+   * This will be null for the search bar.
+   *
+   * @type {?UrlbarSearchOneOffs}
    */
   shortcutButtons;
 
@@ -5950,7 +5953,7 @@ class AddSearchEngineHelper {
    * @returns {number}
    */
   get maxInlineEngines() {
-    return this.shortcutButtons._maxInlineAddEngines;
+    return lazy.SearchModeSwitcher.MAX_OPENSEARCH_ENGINES;
   }
 
   /**
