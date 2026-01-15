@@ -820,6 +820,19 @@ c-includes:
             - 'tools/lint/includes/**'
             - 'mfbt/api.yml'
 
+header-guards:
+    description: Checks include header guards
+    treeherder:
+        symbol: cpp(guards)
+    run:
+        mach: lint -l header-guards -f treeherder -f json:/builds/worker/mozlint.json .
+    when:
+        files-changed:
+            - '**/*.h'
+            - '**/*.hpp'
+            - 'tools/lint/header-guards.yml'
+            - 'tools/lint/header_guards/**'
+
 gecko-trace:
     description: Check that all `gecko-trace.yaml` files are correct
     treeherder:
