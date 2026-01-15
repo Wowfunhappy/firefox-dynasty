@@ -1329,7 +1329,7 @@ delta = "0.3.27 -> 0.3.31"
 who = "Pat Hickey <pat@moreproductive.org>"
 criteria = "safe-to-deploy"
 delta = "0.3.27 -> 0.3.31"
-notes = "New waker_ref module contains \"FIXME: panics on Arc::clone / refcount changes could wreak havoc...\" comment, but this corner case feels low risk."
+notes = 'New waker_ref module contains "FIXME: panics on Arc::clone / refcount changes could wreak havoc..." comment, but this corner case feels low risk.'
 
 [[audits.bytecode-alliance.audits.gimli]]
 who = "Alex Crichton <alex@alexcrichton.com>"
@@ -1896,7 +1896,7 @@ who = "Lukasz Anforowicz <lukasza@chromium.org>"
 criteria = "safe-to-deploy"
 version = "1.6.0"
 notes = """
-Grepped for \"unsafe\", \"crypt\", \"cipher\", \"fs\", \"net\" - there were no
+Grepped for "unsafe", "crypt", "cipher", "fs", "net" - there were no
 hits except for 8 occurrences of `unsafe`.  Additional `unsafe` review comments
 can be found in https://crrev.com/c/5445719.
 """
@@ -2613,7 +2613,7 @@ and there were no hits except for:
 * Using `unsafe` in a string:
 
     ```
-    src/constfn.rs:            \"unsafe\" => Qualifiers::Unsafe,
+    src/constfn.rs:            "unsafe" => Qualifiers::Unsafe,
     ```
 
 * Using `std::fs` in `build/build.rs` to write `${OUT_DIR}/version.expr`
