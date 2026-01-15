@@ -703,7 +703,7 @@ class MOZ_STACK_CLASS OpIter : private Policy {
   [[nodiscard]] bool readF64Const(double* f64);
   [[nodiscard]] bool readRefFunc(uint32_t* funcIndex);
   [[nodiscard]] bool readRefNull(RefType* type);
-  [[nodiscard]] bool readRefIsNull(Value* input);
+  [[nodiscard]] bool readRefIsNull(Value* input, RefType* sourceType);
   [[nodiscard]] bool readRefAsNonNull(Value* input);
   [[nodiscard]] bool readBrOnNull(uint32_t* relativeDepth, ResultType* type,
                                   ValueVector* values, Value* condition);
@@ -2394,13 +2394,15 @@ inline bool OpIter<Policy>::readRefNull(RefType* type) {
 }
 
 template <typename Policy>
-inline bool OpIter<Policy>::readRefIsNull(Value* input) {
+inline bool OpIter<Policy>::readRefIsNull(Value* input, RefType* sourceType) {
   MOZ_ASSERT(Classify(op_) == OpKind::RefIsNull);
 
-  StackType type;
-  if (!popWithRefType(input, &type)) {
+  StackType inputType;
+  if (!popWithRefType(input, &inputType)) {
     return false;
   }
+  *sourceType = inputType.valTypeOr(RefType::any()).refType();
+
   return push(ValType::I32);
 }
 

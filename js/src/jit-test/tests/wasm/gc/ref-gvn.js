@@ -1192,4 +1192,52 @@ if (getBuildConfiguration("jitspew")) {
     const { test, make } = wasmEvalBinary(code).exports;
     assertEq(test(make()), 123);
   }
+  {
+    // ref.is_null is emitted as `ref.test nullref`, so it should participate in
+    // the same kinds of optimizations.
+    const code = wasmTextToBinary(`(module
+      (type $s (struct (field i32)))
+      (func (export "test") (param anyref) (result i32)
+        local.get 0
+        ref.is_null
+        if
+          local.get 0
+          ref.cast nullref ;; trivial, will disappear
+          struct.get $s 0
+          return
+        else
+          local.get 0
+          ref.is_null ;; known to fail
+          if
+            unreachable
+          end
+        end
+        i32.const -1
+      )
+      (func (export "make") (result anyref)
+        (struct.new $s (i32.const 123))
+      )
+    )`);
+    const ionJSON = wasmGetIon(code, 0);
+    const unoptimized = wasmIonGetFirstMIRPass(ionJSON);
+    const optimized = wasmIonGetLastMIRPass(ionJSON);
+
+    assertOpcodesInOrder(unoptimized, [
+      "WasmRefTestAbstract",
+      "WasmRefCastAbstract",
+      "WasmRefTestAbstract",
+      "WasmTrap",
+      "WasmReturn",
+    ]);
+    assertOpcodesInOrder(optimized, [
+      "WasmRefTestAbstract",
+      "!WasmRefCastAbstract",
+      "!WasmRefTestAbstract",
+      "!WasmTrap",
+      "WasmReturn",
+    ]);
+
+    const { test, make } = wasmEvalBinary(code).exports;
+    assertEq(test(make()), -1);
+  }
 }
