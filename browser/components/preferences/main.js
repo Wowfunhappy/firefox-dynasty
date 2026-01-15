@@ -2137,6 +2137,8 @@ SettingGroupManager.registerGroups({
   },
   defaultBrowser: createDefaultBrowserConfig(),
   startup: {
+    l10nId: "startup-group",
+    headingLevel: 2,
     items: [
       {
         id: "browserRestoreSession",
@@ -2498,7 +2500,8 @@ SettingGroupManager.registerGroups({
     ],
   },
   appearance: {
-    l10nId: "web-appearance-group",
+    l10nId: "appearance-group",
+    headingLevel: 2,
     items: [
       {
         id: "web-appearance-override-warning",
@@ -2574,6 +2577,8 @@ SettingGroupManager.registerGroups({
     ],
   },
   drm: {
+    l10nId: "drm-group",
+    headingLevel: 2,
     subcategory: "drm",
     items: [
       {
@@ -2623,7 +2628,8 @@ SettingGroupManager.registerGroups({
     ],
   },
   browsing: {
-    l10nId: "browsing-group-label",
+    l10nId: "browsing-group",
+    headingLevel: 1,
     items: [
       {
         id: "useAutoScroll",
@@ -2703,12 +2709,14 @@ SettingGroupManager.registerGroups({
     ],
   },
   httpsOnly: {
+    l10nId: "httpsonly-group",
+    supportPage: "https-only-prefs",
+    headingLevel: 2,
     items: [
       {
         id: "httpsOnlyRadioGroup",
         control: "moz-radio-group",
-        l10nId: "httpsonly-label",
-        supportPage: "https-only-prefs",
+        l10nId: "httpsonly-label2",
         options: [
           {
             id: "httpsOnlyRadioEnabled",
@@ -2776,6 +2784,8 @@ SettingGroupManager.registerGroups({
     ],
   },
   browsingProtection: {
+    l10nId: "browsing-protection-group",
+    headingLevel: 2,
     items: [
       {
         id: "enableSafeBrowsing",
@@ -2796,7 +2806,8 @@ SettingGroupManager.registerGroups({
     ],
   },
   nonTechnicalPrivacy: {
-    l10nId: "non-technical-privacy-label",
+    l10nId: "non-technical-privacy-group",
+    headingLevel: 2,
     items: [
       {
         id: "gpcEnabled",
@@ -2902,6 +2913,8 @@ SettingGroupManager.registerGroups({
     ],
   },
   performance: {
+    l10nId: "performance-group",
+    headingLevel: 1,
     items: [
       {
         id: "useRecommendedPerformanceSettings",
@@ -2976,7 +2989,8 @@ SettingGroupManager.registerGroups({
     ],
   },
   cookiesAndSiteData: {
-    l10nId: "sitedata-label",
+    l10nId: "cookies-site-data-group",
+    headingLevel: 2,
     items: [
       {
         id: "clearSiteDataButton",
@@ -3115,6 +3129,10 @@ SettingGroupManager.registerGroups({
     ],
   },
   networkProxy: {
+    l10nId: "network-proxy-group",
+    headingLevel: 1,
+    supportPage: "prefs-connection-settings",
+    subcategory: "netsettings",
     items: [
       {
         id: "connectionSettings",
@@ -3236,6 +3254,8 @@ SettingGroupManager.registerGroups({
     ],
   },
   history: {
+    l10nId: "history-group",
+    headingLevel: 2,
     items: [
       {
         id: "historyMode",
@@ -3250,8 +3270,9 @@ SettingGroupManager.registerGroups({
         ],
         controlAttrs: {
           "search-l10n-ids": `
-            history-remember-description3,
-            history-dontremember-description3,
+            history-remember-description4,
+            history-dontremember-description4,
+            history-custom-description4,
             history-private-browsing-permanent.label,
             history-remember-browser-option.label,
             history-remember-search-option.label,
@@ -3536,6 +3557,8 @@ SettingGroupManager.registerGroups({
     ],
   },
   dnsOverHttps: {
+    l10nId: "dns-over-https-group",
+    headingLevel: 1,
     inProgress: true,
     items: [
       {
@@ -4586,6 +4609,7 @@ function initSettingGroup(id) {
     }
     group.config = config;
     group.getSetting = Preferences.getSetting.bind(Preferences);
+    group.srdEnabled = srdSectionPrefs.all;
   }
 }
 
