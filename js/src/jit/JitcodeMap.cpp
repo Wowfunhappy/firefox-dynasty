@@ -690,7 +690,8 @@ bool JitcodeRegionEntry::WriteRun(CompactBufferWriter& writer,
       // NB: scriptList is guaranteed to contain curTree->script()
       uint32_t scriptIdx = 0;
       for (; scriptIdx < scriptList.length(); scriptIdx++) {
-        if (scriptList[scriptIdx].sourceAndExtent.matches(curTree->script())) {
+        if (scriptList[scriptIdx].scriptData.sourceAndExtent.matches(
+                curTree->script())) {
           break;
         }
       }
@@ -870,18 +871,18 @@ bool JitcodeIonTable::WriteIonTable(CompactBufferWriter& writer,
 
   JitSpew(JitSpew_Profiling,
           "Writing native to bytecode map for %s (offset %u-%u) (%zu entries)",
-          scriptList[0].sourceAndExtent.scriptSource->filename(),
-          scriptList[0].sourceAndExtent.toStringStart,
-          scriptList[0].sourceAndExtent.toStringEnd,
+          scriptList[0].scriptData.sourceAndExtent.scriptSource->filename(),
+          scriptList[0].scriptData.sourceAndExtent.toStringStart,
+          scriptList[0].scriptData.sourceAndExtent.toStringEnd,
           mozilla::PointerRangeSize(start, end));
 
   JitSpew(JitSpew_Profiling, "  ScriptList of size %u",
           unsigned(scriptList.length()));
   for (uint32_t i = 0; i < scriptList.length(); i++) {
     JitSpew(JitSpew_Profiling, "  Script %u - %s (offset %u-%u)", i,
-            scriptList[i].sourceAndExtent.scriptSource->filename(),
-            scriptList[i].sourceAndExtent.toStringStart,
-            scriptList[i].sourceAndExtent.toStringEnd);
+            scriptList[i].scriptData.sourceAndExtent.scriptSource->filename(),
+            scriptList[i].scriptData.sourceAndExtent.toStringStart,
+            scriptList[i].scriptData.sourceAndExtent.toStringEnd);
   }
 
   // Write out runs first.  Keep a vector tracking the positive offsets from
