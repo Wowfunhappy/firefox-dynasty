@@ -461,6 +461,7 @@ class RefType {
   RefType bottomType() const;
 
   static RefType leastUpperBound(RefType a, RefType b);
+  static RefType greatestLowerBound(RefType a, RefType b);
 
   // Gets the TypeDefKind associated with this RefType, e.g. TypeDefKind::Struct
   // for RefType::Struct.
@@ -1015,6 +1016,13 @@ class MaybeRefType {
   static MaybeRefType leastUpperBound(MaybeRefType a, MaybeRefType b) {
     if (a.isSome() && b.isSome()) {
       return MaybeRefType(RefType::leastUpperBound(a.value(), b.value()));
+    }
+    return MaybeRefType();
+  }
+
+  static MaybeRefType greatestLowerBound(MaybeRefType a, MaybeRefType b) {
+    if (a.isSome() && b.isSome()) {
+      return MaybeRefType(RefType::greatestLowerBound(a.value(), b.value()));
     }
     return MaybeRefType();
   }

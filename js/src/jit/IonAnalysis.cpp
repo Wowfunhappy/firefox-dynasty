@@ -4314,20 +4314,10 @@ bool jit::MarkLoadsUsedAsPropertyKeys(MIRGraph& graph) {
   return true;
 }
 
-// Updates the wasm ref type of a node and verifies that in this pass we only
-// narrow types, and never widen.
+// Updates the wasm ref type of a node.
 static bool UpdateWasmRefType(MDefinition* def) {
   wasm::MaybeRefType newRefType = def->computeWasmRefType();
   bool changed = newRefType != def->wasmRefType();
-
-  // Ensure that we do not regress from Some to Nothing.
-  MOZ_ASSERT(!(def->wasmRefType().isSome() && newRefType.isNothing()));
-  // Ensure that the new ref type is a subtype of the previous one (i.e. we
-  // only narrow ref types).
-  MOZ_ASSERT_IF(def->wasmRefType().isSome(),
-                wasm::RefType::isSubTypeOf(newRefType.value(),
-                                           def->wasmRefType().value()));
-
   def->setWasmRefType(newRefType);
   return changed;
 }

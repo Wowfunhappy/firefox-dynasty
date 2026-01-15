@@ -836,3 +836,212 @@
   assertEq(numAnyref, 1100);
   assertEq(numExternref, 1100);
 }
+
+// Test uses of ref.null, which always produces nodes of type (ref null none)
+{
+  new WebAssembly.Module(wasmTextToBinary(`(module
+    (type $s1 (struct (field anyref)))
+    (type $s2 (struct (field i31ref)))
+    (type $s3 (struct (field structref)))
+    (func
+      ref.null $s1
+      struct.get $s1 0
+      drop
+
+      ref.null $s2
+      struct.get $s2 0
+      drop
+    )
+    (func
+      ref.null $s2
+      struct.get $s2 0
+      drop
+
+      ref.null $s3
+      struct.get $s3 0
+      drop
+    )
+    (func
+      ref.null $s1
+      struct.get $s1 0
+      drop
+
+      ref.null $s2
+      struct.get $s2 0
+      drop
+
+      ref.null $s3
+      struct.get $s3 0
+      drop
+    )
+  )`));
+}
+{
+  const { test0, test1 } = wasmEvalText(`(module
+    (type $s (struct (field i32)))
+    (func (export "test0") (param i32) (result anyref anyref)
+      local.get 0
+      if (result anyref anyref)
+        ref.null any
+        (select (result anyref) (struct.new $s (i32.const 1337)) (ref.null any) (i32.const 0))
+      else
+        ref.null any
+        ref.null any
+      end
+    )
+    (func (export "test1") (param i32) (result anyref anyref)
+      local.get 0
+      if (result anyref anyref)
+        ref.null any
+        (select (result anyref) (struct.new $s (i32.const 1337)) (ref.null any) (i32.const 1))
+      else
+        ref.null any
+        ref.null any
+      end
+    )
+  )`).exports;
+  const [a00, b00] = test0(0);
+  assertEq(a00, null);
+  assertEq(b00, null);
+  const [a01, b01] = test0(1);
+  assertEq(a01, null);
+  assertEq(b01, null);
+  const [a10, b10] = test1(0);
+  assertEq(a10, null);
+  assertEq(b10, null);
+  const [a11, b11] = test1(1);
+  assertEq(a11, null);
+  assertEq(wasmGcReadField(b11, 0), 1337);
+}
+{
+  wasmEvalText(`(module
+    (func
+      ref.null any
+      ref.as_non_null
+      drop
+
+      ref.null eq
+      ref.as_non_null
+      drop
+    )
+  )`);
+}
+
+if (getBuildConfiguration("jitspew")) {
+  // Test type calculations from phis (uses LUB to compute common type for all values)
+  {
+    const code = wasmTextToBinary(`(module
+      (type $s1 (struct (field i32)))
+      (type $s2 (struct (field i64)))
+      (func (param i32) (result structref)
+        (local $v anyref)
+
+        local.get 0
+        if
+          (struct.new $s1 (i32.const 1))
+          local.set $v
+        else
+          (struct.new $s2 (i64.const 1))
+          local.set $v
+        end
+
+        ;; Because two different values are pulled together into one phi, the LUB
+        ;; will be used to compute a value for the phi, which should be
+        ;; (ref struct).
+
+        ;; This test will fold to a constant 0 and the branch will be eliminated.
+        local.get $v
+        ref.test arrayref
+        if
+          unreachable
+        end
+
+        ;; This cast is trivial and will be eliminated.
+        local.get $v
+        ref.cast (ref struct)
+
+        ;; However, this cast is not trivial and must be preserved.
+        ref.cast (ref $s1)
+      )
+    )`);
+    const ionJSON = wasmGetIon(code, 0);
+    const unoptimized = wasmIonGetFirstMIRPass(ionJSON);
+    const optimized = wasmIonGetLastMIRPass(ionJSON);
+
+    assertOpcodesInOrder(unoptimized, [
+      "WasmNewStructObject", "WasmNewStructObject",
+      "Phi",
+      "WasmRefTestAbstract",
+      "WasmTrap",
+      "WasmRefCastAbstract",
+      "WasmRefCastConcrete",
+    ]);
+    assertOpcodesInOrder(optimized, [
+      "WasmNewStructObject", "WasmNewStructObject",
+      "Phi",
+      "!WasmRefTestAbstract",
+      "!WasmTrap",
+      "!WasmRefCastAbstract",
+      "WasmRefCastConcrete",
+    ]);
+  }
+
+  // Test type calculations from GVN (uses GLB to compute type for all congruent values)
+  {
+    const code = wasmTextToBinary(`(module
+      (type $s1 (struct (field i31ref)))
+      (type $s2 (struct (field structref)))
+      (func (result anyref)
+        (local anyref)
+
+        ;; The nulls below are in the same hierarchy and will be commoned up. As
+        ;; a result, the struct.gets will also be commoned up because they have
+        ;; the same operand and offset etc. However, they each have different
+        ;; types before being commoned up because the type is taken from the
+        ;; struct field. Therefore the type after commoning them up should be the
+        ;; GLB of i31ref and structref, which is nullref (ref null none). (If we
+        ;; instead took the LUB, as we used to, the type would end up as eqref.)
+        ;;
+        ;; Note that this is all quite contrived since the very first struct.get
+        ;; is guaranteed to trap anyway. Oh well!
+
+        ref.null $s1
+        struct.get $s1 0
+        local.set 0
+
+        ref.null $s2
+        struct.get $s2 0
+        local.set 0
+
+        ;; This test is guaranteed to succeed, which we know from the GLB but not
+        ;; the LUB.
+        local.get 0
+        ref.test nullref
+        if
+        else
+          unreachable
+        end
+
+        local.get 0
+      )
+    )`);
+    const ionJSON = wasmGetIon(code, 0);
+    const unoptimized = wasmIonGetFirstMIRPass(ionJSON);
+    const optimized = wasmIonGetLastMIRPass(ionJSON);
+
+    assertOpcodesInOrder(unoptimized, [
+      "WasmNullConstant", "WasmLoadField",
+      "WasmNullConstant", "WasmLoadField",
+      "WasmRefTestAbstract",
+      "WasmTrap",
+      "WasmReturn",
+    ]);
+    assertOpcodesInOrder(optimized, [
+      "WasmNullConstant", "WasmLoadField",
+      "!WasmNullConstant", "!WasmLoadField",
+      "!WasmRefTestAbstract",
+      "!WasmTrap",
+      "WasmReturn",
+    ]);
+  }
+}
