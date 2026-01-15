@@ -291,8 +291,6 @@ class IonEntry : public JitcodeGlobalEntry {
                            uint32_t maxResults) const;
 
   uint64_t realmID() const { return realmId_; }
-
-  bool trace(JSTracer* trc);
 };
 
 class IonICEntry : public JitcodeGlobalEntry {
@@ -317,8 +315,6 @@ class IonICEntry : public JitcodeGlobalEntry {
                            uint32_t maxResults) const;
 
   uint64_t realmID(JSRuntime* rt) const;
-
-  bool trace(JSTracer* trc);
 };
 
 class BaselineEntry : public JitcodeGlobalEntry {
@@ -347,8 +343,6 @@ class BaselineEntry : public JitcodeGlobalEntry {
                            uint32_t maxResults) const;
 
   uint64_t realmID() const { return realmId_; }
-
-  bool trace(JSTracer* trc);
 };
 
 class RealmIndependentSharedEntry : public JitcodeGlobalEntry {
