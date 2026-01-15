@@ -292,8 +292,6 @@ export class FormAutofillHandler {
    *
    * @param {formLike} formLike
    *        The form that we collect information from.
-   * @param {boolean} includeIframe
-   *        True to add <iframe> to the returned FieldDetails array.
    * @param {boolean} ignoreInvisibleInput
    *        True to NOT run heuristics on invisible <input> fields.
    *
@@ -301,22 +299,13 @@ export class FormAutofillHandler {
    *        An array containing eligible fields for autofill, also
    *        including iframe.
    */
-  static collectFormFieldDetails(
-    formLike,
-    includeIframe,
-    ignoreInvisibleInput = true
-  ) {
+  static collectFormFieldDetails(formLike, ignoreInvisibleInput = true) {
     const fieldDetails =
       lazy.FormAutofillHeuristics.getFormInfo(formLike, ignoreInvisibleInput) ??
       [];
 
     // 'FormLike' only contains <input> & <select>, so in order to include <iframe>
     // in the list of 'FieldDetails', we need to search for <iframe> in the form.
-    if (!includeIframe) {
-      return fieldDetails;
-    }
-
-    // Insert <iframe> elements into the fieldDetails array, maintaining the element order.
     const elements = formLike.rootElement.querySelectorAll("iframe");
 
     let startIndex = 0;
@@ -326,6 +315,7 @@ export class FormAutofillHandler {
       if (FormAutofillUtils.isFieldVisible(element)) {
         const iframeFd = lazy.FieldDetail.create(element, formLike, "iframe");
 
+        // Insert <iframe> elements into the fieldDetails array, maintaining the element order.
         for (let index = startIndex; index < fieldDetails.length; index++) {
           let position = element.compareDocumentPosition(
             fieldDetails[index]?.element

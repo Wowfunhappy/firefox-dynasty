@@ -196,6 +196,11 @@ const CROSS_ORIGIN_2_CC_EXP =
 const CROSS_ORIGIN_2_CC_TYPE =
   CROSS_ORIGIN_2_URL + "../fixtures/autocomplete_cc_type_embeded.html";
 
+const SAME_ORIGIN_NESTED_IFRAME =
+  TOP_LEVEL_URL + "../fixtures/nested_iframe.html";
+const CROSS_ORIGIN_NESTED_IFRAME =
+  CROSS_ORIGIN_URL + "../fixtures/nested_iframe.html";
+
 // Test profiles
 const TEST_ADDRESS_1 = {
   "given-name": "John",
