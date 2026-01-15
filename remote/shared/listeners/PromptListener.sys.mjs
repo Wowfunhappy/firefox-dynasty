@@ -156,15 +156,14 @@ export class PromptListener {
           curBrowser = { contentBrowser: browsingContext.embedderElement };
         }
 
-        const prompt = new lazy.modal.Dialog(subject);
-        this.emit("opened", {
-          browsingContext,
-          contentBrowser: curBrowser.contentBrowser,
-          prompt,
-          // Resolve prompt details here to avoid sending an open event
-          // with the data that is resolved after a prompt is handled.
-          promptDetails: await this.#getPromptDetails(prompt),
-        });
+        this.emit(
+          "opened",
+          await this.#getOpenedEventDetail(
+            browsingContext,
+            curBrowser.contentBrowser,
+            subject
+          )
+        );
 
         break;
       }
@@ -193,14 +192,14 @@ export class PromptListener {
               continue;
             }
 
-            const dialog = new lazy.modal.Dialog(prompt);
-            this.emit("opened", {
-              contentBrowser,
-              prompt: dialog,
-              // Resolve prompt details here to avoid sending an open event
-              // with the data that is resolved after a prompt is handled.
-              promptDetails: await this.#getPromptDetails(dialog),
-            });
+            this.emit(
+              "opened",
+              await this.#getOpenedEventDetail(
+                subjectObject.owningBrowsingContext,
+                contentBrowser,
+                prompt
+              )
+            );
             return;
           }
         }
@@ -227,11 +226,20 @@ export class PromptListener {
     this.#listening = false;
   }
 
-  async #getPromptDetails(prompt) {
+  async #getOpenedEventDetail(browsingContext, contentBrowser, dialog) {
+    const prompt = new lazy.modal.Dialog(dialog);
+
     return {
-      defaultValue:
-        prompt.promptType === "prompt" ? await prompt.getInputText() : null,
-      message: await prompt.getText(),
+      browsingContext,
+      contentBrowser,
+      prompt,
+      // Resolve prompt details here to avoid sending an open event
+      // with the data that is resolved after a prompt is handled.
+      promptDetails: {
+        defaultValue:
+          prompt.promptType === "prompt" ? await prompt.getInputText() : null,
+        message: await prompt.getText(),
+      },
     };
   }
 
