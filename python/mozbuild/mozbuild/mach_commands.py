@@ -2855,12 +2855,7 @@ def repackage_rpm(
     )
 
 
-@SubCommand(
-    "repackage",
-    "dmg",
-    description="Repackage a tar file into a .dmg for OSX",
-    virtualenv_name="repackage",
-)
+@SubCommand("repackage", "dmg", description="Repackage a tar file into a .dmg for OSX")
 @CommandArgument("--input", "-i", type=str, required=True, help="Input filename")
 @CommandArgument("--output", "-o", type=str, required=True, help="Output filename")
 @CommandArgument(
@@ -2882,12 +2877,7 @@ def repackage_dmg(command_context, input, output, attribution_sentinel, compress
     repackage_dmg(input, output, attribution_sentinel, compression)
 
 
-@SubCommand(
-    "repackage",
-    "pkg",
-    description="Repackage a tar file into a .pkg for OSX",
-    virtualenv_name="repackage",
-)
+@SubCommand("repackage", "pkg", description="Repackage a tar file into a .pkg for OSX")
 @CommandArgument("--input", "-i", type=str, required=True, help="Input filename")
 @CommandArgument("--output", "-o", type=str, required=True, help="Output filename")
 def repackage_pkg(command_context, input, output):
