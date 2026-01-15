@@ -73,7 +73,7 @@ static const size_t gRealPageSize = 16_KiB;
 #  else
 static const size_t gRealPageSize = 4_KiB;
 #  endif
-static const size_t gPageSize = gRealPageSize;
+static const size_t gPageSize = 4_KiB;
 #else
 // When MALLOC_OPTIONS contains one or several `P`s, gPageSize will be
 // doubled for each `P`.  Likewise each 'p' will halve gPageSize.

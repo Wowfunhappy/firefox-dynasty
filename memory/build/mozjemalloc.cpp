@@ -3974,8 +3974,8 @@ static bool malloc_init_hard() {
     MOZ_CRASH();
   }
 #else
-  gPageSize = page_size;
   gRealPageSize = page_size;
+  gPageSize = std::min(4_KiB, page_size);
 #endif
 
   // Get runtime configuration.
