@@ -89,7 +89,7 @@ set_config("MOZ_INCLUDE_SOURCE_INFO", True, when="MOZ_INCLUDE_SOURCE_INFO")
 option(
     "--with-distribution-id",
     nargs=1,
-    default="",
+    default="org.mozilla",
     help="Set distribution-specific id",
 )
 set_config("MOZ_DISTRIBUTION_ID", depends("--with-distribution-id")(lambda v: v[0]))
