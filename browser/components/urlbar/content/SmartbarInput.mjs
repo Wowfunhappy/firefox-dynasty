@@ -1660,10 +1660,9 @@ export class SmartbarInput extends HTMLElement {
           Services.io.newURI(url),
           true,
           loadOpts,
-          lazy.UrlbarPrefs.get("switchTabs.searchAllContainers") &&
-            lazy.UrlbarProviderOpenTabs.isNonPrivateUserContextId(
-              result.payload.userContextId
-            )
+          lazy.UrlbarProviderOpenTabs.isNonPrivateUserContextId(
+            result.payload.userContextId
+          )
             ? result.payload.userContextId
             : null
         );

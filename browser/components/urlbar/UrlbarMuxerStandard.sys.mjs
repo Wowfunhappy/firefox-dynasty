@@ -31,9 +31,7 @@ ChromeUtils.defineLazyGetter(lazy, "logger", () =>
 const MS_PER_DAY = 1000 * 60 * 60 * 24;
 
 /**
- * Constructs the map key by joining the url with the userContextId if
- * 'browser.urlbar.switchTabs.searchAllContainers' is set to true.
- * Otherwise, just the url is used.
+ * Constructs the map key by joining the url with the userContextId.
  *
  * @param   {UrlbarResult} result The result object.
  * @returns {string} map key
@@ -41,8 +39,7 @@ const MS_PER_DAY = 1000 * 60 * 60 * 24;
 function makeMapKeyForTabResult(result) {
   return UrlbarUtils.tupleString(
     result.payload.url,
-    lazy.UrlbarPrefs.get("switchTabs.searchAllContainers") &&
-      result.type == UrlbarUtils.RESULT_TYPE.TAB_SWITCH &&
+    result.type == UrlbarUtils.RESULT_TYPE.TAB_SWITCH &&
       lazy.UrlbarProviderOpenTabs.isNonPrivateUserContextId(
         result.payload.userContextId
       )

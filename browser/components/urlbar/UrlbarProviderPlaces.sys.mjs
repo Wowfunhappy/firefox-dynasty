@@ -165,7 +165,6 @@ function makeMapKeyForResult(url, match) {
   return UrlbarUtils.tupleString(
     url,
     action?.type == "switchtab" &&
-      lazy.UrlbarPrefs.get("switchTabs.searchAllContainers") &&
       lazy.UrlbarProviderOpenTabs.isNonPrivateUserContextId(match.userContextId)
       ? match.userContextId
       : undefined
@@ -1209,8 +1208,7 @@ class Search {
     if (openPageCount > 0 && this.hasBehavior("openpage")) {
       if (
         this.#currentPage == match.value &&
-        (!lazy.UrlbarPrefs.get("switchTabs.searchAllContainers") ||
-          this.#userContextId == match.userContextId)
+        this.#userContextId == match.userContextId
       ) {
         // Don't suggest switching to the current tab.
         return;
@@ -1366,14 +1364,11 @@ class Search {
       maxResults: this.#maxResults,
       switchTabsEnabled: this.hasBehavior("openpage"),
     };
-    params.userContextId = lazy.UrlbarPrefs.get(
-      "switchTabs.searchAllContainers"
-    )
-      ? lazy.UrlbarProviderOpenTabs.getUserContextIdForOpenPagesTable(
-          null,
-          this.#inPrivateWindow
-        )
-      : this.#userContextId;
+    params.userContextId =
+      lazy.UrlbarProviderOpenTabs.getUserContextIdForOpenPagesTable(
+        null,
+        this.#inPrivateWindow
+      );
 
     if (this.#filterOnHost) {
       params.host = this.#filterOnHost;
@@ -1397,12 +1392,11 @@ class Search {
         // We only want to search the tokens that we are left with - not the
         // original search string.
         searchString: this.#keywordFilteredSearchString,
-        userContextId: lazy.UrlbarPrefs.get("switchTabs.searchAllContainers")
-          ? lazy.UrlbarProviderOpenTabs.getUserContextIdForOpenPagesTable(
-              null,
-              this.#inPrivateWindow
-            )
-          : this.#userContextId,
+        userContextId:
+          lazy.UrlbarProviderOpenTabs.getUserContextIdForOpenPagesTable(
+            null,
+            this.#inPrivateWindow
+          ),
         maxResults: this.#maxResults,
       },
     ];
