@@ -596,6 +596,15 @@ static bool GetBuildConfiguration(JSContext* cx, unsigned argc, Value* vp) {
     return false;
   }
 
+#ifdef JS_JITSPEW
+  value = BooleanValue(true);
+#else
+  value = BooleanValue(false);
+#endif
+  if (!JS_SetProperty(cx, info, "jitspew", value)) {
+    return false;
+  }
+
 #if (defined(__GNUC__) && defined(__SSE__) && defined(__x86_64__)) || \
     defined(__arm__) || defined(__aarch64__)
   // See js.cpp "disable-main-thread-denormals" command line option.
@@ -11351,13 +11360,10 @@ JS_FN_HELP("getFuseState", GetFuseState, 0, 0,
 "  Converts a compiled wasm module to the wasm text format.\n"),
 
     JS_FN_HELP("wasmDumpIon", WasmDumpIon, 2, 0,
-"wasmDumpIon(bytecode, funcIndex, [, contents])\n",
-"wasmDumpIon(bytecode, funcIndex, [, contents])"
-"  Returns a dump of compiling a function in the specified module with Ion."
-"  The `contents` flag controls what is dumped. one of:"
-"    `mir` | `unopt-mir`: Unoptimized MIR (the default)"
-"    `opt-mir`: Optimized MIR"
-"    `lir`: LIR"),
+"wasmDumpIon(bytecode, funcIndex)\n",
+"wasmDumpIon(bytecode, funcIndex)"
+"  Returns a dump of compiling a function in the specified module with Ion, in"
+"  the iongraph JSON format."),
 
     JS_FN_HELP("wasmFunctionTier", WasmFunctionTier, 1, 0,
 "wasmFunctionTier(wasmFunc)\n",

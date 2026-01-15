@@ -10891,11 +10891,16 @@ bool wasm::IonDumpFunction(const CompilerEnvironment& compilerEnv,
 
   mirGen.spewEndFunction();
   graphSpewer.end();
-
-#else
-  out.printf("cannot dump Ion without --enable-jitspew");
-#endif
   return true;
+#else
+  UniqueChars errStr =
+      DuplicateString("cannot dump Ion without --enable-jitspew");
+  if (!errStr) {
+    return false;
+  }
+  *error = std::move(errStr);
+  return false;
+#endif
 }
 
 bool js::wasm::IonPlatformSupport() {
