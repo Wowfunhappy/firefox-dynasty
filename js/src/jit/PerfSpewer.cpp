@@ -410,6 +410,25 @@ static JS::JitCodeSourceInfo* CreateProfilerSourceEntry(
   return &record->sourceInfo.back();
 }
 
+// API to lookup JitCode data for the Gecko Profiler.
+JS::JitCodeRecord* JS::LookupJitCodeRecord(uint64_t addr) {
+  if (!JS_IsInitialized()) {
+    return nullptr;
+  }
+
+  AutoLockPerfSpewer lock;
+
+  // Search through profilerData for a record that contains this address
+  for (auto& record : profilerData) {
+    if (addr >= record.code_addr &&
+        addr < record.code_addr + record.instructionSize) {
+      return &record;
+    }
+  }
+
+  return nullptr;
+}
+
 static bool PerfSrcEnabled() {
   return PerfMode == PerfModeType::Source || IsGeckoProfiling();
 }
