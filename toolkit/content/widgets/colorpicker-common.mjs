@@ -123,6 +123,10 @@ export class ColorPickerCommon {
     this.updateUI();
   }
 
+  enableAlphaPicker() {
+    this.element.querySelector(".spectrum-alpha").hidden = false;
+  }
+
   onElementClick(e) {
     e.stopPropagation();
   }

@@ -28,6 +28,8 @@ interface HTMLInputElement : HTMLElement {
 
   [CEReactions, Pure, SetterThrows]
            attribute DOMString accept;
+  [CEReactions, Pure, SetterThrows, Pref="dom.forms.colorspace_and_alpha.enabled"]
+           attribute boolean alpha;
   [CEReactions, Pure, SetterThrows]
            attribute DOMString alt;
   [CEReactions, Pure, SetterThrows]
@@ -302,8 +304,8 @@ dictionary InputPickerColor {
   required float component2;
   required float component3;
 
-  // bug 1919718
-  // required float alpha;
+  required unrestricted float alpha;
+  // bug 2009748
   // required InputColorSpace colorSpace;
 };
 

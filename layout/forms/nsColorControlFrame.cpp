@@ -82,9 +82,9 @@ void nsColorControlFrame::UpdateColor() {
     return;
   }
 
-  // Set the background-color CSS property of the swatch element to this color.
+  // Set the color CSS property of the swatch element to this color.
   mColorContent->SetAttr(kNameSpaceID_None, nsGkAtoms::style,
-                         u"background-color:"_ns + color,
+                         u"color:"_ns + color,
                          /* aNotify */ true);
 }
 

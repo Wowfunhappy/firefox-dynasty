@@ -452,6 +452,9 @@ class HTMLInputElement final : public TextControlElement,
     SetHTMLAttr(nsGkAtoms::accept, aValue, aRv);
   }
 
+  bool Alpha() const { return HasAttr(nsGkAtoms::alpha); }
+  void SetAlpha(bool aValue, ErrorResult& aRv);
+
   void GetAlt(nsAString& aValue) { GetHTMLAttr(nsGkAtoms::alt, aValue); }
   void SetAlt(const nsAString& aValue, ErrorResult& aRv) {
     SetHTMLAttr(nsGkAtoms::alt, aValue, aRv);
