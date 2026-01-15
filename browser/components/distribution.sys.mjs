@@ -271,12 +271,13 @@ DistributionCustomizer.prototype = {
       this._newProfile = true;
     }
 
-    if (!this._ini) {
-      return this._checkCustomizationComplete();
-    }
-
+    // Must run before early return to handle MOZ_DISTRIBUTION_ID fallback.
     if (!this._prefDefaultsApplied) {
       this.applyPrefDefaults();
+    }
+
+    if (!this._ini) {
+      return this._checkCustomizationComplete();
     }
   },
 
@@ -373,6 +374,12 @@ DistributionCustomizer.prototype = {
   applyPrefDefaults: function DIST_applyPrefDefaults() {
     this._prefDefaultsApplied = true;
     if (!this._ini) {
+      // No distribution.ini file exists. Fall back to MOZ_DISTRIBUTION_ID
+      let distroId = Services.appinfo.distributionID;
+      if (distroId) {
+        let defaults = Services.prefs.getDefaultBranch(null);
+        defaults.setStringPref("distribution.id", distroId);
+      }
       return this._checkCustomizationComplete();
     }
 
