@@ -89,6 +89,8 @@ const ruleFunction = primaryOption => {
           config.validator.customFixes
         );
         const tokenCategories = config.validator.getTokenCategories();
+        const fix =
+          fixedValue !== null ? () => (decl.value = fixedValue) : undefined;
 
         // Replace CSS variable usage with their locally defined values, if applicable.
         // This allows us to check if suggestions work on the local variables, so we can set the severity to warning.
@@ -117,11 +119,7 @@ const ruleFunction = primaryOption => {
           node: decl,
           result,
           ruleName,
-          fix: () => {
-            if (fixedValue !== null) {
-              decl.value = fixedValue;
-            }
-          },
+          fix,
         });
       }
     });

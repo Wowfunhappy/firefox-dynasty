@@ -6,9 +6,9 @@
 // eslint-disable-next-line import/no-unresolved
 import { testRule } from "stylelint-test-rule-node";
 import stylelint from "stylelint";
-import useSizeTokens from "../rules/use-size-tokens.mjs";
+import useDesignTokens from "../rules/use-design-tokens.mjs";
 
-let plugin = stylelint.createPlugin(useSizeTokens.ruleName, useSizeTokens);
+let plugin = stylelint.createPlugin(useDesignTokens.ruleName, useDesignTokens);
 let {
   ruleName,
   rule: { messages },
@@ -51,6 +51,15 @@ testRule({
         "Using a percentage value with the inline-size property is valid.",
     },
     {
+      code: ".a { inset: 5%; }",
+      description: "Using a percentage value with the inset property is valid.",
+    },
+    {
+      code: ".a { inset: 1ch; }",
+      description:
+        "Using a value using the `ch` unit in the inset property is valid.",
+    },
+    {
       code: ".a { inline-size: var(--size-item-xlarge); }",
       description:
         "Using the xlarge item size token with the inline-size property is valid.",
@@ -83,6 +92,16 @@ testRule({
       code: ".a { width: calc(var(--size-item-small, 14px) * 2); }",
       description:
         "Using the small item size token with a fallback value in a `calc()` declaration with the width property is valid.",
+    },
+    {
+      code: ".a { max-inline-size: calc(16px + var(--size-item-xlarge)); }",
+      description:
+        "Using a pixel value with a size design token in a `calc()` declaration is valid.",
+    },
+    {
+      code: ".a { max-inline-size: calc(var(--size-item-small) + 32px); }",
+      description:
+        "Using a size design token with a pixel value in a `calc()` declaration is valid.",
     },
     {
       code: ".a { height: 100vh; }",
@@ -134,19 +153,42 @@ testRule({
       description:
         "Using the medium icon size token and the auto value in the background-size property is valid.",
     },
+    {
+      code: ".a { inset: 0.5em var(--size-item-large); }",
+      description:
+        "Using em unit with size token in shorthand inset property is valid.",
+    },
+    {
+      code: ".a { inset-block: 0.5em var(--size-item-large); }",
+      description:
+        "Using em unit with size token in shorthand inset-block property is valid.",
+    },
+    {
+      code: ".a { inset-inline: var(--size-item-large) 0.5em; }",
+      description:
+        "Using size token with em unit in shorthand inset-inline property is valid.",
+    },
+    {
+      code: ".a { inset-inline-start: 0.5em; }",
+      description: "Using em unit in inset-inline-start property is valid.",
+    },
   ],
   reject: [
     {
       code: ".a { max-height: 500px; }",
       unfixable: true,
-      message: messages.rejected("500px"),
+      message: messages.rejected("500px", ["size", "icon-size"]),
       description:
         "Consider using a size design token instead of using a pixel value. This may be fixable by running the same command again with --fix.",
     },
     {
       code: ".a { height: 0.75rem; }",
       fixed: ".a { height: var(--size-item-xsmall); }",
-      message: messages.rejected("0.75rem"),
+      message: messages.rejected(
+        "0.75rem",
+        ["size", "icon-size"],
+        "var(--size-item-xsmall)"
+      ),
       description:
         "Consider using a size design token instead of using a rem value. This may be fixable by running the same command again with --fix.",
     },
@@ -156,37 +198,112 @@ testRule({
         .a { min-height: var(--local-size); }
       `,
       unfixable: true,
-      message: messages.rejected("var(--local-size)"),
+      message: messages.rejected("var(--local-size)", ["size", "icon-size"]),
       description:
         "Consider using a size design token instead of using a pixel value. This may be fixable by running the same command again with --fix.",
     },
     {
       code: `.a { max-inline-size: calc(16px + 32px); }`,
       fixed: `.a { max-inline-size: calc(var(--size-item-small) + var(--size-item-large)); }`,
-      message: messages.rejected("calc(16px + 32px)"),
-      description:
-        "Consider using a size design token instead of using a pixel value. This may be fixable by running the same command again with --fix.",
-    },
-    {
-      code: `.a { max-inline-size: calc(16px + var(--size-item-xlarge)); }`,
-      fixed: `.a { max-inline-size: calc(var(--size-item-small) + var(--size-item-xlarge)); }`,
-      message: messages.rejected("calc(16px + var(--size-item-xlarge))"),
-      description:
-        "Consider using a size design token instead of using a pixel value. This may be fixable by running the same command again with --fix.",
-    },
-    {
-      code: `.a { max-inline-size: calc(var(--size-item-small) + 32px); }`,
-      fixed: `.a { max-inline-size: calc(var(--size-item-small) + var(--size-item-large)); }`,
-      message: messages.rejected("calc(var(--size-item-small) + 32px)"),
+      message: messages.rejected(
+        "calc(16px + 32px)",
+        ["size", "icon-size"],
+        "calc(var(--size-item-small) + var(--size-item-large))"
+      ),
       description:
         "Consider using a size design token instead of using a pixel value. This may be fixable by running the same command again with --fix.",
     },
     {
       code: `.a { max-block-size: calc(100vh + 32px); }`,
       fixed: `.a { max-block-size: calc(100vh + var(--size-item-large)); }`,
-      message: messages.rejected("calc(100vh + 32px)"),
+      message: messages.rejected(
+        "calc(100vh + 32px)",
+        ["size", "icon-size"],
+        "calc(100vh + var(--size-item-large))"
+      ),
       description:
         "Consider using a size design token instead of using a pixel value. This may be fixable by running the same command again with --fix.",
+    },
+    {
+      code: ".a { inset: 1rem; }",
+      fixed: ".a { inset: var(--size-item-small); }",
+      message: messages.rejected(
+        "1rem",
+        ["space", "size", "icon-size"],
+        "var(--size-item-small)"
+      ),
+      description: "Size value in rem for inset should use a design token.",
+    },
+    {
+      code: ".a { inset: 1rem 1.5rem; }",
+      fixed: ".a { inset: var(--size-item-small) var(--size-item-medium); }",
+      message: messages.rejected(
+        "1rem 1.5rem",
+        ["space", "size", "icon-size"],
+        "var(--size-item-small) var(--size-item-medium)"
+      ),
+      description:
+        "Size values in shorthand for inset should use a design token.",
+    },
+    {
+      code: ".a { inset: 1rem 1.5rem 0.75rem; }",
+      fixed:
+        ".a { inset: var(--size-item-small) var(--size-item-medium) var(--size-item-xsmall); }",
+      message: messages.rejected(
+        "1rem 1.5rem 0.75rem",
+        ["space", "size", "icon-size"],
+        "var(--size-item-small) var(--size-item-medium) var(--size-item-xsmall)"
+      ),
+      description:
+        "Size values in shorthand for inset should use a design token.",
+    },
+    {
+      code: ".a { inset: var(--space-small) 1rem 0.75rem; }",
+      fixed:
+        ".a { inset: var(--space-small) var(--size-item-small) var(--size-item-xsmall); }",
+      message: messages.rejected(
+        "var(--space-small) 1rem 0.75rem",
+        ["space", "size", "icon-size"],
+        "var(--space-small) var(--size-item-small) var(--size-item-xsmall)"
+      ),
+      description:
+        "Size values in shorthand for inset should use a design token.",
+    },
+    {
+      code: ".a { inset: var(--space-small) 1rem var(--space-xsmall); }",
+      fixed:
+        ".a { inset: var(--space-small) var(--size-item-small) var(--space-xsmall); }",
+      message: messages.rejected(
+        "var(--space-small) 1rem var(--space-xsmall)",
+        ["space", "size", "icon-size"],
+        "var(--space-small) var(--size-item-small) var(--space-xsmall)"
+      ),
+      description:
+        "Size values in shorthand for inset should use a design token.",
+    },
+    {
+      code: ".a { inset-block: 1rem 1.5rem; }",
+      fixed:
+        ".a { inset-block: var(--size-item-small) var(--size-item-medium); }",
+      message: messages.rejected(
+        "1rem 1.5rem",
+        ["space", "size", "icon-size"],
+        "var(--size-item-small) var(--size-item-medium)"
+      ),
+      description:
+        "Size values in shorthand for inset-block should use a design token.",
+    },
+    {
+      code: ".a { inset-inline: 1rem 1.5rem; }",
+      fixed:
+        ".a { inset-inline: var(--size-item-small) var(--size-item-medium); }",
+      message: messages.rejected(
+        "1rem 1.5rem",
+        ["space", "size", "icon-size"],
+        "var(--size-item-small) var(--size-item-medium)"
+      ),
+      description:
+        "Size values in shorthand for inset-inline should use a design token.",
     },
   ],
 });
