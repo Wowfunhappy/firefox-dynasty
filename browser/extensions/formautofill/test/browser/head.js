@@ -1214,7 +1214,8 @@ async function verifyPreviewResult(browser, section, expectedSection) {
   for (let i = 0; i < fieldDetails.length; i++) {
     const selector = getSelectorFromFieldDetail(fieldDetails[i]);
     const context = await findContext(browser, selector);
-    let expected = expectedFieldDetails[i].autofill ?? "";
+    let expected =
+      expectedFieldDetails[i].preview ?? expectedFieldDetails[i].autofill ?? "";
     if (fieldDetails[i].fieldName == "cc-number" && expected.length) {
       expected = "•".repeat(expected.length - 4) + expected.slice(-4);
     }

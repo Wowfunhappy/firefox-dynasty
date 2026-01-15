@@ -496,7 +496,12 @@ export class FormAutofillHandler {
           element.autofillState == FIELD_STATES.AUTO_FILLED
         ) {
           FormAutofillHandler.fillFieldValue(element, value);
-          filledValue = value;
+          filledValue = this.verifyFilledValue(
+            fieldDetail,
+            element,
+            value,
+            profile
+          );
         } else if (isFormChange && element.value == value) {
           // If this was a fill caused by a form change, and the value is
           // identical to the expected filled value, highlight it anyway.
@@ -591,6 +596,35 @@ export class FormAutofillHandler {
     this.form.rootElement.addEventListener("reset", this.onChangeHandler, {
       mozSystemGroup: true,
     });
+  }
+
+  verifyFilledValue(fieldDetail, element, value, profile) {
+    if (fieldDetail?.fieldName != "cc-exp" || element.value == value) {
+      return value;
+    }
+
+    // Handle a case where the form uses manual input verification to limit
+    // the expiry field and takes the first two characters of the year rather
+    // than the last two.
+    const month = profile["cc-exp-month"].toString().padStart(2, "0");
+    const year = profile["cc-exp-year"].toString().padStart(4, "0");
+
+    let str = element.value;
+    let match = str.match(
+      new RegExp(`^(${month}\\s*[\\-\\/]?\\s*)${year.substring(0, 2)}\\b`)
+    );
+    if (match) {
+      element.value = match[1] + year.substring(2);
+    } else {
+      match = str.match(
+        new RegExp(`^${year.substring(0, 2)}(\\s*[\\-\\/]?\\s*${month})\\b`)
+      );
+      if (match) {
+        element.value = year.substring(2) + match[1];
+      }
+    }
+
+    return element.value;
   }
 
   /**
