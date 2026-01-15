@@ -15,6 +15,7 @@
 #include "jit/InlineScriptTree.h"
 #include "jit/JitRuntime.h"
 #include "jit/JitSpewer.h"
+#include "js/ProfilingFrameIterator.h"
 #include "js/Vector.h"
 #include "vm/BytecodeLocation.h"  // for BytecodeLocation
 #include "vm/GeckoProfiler.h"
@@ -957,16 +958,14 @@ bool JitcodeIonTable::WriteIonTable(CompactBufferWriter& writer,
 }  // namespace jit
 }  // namespace js
 
-JS::ProfiledFrameHandle::ProfiledFrameHandle(JSRuntime* rt,
-                                             js::jit::JitcodeGlobalEntry& entry,
-                                             void* addr, const char* label,
-                                             uint32_t sourceId, uint32_t depth)
+JS::ProfiledFrameHandle::ProfiledFrameHandle(
+    JSRuntime* rt, js::jit::JitcodeGlobalEntry& entry, void* addr,
+    const js::jit::CallStackFrameInfo& frameInfo, uint32_t depth)
     : rt_(rt),
       entry_(entry),
       addr_(addr),
       canonicalAddr_(nullptr),
-      label_(label),
-      sourceId_(sourceId),
+      frameInfo_(frameInfo),
       depth_(depth) {
   if (!canonicalAddr_) {
     canonicalAddr_ = entry_.canonicalNativeAddrFor(rt_, addr_);
@@ -989,10 +988,6 @@ JS::ProfiledFrameHandle::frameKind() const {
 
 JS_PUBLIC_API uint64_t JS::ProfiledFrameHandle::realmID() const {
   return entry_.realmID(rt_);
-}
-
-JS_PUBLIC_API uint32_t JS::ProfiledFrameHandle::sourceId() const {
-  return sourceId_;
 }
 
 JS_PUBLIC_API JS::ProfiledFrameRange JS::GetProfiledFrames(JSContext* cx,
@@ -1023,6 +1018,5 @@ JS::ProfiledFrameHandle JS::ProfiledFrameRange::Iter::operator*() const {
   // and the depth we need to pass to ProfiledFrameHandle goes down.
   uint32_t depth = range_.depth_ - 1 - index_;
   return ProfiledFrameHandle(range_.rt_, *range_.entry_, range_.addr_,
-                             range_.frames_[depth].label,
-                             range_.frames_[depth].sourceId, depth);
+                             range_.frames_[depth], depth);
 }

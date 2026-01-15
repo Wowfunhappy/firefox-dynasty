@@ -248,16 +248,15 @@ class MOZ_STACK_CLASS ProfiledFrameHandle {
   js::jit::JitcodeGlobalEntry& entry_;
   void* addr_;
   void* canonicalAddr_;
-  const char* label_;
-  uint32_t sourceId_;
+  js::jit::CallStackFrameInfo frameInfo_;
   uint32_t depth_;
 
   ProfiledFrameHandle(JSRuntime* rt, js::jit::JitcodeGlobalEntry& entry,
-                      void* addr, const char* label, uint32_t sourceId,
+                      void* addr, const js::jit::CallStackFrameInfo& frameInfo,
                       uint32_t depth);
 
  public:
-  const char* label() const { return label_; }
+  const char* label() const { return frameInfo_.label; }
   uint32_t depth() const { return depth_; }
   void* canonicalAddress() const { return canonicalAddr_; }
 
@@ -265,7 +264,7 @@ class MOZ_STACK_CLASS ProfiledFrameHandle {
 
   JS_PUBLIC_API uint64_t realmID() const;
 
-  JS_PUBLIC_API uint32_t sourceId() const;
+  JS_PUBLIC_API uint32_t sourceId() const { return frameInfo_.sourceId; }
 };
 
 class ProfiledFrameRange {
