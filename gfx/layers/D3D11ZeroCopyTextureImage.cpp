@@ -58,7 +58,7 @@ D3D11ZeroCopyTextureImage::~D3D11ZeroCopyTextureImage() {
 }
 
 void D3D11ZeroCopyTextureImage::AllocateTextureClient(
-    KnowsCompositor* aKnowsCompositor, RefPtr<ZeroCopyUsageInfo> aUsageInfo,
+    KnowsCompositor* aKnowsCompositor, ZeroCopyUsageInfo* aUsageInfo,
     const RefPtr<FenceD3D11> aWriteFence) {
   if (aWriteFence) {
     aWriteFence->IncrementAndSignal();

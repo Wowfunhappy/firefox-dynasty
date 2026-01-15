@@ -55,7 +55,7 @@ class D3D11ZeroCopyTextureImage : public Image {
   virtual ~D3D11ZeroCopyTextureImage();
 
   void AllocateTextureClient(KnowsCompositor* aKnowsCompositor,
-                             RefPtr<ZeroCopyUsageInfo> aUsageInfo,
+                             ZeroCopyUsageInfo* aUsageInfo,
                              const RefPtr<FenceD3D11> aWriteFence);
 
   gfx::IntSize GetSize() const override;
