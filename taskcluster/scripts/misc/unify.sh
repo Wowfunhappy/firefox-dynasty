@@ -7,16 +7,11 @@ set -x -e
 
 export LIPO=$MOZ_FETCHES_DIR/cctools/bin/x86_64-apple-darwin-lipo
 
-_MACH_BUILD_PYTHON_NATIVE_PACKAGE_SOURCE=$MACH_BUILD_PYTHON_NATIVE_PACKAGE_SOURCE
-unset MACH_BUILD_PYTHON_NATIVE_PACKAGE_SOURCE
-
 for i in x64 aarch64; do
-    $GECKO_PATH/mach python --virtualenv repackage -m mozbuild.action.unpack_dmg $MOZ_FETCHES_DIR/$i/target.dmg $i
+    $GECKO_PATH/mach python -m mozbuild.action.unpack_dmg $MOZ_FETCHES_DIR/$i/target.dmg $i
 done
 $GECKO_PATH/mach python $GECKO_PATH/toolkit/mozapps/installer/unify.py x64/*.app aarch64/*.app
-$GECKO_PATH/mach python --virtualenv repackage -m mozbuild.action.make_dmg x64 target.dmg
-
-export MACH_BUILD_PYTHON_NATIVE_PACKAGE_SOURCE=$_MACH_BUILD_PYTHON_NATIVE_PACKAGE_SOURCE
+$GECKO_PATH/mach python -m mozbuild.action.make_dmg x64 target.dmg
 
 mkdir -p $UPLOAD_DIR
 mv target.dmg $UPLOAD_DIR/

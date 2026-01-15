@@ -1,2 +1,0 @@
-requires-python:>=3.9
-requirements-txt:taskcluster/requirements.txt
