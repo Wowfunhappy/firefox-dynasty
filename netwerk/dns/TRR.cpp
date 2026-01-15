@@ -62,7 +62,6 @@ TRR::TRR(AHostResolver* aResolver, nsHostRecord* aRec, enum TrrType aType)
   mPB = aRec->pb;
   MOZ_DIAGNOSTIC_ASSERT(XRE_IsParentProcess() || XRE_IsSocketProcess(),
                         "TRR must be in parent or socket process");
-  PROFILER_MARKER("TRR::TRR", NETWORK, {}, FlowMarker, Flow::FromPointer(this));
 }
 
 // when following CNAMEs
@@ -78,7 +77,6 @@ TRR::TRR(AHostResolver* aResolver, nsHostRecord* aRec, nsCString& aHost,
       mOriginSuffix(aRec ? aRec->originSuffix : ""_ns) {
   MOZ_DIAGNOSTIC_ASSERT(XRE_IsParentProcess() || XRE_IsSocketProcess(),
                         "TRR must be in parent or socket process");
-  PROFILER_MARKER("TRR::TRR", NETWORK, {}, FlowMarker, Flow::FromPointer(this));
 }
 
 // to verify a domain
@@ -94,12 +92,6 @@ TRR::TRR(AHostResolver* aResolver, nsACString& aHost, enum TrrType aType,
       mUseFreshConnection(aUseFreshConnection) {
   MOZ_DIAGNOSTIC_ASSERT(XRE_IsParentProcess() || XRE_IsSocketProcess(),
                         "TRR must be in parent or socket process");
-  PROFILER_MARKER("TRR::TRR", NETWORK, {}, FlowMarker, Flow::FromPointer(this));
-}
-
-TRR::~TRR() {
-  PROFILER_MARKER(__FUNCTION__, NETWORK, {}, TerminatingFlowMarker,
-                  Flow::FromPointer(this));
 }
 
 void TRR::HandleTimeout() {
@@ -121,8 +113,6 @@ TRR::Notify(nsITimer* aTimer) {
 
 NS_IMETHODIMP
 TRR::Run() {
-  AUTO_PROFILER_FLOW_MARKER("TRR::Run", NETWORK, Flow::FromPointer(this));
-
   MOZ_ASSERT_IF(XRE_IsParentProcess() && TRRService::Get(),
                 NS_IsMainThread() || TRRService::Get()->IsOnTRRThread());
   MOZ_ASSERT_IF(XRE_IsSocketProcess(), NS_IsMainThread());
@@ -868,9 +858,6 @@ TRR::OnStopRequest(nsIRequest* aRequest, nsresult aStatusCode) {
   // The dtor will be run after the function returns
   LOG(("TRR:OnStopRequest %p %s %d failed=%d code=%X\n", this, mHost.get(),
        mType, mFailed, (unsigned int)aStatusCode));
-  AUTO_PROFILER_FLOW_MARKER("TRR::OnStopRequest", NETWORK,
-                            Flow::FromPointer(this));
-
   nsCOMPtr<nsIChannel> channel;
   channel.swap(mChannel);
 

@@ -27,7 +27,6 @@
 #include "ReferrerInfo.h"
 #include "TRR.h"
 #include "TRRService.h"
-#include "mozilla/FlowMarkers.h"
 
 namespace mozilla::net {
 
@@ -97,9 +96,6 @@ TRRServiceChannel::TRRServiceChannel()
 
 TRRServiceChannel::~TRRServiceChannel() {
   LOG(("TRRServiceChannel dtor [this=%p]\n", this));
-
-  PROFILER_MARKER(__FUNCTION__, NETWORK, {}, TerminatingFlowMarker,
-                  Flow::FromPointer(this));
 }
 
 NS_IMETHODIMP TRRServiceChannel::SetCanceledReason(const nsACString& aReason) {
@@ -190,9 +186,6 @@ TRRServiceChannel::AsyncOpen(nsIStreamListener* aListener) {
   NS_ENSURE_ARG_POINTER(aListener);
   NS_ENSURE_TRUE(!LoadIsPending(), NS_ERROR_IN_PROGRESS);
   NS_ENSURE_TRUE(!LoadWasOpened(), NS_ERROR_ALREADY_OPENED);
-
-  AUTO_PROFILER_FLOW_MARKER("TRRServiceChannel::AsyncOpen", NETWORK,
-                            Flow::FromPointer(this));
 
   if (mCanceled) {
     ReleaseListeners();
@@ -915,9 +908,6 @@ TRRServiceChannel::OnStartRequest(nsIRequest* request) {
        "]\n",
        this, request, static_cast<uint32_t>(static_cast<nsresult>(mStatus))));
 
-  AUTO_PROFILER_FLOW_MARKER("TRRServiceChannel::OnStartRequest", NETWORK,
-                            Flow::FromPointer(this));
-
   if (!(mCanceled || NS_FAILED(mStatus))) {
     // capture the request's status, so our consumers will know ASAP of any
     // connection failures, etc - bug 93581
@@ -1120,9 +1110,6 @@ TRRServiceChannel::OnDataAvailable(nsIRequest* request, nsIInputStream* input,
        " count=%" PRIu32 "]\n",
        this, request, offset, count));
 
-  AUTO_PROFILER_FLOW_MARKER("TRRServiceChannel::OnDataAvailable", NETWORK,
-                            Flow::FromPointer(this));
-
   // don't send out OnDataAvailable notifications if we've been canceled.
   if (mCanceled) return mStatus;
 
@@ -1231,9 +1218,6 @@ TRRServiceChannel::OnStopRequest(nsIRequest* request, nsresult status) {
   LOG(("TRRServiceChannel::OnStopRequest [this=%p request=%p status=%" PRIx32
        "]\n",
        this, request, static_cast<uint32_t>(status)));
-
-  AUTO_PROFILER_FLOW_MARKER("TRRServiceChannel::OnStopRequest", NETWORK,
-                            Flow::FromPointer(this));
 
   if (mCanceled || NS_FAILED(mStatus)) status = mStatus;
 
