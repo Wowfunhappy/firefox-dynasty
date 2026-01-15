@@ -32,10 +32,6 @@ struct CallStackFrameInfo {
   // The script source ID for this frame. Used to identify which script source
   // this frame belongs to.
   uint32_t sourceId;
-  // Line number (1-origin, 0 means no line info available)
-  uint32_t line;
-  // Column number (1-origin, 0 means no column info available)
-  uint32_t column;
 };
 
 }  // namespace jit
@@ -177,8 +173,6 @@ class MOZ_NON_PARAM JS_PUBLIC_API ProfilingFrameIterator {
     JSScript* interpreterScript;
     uint64_t realmID;
     uint32_t sourceId;
-    uint32_t line;
-    uint32_t column;
 
    public:
     void* returnAddress() const {
@@ -254,15 +248,16 @@ class MOZ_STACK_CLASS ProfiledFrameHandle {
   js::jit::JitcodeGlobalEntry& entry_;
   void* addr_;
   void* canonicalAddr_;
-  js::jit::CallStackFrameInfo frameInfo_;
+  const char* label_;
+  uint32_t sourceId_;
   uint32_t depth_;
 
   ProfiledFrameHandle(JSRuntime* rt, js::jit::JitcodeGlobalEntry& entry,
-                      void* addr, const js::jit::CallStackFrameInfo& frameInfo,
+                      void* addr, const char* label, uint32_t sourceId,
                       uint32_t depth);
 
  public:
-  const char* label() const { return frameInfo_.label; }
+  const char* label() const { return label_; }
   uint32_t depth() const { return depth_; }
   void* canonicalAddress() const { return canonicalAddr_; }
 
@@ -270,11 +265,7 @@ class MOZ_STACK_CLASS ProfiledFrameHandle {
 
   JS_PUBLIC_API uint64_t realmID() const;
 
-  JS_PUBLIC_API uint32_t sourceId() const { return frameInfo_.sourceId; }
-
-  JS_PUBLIC_API uint32_t line() const { return frameInfo_.line; }
-
-  JS_PUBLIC_API uint32_t column() const { return frameInfo_.column; }
+  JS_PUBLIC_API uint32_t sourceId() const;
 };
 
 class ProfiledFrameRange {

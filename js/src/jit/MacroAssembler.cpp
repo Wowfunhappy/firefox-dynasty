@@ -4469,10 +4469,6 @@ void MacroAssembler::link(JitCode* code) {
   linkProfilerCallSites(code);
 }
 
-void MacroAssembler::instrumentProfilerCallSite() {
-  AutoProfilerCallInstrumentation profiler(*this);
-}
-
 MacroAssembler::AutoProfilerCallInstrumentation::
     AutoProfilerCallInstrumentation(MacroAssembler& masm) {
   if (!masm.emitProfilingInstrumentation_) {

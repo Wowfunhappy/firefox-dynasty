@@ -233,26 +233,13 @@ struct ScriptSourceAndExtent {
   }
 };
 
-struct IonScriptData {
-  ScriptSourceAndExtent sourceAndExtent;
-  RefPtr<SharedImmutableScriptData> sharedData;
-  uint32_t lineno;
-  JS::LimitedColumnNumberOneOrigin column;
-
-  explicit IonScriptData(JSScript* script)
-      : sourceAndExtent(script),
-        sharedData(script->sharedData()),
-        lineno(script->lineno()),
-        column(script->column()) {}
-};
-
 class IonEntry : public JitcodeGlobalEntry {
  public:
   struct ScriptListEntry {
-    IonScriptData scriptData;
+    ScriptSourceAndExtent sourceAndExtent;
     UniqueChars str;
     ScriptListEntry(JSScript* script, UniqueChars str)
-        : scriptData(script), str(std::move(str)) {}
+        : sourceAndExtent(script), str(std::move(str)) {}
   };
 
   using ScriptList = Vector<ScriptListEntry, 2, SystemAllocPolicy>;
@@ -288,12 +275,7 @@ class IonEntry : public JitcodeGlobalEntry {
 
   const ScriptSourceAndExtent& getScriptSource(unsigned idx) const {
     MOZ_ASSERT(idx < numScripts());
-    return scriptList_[idx].scriptData.sourceAndExtent;
-  }
-
-  const IonScriptData& getScriptData(unsigned idx) const {
-    MOZ_ASSERT(idx < numScripts());
-    return scriptList_[idx].scriptData;
+    return scriptList_[idx].sourceAndExtent;
   }
 
   const char* getStr(unsigned idx) const {
@@ -309,6 +291,8 @@ class IonEntry : public JitcodeGlobalEntry {
                            uint32_t maxResults) const;
 
   uint64_t realmID() const { return realmId_; }
+
+  bool trace(JSTracer* trc);
 };
 
 class IonICEntry : public JitcodeGlobalEntry {
@@ -333,6 +317,8 @@ class IonICEntry : public JitcodeGlobalEntry {
                            uint32_t maxResults) const;
 
   uint64_t realmID(JSRuntime* rt) const;
+
+  bool trace(JSTracer* trc);
 };
 
 class BaselineEntry : public JitcodeGlobalEntry {
@@ -361,6 +347,8 @@ class BaselineEntry : public JitcodeGlobalEntry {
                            uint32_t maxResults) const;
 
   uint64_t realmID() const { return realmId_; }
+
+  bool trace(JSTracer* trc);
 };
 
 class RealmIndependentSharedEntry : public JitcodeGlobalEntry {

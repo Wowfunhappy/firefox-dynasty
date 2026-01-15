@@ -123,9 +123,6 @@ void GeckoProfilerRuntime::enable(bool enabled) {
     cx->jitActivation->setLastProfilingCallSite(nullptr);
   }
 
-  // Enable/disable JIT code info collection for the Gecko Profiler.
-  jit::ResetPerfSpewer(enabled);
-
   enabled_ = enabled;
 
   scriptSources_.writeLock()->clear();

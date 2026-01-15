@@ -288,7 +288,6 @@ class BaselineCodeGen {
 
   void emitProfilerEnterFrame();
   void emitProfilerExitFrame();
-  void emitProfilerCallSiteInstrumentation();
 
   void emitOutOfLinePostBarrierSlot();
 };
@@ -430,8 +429,6 @@ class BaselineCompilerHandler {
     return JS::Prefs::experimental_self_hosted_cache() &&
            script()->selfHosted();
   }
-
-  bool needsProfilerCallSiteInstrumentation() const { return true; }
 };
 
 using BaselineCompilerCodeGen = BaselineCodeGen<BaselineCompilerHandler>;
@@ -564,8 +561,6 @@ class BaselineInterpreterHandler {
   bool addEnvAllocSite() { return false; }  // Not supported.
 
   bool realmIndependentJitcode() const { return true; }
-
-  bool needsProfilerCallSiteInstrumentation() const { return false; }
 };
 
 using BaselineInterpreterCodeGen = BaselineCodeGen<BaselineInterpreterHandler>;

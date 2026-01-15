@@ -674,8 +674,7 @@ bool WarpBuilder::buildBody() {
       return false;
     }
 #endif
-    bool wantPreciseLineNumbers =
-        js::jit::PerfEnabled() || mirGen().isProfilerInstrumentationEnabled();
+    bool wantPreciseLineNumbers = js::jit::PerfEnabled();
     if (wantPreciseLineNumbers && !hasTerminatedBlock()) {
       current->updateTrackedSite(newBytecodeSite(loc));
     }
