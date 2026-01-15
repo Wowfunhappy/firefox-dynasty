@@ -7554,8 +7554,11 @@ MOZ_CAN_RUN_SCRIPT static void WaylandDragWorkaround(nsWindow* aWindow,
   }
   nsCOMPtr<nsIDragSession> currentDragSession =
       dragService->GetCurrentSession(aWindow);
-  if (!currentDragSession ||
-      static_cast<nsDragSession*>(currentDragSession.get())->IsActive()) {
+
+  RefPtr<nsDragSession> session =
+      currentDragSession ? static_cast<nsDragSession*>(currentDragSession.get())
+                         : nullptr;
+  if (!session || session->IsActive()) {
     return;
   }
 
@@ -7563,7 +7566,12 @@ MOZ_CAN_RUN_SCRIPT static void WaylandDragWorkaround(nsWindow* aWindow,
   NS_WARNING(
       "Quit unfinished Wayland Drag and Drop operation. Buggy Wayland "
       "compositor?");
-  currentDragSession->EndDragSession(true, 0);
+
+  nsDragSession::AutoEventLoop loop(session);
+  session->SetCanDrop(false);
+  session->SetDragAction(nsIDragService::DRAGDROP_ACTION_NONE);
+  session->ScheduleDropEvent(aWindow, session->GetSourceDragContext().get(),
+                             LayoutDeviceIntPoint(), 0);
 }
 
 static nsWindow* get_window_for_gtk_widget(GtkWidget* widget) {
