@@ -16,6 +16,7 @@
 #include "mozilla/dom/Element.h"
 #include "mozilla/dom/ElementInternals.h"
 #include "mozilla/dom/HTMLLabelElement.h"
+#include "mozilla/dom/TreeOrderedArrayInlines.h"
 
 using namespace mozilla;
 using namespace mozilla::a11y;
@@ -76,34 +77,55 @@ RelatedAccIterator::RelatedAccIterator(DocAccessible* aDocument,
                                        nsIContent* aDependentContent,
                                        nsAtom* aRelAttr)
     : mDocument(aDocument),
-      mDependentContent(aDependentContent),
+      mDependentContentOrShadowHost(aDependentContent),
       mRelAttr(aRelAttr),
       mProviders(nullptr),
       mIndex(0),
       mIsWalkingDependentElements(false) {
-  if (!aDependentContent->IsElement()) return;
-  if (nsAtom* id = aDependentContent->GetID()) {
-    mProviders = mDocument->GetRelProviders(aDependentContent->AsElement(), id);
+  mProviders = GetIdRelProvidersFor(mDependentContentOrShadowHost);
+}
+
+DocAccessible::AttrRelProviders* RelatedAccIterator::GetIdRelProvidersFor(
+    nsIContent* aContent) {
+  if (!aContent->IsElement() || !aContent->HasID()) {
+    return nullptr;
   }
+  return mDocument->GetRelProviders(aContent->AsElement(), aContent->GetID());
 }
 
 LocalAccessible* RelatedAccIterator::Next() {
   if (!mProviders || mIndex == mProviders->Length()) {
-    if (mIsWalkingDependentElements) {
-      // We've walked both dependent ids and dependent elements, so there are
-      // no more targets.
-      return nullptr;
-    }
-    // We've returned all dependent ids, but there might be dependent elements
-    // too. Walk those next.
-    mIsWalkingDependentElements = true;
     mIndex = 0;
-    if (auto providers =
-            mDocument->mDependentElementsMap.Lookup(mDependentContent)) {
-      mProviders = &providers.Data();
-    } else {
-      mProviders = nullptr;
-      return nullptr;
+    mProviders = nullptr;
+    if (!mIsWalkingDependentElements) {
+      // We've returned all dependent ids, but there might be dependent elements
+      // too. Walk those next.
+      mIsWalkingDependentElements = true;
+      if (auto providers = mDocument->mDependentElementsMap.Lookup(
+              mDependentContentOrShadowHost)) {
+        mProviders = &providers.Data();
+      }
+    }
+    if (!mProviders) {
+      // We've walked both dependent ids and dependent elements, so there are
+      // no more targets in this root.
+      dom::ShadowRoot* shadow =
+          mDependentContentOrShadowHost->GetContainingShadow();
+      dom::Element* element =
+          dom::Element::FromNodeOrNull(mDependentContentOrShadowHost);
+
+      if (shadow && element && element == shadow->GetReferenceTargetElement()) {
+        // If we can walk up to the shadow host, do that.
+        mDependentContentOrShadowHost = shadow->Host();
+        mProviders = GetIdRelProvidersFor(mDependentContentOrShadowHost);
+        mIsWalkingDependentElements = false;
+
+        // Call this function again to start walking at the next level up.
+        return Next();
+      } else {
+        // Otherwise, we've exhausted all the providers.
+        return nullptr;
+      }
     }
   }
 
@@ -119,7 +141,7 @@ LocalAccessible* RelatedAccIterator::Next() {
     // `mProvider->mContent`'s shadow-including ancestors.
     if (mIsWalkingDependentElements &&
         !nsCoreUtils::IsDescendantOfAnyShadowIncludingAncestor(
-            mDependentContent, provider->mContent)) {
+            mDependentContentOrShadowHost, provider->mContent)) {
       continue;
     }
     LocalAccessible* related = mDocument->GetAccessible(provider->mContent);
@@ -149,28 +171,89 @@ LocalAccessible* RelatedAccIterator::Next() {
 HTMLLabelIterator::HTMLLabelIterator(DocAccessible* aDocument,
                                      const LocalAccessible* aAccessible,
                                      LabelFilter aFilter)
-    : mRelIter(aDocument, aAccessible->GetContent(), nsGkAtoms::_for),
-      mAcc(aAccessible),
-      mLabelFilter(aFilter) {}
+    : mDocument(aDocument), mAcc(aAccessible), mLabelFilter(aFilter) {}
 
 bool HTMLLabelIterator::IsLabel(LocalAccessible* aLabel) {
   dom::HTMLLabelElement* labelEl =
       dom::HTMLLabelElement::FromNode(aLabel->GetContent());
-  return labelEl && labelEl->GetControl() == mAcc->GetContent();
+  return labelEl && labelEl->GetLabeledElementInternal() == mAcc->GetContent();
+}
+
+void HTMLLabelIterator::Initialize() {
+  // Since HTMLLabelIterator is used in computing the accessible name for
+  // certain elements, the order in which related nodes are returned from the
+  // iterator must match the DOM order. Since RelatedAccIterator isn't
+  // guaranteed to match the DOM order, we don't use it here, but instead
+  // eagerly populate a TreeOrderedArray (mRelatedNodes) and iterate over that
+  // in successive calls to Next().
+  nsIContent* content = mAcc->GetContent();
+  dom::DocumentOrShadowRoot* root =
+      content->GetUncomposedDocOrConnectedShadowRoot();
+
+  while (root) {
+    if (nsAtom* id = content->GetID()) {
+      MOZ_ASSERT(content->IsElement());
+
+      DocAccessible::AttrRelProviders* idProviders =
+          mDocument->GetRelProviders(content->AsElement(), id);
+
+      if (idProviders) {
+        for (auto& provider : *idProviders) {
+          if (provider->mRelAttr != nsGkAtoms::_for) {
+            continue;
+          }
+
+          mRelatedNodes.Insert(*provider->mContent);
+        }
+      }
+    }
+    dom::ShadowRoot* shadow = content->GetContainingShadow();
+    dom::Element* element =
+        content->IsElement() ? content->AsElement() : nullptr;
+    if (shadow && element && element == shadow->GetReferenceTargetElement()) {
+      content = shadow->Host();
+      root = content->GetUncomposedDocOrConnectedShadowRoot();
+    } else {
+      root = nullptr;
+    }
+  }
+
+  mInitialized = true;
 }
 
 LocalAccessible* HTMLLabelIterator::Next() {
+  if (!mInitialized) {
+    Initialize();
+  }
+
   // Get either <label for="[id]"> element which explicitly points to given
   // element, or <label> ancestor which implicitly point to it.
-  LocalAccessible* label = nullptr;
-  while ((label = mRelIter.Next())) {
-    if (IsLabel(label)) {
+  while (mNextIndex < mRelatedNodes.Length()) {
+    nsIContent* nextContent = mRelatedNodes[mNextIndex];
+    mNextIndex++;
+
+    LocalAccessible* label = mDocument->GetAccessible(nextContent);
+    if (label && IsLabel(label)) {
       return label;
     }
   }
 
   // Ignore ancestor label on not widget accessible.
-  if (mLabelFilter == eSkipAncestorLabel || !mAcc->IsWidget()) return nullptr;
+  if (mLabelFilter == eSkipAncestorLabel) {
+    return nullptr;
+  }
+
+  if (!mAcc->IsWidget()) {
+    nsIContent* content = mAcc->GetContent();
+    if (!content->IsElement()) {
+      return nullptr;
+    }
+    dom::Element* element = content->AsElement();
+    // <output> is not a widget but is labelable.
+    if (!element->IsLabelable()) {
+      return nullptr;
+    }
+  }
 
   // Go up tree to get a name of ancestor label if there is one (an ancestor
   // <label> implicitly points to us). Don't go up farther than form or
