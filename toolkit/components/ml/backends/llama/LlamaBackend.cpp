@@ -16,6 +16,7 @@
 
 #include "mozilla/Logging.h"
 #include "nsFmtString.h"
+#include "GeckoProfiler.h"
 
 mozilla::LazyLogModule gLlamaBackendLog("GeckoMLLlamaBackendNative");
 
@@ -221,8 +222,15 @@ ResultStatus LlamaBackend::ReinitializeContext(
   // safely go out of scope after threadpool creation.
   ggml_threadpool_params tpp;
   mLib->ggml_threadpool_params_init(&tpp, ctxParams.n_threads);
+  tpp.thread_create_callback = []() { PROFILER_REGISTER_THREAD("llama.cpp"); };
+  tpp.thread_destroy_callback = []() { PROFILER_UNREGISTER_THREAD(); };
+
   ggml_threadpool_params tppBatch;
   mLib->ggml_threadpool_params_init(&tppBatch, ctxParams.n_threads_batch);
+  tppBatch.thread_create_callback = []() {
+    PROFILER_REGISTER_THREAD("llama.cpp");
+  };
+  tppBatch.thread_destroy_callback = []() { PROFILER_UNREGISTER_THREAD(); };
 
   mThreadpoolBatch.reset();
   if (!mLib->ggml_threadpool_params_match(&tpp, &tppBatch)) {
