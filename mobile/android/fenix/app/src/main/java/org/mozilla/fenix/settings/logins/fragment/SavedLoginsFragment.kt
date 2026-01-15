@@ -23,7 +23,6 @@ import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.core.content.getSystemService
-import androidx.core.os.bundleOf
 import androidx.core.view.MenuProvider
 import androidx.core.view.isVisible
 import androidx.fragment.app.setFragmentResult
@@ -357,7 +356,7 @@ class SavedLoginsFragment : SecureFragment(), MenuProvider {
 
         setFragmentResult(
             LoginDetailFragment.HAS_QUERY_KEY,
-            bundleOf(LoginDetailFragment.HAS_QUERY_BUNDLE to searchQuery?.searchedForText),
+            Bundle().apply { putString(LoginDetailFragment.HAS_QUERY_BUNDLE, searchQuery?.searchedForText) },
         )
         super.onPause()
     }
