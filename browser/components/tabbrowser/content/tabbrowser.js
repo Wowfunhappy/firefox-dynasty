@@ -918,7 +918,7 @@
      * @param {MozTabbrowserTab} aTab
      *   The tab to pin.
      * @param {object} [options]
-     * @property {string} [options.telemetrySource="unknown"]
+     * @param {string} [options.telemetrySource="unknown"]
      *   The means by which the tab was pinned.
      *   @see TabMetrics.METRIC_SOURCE for possible values.
      *   Defaults to "unknown".
@@ -6585,12 +6585,12 @@
      *   any possibility of entering a tab group. For example, setting `true`
      *   ensures that a pinned tab will not accidentally be placed inside of
      *   a tab group, since pinned tabs are presently not allowed in tab groups.
-     * @property {boolean} [options.isUserTriggered=false]
+     * @param {boolean} [options.isUserTriggered=false]
      *   Should be true if there was an explicit action/request from the user
      *   (as opposed to some action being taken internally or for technical
      *   bookkeeping reasons alone) to move the tab. This causes telemetry
      *   events to fire.
-     * @property {string} [options.telemetrySource="unknown"]
+     * @param {string} [options.telemetrySource="unknown"]
      *   The system, surface, or control the user used to move the tab.
      *   @see TabMetrics.METRIC_SOURCE for possible values.
      *   Defaults to "unknown".

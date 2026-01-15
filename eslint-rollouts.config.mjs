@@ -305,9 +305,7 @@ export default [
     ],
     ignores: ["devtools/shared/css/parsing-utils.js", "devtools/startup/**"],
     rules: {
-      "jsdoc/check-access": "off",
       "jsdoc/check-param-names": "off",
-      "jsdoc/check-property-names": "off",
       "jsdoc/require-param-type": "off",
       "jsdoc/require-returns-type": "off",
       "jsdoc/valid-types": "off",
