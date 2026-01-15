@@ -13,8 +13,8 @@
 
 namespace mozilla {
 
-class __attribute__((
-    availability(android, introduced = 29))) AndroidFont final {
+class __attribute__((availability(android, introduced = 29)))
+AndroidFont final {
  public:
   explicit AndroidFont(AFont* _Nullable aFont) : mFont(aFont) {};
 
@@ -34,8 +34,8 @@ class __attribute__((
   AFont* _Nullable mFont;
 };
 
-class __attribute__((
-    availability(android, introduced = 29))) AndroidSystemFontIterator final {
+class __attribute__((availability(android, introduced = 29)))
+AndroidSystemFontIterator final {
  public:
   AndroidSystemFontIterator();
   ~AndroidSystemFontIterator();
