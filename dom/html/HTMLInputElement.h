@@ -40,7 +40,6 @@ namespace mozilla {
 
 class EventChainPostVisitor;
 class EventChainPreVisitor;
-enum class StyleColorSpace : uint8_t;
 
 namespace dom {
 
@@ -452,11 +451,6 @@ class HTMLInputElement final : public TextControlElement,
     SetHTMLAttr(nsGkAtoms::accept, aValue, aRv);
   }
 
-  bool Alpha() const { return HasAttr(nsGkAtoms::alpha); }
-  void SetAlpha(bool aValue, ErrorResult& aRv) {
-    SetHTMLBoolAttr(nsGkAtoms::alpha, aValue, aRv);
-  }
-
   void GetAlt(nsAString& aValue) { GetHTMLAttr(nsGkAtoms::alt, aValue); }
   void SetAlt(const nsAString& aValue, ErrorResult& aRv) {
     SetHTMLAttr(nsGkAtoms::alt, aValue, aRv);
@@ -482,12 +476,6 @@ class HTMLInputElement final : public TextControlElement,
 
   bool Checked() const { return mChecked; }
   void SetChecked(bool aChecked);
-
-  void GetColorSpace(nsAString& aValue) const;
-  StyleColorSpace GetColorSpaceEnum() const;
-  void SetColorSpace(const nsAString& aValue, ErrorResult& aRv) {
-    SetHTMLAttr(nsGkAtoms::colorspace, aValue, aRv);
-  }
 
   bool IsRadioOrCheckbox() const {
     return mType == FormControlType::InputCheckbox ||
@@ -831,11 +819,6 @@ class HTMLInputElement final : public TextControlElement,
    * Return the current value as InputPickerColor.
    */
   void GetColor(InputPickerColor& aValue);
-
-  /**
-   * Update color value when alpha or colorspace is changed.
-   */
-  void UpdateColor();
 
   /**
    * Converts the InputPickerColor into a string and set it as user input.

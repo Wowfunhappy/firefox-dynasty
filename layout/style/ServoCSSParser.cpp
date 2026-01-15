@@ -32,10 +32,12 @@ bool ServoCSSParser::ComputeColor(const StylePerDocumentStyleData* aStyleData,
 }
 
 /* static */
-Maybe<StyleAbsoluteColor> ServoCSSParser::ComputeAbsoluteColor(
-    const StylePerDocumentStyleData* aStyleData, const nsACString& aValue) {
+Maybe<StyleAbsoluteColor> ServoCSSParser::ComputeColorWellControlColor(
+    const StylePerDocumentStyleData* aStyleData, const nsACString& aValue,
+    StyleColorSpace aToColorSpace) {
   StyleAbsoluteColor color{};
-  if (Servo_ComputeAbsoluteColor(aStyleData, &aValue, &color)) {
+  if (Servo_ComputeColorWellControlColor(aStyleData, &aValue, aToColorSpace,
+                                         &color)) {
     return Some(color);
   }
   return Nothing();
