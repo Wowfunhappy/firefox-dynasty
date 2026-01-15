@@ -258,7 +258,6 @@ export class AboutReaderParent extends JSWindowActorParent {
    * Gets an article for a given URL. This method will download and parse a document.
    *
    * @param url The article URL.
-   * @param browser The browser where the article is currently loaded.
    * @return {Promise<?object>}
    *   Resolves to the JS object representing the article, or null if no article
    *   is found.
