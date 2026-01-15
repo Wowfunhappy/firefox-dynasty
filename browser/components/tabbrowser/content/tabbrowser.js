@@ -214,6 +214,10 @@
       window.addEventListener("TabSplitViewActivate", this);
       window.addEventListener("TabSplitViewDeactivate", this);
 
+      window
+        .matchMedia("(prefers-color-scheme: dark)")
+        .addEventListener("change", this);
+
       this.tabContainer.init();
       this._setupInitialBrowserAndTab();
 
@@ -1155,9 +1159,7 @@
             this._remoteSVGIconDecoding &&
             url.startsWith(this.FaviconUtils.SVG_DATA_URI_PREFIX)
           ) {
-            // 16px is hardcoded for .tab-icon-image in tabs.css
-            let size = Math.floor(16 * window.devicePixelRatio);
-            url = this.FaviconUtils.getMozRemoteImageURL(url, { size });
+            url = this.#getMozRemoteImageURLForSvg(browser, url);
           }
           aTab.setAttribute("image", url);
         } else {
@@ -1171,6 +1173,48 @@
         aIconURL,
         aOriginalURL,
       ]);
+    }
+
+    // Used for refreshing the icons when the color scheme changes.
+    #maybeRefreshIcons() {
+      if (!this._remoteSVGIconDecoding) {
+        return;
+      }
+
+      for (const tab of this.tabs) {
+        let browser = this.getBrowserForTab(tab);
+        let iconURL = browser.mIconURL;
+        if (
+          !iconURL ||
+          !iconURL.startsWith(this.FaviconUtils.SVG_DATA_URI_PREFIX)
+        ) {
+          continue;
+        }
+
+        tab.setAttribute(
+          "image",
+          this.#getMozRemoteImageURLForSvg(browser, iconURL)
+        );
+      }
+    }
+
+    #getMozRemoteImageURLForSvg(browser, aUrl) {
+      let options = {
+        // 16px is hardcoded for .tab-icon-image in tabs.css
+        size: Math.floor(16 * window.devicePixelRatio),
+        colorScheme: window.matchMedia("(prefers-color-scheme: dark)").matches
+          ? "dark"
+          : "light",
+      };
+
+      // Use the tab's child process (if available) to load and render the favicon.
+      let contentParentId =
+        browser.browsingContext?.currentWindowGlobal?.contentParentId;
+      if (contentParentId !== undefined) {
+        options.contentParentId = contentParentId;
+      }
+
+      return this.FaviconUtils.getMozRemoteImageURL(aUrl, options);
     }
 
     getIcon(aTab) {
@@ -7950,6 +7994,10 @@
         // Intentional fallthrough
         case "deactivate":
           this.selectedTab.updateLastSeenActive();
+          break;
+        case "change":
+          // "(prefers-color-scheme: dark)" changed
+          this.#maybeRefreshIcons();
           break;
       }
     }
