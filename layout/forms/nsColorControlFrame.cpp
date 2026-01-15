@@ -14,10 +14,6 @@
 #include "nsGkAtoms.h"
 #include "nsIFormControl.h"
 
-#ifdef ACCESSIBILITY
-#  include "nsAccessibilityService.h"
-#endif
-
 using namespace mozilla;
 using mozilla::dom::CallerType;
 using mozilla::dom::HTMLInputElement;
@@ -104,11 +100,6 @@ nsresult nsColorControlFrame::AttributeChanged(int32_t aNameSpaceID,
           FormControlType::InputColor &&
       aNameSpaceID == kNameSpaceID_None && nsGkAtoms::value == aAttribute) {
     UpdateColor();
-#ifdef ACCESSIBILITY
-    if (nsAccessibilityService* accService = GetAccService()) {
-      accService->ColorValueChanged(PresShell(), mContent);
-    }
-#endif
   }
   return ButtonControlFrame::AttributeChanged(aNameSpaceID, aAttribute,
                                               aModType);

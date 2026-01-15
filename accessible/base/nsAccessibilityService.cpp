@@ -914,18 +914,6 @@ void nsAccessibilityService::RangeValueChanged(PresShell* aPresShell,
   }
 }
 
-void nsAccessibilityService::ColorValueChanged(PresShell* aPresShell,
-                                               nsIContent* aContent) {
-  DocAccessible* document = GetDocAccessible(aPresShell);
-  if (document) {
-    LocalAccessible* accessible = document->GetAccessible(aContent);
-    if (accessible) {
-      document->FireDelayedEvent(nsIAccessibleEvent::EVENT_TEXT_VALUE_CHANGE,
-                                 accessible);
-    }
-  }
-}
-
 void nsAccessibilityService::UpdateImageMap(nsImageFrame* aImageFrame) {
   PresShell* presShell = aImageFrame->PresShell();
   DocAccessible* document = GetDocAccessible(presShell);
