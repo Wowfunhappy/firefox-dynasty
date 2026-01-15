@@ -50,6 +50,7 @@ export const AIWindow = {
     if (!this._windowStates.has(win)) {
       this._windowStates.set(win, {});
       this.initializeAITabsToolbar(win);
+      this._initializeAskButtonOnToolbox(win);
     }
 
     if (this._initialized) {
@@ -106,6 +107,17 @@ export const AIWindow = {
     if (modeSwitcherButton) {
       modeSwitcherButton.hidden = !this.isAIWindowEnabled() || isPrivateWindow;
     }
+  },
+
+  /*
+   * Initializes the toolbox button that opens the assistant sidebar.
+   */
+  _initializeAskButtonOnToolbox(win) {
+    const askButton = win.document.getElementById("aiwindow-ask-button");
+    if (!askButton) {
+      return;
+    }
+    askButton.hidden = !this.isAIWindowActive(win);
   },
 
   /**
@@ -343,6 +355,7 @@ export const AIWindow = {
       win.document.documentElement.toggleAttribute("ai-window");
 
       this._reconcileNewTabPages(win, previousNewTabURL);
+      this._initializeAskButtonOnToolbox(win);
       Services.obs.notifyObservers(win, "ai-window-state-changed");
     }
   },

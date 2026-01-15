@@ -16,6 +16,8 @@ support-files = [
 
 ["browser_aiwindow_applied_memories_button.js"]
 
+["browser_aiwindow_ask_button.js"]
+
 ["browser_aiwindow_assistant_message_footer.js"]
 
 ["browser_aiwindow_firstrun.js"]

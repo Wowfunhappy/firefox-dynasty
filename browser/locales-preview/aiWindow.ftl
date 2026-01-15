@@ -79,3 +79,8 @@ aiwindow-retry =
 aiwindow-copy-message =
     .tooltiptext = Copy
     .aria-label = Copy message
+
+## Ask Toolbar Button
+
+aiwindow-ask-button =
+    .label = Ask

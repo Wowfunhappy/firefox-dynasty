@@ -141,4 +141,16 @@ export const AIWindowUI = {
 
     return opening;
   },
+
+  /**
+   * If the toolbar Ask Button is clicked, toggle the sidebar.
+   *
+   * @param {Window} win
+   * @param {Event} event
+   */
+  toggleSidebarFromAskButton(win, event) {
+    const askBtn = event.target.closest("#aiwindow-ask-button");
+    askBtn.classList.toggle("sidebar-is-open");
+    this.toggleSidebar(win);
+  },
 };
