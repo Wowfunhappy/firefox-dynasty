@@ -354,6 +354,10 @@ var allowlist = [
   {
     file: "moz-src:///browser/components/qrcode/QRCodeWorker.sys.mjs",
   },
+  // Bug D278060 - Smart Window website 'chip' component
+  {
+    file: "chrome://browser/content/aiwindow/components/ai-website-chip.mjs",
+  },
 ];
 
 if (AppConstants.NIGHTLY_BUILD) {
