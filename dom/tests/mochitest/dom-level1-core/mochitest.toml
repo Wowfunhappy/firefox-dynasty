@@ -186,6 +186,14 @@ support-files = [
 
 ["test_documentgetrootnode.html"]
 
+["test_documentinvalidcharacterexceptioncreateattribute.html"]
+
+["test_documentinvalidcharacterexceptioncreateelement.html"]
+
+["test_documentinvalidcharacterexceptioncreateentref.html"]
+
+["test_documentinvalidcharacterexceptioncreateentref1.html"]
+
 ["test_documentinvalidcharacterexceptioncreatepi.html"]
 
 ["test_documentinvalidcharacterexceptioncreatepi1.html"]
@@ -233,6 +241,8 @@ support-files = [
 ["test_elementgettagname.html"]
 
 ["test_elementinuseattributeerr.html"]
+
+["test_elementinvalidcharacterexception.html"]
 
 ["test_elementnormalize.html"]
 
@@ -448,6 +458,14 @@ support-files = [
 
 ["test_hc_documentgetrootnode.html"]
 
+["test_hc_documentinvalidcharacterexceptioncreateattribute.html"]
+
+["test_hc_documentinvalidcharacterexceptioncreateattribute1.html"]
+
+["test_hc_documentinvalidcharacterexceptioncreateelement.html"]
+
+["test_hc_documentinvalidcharacterexceptioncreateelement1.html"]
+
 ["test_hc_domimplementationfeaturenoversion.html"]
 
 ["test_hc_domimplementationfeaturenull.html"]
@@ -479,6 +497,10 @@ support-files = [
 ["test_hc_elementgettagname.html"]
 
 ["test_hc_elementinuseattributeerr.html"]
+
+["test_hc_elementinvalidcharacterexception.html"]
+
+["test_hc_elementinvalidcharacterexception1.html"]
 
 ["test_hc_elementnormalize.html"]
 

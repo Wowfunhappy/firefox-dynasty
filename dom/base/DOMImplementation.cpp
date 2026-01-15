@@ -52,9 +52,8 @@ already_AddRefed<DocumentType> DOMImplementation::CreateDocumentType(
     return nullptr;
   }
 
-  // https://dom.spec.whatwg.org/#dom-domimplementation-createdocumenttype
-  if (!nsContentUtils::IsValidDoctypeName(aQualifiedName)) {
-    aRv.ThrowInvalidCharacterError("Invalid doctype name");
+  aRv = nsContentUtils::CheckQName(aQualifiedName);
+  if (aRv.Failed()) {
     return nullptr;
   }
 
@@ -80,9 +79,7 @@ nsresult DOMImplementation::CreateDocument(const nsAString& aNamespaceURI,
   if (!aQualifiedName.IsEmpty()) {
     const nsString& qName = PromiseFlatString(aQualifiedName);
     const char16_t* colon;
-    // https://dom.spec.whatwg.org/#dom-domimplementation-createdocument
-    rv = nsContentUtils::ParseQualifiedNameRelaxed(qName, nsINode::ELEMENT_NODE,
-                                                   &colon);
+    rv = nsContentUtils::CheckQName(qName, true, &colon);
     NS_ENSURE_SUCCESS(rv, rv);
 
     if (colon && (DOMStringIsNull(aNamespaceURI) ||

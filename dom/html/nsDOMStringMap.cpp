@@ -78,7 +78,6 @@ void nsDOMStringMap::NamedGetter(const nsAString& aProp, bool& found,
   found = mElement->GetAttr(attr, aResult);
 }
 
-// https://html.spec.whatwg.org/#dom-domstringmap-setitem
 void nsDOMStringMap::NamedSetter(const nsAString& aProp,
                                  const nsAString& aValue, ErrorResult& rv) {
   nsAutoString attr;
@@ -87,15 +86,16 @@ void nsDOMStringMap::NamedSetter(const nsAString& aProp,
     return;
   }
 
-  if (!nsContentUtils::IsValidAttributeLocalName(attr)) {
-    rv.ThrowInvalidCharacterError("Invalid attribute name");
+  nsresult res = nsContentUtils::CheckQName(attr, false);
+  if (NS_FAILED(res)) {
+    rv.Throw(res);
     return;
   }
 
   RefPtr<nsAtom> attrAtom = NS_Atomize(attr);
   MOZ_ASSERT(attrAtom, "Should be infallible");
 
-  nsresult res = mElement->SetAttr(kNameSpaceID_None, attrAtom, aValue, true);
+  res = mElement->SetAttr(kNameSpaceID_None, attrAtom, aValue, true);
   if (NS_FAILED(res)) {
     rv.Throw(res);
   }
