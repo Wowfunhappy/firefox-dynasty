@@ -13,7 +13,6 @@ import "chrome://browser/content/aiwindow/components/assistant-message-footer.mj
 export class AIChatContent extends MozLitElement {
   static properties = {
     conversationState: { type: Array },
-    tokens: { type: Object },
   };
 
   constructor() {
@@ -68,21 +67,13 @@ export class AIChatContent extends MozLitElement {
    */
 
   handleAIResponseEvent(event) {
-    // TODO (bug 2009434): update reference to insights
-    const {
-      ordinal,
-      id: messageId,
-      content,
-      memoriesApplied,
-      tokens,
-    } = event.detail;
+    const { ordinal, id: messageId, content, memoriesApplied } = event.detail;
 
     this.conversationState[ordinal] = {
       role: "assistant",
       messageId,
       body: content.body,
       appliedMemories: memoriesApplied ?? [],
-      searchTokens: tokens?.search || [],
     };
 
     this.requestUpdate();
@@ -101,7 +92,6 @@ export class AIChatContent extends MozLitElement {
               <ai-chat-message
                 .message=${msg.body}
                 .role=${msg.role}
-                .searchTokens=${msg.searchTokens || []}
               ></ai-chat-message>
 
               ${msg.role === "assistant"
