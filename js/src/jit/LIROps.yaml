@@ -324,6 +324,12 @@
   result_type: WordSized
   num_temps: 1
 
+- name: WasmRefCastInfallible
+  mir_op: true
+  operands:
+    ref: WordSized
+  result_type: WordSized
+
 - name: WasmNewStructObject
   mir_op: true
   operands:
