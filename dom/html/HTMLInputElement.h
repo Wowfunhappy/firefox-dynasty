@@ -453,7 +453,9 @@ class HTMLInputElement final : public TextControlElement,
   }
 
   bool Alpha() const { return HasAttr(nsGkAtoms::alpha); }
-  void SetAlpha(bool aValue, ErrorResult& aRv);
+  void SetAlpha(bool aValue, ErrorResult& aRv) {
+    SetHTMLBoolAttr(nsGkAtoms::alpha, aValue, aRv);
+  }
 
   void GetAlt(nsAString& aValue) { GetHTMLAttr(nsGkAtoms::alt, aValue); }
   void SetAlt(const nsAString& aValue, ErrorResult& aRv) {
@@ -483,7 +485,9 @@ class HTMLInputElement final : public TextControlElement,
 
   void GetColorSpace(nsAString& aValue) const;
   StyleColorSpace GetColorSpaceEnum() const;
-  void SetColorSpace(const nsAString& aValue, ErrorResult& aRv);
+  void SetColorSpace(const nsAString& aValue, ErrorResult& aRv) {
+    SetHTMLAttr(nsGkAtoms::colorspace, aValue, aRv);
+  }
 
   bool IsRadioOrCheckbox() const {
     return mType == FormControlType::InputCheckbox ||
