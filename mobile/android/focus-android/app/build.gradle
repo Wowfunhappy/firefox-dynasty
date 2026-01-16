@@ -1,4 +1,5 @@
 plugins {
+    alias(libs.plugins.dependency.analysis)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.python.envs.plugin)
@@ -597,6 +598,11 @@ tasks.configureEach { task ->
     if (task.name.contains("compile")) {
         task.dependsOn(tasks.named("generateLocaleList"))
     }
+}
+
+// Make sure DAGP code-source exploding happens after we generate LocalesList.kt
+tasks.matching { it.name.startsWith("explodeCodeSource") }.configureEach { t ->
+    t.dependsOn(tasks.named("generateLocaleList"))
 }
 
 if (project.hasProperty("coverage")) {
