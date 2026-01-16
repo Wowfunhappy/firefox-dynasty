@@ -21,6 +21,7 @@ ChromeUtils.defineESModuleGetters(this, {
   NimbusTestUtils: "resource://testing-common/NimbusTestUtils.sys.mjs",
   PlacesTestUtils: "resource://testing-common/PlacesTestUtils.sys.mjs",
   PlacesUtils: "resource://gre/modules/PlacesUtils.sys.mjs",
+  PrivateBrowsingUtils: "resource://gre/modules/PrivateBrowsingUtils.sys.mjs",
   ProfileAge: "resource://gre/modules/ProfileAge.sys.mjs",
   QueryCache: "resource:///modules/asrouter/ASRouterTargeting.sys.mjs",
   Region: "resource://gre/modules/Region.sys.mjs",
@@ -569,6 +570,53 @@ add_task(async function checkisDefaultBrowser() {
     message,
     "should select correct item by isDefaultBrowser"
   );
+});
+
+add_task(async function checkisPrivateWindow_false() {
+  const win = await BrowserTestUtils.openNewBrowserWindow();
+  const expected = PrivateBrowsingUtils.isContentWindowPrivate(win);
+  const result = await ASRouterTargeting.Environment.isPrivateWindow;
+  is(typeof result, "boolean", "isPrivateWindow should be a boolean value");
+  is(
+    result,
+    expected,
+    "isPrivateWindow should be equal to PrivateBrowsingUtils.isContentWindowPrivate()"
+  );
+  const message = {
+    id: "foo",
+    targeting: `isPrivateWindow == ${expected.toString()}`,
+  };
+  is(
+    await ASRouterTargeting.findMatchingMessage({ messages: [message] }),
+    message,
+    "should select correct item by isPrivateWindow"
+  );
+  await BrowserTestUtils.closeWindow(win);
+});
+
+add_task(async function checkisPrivateWindow_true() {
+  // Open a new private window
+  const privateWin = await BrowserTestUtils.openNewBrowserWindow({
+    private: true,
+  });
+  const expected = PrivateBrowsingUtils.isContentWindowPrivate(privateWin);
+  const result = await ASRouterTargeting.Environment.isPrivateWindow;
+  is(typeof result, "boolean", "isPrivateWindow should be a boolean value");
+  is(
+    result,
+    expected,
+    "isPrivateWindow should be equal to PrivateBrowsingUtils.isContentWindowPrivate()"
+  );
+  const message = {
+    id: "foo",
+    targeting: `isPrivateWindow == ${expected.toString()}`,
+  };
+  is(
+    await ASRouterTargeting.findMatchingMessage({ messages: [message] }),
+    message,
+    "should select correct item by isPrivateWindow"
+  );
+  await BrowserTestUtils.closeWindow(privateWin);
 });
 
 add_task(async function checkdevToolsOpenedCount() {
