@@ -150,17 +150,23 @@ RefPtr<GenericPromise> MediaDecoder::SetSink(AudioDeviceInfo* aSinkDevice) {
   return GetStateMachine()->InvokeSetSink(aSinkDevice);
 }
 
-void MediaDecoder::SetOutputCaptureState(OutputCaptureInfo aInfo) {
+void MediaDecoder::SetOutputCaptureState(OutputCaptureState aState,
+                                         SharedDummyTrack* aDummyTrack) {
   MOZ_ASSERT(NS_IsMainThread());
   MOZ_ASSERT(mDecoderStateMachine, "Must be called after Load().");
-  MOZ_ASSERT_IF(aInfo.mState == OutputCaptureState::Capture, aInfo.mDummyTrack);
+  MOZ_ASSERT_IF(aState == OutputCaptureState::Capture, aDummyTrack);
 
-  if (mOutputCaptureInfo.Ref().mState != aInfo.mState) {
+  if (mOutputCaptureState.Ref() != aState) {
     LOG("Capture state change from %s to %s",
-        EnumValueToString(mOutputCaptureInfo.Ref().mState),
-        EnumValueToString(aInfo.mState));
+        EnumValueToString(mOutputCaptureState.Ref()),
+        EnumValueToString(aState));
   }
-  mOutputCaptureInfo = std::move(aInfo);
+  mOutputCaptureState = aState;
+  if (mOutputDummyTrack.Ref().get() != aDummyTrack) {
+    mOutputDummyTrack = nsMainThreadPtrHandle<SharedDummyTrack>(
+        MakeAndAddRef<nsMainThreadPtrHolder<SharedDummyTrack>>(
+            "MediaDecoder::mOutputDummyTrack", aDummyTrack));
+  }
 }
 
 void MediaDecoder::AddOutputTrack(RefPtr<ProcessedMediaTrack> aTrack) {
@@ -233,8 +239,8 @@ MediaDecoder::MediaDecoder(MediaDecoderInit& aInit)
       INIT_CANONICAL(mStreamName, aInit.mStreamName),
       INIT_CANONICAL(mSinkDevice, nullptr),
       INIT_CANONICAL(mSecondaryVideoContainer, nullptr),
-      INIT_CANONICAL(mOutputCaptureInfo,
-                     OutputCaptureInfo(OutputCaptureState::None)),
+      INIT_CANONICAL(mOutputCaptureState, OutputCaptureState::None),
+      INIT_CANONICAL(mOutputDummyTrack, nullptr),
       INIT_CANONICAL(mOutputTracks, nsTArray<RefPtr<ProcessedMediaTrack>>()),
       INIT_CANONICAL(mOutputPrincipal, PRINCIPAL_HANDLE_NONE),
       INIT_CANONICAL(mPlayState, PLAY_STATE_LOADING),
@@ -1687,48 +1693,6 @@ void MediaMemoryTracker::InitMemoryReporter() {
 MediaMemoryTracker::~MediaMemoryTracker() {
   UnregisterWeakMemoryReporter(this);
 }
-
-MediaDecoder::OutputCaptureInfo::OutputCaptureInfo(OutputCaptureState aState)
-    : mState(aState),
-      mDummyTrack(nullptr),
-      mShouldConfigAudioOutput(false),
-      mDevice(nullptr) {}
-
-MediaDecoder::OutputCaptureInfo::OutputCaptureInfo(
-    OutputCaptureState aState, SharedDummyTrack* aDummyTrack,
-    bool aShouldConfigAudioOutput, AudioDeviceInfo* aDevice)
-    : mState(aState),
-      mDummyTrack(nullptr),
-      mShouldConfigAudioOutput(aShouldConfigAudioOutput),
-      mDevice(aDevice) {
-  if (aDummyTrack) {
-    mDummyTrack = nsMainThreadPtrHandle<SharedDummyTrack>(
-        MakeAndAddRef<nsMainThreadPtrHolder<SharedDummyTrack>>(
-            "MediaDecoder::OutputCaptureInfo::mDummyTrack", aDummyTrack));
-  }
-}
-
-MediaDecoder::OutputCaptureInfo::OutputCaptureInfo(
-    const OutputCaptureInfo& aOther) = default;
-
-MediaDecoder::OutputCaptureInfo& MediaDecoder::OutputCaptureInfo::operator=(
-    const OutputCaptureInfo& aOther) = default;
-
-MediaDecoder::OutputCaptureInfo::OutputCaptureInfo(
-    OutputCaptureInfo&& aOther) noexcept = default;
-
-MediaDecoder::OutputCaptureInfo& MediaDecoder::OutputCaptureInfo::operator=(
-    OutputCaptureInfo&& aOther) noexcept = default;
-
-bool MediaDecoder::OutputCaptureInfo::operator==(
-    const OutputCaptureInfo& aOther) const {
-  return mState == aOther.mState &&
-         mShouldConfigAudioOutput == aOther.mShouldConfigAudioOutput &&
-         mDummyTrack.get() == aOther.mDummyTrack.get() &&
-         mDevice.get() == aOther.mDevice.get();
-}
-
-MediaDecoder::OutputCaptureInfo::~OutputCaptureInfo() = default;
 
 }  // namespace mozilla
 
