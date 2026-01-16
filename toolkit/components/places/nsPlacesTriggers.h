@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef __nsPlacesTriggers_h__
-#define __nsPlacesTriggers_h__
+#ifndef _nsPlacesTriggers_h_
+#define _nsPlacesTriggers_h_
 #include "nsPlacesTables.h"
 
 /**
@@ -396,4 +396,4 @@
       "DELETE FROM moz_historyvisits_extra WHERE visit_id = NEW.visit_id;" \
       "END")
 
-#endif  // __nsPlacesTriggers_h__
+#endif  // _nsPlacesTriggers_h_

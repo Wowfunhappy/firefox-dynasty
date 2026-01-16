@@ -3,8 +3,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at https://mozilla.org/MPL/2.0/. */
 
-#ifndef __nsRFPService_h__
-#define __nsRFPService_h__
+#ifndef _nsRFPService_h_
+#define _nsRFPService_h_
 
 #include <cstdint>
 #include <bitset>
@@ -743,4 +743,4 @@ class nsRFPService final : public nsIObserver, public nsIRFPService {
 
 }  // namespace mozilla
 
-#endif /* __nsRFPService_h__ */
+#endif /* _nsRFPService_h_ */
