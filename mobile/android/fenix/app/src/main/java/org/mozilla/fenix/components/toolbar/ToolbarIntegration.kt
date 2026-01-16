@@ -83,7 +83,7 @@ abstract class ToolbarIntegration(
     init {
         toolbar.private = isPrivate
 
-        if (context.settings().enableMenuRedesign && customTabId == null) {
+        if (customTabId == null) {
             addMenuBrowserAction()
         }
     }
@@ -111,9 +111,6 @@ abstract class ToolbarIntegration(
                 iconsR.drawable.mozac_ic_ellipsis_vertical_24,
             )!!,
             contentDescription = context.getString(R.string.content_description_menu),
-            visible = {
-                context.settings().enableMenuRedesign
-            },
             weight = { Int.MAX_VALUE },
             iconTintColorResource = ThemeManager.resolveAttribute(R.attr.textPrimary, context),
             listener = {

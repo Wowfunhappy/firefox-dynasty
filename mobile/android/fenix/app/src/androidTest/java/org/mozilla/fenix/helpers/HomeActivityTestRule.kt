@@ -63,7 +63,6 @@ class HomeActivityTestRule(
         etpPolicy: ETPPolicy = getETPPolicy(settings),
         isLocationPermissionEnabled: SitePermissionsRules.Action = getFeaturePermission(PhoneFeature.LOCATION, settings),
         isComposableToolbarEnabled: Boolean = true,
-        isMenuRedesignEnabled: Boolean = true,
         isMenuRedesignCFREnabled: Boolean = false,
         isPageLoadTranslationsPromptEnabled: Boolean = false,
         isMicrosurveyEnabled: Boolean = settings.microsurveyFeatureEnabled,
@@ -86,7 +85,6 @@ class HomeActivityTestRule(
         this.etpPolicy = etpPolicy
         this.isLocationPermissionEnabled = isLocationPermissionEnabled
         this.isComposableToolbarEnabled = isComposableToolbarEnabled
-        this.isMenuRedesignEnabled = isMenuRedesignEnabled
         this.isMenuRedesignCFREnabled = isMenuRedesignCFREnabled
         this.enableOrDisablePageLoadTranslationsPrompt(isPageLoadTranslationsPromptEnabled)
         this.isMicrosurveyEnabled = isMicrosurveyEnabled
@@ -196,7 +194,6 @@ class HomeActivityIntentTestRule internal constructor(
         etpPolicy: ETPPolicy = getETPPolicy(settings),
         isLocationPermissionEnabled: SitePermissionsRules.Action = getFeaturePermission(PhoneFeature.LOCATION, settings),
         isComposableToolbarEnabled: Boolean = true,
-        isMenuRedesignEnabled: Boolean = true,
         isMenuRedesignCFREnabled: Boolean = false,
         isPageLoadTranslationsPromptEnabled: Boolean = false,
         isMicrosurveyEnabled: Boolean = settings.microsurveyFeatureEnabled,
@@ -220,7 +217,6 @@ class HomeActivityIntentTestRule internal constructor(
         this.etpPolicy = etpPolicy
         this.isLocationPermissionEnabled = isLocationPermissionEnabled
         this.isComposableToolbarEnabled = isComposableToolbarEnabled
-        this.isMenuRedesignEnabled = isMenuRedesignEnabled
         this.isMenuRedesignCFREnabled = isMenuRedesignCFREnabled
         this.enableOrDisablePageLoadTranslationsPrompt(isPageLoadTranslationsPromptEnabled)
         this.isMicrosurveyEnabled = isMicrosurveyEnabled
@@ -298,7 +294,6 @@ class HomeActivityIntentTestRule internal constructor(
         etpPolicy = getETPPolicy(settings)
         isLocationPermissionEnabled = getFeaturePermission(PhoneFeature.LOCATION, settings)
         isComposableToolbarEnabled = settings.shouldUseComposableToolbar
-        isMenuRedesignEnabled = settings.enableMenuRedesign
         isMenuRedesignCFREnabled = settings.shouldShowMenuCFR
         isMicrosurveyEnabled = settings.microsurveyFeatureEnabled
         shouldUseBottomToolbar = settings.shouldUseBottomToolbar

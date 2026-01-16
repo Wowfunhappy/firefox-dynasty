@@ -96,7 +96,7 @@ class SecretSettingsFragment : PreferenceFragmentCompat() {
                         }
                     }
                     requirePreference<SwitchPreference>(R.string.pref_key_should_show_custom_tab_extensions).apply {
-                        val shouldEnableCustomTabExtensions = newOption || context.settings().enableMenuRedesign
+                        val shouldEnableCustomTabExtensions = newOption
                         isEnabled = shouldEnableCustomTabExtensions
                         when (shouldEnableCustomTabExtensions) {
                             true -> {
@@ -203,7 +203,7 @@ class SecretSettingsFragment : PreferenceFragmentCompat() {
         requirePreference<SwitchPreference>(R.string.pref_key_should_show_custom_tab_extensions).apply {
             isVisible = Config.channel.isDebug
             isChecked = context.settings().shouldShowCustomTabExtensions
-            val newOption = context.settings().enableMenuRedesign || context.settings().shouldUseComposableToolbar
+            val newOption = context.settings().shouldUseComposableToolbar
             isEnabled = newOption
             summary = when (newOption) {
                 true -> null

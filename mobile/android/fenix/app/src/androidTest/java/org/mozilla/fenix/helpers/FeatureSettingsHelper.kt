@@ -77,11 +77,6 @@ interface FeatureSettingsHelper {
     var isComposableToolbarEnabled: Boolean
 
     /**
-     * Enable or disable the new main menu.
-     */
-    var isMenuRedesignEnabled: Boolean
-
-    /**
      * Enable or disable the new main menu CFR.
      */
     var isMenuRedesignCFREnabled: Boolean

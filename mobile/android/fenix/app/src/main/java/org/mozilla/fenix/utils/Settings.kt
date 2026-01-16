@@ -2338,14 +2338,6 @@ class Settings(
     )
 
     /**
-     * Indicates if the menu redesign is enabled.
-     */
-    var enableMenuRedesign by booleanPreference(
-        key = appContext.getPreferenceKey(R.string.pref_key_enable_menu_redesign),
-        default = { FxNimbus.features.menuRedesign.value().enabled },
-    )
-
-    /**
      * Indicates if the extensions status should be shown in the menu opened for custom tabs.
      */
     var shouldShowCustomTabExtensions by booleanPreference(
