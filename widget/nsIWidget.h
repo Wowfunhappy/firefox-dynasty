@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef nsIWidget_h__
-#define nsIWidget_h__
+#ifndef nsIWidget_h_
+#define nsIWidget_h_
 
 #include <cmath>
 #include <cstdint>
@@ -2478,4 +2478,4 @@ class nsIWidget : public nsSupportsWeakReference {
                           mozilla::layers::CompositorOptions* aOptionsOut);
 };
 
-#endif  // nsIWidget_h__
+#endif  // nsIWidget_h_
