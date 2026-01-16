@@ -987,6 +987,13 @@ class nsGlobalWindowInner final : public mozilla::dom::EventTarget,
           mozilla::OwningNonNull<mozilla::dom::VoidFunction>>& aCallback,
       mozilla::ErrorResult& aError);
 
+  MOZ_CAN_RUN_SCRIPT bool SynthesizeTouchEvent(
+      const nsAString& aType,
+      const nsTArray<mozilla::dom::SynthesizeTouchEventData>& aTouches,
+      const int32_t aModifiers,
+      const mozilla::dom::SynthesizeTouchEventOptions& aOptions,
+      mozilla::ErrorResult& aError);
+
  protected:
   // Web IDL helpers
 

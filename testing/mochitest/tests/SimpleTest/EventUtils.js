@@ -1029,36 +1029,37 @@ function synthesizeTouchAtPoint(aLeft, aTop, aEvent = {}, aWindow = window) {
   const tiltYArray = getSameLengthArrayOfEventProperty("tiltY", 0);
   const twistArray = getSameLengthArrayOfEventProperty("twist", 0);
 
-  const modifiers = _parseModifiers(aEvent, aWindow);
-
-  const asyncOption = aEvent.asyncEnabled
-    ? utils.ASYNC_ENABLED
-    : utils.ASYNC_DISABLED;
-
-  const args = [
-    idArray,
-    leftArray,
-    topArray,
-    rxArray,
-    ryArray,
-    angleArray,
-    forceArray,
-    tiltXArray,
-    tiltYArray,
-    twistArray,
-    modifiers,
-    asyncOption,
-  ];
-
-  const sender =
-    aEvent.mozInputSource === "pen" ? "sendTouchEventAsPen" : "sendTouchEvent";
-
-  if ("type" in aEvent && aEvent.type) {
-    return utils[sender](aEvent.type, ...args);
+  const touches = [];
+  for (let i = 0; i < arrayLength; i++) {
+    touches.push({
+      identifier: idArray[i],
+      offsetX: leftArray[i],
+      offsetY: topArray[i],
+      radiiX: rxArray[i],
+      radiiY: ryArray[i],
+      rotationAngle: angleArray[i],
+      pressure: forceArray[i],
+      tiltX: tiltXArray[i],
+      tiltY: tiltYArray[i],
+      twist: twistArray[i],
+    });
   }
 
-  utils[sender]("touchstart", ...args);
-  utils[sender]("touchend", ...args);
+  const args = [
+    touches,
+    _parseModifiers(aEvent, aWindow),
+    {
+      isAsyncEnabled: aEvent.asyncEnabled || false,
+      isPen: aEvent.mozInputSource === "pen",
+    },
+  ];
+
+  if ("type" in aEvent && aEvent.type) {
+    return _EU_maybeWrap(aWindow).synthesizeTouchEvent(aEvent.type, ...args);
+  }
+
+  _EU_maybeWrap(aWindow).synthesizeTouchEvent("touchstart", ...args);
+  _EU_maybeWrap(aWindow).synthesizeTouchEvent("touchend", ...args);
   return false;
 }
 

@@ -199,6 +199,8 @@ class ShadowRoot;
 struct StructuredSerializeOptions;
 struct SynthesizeMouseEventData;
 struct SynthesizeMouseEventOptions;
+struct SynthesizeTouchEventData;
+struct SynthesizeTouchEventOptions;
 class TrustedHTMLOrString;
 class VoidFunction;
 class WorkerPrivate;
@@ -3065,6 +3067,21 @@ class nsContentUtils {
       const mozilla::dom::SynthesizeMouseEventOptions& aOptions,
       const mozilla::dom::Optional<
           mozilla::OwningNonNull<mozilla::dom::VoidFunction>>& aCallback);
+
+  /**
+   * Synthesize a touch event to the given widget
+   * (See synthesizeTouchEvent in Window.webidl).
+   *
+   * @return A boolean indicating whether the default action was prevented
+   *         by any event listener.
+   */
+  MOZ_CAN_RUN_SCRIPT
+  static mozilla::Result<bool, nsresult> SynthesizeTouchEvent(
+      nsPresContext* aPresContext, nsIWidget* aWidget,
+      const nsPoint& aWidgetOffset, const nsAString& aType,
+      const nsTArray<mozilla::dom::SynthesizeTouchEventData>& aTouches,
+      const int32_t aModifiers,
+      const mozilla::dom::SynthesizeTouchEventOptions& aOptions);
 
   static void FirePageShowEventForFrameLoaderSwap(
       nsIDocShellTreeItem* aItem,

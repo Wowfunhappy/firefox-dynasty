@@ -9681,6 +9681,69 @@ Result<bool, nsresult> nsContentUtils::SynthesizeMouseEvent(
   return status == nsEventStatus_eConsumeNoDefault;
 }
 
+mozilla::Result<bool, nsresult> nsContentUtils::SynthesizeTouchEvent(
+    nsPresContext* aPresContext, nsIWidget* aWidget,
+    const nsPoint& aWidgetOffset, const nsAString& aType,
+    const nsTArray<SynthesizeTouchEventData>& aTouches,
+    const int32_t aModifiers, const SynthesizeTouchEventOptions& aOptions) {
+  MOZ_ASSERT(aPresContext);
+  MOZ_ASSERT(aWidget);
+  AUTO_PROFILER_LABEL("nsContentUtils::SynthesizeTouchEvent", OTHER);
+
+  EventMessage msg;
+  if (aType.EqualsLiteral("touchstart")) {
+    msg = eTouchStart;
+  } else if (aType.EqualsLiteral("touchmove")) {
+    msg = eTouchMove;
+  } else if (aType.EqualsLiteral("touchend")) {
+    msg = eTouchEnd;
+  } else if (aType.EqualsLiteral("touchcancel")) {
+    msg = eTouchCancel;
+  } else {
+    return Err(NS_ERROR_UNEXPECTED);
+  }
+
+  WidgetTouchEvent event(true, msg, aWidget);
+  event.mFlags.mIsSynthesizedForTests = true;
+  event.mModifiers = nsContentUtils::GetWidgetModifiers(aModifiers);
+  if (aOptions.mIsPen) {
+    event.mInputSource = MouseEvent_Binding::MOZ_SOURCE_PEN;
+  }
+
+  uint32_t count = aTouches.Length();
+  event.mTouches.SetCapacity(count);
+  for (uint32_t i = 0; i < count; ++i) {
+    LayoutDeviceIntPoint pt = nsContentUtils::ToWidgetPoint(
+        CSSPoint(aTouches[i].mOffsetX, aTouches[i].mOffsetY), aWidgetOffset,
+        aPresContext);
+    LayoutDeviceIntPoint radius = LayoutDeviceIntPoint::FromAppUnitsRounded(
+        CSSPoint::ToAppUnits(
+            CSSPoint(aTouches[i].mRadiiX, aTouches[i].mRadiiY)),
+        aPresContext->AppUnitsPerDevPixel());
+
+    RefPtr<Touch> t =
+        new Touch(aTouches[i].mIdentifier, pt, radius,
+                  aTouches[i].mRotationAngle, aTouches[i].mPressure,
+                  aTouches[i].mTiltX, aTouches[i].mTiltY, aTouches[i].mTwist);
+
+    event.mTouches.AppendElement(t);
+  }
+
+  nsEventStatus status = nsEventStatus_eIgnore;
+  if (aOptions.mToWindow) {
+    RefPtr<PresShell> presShell = aPresContext->PresShell();
+    MOZ_TRY(presShell->HandleEvent(presShell->GetRootFrame(), &event, false,
+                                   &status));
+  } else if (aOptions.mIsAsyncEnabled ||
+             StaticPrefs::test_events_async_enabled()) {
+    status = aWidget->DispatchInputEvent(&event).mContentStatus;
+  } else {
+    status = aWidget->DispatchEvent(&event);
+  }
+
+  return status == nsEventStatus_eConsumeNoDefault;
+}
+
 /* static */
 void nsContentUtils::FirePageHideEventForFrameLoaderSwap(
     nsIDocShellTreeItem* aItem, EventTarget* aChromeEventHandler,
