@@ -98,7 +98,7 @@ export default class IPProtectionContentElement extends MozLitElement {
   }
 
   get #hasErrors() {
-    return !this.state || this.state.error !== "";
+    return !this.state || !!this.state.error;
   }
 
   handleClickSupportLink(event) {
@@ -176,6 +176,25 @@ export default class IPProtectionContentElement extends MozLitElement {
       this._messageDismissed = true;
       this.state.error = "";
       this.state.bandwidthWarning = false;
+    }
+  }
+
+  handleToggleExclusion(event) {
+    let isEnabled = event.target.pressed;
+
+    if (isEnabled) {
+      this.dispatchEvent(
+        new CustomEvent("IPProtection:ToggleOnExclusion", {
+          bubbles: true,
+        })
+      );
+    } else {
+      this.dispatchEvent(
+        new CustomEvent("IPProtection:ToggleOffExclusion", {
+          bubbles: true,
+          composed: true,
+        })
+      );
     }
   }
 
@@ -299,6 +318,7 @@ export default class IPProtectionContentElement extends MozLitElement {
         data-l10n-attrs="label"
         id="site-exclusion-toggle"
         ?pressed=${isExclusion}
+        @toggle=${this.handleToggleExclusion}
       >
       </moz-toggle>
     </div>`;
