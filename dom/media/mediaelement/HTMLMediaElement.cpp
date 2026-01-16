@@ -3845,6 +3845,11 @@ void HTMLMediaElement::AddOutputTrackSourceToOutputStream(
        domTrack->AsAudioStreamTrack() ? "audio" : "video", domTrack.get()));
 }
 
+bool HTMLMediaElement::ShouldHaveTrackSources() const {
+  return mTracksCaptured.Ref() && !IsPlaybackEnded() &&
+         mReadyState >= HAVE_METADATA;
+}
+
 void HTMLMediaElement::UpdateOutputTrackSources() {
   // This updates the track sources in mOutputTrackSources so they're in sync
   // with the tracks being currently played, and state saying whether we should
@@ -3858,10 +3863,7 @@ void HTMLMediaElement::UpdateOutputTrackSources() {
   //   remove any OutputMediaStreams that have the finish-when-ended flag set
   // - Create track sources for, and add to OutputMediaStreams, the tracks in
   //   tracks-to-add
-
-  const bool shouldHaveTrackSources = mTracksCaptured.Ref() &&
-                                      !IsPlaybackEnded() &&
-                                      mReadyState >= HAVE_METADATA;
+  const bool shouldHaveTrackSources = ShouldHaveTrackSources();
 
   // Add track sources for all enabled/selected MediaTracks.
   nsPIDOMWindowInner* window = OwnerDoc()->GetInnerWindow();
@@ -4102,6 +4104,9 @@ already_AddRefed<DOMMediaStream> HTMLMediaElement::CaptureStreamInternal(
 
   // Once the audio output configuration is set to NotNeeded, the state remains
   // permanent.
+  bool shouldRemoveAudioConfig =
+      mAudioOutputConfig != aAudioOutputConfig &&
+      aAudioOutputConfig == AudioOutputConfig::NotNeeded;
   mAudioOutputConfig = (mAudioOutputConfig == AudioOutputConfig::NotNeeded ||
                         aAudioOutputConfig == AudioOutputConfig::NotNeeded)
                            ? AudioOutputConfig::NotNeeded
@@ -4117,6 +4122,19 @@ already_AddRefed<DOMMediaStream> HTMLMediaElement::CaptureStreamInternal(
     // specified.
     if (aGraph && aGraph != mTracksCaptured.Ref()->mTrack->Graph()) {
       return nullptr;
+    }
+    // Audio output was configured already but now we need to remove it. Eg.
+    // MediaElementAudioSourceNode is connected so audio should be heard from
+    // WebAudio's graph.
+    if (shouldRemoveAudioConfig && (AudioTracks() || VideoTracks()) &&
+        ShouldHaveTrackSources() && mDecoder) {
+      MOZ_ASSERT(mAudioOutputConfig == AudioOutputConfig::NotNeeded);
+      LOG(LogLevel::Debug,
+          ("%p Update decoder capture state to remove audio output", this));
+      mDecoder->SetOutputCaptureState(MediaDecoder::OutputCaptureInfo(
+          MediaDecoder::OutputCaptureState::Capture,
+          mTracksCaptured.Ref().get(), /*aShouldConfigAudioOutput=*/false,
+          mSink.second));
     }
   } else {
     // This is the first output stream, or there are no tracks. If the former,
