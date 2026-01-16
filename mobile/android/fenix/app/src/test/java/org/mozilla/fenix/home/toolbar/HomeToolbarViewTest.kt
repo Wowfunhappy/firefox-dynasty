@@ -23,7 +23,6 @@ import org.mozilla.fenix.HomeActivity
 import org.mozilla.fenix.databinding.FragmentHomeBinding
 import org.mozilla.fenix.ext.components
 import org.mozilla.fenix.home.HomeFragment
-import org.mozilla.fenix.home.HomeMenuView
 import org.robolectric.RobolectricTestRunner
 
 @RunWith(RobolectricTestRunner::class)
@@ -50,7 +49,6 @@ class HomeToolbarViewTest {
                     mockk(relaxed = true),
                     homeFragment,
                     homeActivity,
-                    mockk(),
                 ),
             )
         every { toolbarView.buildHomeMenu() } returns mockk(relaxed = true)
