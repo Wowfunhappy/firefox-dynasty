@@ -855,7 +855,7 @@ pub unsafe extern "C" fn wgpu_server_texture_create_view(
             base_array_layer: desc.base_array_layer,
             array_layer_count: desc.array_layer_count.map(|ptr| *ptr),
         },
-        usage: None,
+        usage: Some(desc.usage),
     };
     let (_, err) = global.texture_create_view(texture_id, &desc, Some(id_in));
     if let Some(err) = err {
