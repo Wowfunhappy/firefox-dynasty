@@ -3560,6 +3560,8 @@ pref("browser.ipProtection.autoStartEnabled", false);
 pref("browser.ipProtection.autoStartPrivateEnabled", false);
 // Pref to track whether the user has turned IP protection on
 pref("browser.ipProtection.userEnabled", false);
+// Pref to track the number of times the user has enabled IP protection (max 3)
+pref("browser.ipProtection.userEnableCount", 0);
 // Pref to track number of times the VPN panel is opened
 pref("browser.ipProtection.panelOpenCount", 0);
 // Pref to enable support for site exceptions

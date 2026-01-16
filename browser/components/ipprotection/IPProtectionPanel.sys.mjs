@@ -543,6 +543,16 @@ export class IPProtectionPanel {
     } else if (event.type == "IPProtection:UserEnable") {
       this.#startProxy();
       Services.prefs.setBoolPref("browser.ipProtection.userEnabled", true);
+      let userEnableCount = Services.prefs.getIntPref(
+        "browser.ipProtection.userEnableCount",
+        0
+      );
+      if (userEnableCount < 3) {
+        Services.prefs.setIntPref(
+          "browser.ipProtection.userEnableCount",
+          userEnableCount + 1
+        );
+      }
     } else if (event.type == "IPProtection:UserDisable") {
       this.#stopProxy();
       Services.prefs.setBoolPref("browser.ipProtection.userEnabled", false);
