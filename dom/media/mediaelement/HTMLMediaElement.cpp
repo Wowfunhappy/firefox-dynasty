@@ -3868,6 +3868,8 @@ void HTMLMediaElement::UpdateOutputTrackSources() {
   }
 
   if (mDecoder) {
+    // TODO : pass mAudioOutputConfig to decoder so that the audio output can be
+    // set correctly during capture.
     if (!mTracksCaptured.Ref()) {
       mDecoder->SetOutputCaptureState(MediaDecoder::OutputCaptureState::None);
     } else if (!AudioTracks() || !VideoTracks() || !shouldHaveTrackSources) {
@@ -4088,11 +4090,24 @@ bool HTMLMediaElement::CanBeCaptured(StreamCaptureType aCaptureType) {
 
 already_AddRefed<DOMMediaStream> HTMLMediaElement::CaptureStreamInternal(
     StreamCaptureBehavior aFinishBehavior, StreamCaptureType aStreamCaptureType,
-    MediaTrackGraph* aGraph) {
+    AudioOutputConfig aAudioOutputConfig, MediaTrackGraph* aGraph) {
   MOZ_ASSERT(CanBeCaptured(aStreamCaptureType));
 
   LogVisibility(CallerAPI::CAPTURE_STREAM);
   MarkAsTainted();
+
+  // Once the audio output configuration is set to NotNeeded, the state remains
+  // permanent.
+  mAudioOutputConfig = (mAudioOutputConfig == AudioOutputConfig::NotNeeded ||
+                        aAudioOutputConfig == AudioOutputConfig::NotNeeded)
+                           ? AudioOutputConfig::NotNeeded
+                           : AudioOutputConfig::Needed;
+
+  LOG(LogLevel::Debug,
+      ("%p CaptureStreamInternal, behavior=%hhu, type=%hhu, needAudioConfig=%d",
+       this, static_cast<uint8_t>(aFinishBehavior),
+       static_cast<uint8_t>(aStreamCaptureType),
+       aAudioOutputConfig == AudioOutputConfig::Needed));
 
   if (mTracksCaptured.Ref()) {
     // Already have an output stream.  Check whether the graph rate matches if
@@ -4192,9 +4207,9 @@ already_AddRefed<DOMMediaStream> HTMLMediaElement::CaptureAudio(
     return nullptr;
   }
 
-  RefPtr<DOMMediaStream> stream =
-      CaptureStreamInternal(StreamCaptureBehavior::CONTINUE_WHEN_ENDED,
-                            StreamCaptureType::CAPTURE_AUDIO, aGraph);
+  RefPtr<DOMMediaStream> stream = CaptureStreamInternal(
+      StreamCaptureBehavior::CONTINUE_WHEN_ENDED,
+      StreamCaptureType::CAPTURE_AUDIO, AudioOutputConfig::NotNeeded, aGraph);
   if (!stream) {
     aRv.Throw(NS_ERROR_FAILURE);
     return nullptr;
@@ -4222,9 +4237,15 @@ already_AddRefed<DOMMediaStream> HTMLMediaElement::MozCaptureStream(
     return nullptr;
   }
 
+  // TODO : our mozCaptureStreamXXX implementation doesn't render audio
+  // output, which is not spec compliant. A proper implementation will be
+  // implemented in CaptureStream() which will allow audio playback. We don't
+  // want to change its behavior as that might be breaking for existing
+  // sites which are already using a workaround for audio playback.
   RefPtr<DOMMediaStream> stream =
       CaptureStreamInternal(StreamCaptureBehavior::CONTINUE_WHEN_ENDED,
-                            StreamCaptureType::CAPTURE_ALL_TRACKS, nullptr);
+                            StreamCaptureType::CAPTURE_ALL_TRACKS,
+                            AudioOutputConfig::NotNeeded, nullptr);
   if (!stream) {
     aRv.Throw(NS_ERROR_FAILURE);
     return nullptr;
@@ -4240,9 +4261,15 @@ already_AddRefed<DOMMediaStream> HTMLMediaElement::MozCaptureStreamUntilEnded(
     return nullptr;
   }
 
+  // TODO : our mozCaptureStreamXXX implementation doesn't render audio
+  // output, which is not spec compliant. A proper implementation will be
+  // implemented in CaptureStream() which will allow audio playback. We don't
+  // want to change its behavior as that might be breaking for existing
+  // sites which are already using a workaround for audio playback.
   RefPtr<DOMMediaStream> stream =
       CaptureStreamInternal(StreamCaptureBehavior::FINISH_WHEN_ENDED,
-                            StreamCaptureType::CAPTURE_ALL_TRACKS, nullptr);
+                            StreamCaptureType::CAPTURE_ALL_TRACKS,
+                            AudioOutputConfig::NotNeeded, nullptr);
   if (!stream) {
     aRv.Throw(NS_ERROR_FAILURE);
     return nullptr;
@@ -7842,6 +7869,8 @@ void HTMLMediaElement::AudioCaptureTrackChange(bool aCapture) {
     return;
   }
 
+  LOG(LogLevel::Debug, ("%p AudioCaptureTrackChange=%d", this, aCapture));
+
   if (aCapture && !mStreamWindowCapturer) {
     nsPIDOMWindowInner* window = OwnerDoc()->GetInnerWindow();
     if (!window) {
@@ -7852,9 +7881,9 @@ void HTMLMediaElement::AudioCaptureTrackChange(bool aCapture) {
         MediaTrackGraph::AUDIO_THREAD_DRIVER, window,
         MediaTrackGraph::REQUEST_DEFAULT_SAMPLE_RATE,
         MediaTrackGraph::DEFAULT_OUTPUT_DEVICE);
-    RefPtr<DOMMediaStream> stream =
-        CaptureStreamInternal(StreamCaptureBehavior::CONTINUE_WHEN_ENDED,
-                              StreamCaptureType::CAPTURE_AUDIO, mtg);
+    RefPtr<DOMMediaStream> stream = CaptureStreamInternal(
+        StreamCaptureBehavior::CONTINUE_WHEN_ENDED,
+        StreamCaptureType::CAPTURE_AUDIO, AudioOutputConfig::Needed, mtg);
     mStreamWindowCapturer =
         new MediaStreamWindowCapturer(stream, window->WindowID());
     mStreamWindowCapturer->mStream->RegisterTrackListener(
