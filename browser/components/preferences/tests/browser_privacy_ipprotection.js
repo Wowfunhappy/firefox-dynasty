@@ -342,19 +342,11 @@ add_task(async function test_additional_links() {
     { gBrowser, url: "about:preferences#privacy" },
     async function (browser) {
       let settingGroup = testSettingsGroupVisible(browser);
-      let additionalLinks = settingGroup?.querySelector(
-        "#ipProtectionAdditionalLinks"
+      let ipProtectionLinks = settingGroup?.querySelector("#ipProtectionLinks");
+      is_element_visible(
+        ipProtectionLinks,
+        "VPN upgrade link section is shown"
       );
-      is_element_visible(additionalLinks, "Additional links section is shown");
-
-      let ipProtectionSupportLink = additionalLinks?.querySelector(
-        "#ipProtectionSupportLink"
-      );
-      let ipProtectionUpgradeLink = additionalLinks?.querySelector(
-        "#ipProtectionUpgradeLink"
-      );
-      is_element_visible(ipProtectionSupportLink, "Support link is shown");
-      is_element_visible(ipProtectionUpgradeLink, "Upgrade link is shown");
     }
   );
 });

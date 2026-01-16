@@ -122,10 +122,9 @@ ip-protection-autostart-checkbox =
 ip-protection-autostart-private-checkbox =
   .label = In private windows
 
-ip-protection-contact-support-link =
-  .label = Contact support
-ip-protection-upgrade-link =
-  .label = Upgrade to { -mozilla-vpn-brand-name }
+ip-protection-vpn-upgrade-link =
+  .label = Get even more protection outside { -brand-short-name } with { -mozilla-vpn-brand-name }
+  .description = Choose custom VPN locations and add protection to all your apps on up to five devices, whether you’re at home or on public Wi-Fi.
 
 ## IP Protection dialogs
 
