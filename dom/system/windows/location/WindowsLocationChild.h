@@ -10,33 +10,24 @@
 #include "mozilla/WeakPtr.h"
 #include "mozilla/dom/PWindowsLocationChild.h"
 
-class ILocation;
-
 namespace mozilla::dom {
 
 // Geolocation actor in utility process.
-class WindowsLocationChild final : public PWindowsLocationChild,
-                                   public SupportsWeakPtr {
-  NS_INLINE_DECL_THREADSAFE_REFCOUNTING(WindowsLocationChild, override);
-
+class WindowsLocationChild : public PWindowsLocationChild,
+                             public SupportsWeakPtr {
  public:
-  WindowsLocationChild();
-
   using IPCResult = ::mozilla::ipc::IPCResult;
 
   IPCResult RecvStartup();
   IPCResult RecvRegisterForReport();
   IPCResult RecvUnregisterForReport();
-  IPCResult RecvSetHighAccuracy(bool aEnable);
-  void ActorDestroy(ActorDestroyReason aWhy) override;
+  IPCResult RecvSetHighAccuracy(const bool& aEnable);
 
- private:
-  ~WindowsLocationChild() override;
-
-  // The COM object the actors are proxying calls for.
-  RefPtr<ILocation> mLocation;
-
-  bool mHighAccuracy = false;
+ protected:
+  virtual mozilla::ipc::IPCResult Startup() = 0;
+  virtual mozilla::ipc::IPCResult RegisterForReport() = 0;
+  virtual mozilla::ipc::IPCResult UnregisterForReport() = 0;
+  virtual mozilla::ipc::IPCResult SetHighAccuracy(const bool& aEnable) = 0;
 };
 
 }  // namespace mozilla::dom

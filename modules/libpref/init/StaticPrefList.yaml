@@ -6669,6 +6669,14 @@
   mirror: always
 #endif
 
+#ifdef XP_WIN
+# Use Windows Runtime Geolocator for location service.
+- name: geo.provider.use_winrt
+  type: bool
+  value: @IS_NIGHTLY_BUILD@
+  mirror: always
+#endif
+
 # If true, open system preferences for the user when geolocation is requested
 # by the user but OS geolocation permission is not available.
 - name: geo.prompt.open_system_prefs
