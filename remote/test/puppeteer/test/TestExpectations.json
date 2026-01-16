@@ -810,13 +810,6 @@
     "comment": "crbug.com/469591372"
   },
   {
-    "testIdPattern": "[requestinterception.spec] request interception Page.setRequestInterception should work with keep alive redirects",
-    "platforms": ["darwin", "linux", "win32"],
-    "parameters": ["firefox"],
-    "expectations": ["FAIL"],
-    "comment": "Missing events for keep alive requests?"
-  },
-  {
     "testIdPattern": "[requestinterception.spec] request interception Page.setRequestInterception should work with worker",
     "platforms": ["darwin", "linux", "win32"],
     "parameters": ["firefox"],
@@ -1299,16 +1292,30 @@
     "comment": "TODO: add a comment explaining why this expectation is required (include links to issues)"
   },
   {
+    "testIdPattern": "[launcher.spec] Launcher specs Puppeteer Puppeteer.executablePath returns executablePath for channel",
+    "platforms": ["darwin", "linux", "win32"],
+    "parameters": ["firefox"],
+    "expectations": ["SKIP"],
+    "comment": "Cannot run on Mozilla CI"
+  },
+  {
+    "testIdPattern": "[launcher.spec] Launcher specs Puppeteer Puppeteer.executablePath should work",
+    "platforms": ["darwin", "linux", "win32"],
+    "parameters": ["firefox"],
+    "expectations": ["SKIP"],
+    "comment": "Cannot run on Mozilla CI"
+  },
+  {
     "testIdPattern": "[launcher.spec] Launcher specs Puppeteer Puppeteer.launch should filter out ignored default argument in Firefox",
     "platforms": ["linux"],
-    "parameters": ["firefox", "headful"],
-    "expectations": ["FAIL"],
-    "comment": "TODO: add a comment explaining why this expectation is required (include links to issues)"
+    "parameters": ["firefox"],
+    "expectations": ["SKIP"],
+    "comment": "Cannot run on Mozilla CI"
   },
   {
     "testIdPattern": "[launcher.spec] Launcher specs Puppeteer Puppeteer.launch should filter out ignored default arguments in Chrome",
     "platforms": ["darwin", "linux", "win32"],
-    "parameters": ["firefox", "headful"],
+    "parameters": ["firefox"],
     "expectations": ["SKIP"],
     "comment": "Test is testing chrome specific ignore and fails"
   },
@@ -1790,13 +1797,6 @@
   },
   {
     "testIdPattern": "[touchscreen.spec] Touchscreen Touchscreen.prototype.touchMove should work with two touches",
-    "platforms": ["darwin", "linux", "win32"],
-    "parameters": ["firefox", "webDriverBiDi"],
-    "expectations": ["FAIL"],
-    "comment": "TODO: add a comment explaining why this expectation is required (include links to issues)"
-  },
-  {
-    "testIdPattern": "[waittask.spec] waittask specs Frame.waitForFunction should work with strict CSP policy",
     "platforms": ["darwin", "linux", "win32"],
     "parameters": ["firefox", "webDriverBiDi"],
     "expectations": ["FAIL"],
