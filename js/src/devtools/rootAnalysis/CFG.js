@@ -782,7 +782,25 @@ function edgeEndsValueLiveRange(edge, variable, body)
     if (edge.Kind == "Assign") {
         // [c++] somevar = nullptr;
         const [lhs, rhs] = edge.Exp;
-        return expressionIsVariable(lhs, variable) && isImmobileValue(rhs);
+        if (expressionIsVariable(lhs, variable) && isImmobileValue(rhs)) {
+            return true;
+        }
+        // Resetting a Maybe<> as part of a constexpr constructor.
+        // The expression is Assign v.<base>.<base>.mIsSome = 0.
+        if (isImmobileValue(rhs) && lhs.Kind == "Fld") {
+            if (lhs.Field.Name[0] == "mIsSome" &&
+                lhs.Field.FieldCSU.Type.Name.includes("::MaybeStorage<") &&
+                str(rhs) == "0")
+            {
+                // Dig the `v` out of the lhs. It is the innermost Exp[0] of a sequence of field accesses.
+                let inner = lhs;
+                while (inner.Kind == "Fld") {
+                    inner = inner.Exp[0];
+                }
+                return expressionIsVariable(inner, variable);
+            }
+        }
+        return false;
     }
 
     if (edge.Kind != "Call")
