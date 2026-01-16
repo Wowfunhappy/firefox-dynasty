@@ -726,6 +726,13 @@ class Search {
     // "openpage" behavior is supported by the default query.
     // #switchToTabQuery instead returns only pages not supported by history.
     if (this.hasBehavior("openpage")) {
+      // Wait for open tabs to be fully populated in moz_openpages_temp.
+      // The table is populated asynchronously when the connection is first
+      // created, and querying before it's ready returns incomplete results.
+      await lazy.UrlbarProviderOpenTabs.promiseDBPopulated;
+      if (!this.pending) {
+        return;
+      }
       queries.push(this.#switchToTabQuery);
     }
     queries.push(this.#searchQuery);
