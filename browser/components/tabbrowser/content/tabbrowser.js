@@ -7590,7 +7590,7 @@
       return false;
     }
 
-    _handleKeyDownEvent(aEvent) {
+    on_keydown(aEvent) {
       if (!aEvent.isTrusted) {
         // Don't let untrusted events mess with tabs.
         return;
@@ -7631,7 +7631,7 @@
       }
     }
 
-    toggleCaretBrowsing() {
+    #toggleCaretBrowsing() {
       const kPrefShortcutEnabled =
         "accessibility.browsewithcaret_shortcut.enabled";
       const kPrefWarnOnEnable = "accessibility.warn_on_browsewithcaret";
@@ -7699,7 +7699,7 @@
       } catch (ex) {}
     }
 
-    _handleKeyPressEvent(aEvent) {
+    on_keypress(aEvent) {
       if (!aEvent.isTrusted) {
         // Don't let untrusted events mess with tabs.
         return;
@@ -7723,7 +7723,7 @@
           ) {
             break;
           }
-          this.toggleCaretBrowsing();
+          this.#toggleCaretBrowsing();
           break;
 
         case ShortcutUtils.NEXT_TAB:
@@ -7739,6 +7739,104 @@
           }
           break;
       }
+    }
+
+    on_framefocusrequested(aEvent) {
+      let tab = this.getTabForBrowser(aEvent.target);
+      if (!tab || tab == this.selectedTab) {
+        // Let the focus manager try to do its thing by not calling
+        // preventDefault(). It will still raise the window if appropriate.
+        return;
+      }
+      this.selectedTab = tab;
+      window.focus();
+      aEvent.preventDefault();
+    }
+
+    on_visibilitychange() {
+      if (!this._switcher) {
+        const inactive = document.hidden;
+        for (const browser of this.selectedBrowsers) {
+          browser.preserveLayers(inactive);
+          browser.docShellIsActive = !inactive;
+        }
+      }
+    }
+
+    on_TabGroupCollapse(aEvent) {
+      aEvent.target.tabs.forEach(tab => {
+        this.removeFromMultiSelectedTabs(tab);
+      });
+    }
+
+    on_TabGroupCreateByUser(aEvent) {
+      this.tabGroupMenu.openCreateModal(aEvent.target);
+    }
+
+    on_TabGrouped(aEvent) {
+      let tab = aEvent.detail;
+      let uri =
+        tab.linkedBrowser?.registeredOpenURI || tab._originalRegisteredOpenURI;
+      if (uri) {
+        this.UrlbarProviderOpenTabs.unregisterOpenTab(
+          uri.spec,
+          tab.userContextId,
+          null,
+          PrivateBrowsingUtils.isWindowPrivate(window)
+        );
+        this.UrlbarProviderOpenTabs.registerOpenTab(
+          uri.spec,
+          tab.userContextId,
+          tab.group?.id,
+          PrivateBrowsingUtils.isWindowPrivate(window)
+        );
+      }
+    }
+
+    on_TabUngrouped(aEvent) {
+      let tab = aEvent.detail;
+      let uri =
+        tab.linkedBrowser?.registeredOpenURI || tab._originalRegisteredOpenURI;
+      if (uri) {
+        // By the time the tab makes it to us it is already ungrouped, but
+        // the original group is preserved in the event target.
+        let originalGroup = aEvent.target;
+        this.UrlbarProviderOpenTabs.unregisterOpenTab(
+          uri.spec,
+          tab.userContextId,
+          originalGroup.id,
+          PrivateBrowsingUtils.isWindowPrivate(window)
+        );
+        this.UrlbarProviderOpenTabs.registerOpenTab(
+          uri.spec,
+          tab.userContextId,
+          null,
+          PrivateBrowsingUtils.isWindowPrivate(window)
+        );
+      }
+    }
+
+    on_TabSplitViewActivate(aEvent) {
+      this.#activeSplitView = aEvent.detail.splitview;
+    }
+
+    on_TabSplitViewDeactivate(aEvent) {
+      if (this.#activeSplitView === aEvent.detail.splitview) {
+        this.#activeSplitView = null;
+      }
+    }
+
+    on_activate() {
+      this.selectedTab.updateLastSeenActive();
+    }
+
+    on_deactivate() {
+      this.selectedTab.updateLastSeenActive();
+    }
+
+    on_change() {
+      // "(prefers-color-scheme: dark)" changed
+      this.#maybeRefreshIcons();
     }
 
     /**
@@ -7900,105 +7998,11 @@
     }
 
     handleEvent(aEvent) {
-      switch (aEvent.type) {
-        case "keydown":
-          this._handleKeyDownEvent(aEvent);
-          break;
-        case "keypress":
-          this._handleKeyPressEvent(aEvent);
-          break;
-        case "framefocusrequested": {
-          let tab = this.getTabForBrowser(aEvent.target);
-          if (!tab || tab == this.selectedTab) {
-            // Let the focus manager try to do its thing by not calling
-            // preventDefault(). It will still raise the window if appropriate.
-            break;
-          }
-          this.selectedTab = tab;
-          window.focus();
-          aEvent.preventDefault();
-          break;
-        }
-        case "visibilitychange": {
-          const inactive = document.hidden;
-          if (!this._switcher) {
-            for (const browser of this.selectedBrowsers) {
-              browser.preserveLayers(inactive);
-              browser.docShellIsActive = !inactive;
-            }
-          }
-          break;
-        }
-        case "TabGroupCollapse":
-          aEvent.target.tabs.forEach(tab => {
-            this.removeFromMultiSelectedTabs(tab);
-          });
-          break;
-        case "TabGroupCreateByUser":
-          this.tabGroupMenu.openCreateModal(aEvent.target);
-          break;
-        case "TabGrouped": {
-          let tab = aEvent.detail;
-          let uri =
-            tab.linkedBrowser?.registeredOpenURI ||
-            tab._originalRegisteredOpenURI;
-          if (uri) {
-            this.UrlbarProviderOpenTabs.unregisterOpenTab(
-              uri.spec,
-              tab.userContextId,
-              null,
-              PrivateBrowsingUtils.isWindowPrivate(window)
-            );
-            this.UrlbarProviderOpenTabs.registerOpenTab(
-              uri.spec,
-              tab.userContextId,
-              tab.group?.id,
-              PrivateBrowsingUtils.isWindowPrivate(window)
-            );
-          }
-          break;
-        }
-        case "TabUngrouped": {
-          let tab = aEvent.detail;
-          let uri =
-            tab.linkedBrowser?.registeredOpenURI ||
-            tab._originalRegisteredOpenURI;
-          if (uri) {
-            // By the time the tab makes it to us it is already ungrouped, but
-            // the original group is preserved in the event target.
-            let originalGroup = aEvent.target;
-            this.UrlbarProviderOpenTabs.unregisterOpenTab(
-              uri.spec,
-              tab.userContextId,
-              originalGroup.id,
-              PrivateBrowsingUtils.isWindowPrivate(window)
-            );
-            this.UrlbarProviderOpenTabs.registerOpenTab(
-              uri.spec,
-              tab.userContextId,
-              null,
-              PrivateBrowsingUtils.isWindowPrivate(window)
-            );
-          }
-          break;
-        }
-        case "TabSplitViewActivate":
-          this.#activeSplitView = aEvent.detail.splitview;
-          break;
-        case "TabSplitViewDeactivate":
-          if (this.#activeSplitView === aEvent.detail.splitview) {
-            this.#activeSplitView = null;
-          }
-          break;
-        case "activate":
-        // Intentional fallthrough
-        case "deactivate":
-          this.selectedTab.updateLastSeenActive();
-          break;
-        case "change":
-          // "(prefers-color-scheme: dark)" changed
-          this.#maybeRefreshIcons();
-          break;
+      let methodName = `on_${aEvent.type}`;
+      if (methodName in this) {
+        this[methodName](aEvent);
+      } else {
+        throw new Error(`Unexpected event ${aEvent.type}`);
       }
     }
 
