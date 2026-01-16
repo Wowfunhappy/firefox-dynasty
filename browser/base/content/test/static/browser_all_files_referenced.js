@@ -358,6 +358,10 @@ var allowlist = [
   {
     file: "chrome://browser/content/aiwindow/components/ai-website-chip.mjs",
   },
+  // Bug 2001456 - Toggle memories button for ai window
+  {
+    file: "chrome://browser/content/aiwindow/components/memories-icon-button.mjs",
+  },
 ];
 
 if (AppConstants.NIGHTLY_BUILD) {

@@ -6,6 +6,8 @@ support-files = [
   "test_chat_search_button.mjs",
   "test_assistant_message_footer_page.html",
   "test_applied_memories_page.html",
+  "test_memories_icon_button_page.html",
+  "test_memories_icon_button.mjs"
 ]
 
 ["browser_actor_user_prompt.js"]
@@ -35,6 +37,8 @@ support-files = [
 ["browser_aiwindow_transparency.js"]
 
 ["browser_aiwindowui.js"]
+
+["browser_memories_icon_button.js"]
 
 ["browser_open_aiwindow.js"]
 
