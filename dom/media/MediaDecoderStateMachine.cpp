@@ -4430,12 +4430,18 @@ void MediaDecoderStateMachine::UpdateOutputCaptured() {
                     MediaDecoder::OutputCaptureState::Capture,
                 mOutputCaptureInfo.Ref().mDummyTrack);
 
+  LOG("UpdateOutputCaptured, shouldConfigAudioOutput=%d",
+      static_cast<int>(mOutputCaptureInfo.Ref().mShouldConfigAudioOutput));
+
   // Reset these flags so they are consistent with the status of the sink.
   // TODO: Move these flags into MediaSink to improve cohesion so we don't need
   // to reset these flags when switching MediaSinks.
   mAudioCompleted = false;
   mVideoCompleted = false;
 
+  // TODO: When it becomes necessary to remove audio output from a DecodedStream
+  // that already has an audio output set, we should remove the output directly
+  // instead of tearing down and recreating a new sink. See bug 2009488.
   // Don't create a new media sink if we're still suspending media sink.
   if (!mIsMediaSinkSuspended) {
     const bool wasPlaying = IsPlaying();

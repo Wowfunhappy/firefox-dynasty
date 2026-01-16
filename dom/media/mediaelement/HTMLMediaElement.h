@@ -1977,6 +1977,9 @@ class HTMLMediaElement : public nsGenericHTMLElement,
   // with. See bug 1946547.
   void MaybeMarkSHEntryAsUserInteracted();
 
+  // True if we should have track sources for captured tracks.
+  bool ShouldHaveTrackSources() const;
+
 #ifdef MOZ_WMF_CDM
   // It's used to record telemetry probe for WMFCDM playback.
   bool mIsUsingWMFCDM = false;
