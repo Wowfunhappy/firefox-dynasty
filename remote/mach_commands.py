@@ -623,6 +623,7 @@ def is_relevant_expectation(
     else:
         is_expected_product = "firefox" not in parameters
 
+    is_expected_connection = "pipe" not in parameters
     is_expected_protocol = "cdp" not in parameters
 
     if is_headless == "True":
@@ -634,9 +635,10 @@ def is_relevant_expectation(
 
     return (
         is_expected_product
-        and is_expected_protocol
+        and is_expected_connection
         and is_expected_mode
         and is_expected_platform
+        and is_expected_protocol
     )
 
 
