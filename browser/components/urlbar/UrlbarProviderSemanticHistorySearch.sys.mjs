@@ -16,6 +16,7 @@ import {
 const lazy = {};
 
 ChromeUtils.defineESModuleGetters(lazy, {
+  BrowserWindowTracker: "resource:///modules/BrowserWindowTracker.sys.mjs",
   EnrollmentType: "resource://nimbus/ExperimentAPI.sys.mjs",
   NimbusFeatures: "resource://nimbus/ExperimentAPI.sys.mjs",
   PlacesUtils: "resource://gre/modules/PlacesUtils.sys.mjs",
@@ -184,6 +185,8 @@ export class UrlbarProviderSemanticHistorySearch extends UrlbarProvider {
       );
 
     let added = false;
+    let isSplitViewActive =
+      lazy.BrowserWindowTracker.getTopWindow().gBrowser.selectedTab.splitview;
     for (let [tabUserContextId, tabGroupId] of openTabs) {
       // Don't return a switch to tab result for the current page.
       if (
@@ -203,9 +206,11 @@ export class UrlbarProviderSemanticHistorySearch extends UrlbarProvider {
           userContextId: tabUserContextId,
           tabGroup: tabGroupId,
           lastVisit: res.lastVisit,
-          action: lazy.UrlbarPrefs.get("secondaryActions.switchToTab")
-            ? UrlbarUtils.createTabSwitchSecondaryAction(tabUserContextId)
-            : undefined,
+          action:
+            lazy.UrlbarPrefs.get("secondaryActions.switchToTab") ||
+            isSplitViewActive
+              ? UrlbarUtils.createTabSwitchSecondaryAction(tabUserContextId)
+              : undefined,
         },
       });
       addCallback(this, result);
