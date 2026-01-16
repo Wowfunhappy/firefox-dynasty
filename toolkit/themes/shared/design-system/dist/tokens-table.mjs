@@ -423,35 +423,6 @@ export const tokensTable = {
       name: "--button-background-color-ghost-selected",
     },
     {
-      value: "var(--button-background-color-ghost)",
-      name: "--button-background-color-menu",
-    },
-    {
-      value: {
-        default: "var(--button-background-color-ghost-active)",
-        forcedColors: "var(--button-background-color-primary)",
-      },
-      name: "--button-background-color-menu-active",
-    },
-    {
-      value: "var(--button-background-color-ghost-disabled)",
-      name: "--button-background-color-menu-disabled",
-    },
-    {
-      value: {
-        default: "var(--button-background-color-ghost-hover)",
-        forcedColors: "var(--button-background-color-primary)",
-      },
-      name: "--button-background-color-menu-hover",
-    },
-    {
-      value: {
-        default: "var(--button-background-color-ghost-selected)",
-        forcedColors: "var(--button-background-color-primary-selected)",
-      },
-      name: "--button-background-color-menu-selected",
-    },
-    {
       value: "var(--button-background-color-active)",
       name: "--button-background-color-selected",
     },
@@ -954,37 +925,6 @@ export const tokensTable = {
       name: "--button-text-color-hover",
     },
     {
-      value: "var(--button-text-color-ghost)",
-      name: "--button-text-color-menu",
-    },
-    {
-      value: {
-        default: "var(--button-text-color-ghost-active)",
-        prefersContrast: "var(--button-text-color-primary)",
-        forcedColors: "var(--button-text-color-primary)",
-      },
-      name: "--button-text-color-menu-active",
-    },
-    {
-      value: "var(--button-text-color-ghost-disabled)",
-      name: "--button-text-color-menu-disabled",
-    },
-    {
-      value: {
-        default: "var(--button-text-color-ghost-hover)",
-        prefersContrast: "var(--button-text-color-primary)",
-        forcedColors: "var(--button-text-color-primary)",
-      },
-      name: "--button-text-color-menu-hover",
-    },
-    {
-      value: {
-        default: "var(--button-text-color-ghost-selected)",
-        forcedColors: "var(--button-text-color-primary-selected)",
-      },
-      name: "--button-text-color-menu-selected",
-    },
-    {
       value: {
         forcedColors: "ButtonFace",
         brand: {
@@ -1443,21 +1383,6 @@ export const variableLookupTable = {
   "button-background-color-ghost-hover": "var(--button-background-color-hover)",
   "button-background-color-ghost-selected":
     "var(--button-background-color-ghost-active)",
-  "button-background-color-menu": "var(--button-background-color-ghost)",
-  "button-background-color-menu-active": {
-    default: "var(--button-background-color-ghost-active)",
-    forcedColors: "var(--button-background-color-primary)",
-  },
-  "button-background-color-menu-disabled":
-    "var(--button-background-color-ghost-disabled)",
-  "button-background-color-menu-hover": {
-    default: "var(--button-background-color-ghost-hover)",
-    forcedColors: "var(--button-background-color-primary)",
-  },
-  "button-background-color-menu-selected": {
-    default: "var(--button-background-color-ghost-selected)",
-    forcedColors: "var(--button-background-color-primary-selected)",
-  },
   "button-background-color-selected": "var(--button-background-color-active)",
   "button-border": "var(--border-width) solid var(--button-border-color)",
   "button-border-color": {
@@ -1601,22 +1526,6 @@ export const variableLookupTable = {
   "button-text-color-hover": {
     default: "var(--button-text-color)",
     forcedColors: "SelectedItem",
-  },
-  "button-text-color-menu": "var(--button-text-color-ghost)",
-  "button-text-color-menu-active": {
-    default: "var(--button-text-color-ghost-active)",
-    prefersContrast: "var(--button-text-color-primary)",
-    forcedColors: "var(--button-text-color-primary)",
-  },
-  "button-text-color-menu-disabled": "var(--button-text-color-ghost-disabled)",
-  "button-text-color-menu-hover": {
-    default: "var(--button-text-color-ghost-hover)",
-    prefersContrast: "var(--button-text-color-primary)",
-    forcedColors: "var(--button-text-color-primary)",
-  },
-  "button-text-color-menu-selected": {
-    default: "var(--button-text-color-ghost-selected)",
-    forcedColors: "var(--button-text-color-primary-selected)",
   },
   "button-text-color-primary": {
     forcedColors: "ButtonFace",
