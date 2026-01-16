@@ -46,7 +46,6 @@ abstract class ToolbarIntegration(
     private val context: Context,
     private val toolbar: BrowserToolbar,
     scrollableToolbar: ScrollableToolbar,
-    toolbarMenu: ToolbarMenu,
     private val interactor: BrowserToolbarInteractor,
     private val customTabId: String?,
     isPrivate: Boolean,
@@ -82,10 +81,6 @@ abstract class ToolbarIntegration(
     private val toolbarController = ToolbarBehaviorController(scrollableToolbar, store, customTabId)
 
     init {
-        if (!context.settings().enableMenuRedesign) {
-            toolbar.display.menuBuilder = toolbarMenu.menuBuilder
-        }
-
         toolbar.private = isPrivate
 
         if (context.settings().enableMenuRedesign && customTabId == null) {
@@ -141,7 +136,6 @@ class DefaultToolbarIntegration(
     private val context: Context,
     private val toolbar: BrowserToolbar,
     scrollableToolbar: ScrollableToolbar,
-    toolbarMenu: ToolbarMenu,
     private val lifecycleOwner: LifecycleOwner,
     customTabId: String? = null,
     private val isPrivate: Boolean,
@@ -150,7 +144,6 @@ class DefaultToolbarIntegration(
     context = context,
     toolbar = toolbar,
     scrollableToolbar = scrollableToolbar,
-    toolbarMenu = toolbarMenu,
     interactor = interactor,
     customTabId = customTabId,
     isPrivate = isPrivate,
