@@ -593,68 +593,6 @@ bool CheckMutableOperations(T maybe) {
 
 END_TEST(testRootedMaybeValue)
 
-// Maybe<T> should inherit the attributes of T, assuming it gets emplaced.
-BEGIN_TEST(testMaybeHandling_inherit) {
-  JSObject* dangerous = JS_NewObject(cx, nullptr);
-  CHECK(dangerous);
-  mozilla::Maybe<js::gc::AutoSuppressGC> suppress;
-  suppress.emplace(cx);
-  JS_GC(cx);  // safe because GC is suppressed.
-  return !!dangerous;
-}
-END_TEST(testMaybeHandling_inherit)
-
-#if BUG_2006236_IMPLEMENTED
-// Maybe<T> should have no effect if it is not emplaced.
-BEGIN_TEST_WITH_ATTRIBUTES(testMaybeHandling_nothing, JS_EXPECT_HAZARDS) {
-  JSObject* dangerous = JS_NewObject(cx, nullptr);
-  CHECK(dangerous);
-  mozilla::Maybe<js::gc::AutoSuppressGC> suppress;
-  JS_GC(cx);  // bad! GC unsuppressed!
-  return !!dangerous;
-}
-END_TEST(testMaybeHandling_nothing)
-#endif
-
-BEGIN_TEST(testMaybeHandling_uninit) {
-  Rooted<JSObject*> dangerous(cx, JS_NewObject(cx, nullptr));
-  CHECK(dangerous);
-  mozilla::Maybe<JSObject*> safe;
-  JS_GC(cx);
-  safe.emplace(dangerous);  // After GC, so this doesn't matter.
-  return safe.isSome();
-}
-END_TEST(testMaybeHandling_uninit)
-
-BEGIN_TEST_WITH_ATTRIBUTES(testMaybeHandling_init, JS_EXPECT_HAZARDS) {
-  Rooted<JSObject*> dangerous(cx, JS_NewObject(cx, nullptr));
-  CHECK(dangerous);
-  mozilla::Maybe<JSObject*> safe(std::in_place, dangerous);
-  JS_GC(cx);
-  return safe.isSome();
-}
-END_TEST(testMaybeHandling_init)
-
-BEGIN_TEST_WITH_ATTRIBUTES(testMaybeHandling_emplace, JS_EXPECT_HAZARDS) {
-  Rooted<JSObject*> dangerous(cx, JS_NewObject(cx, nullptr));
-  CHECK(dangerous);
-  mozilla::Maybe<JSObject*> safe;
-  safe.emplace(dangerous);
-  JS_GC(cx);
-  return safe.isSome();
-}
-END_TEST(testMaybeHandling_emplace)
-
-BEGIN_TEST(testMaybeHandling_reset) {
-  Rooted<JSObject*> dangerous(cx, JS_NewObject(cx, nullptr));
-  CHECK(dangerous);
-  mozilla::Maybe<JSObject*> safe = Some((JSObject*)dangerous);
-  JS_GC(cx);
-  safe.reset();  // safe is dead here and therefore also across the GC
-  return safe.isNothing();
-}
-END_TEST(testMaybeHandling_reset)
-
 struct TestErr {};
 struct OtherTestErr {};
 

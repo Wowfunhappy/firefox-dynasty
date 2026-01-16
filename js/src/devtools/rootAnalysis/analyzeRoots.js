@@ -925,7 +925,7 @@ function process(name, json) {
         body.attrs = [];
 
     for (var body of functionBodies) {
-        for (var [pbody, id, attrs] of allRAIIGuardedCallPoints(typeInfo, functionBodies, body))
+        for (var [pbody, id, attrs] of allRAIIGuardedCallPoints(typeInfo, functionBodies, body, isLimitConstructor))
         {
             if (attrs)
                 pbody.attrs[id] = attrs;

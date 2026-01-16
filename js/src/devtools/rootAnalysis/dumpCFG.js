@@ -221,7 +221,7 @@ function str_assume(prefix, edge) {
     return `${prefix} Assume ${cmp}${OpCode} ${str_value(aExp[0])}`;
   } else if (Kind == 'NullTest') {
     return `${prefix} Assume nullptr ${cmp}== ${str_value(aExp[0])}`;
-  } else if (['Drf', 'Int'].includes(Kind)) {
+  } else if (Kind == 'Drf') {
     return `${prefix} Assume ${cmp}${str_value(Exp[0])}`;
   }
 
