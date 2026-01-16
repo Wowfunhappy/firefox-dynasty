@@ -97,9 +97,7 @@ class TabNotesControllerClass {
    * @see tabnotes.manifest
    */
   quit() {
-    if (lazy.TAB_NOTES_ENABLED) {
-      lazy.TabNotes.deinit();
-    }
+    lazy.TabNotes.deinit();
   }
 
   /**
