@@ -223,6 +223,8 @@ web-sys = { path = "build/rust/dummy-web/web-sys" }
 core-foundation = { path = "build/rust/core-foundation" }
 # Patch `core-graphics-types` 0.1.* to 0.2.
 core-graphics-types = { path = "build/rust/core-graphics-types" }
+# Patch `dispatch2` to an empty crate that cannot be built.
+dispatch2 = { path = "build/rust/dispatch2" }
 
 # Patch `half` 1.* to 2.
 half = { path = "build/rust/half" }

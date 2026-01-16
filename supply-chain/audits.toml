@@ -1170,6 +1170,7 @@ delta = "0.10.2 -> 0.10.3"
 who = "Andy Leiserson <aleiserson@mozilla.com>"
 criteria = "safe-to-deploy"
 version = "0.6.2"
+notes = "Contains unsafe code to interoperate with the ObjC runtime."
 
 [[audits.build-parallel]]
 who = "Jeff Muizelaar <jmuizelaar@mozilla.com>"
@@ -4573,11 +4574,79 @@ importable = false
 who = "Andy Leiserson <aleiserson@mozilla.com>"
 criteria = "safe-to-deploy"
 version = "0.6.3"
+notes = """
+Contains substantial unsafe code, as is typical for FFI.
+
+The (non-published) `header-translator` crate that produces generated bindings
+appearing in other `objc2-*` crates was also reviewed, in lieu of a full review
+of the generated bindings.
+"""
+
+[[audits.objc2-core-foundation]]
+who = "Andy Leiserson <aleiserson@mozilla.com>"
+criteria = "safe-to-deploy"
+version = "0.3.2"
+notes = """
+Contains substantial unsafe code, as is typical for FFI.
+
+The (non-published) `header-translator` crate that produces generated bindings
+in this crate was also reviewed, in lieu of a full review of the generated
+bindings.
+
+Users of this crate should be aware of the information in
+https://github.com/madsmtm/objc2/blob/main/crates/objc2/src/topics/frameworks_soundness.md.
+"""
 
 [[audits.objc2-encode]]
 who = "Andy Leiserson <aleiserson@mozilla.com>"
 criteria = "safe-to-deploy"
 version = "4.1.0"
+notes = "Support library for objc2 with no unsafe code"
+
+[[audits.objc2-foundation]]
+who = "Andy Leiserson <aleiserson@mozilla.com>"
+criteria = "safe-to-deploy"
+version = "0.3.2"
+notes = """
+Contains substantial unsafe code, as is typical for FFI.
+
+The (non-published) `header-translator` crate that produces generated bindings
+in this crate was also reviewed, in lieu of a full review of the generated
+bindings.
+
+Users of this crate should be aware of the information in
+https://github.com/madsmtm/objc2/blob/main/crates/objc2/src/topics/frameworks_soundness.md.
+"""
+
+[[audits.objc2-io-surface]]
+who = "Andy Leiserson <aleiserson@mozilla.com>"
+criteria = "safe-to-deploy"
+version = "0.3.2"
+notes = """
+Contains substantial unsafe code, as is typical for FFI.
+
+The (non-published) `header-translator` crate that produces generated bindings
+in this crate was also reviewed, in lieu of a full review of the generated
+bindings.
+
+Users of this crate should be aware of the information in
+https://github.com/madsmtm/objc2/blob/main/crates/objc2/src/topics/frameworks_soundness.md.
+"""
+
+[[audits.objc2-metal]]
+who = "Andy Leiserson <aleiserson@mozilla.com>"
+criteria = "safe-to-deploy"
+version = "0.3.2"
+notes = """
+Contains substantial unsafe code, as is typical for FFI.
+
+The (non-published) `header-translator` crate that produces generated bindings
+in this crate was also reviewed, in lieu of a full review of the generated
+bindings.
+
+Users of this crate should be aware of the information in
+https://github.com/madsmtm/objc2/blob/main/crates/objc2/src/topics/frameworks_soundness.md.
+"""
 
 [[audits.object]]
 who = "Mike Hommey <mh+mozilla@glandium.org>"
