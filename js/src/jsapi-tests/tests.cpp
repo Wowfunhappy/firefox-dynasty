@@ -188,6 +188,16 @@ void RunTests(int& total, int& failures, CommandOptions& options,
     // crash on failure.
     fflush(stdout);
 
+    // Bug 2006230 - The lambdas passed into this function will capture a
+    // JSContext*, which is not a GC pointer (JSContext contains GC pointers,
+    // so JSContext* is a pointer to a GC pointer, but that doesn't matter.)
+    // Unfortunately, the hazard analysis restarts the numbering of anonymous
+    // types for lambda closures for each compilation unit, so collisions are
+    // possible.
+
+    // Suppress the problem for now.
+    JS::AutoSuppressGCAnalysis ignore;
+
     if (!init(test)) {
       printf("TEST-UNEXPECTED-FAIL | %s | Failed to initialize.\n", name);
       failures++;
