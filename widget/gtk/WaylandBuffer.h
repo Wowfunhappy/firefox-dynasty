@@ -62,10 +62,10 @@ class WaylandBuffer {
     return aSize == mSize;
   }
 
-  bool IsAttached() const;
-
+  bool IsAttached(const WaylandSurfaceLock& aSurfaceLock) const;
   BufferTransaction* GetTransaction(const WaylandSurfaceLock& aSurfaceLock);
-  void RemoveTransaction(RefPtr<BufferTransaction> aTransaction);
+  void RemoveTransaction(const WaylandSurfaceLock& aSurfaceLock,
+                         RefPtr<BufferTransaction> aTransaction);
 
 #ifdef MOZ_LOGGING
   virtual void DumpToFile(const char* aHint) = 0;
