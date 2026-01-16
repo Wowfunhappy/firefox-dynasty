@@ -1393,32 +1393,31 @@ void nsGenericHTMLElement::MapImageAlignAttributeInto(
         aBuilder.SetKeywordValue(eCSSProperty_float, StyleFloat::Right);
         break;
       case HTMLAlignValue::TextTop:
-        aBuilder.SetKeywordValue(eCSSProperty_vertical_align,
-                                 StyleVerticalAlignKeyword::TextTop);
+        aBuilder.SetKeywordValue(eCSSProperty_alignment_baseline,
+                                 StyleAlignmentBaseline::TextTop);
         break;
       case HTMLAlignValue::Top:
-        aBuilder.SetKeywordValue(eCSSProperty_vertical_align,
-                                 StyleVerticalAlignKeyword::Top);
+        aBuilder.SetKeywordValue(eCSSProperty_baseline_shift,
+                                 StyleBaselineShiftKeyword::Top);
         break;
       case HTMLAlignValue::Middle:
       case HTMLAlignValue::Center:
-        aBuilder.SetKeywordValue(
-            eCSSProperty_vertical_align,
-            StyleVerticalAlignKeyword::MozMiddleWithBaseline);
+        aBuilder.SetKeywordValue(eCSSProperty_alignment_baseline,
+                                 StyleAlignmentBaseline::MozMiddleWithBaseline);
         break;
       case HTMLAlignValue::AbsMiddle:
       case HTMLAlignValue::AbsCenter:
-        aBuilder.SetKeywordValue(eCSSProperty_vertical_align,
-                                 StyleVerticalAlignKeyword::Middle);
+        aBuilder.SetKeywordValue(eCSSProperty_alignment_baseline,
+                                 StyleAlignmentBaseline::Middle);
         break;
       case HTMLAlignValue::AbsBottom:
-        aBuilder.SetKeywordValue(eCSSProperty_vertical_align,
-                                 StyleVerticalAlignKeyword::Bottom);
+        aBuilder.SetKeywordValue(eCSSProperty_baseline_shift,
+                                 StyleBaselineShiftKeyword::Bottom);
         break;
       case HTMLAlignValue::Bottom:  // Intentionally mapped to `baseline`
       case HTMLAlignValue::Baseline:
-        aBuilder.SetKeywordValue(eCSSProperty_vertical_align,
-                                 StyleVerticalAlignKeyword::Baseline);
+        aBuilder.SetKeywordValue(eCSSProperty_alignment_baseline,
+                                 StyleAlignmentBaseline::Baseline);
         break;
       default:
         MOZ_ASSERT_UNREACHABLE("Unexpected align value");
@@ -1462,20 +1461,20 @@ void nsGenericHTMLElement::MapTableVAlignAttributeInto(
   if (value && value->Type() == nsAttrValue::eEnum) {
     switch (TableCellAlignment(value->GetEnumValue())) {
       case TableCellAlignment::Top:
-        aBuilder.SetKeywordValue(eCSSProperty_vertical_align,
-                                 StyleVerticalAlignKeyword::Top);
+        aBuilder.SetKeywordValue(eCSSProperty_baseline_shift,
+                                 StyleBaselineShiftKeyword::Top);
         break;
       case TableCellAlignment::Middle:
-        aBuilder.SetKeywordValue(eCSSProperty_vertical_align,
-                                 StyleVerticalAlignKeyword::Middle);
+        aBuilder.SetKeywordValue(eCSSProperty_alignment_baseline,
+                                 StyleAlignmentBaseline::Middle);
         break;
       case TableCellAlignment::Bottom:
-        aBuilder.SetKeywordValue(eCSSProperty_vertical_align,
-                                 StyleVerticalAlignKeyword::Bottom);
+        aBuilder.SetKeywordValue(eCSSProperty_baseline_shift,
+                                 StyleBaselineShiftKeyword::Bottom);
         break;
       case TableCellAlignment::Baseline:
-        aBuilder.SetKeywordValue(eCSSProperty_vertical_align,
-                                 StyleVerticalAlignKeyword::Baseline);
+        aBuilder.SetKeywordValue(eCSSProperty_alignment_baseline,
+                                 StyleAlignmentBaseline::Baseline);
         break;
     }
   }

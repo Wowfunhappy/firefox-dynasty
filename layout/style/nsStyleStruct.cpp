@@ -2294,8 +2294,8 @@ nsStyleDisplay::nsStyleDisplay()
                        {0.}},
       mChildPerspective(StylePerspective::None()),
       mPerspectiveOrigin(Position::FromPercentage(0.5f)),
-      mVerticalAlign(
-          StyleVerticalAlign::Keyword(StyleVerticalAlignKeyword::Baseline)),
+      mAlignmentBaseline(StyleAlignmentBaseline::Baseline),
+      mBaselineShift(StyleBaselineShift::Length(LengthPercentage::Zero())),
       mBaselineSource(StyleBaselineSource::Auto),
       mWebkitLineClamp(0),
       mShapeMargin(LengthPercentage::Zero()),
@@ -2351,7 +2351,8 @@ nsStyleDisplay::nsStyleDisplay(const nsStyleDisplay& aSource)
       mTransformOrigin(aSource.mTransformOrigin),
       mChildPerspective(aSource.mChildPerspective),
       mPerspectiveOrigin(aSource.mPerspectiveOrigin),
-      mVerticalAlign(aSource.mVerticalAlign),
+      mAlignmentBaseline(aSource.mAlignmentBaseline),
+      mBaselineShift(aSource.mBaselineShift),
       mBaselineSource(aSource.mBaselineSource),
       mWebkitLineClamp(aSource.mWebkitLineClamp),
       mShapeImageThreshold(aSource.mShapeImageThreshold),
@@ -2596,7 +2597,8 @@ nsChangeHint nsStyleDisplay::CalcDifference(
   }
 
   if (mWebkitLineClamp != aNewData.mWebkitLineClamp ||
-      mVerticalAlign != aNewData.mVerticalAlign ||
+      mAlignmentBaseline != aNewData.mAlignmentBaseline ||
+      mBaselineShift != aNewData.mBaselineShift ||
       mBaselineSource != aNewData.mBaselineSource) {
     // XXX Can this just be AllReflowHints + RepaintFrame, and be included in
     // the block below?

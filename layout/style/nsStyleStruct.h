@@ -1674,7 +1674,8 @@ struct MOZ_NEEDS_MEMMOVABLE_MEMBERS nsStyleDisplay {
   mozilla::StylePerspective mChildPerspective;
   mozilla::Position mPerspectiveOrigin;
 
-  mozilla::StyleVerticalAlign mVerticalAlign;
+  mozilla::StyleAlignmentBaseline mAlignmentBaseline;
+  mozilla::StyleBaselineShift mBaselineShift;
   mozilla::StyleBaselineSource mBaselineSource;
 
   mozilla::StyleLineClamp mWebkitLineClamp;

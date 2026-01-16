@@ -4780,13 +4780,17 @@ class nsIFrame : public nsQueryFrame {
   inline bool HasAnchorPosReference() const;
 
   /**
-   * Returns the vertical-align value to be used for layout, if it is one
-   * of the enumerated values.  If this is an SVG text frame, it returns a value
-   * that corresponds to the value of dominant-baseline.  If the
-   * vertical-align property has length or percentage value, this returns
-   * Nothing().
+   * Returns the alignment-baseline value to be used for layout. If this is an
+   * SVG text frame, it returns a value that corresponds to the value of
+   * dominant-baseline.
    */
-  Maybe<mozilla::StyleVerticalAlignKeyword> VerticalAlignEnum() const;
+  mozilla::StyleAlignmentBaseline AlignmentBaseline() const;
+
+  /**
+   * Returns the baseline-shift value to be used for layout. If this is an
+   * SVG text frame, it returns an initial zero value.
+   */
+  const mozilla::StyleBaselineShift& BaselineShift() const;
 
   /**
    * Adds the NS_FRAME_IN_POPUP state bit to aFrame, and
