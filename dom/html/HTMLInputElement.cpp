@@ -7,6 +7,7 @@
 #include "mozilla/dom/HTMLInputElement.h"
 
 #include <algorithm>
+#include <cmath>
 
 #include "HTMLDataListElement.h"
 #include "HTMLFormSubmissionConstants.h"
@@ -774,26 +775,52 @@ static void SerializeColorForHTMLCompatibility(const StyleAbsoluteColor& aColor,
                        NS_GET_B(color));
 }
 
+static void ClampColorComponents(StyleAbsoluteColor& aColor) {
+  MOZ_ASSERT(aColor.color_space == StyleColorSpace::Srgb);
+  aColor.components._0 = std::clamp(aColor.components._0, 0.0f, 1.0f);
+  aColor.components._1 = std::clamp(aColor.components._1, 0.0f, 1.0f);
+  aColor.components._2 = std::clamp(aColor.components._2, 0.0f, 1.0f);
+}
+
 // https://html.spec.whatwg.org/#serialize-a-color-well-control-color
 static void SerializeColor(const StyleAbsoluteColor& aColor,
                            StyleColorSpace aTargetColorSpace,
-                           nsAString& aResult) {
-  // A few steps are ignored given alpha support is still coming.
+                           bool aSpecifiedAlpha, nsAString& aResult) {
+  // Step 2: Let htmlCompatible be false.
+  bool htmlCompatible = false;
 
   // Step 3: If element's alpha attribute is not specified, then set color's
   // alpha component to be fully opaque.
   // (Setting colorspace here as it's easier.)
   StyleAbsoluteColor color = aColor.ToColorSpace(aTargetColorSpace);
-  color.alpha = 1.0;
+  if (!aSpecifiedAlpha) {
+    color.alpha = 1.0;
+  }
 
   // Step 4: If element's colorspace attribute is in the Limited sRGB state:
   if (color.color_space == StyleColorSpace::Srgb) {
-    // Step 6: ... then do so with HTML-compatible serialization requested.
+    // Step 4.2: Round each of color's components so they are in the range 0 to
+    // 255, inclusive. Components are to be rounded towards +∞.
+    ClampColorComponents(color);
+
+    if (!aSpecifiedAlpha) {
+      // Step 4.3: If element's alpha attribute is not specified, then set
+      // htmlCompatible to true.
+      htmlCompatible = true;
+    } else {
+      // Step 4.4: Otherwise, set color to color converted using the 'color()'
+      // function.
+      // (Unset the legacy bit to force `color()`)
+      color.flags &= ~StyleColorFlags::IS_LEGACY_SRGB;
+    }
+  }
+
+  // Step 6: Return the result of serializing color. If htmlCompatible is true,
+  // then do so with HTML-compatible serialization requested.
+  if (htmlCompatible) {
     SerializeColorForHTMLCompatibility(color, aResult);
     return;
   }
-
-  // Step 6: Return the result of serializing color.
   nsAutoCString result;
   Servo_AbsoluteColor_ToCss(&color, &result);
   CopyUTF8toUTF16(result, aResult);
@@ -821,7 +848,7 @@ nsTArray<nsString> HTMLInputElement::GetColorsFromList() {
     // https://html.spec.whatwg.org/#serialize-a-color-well-control-color
     if (Maybe<StyleAbsoluteColor> result =
             MaybeComputeColor(OwnerDoc(), value)) {
-      SerializeColor(*result, GetColorSpaceEnum(), value);
+      SerializeColor(*result, GetColorSpaceEnum(), Alpha(), value);
       colors.AppendElement(value);
     }
   }
@@ -1595,6 +1622,18 @@ void HTMLInputElement::ResultForDialogSubmit(nsAString& aResult) {
   }
 }
 
+bool HTMLInputElement::Alpha() const {
+  if (!StaticPrefs::dom_forms_alpha_enabled()) {
+    return false;
+  }
+  return HasAttr(nsGkAtoms::alpha);
+}
+
+void HTMLInputElement::SetAlpha(bool aValue, ErrorResult& aRv) {
+  SetHTMLBoolAttr(nsGkAtoms::alpha, aValue, aRv);
+  UpdateColor();
+}
+
 void HTMLInputElement::GetAutocomplete(nsAString& aValue) {
   if (!DoesAutocompleteApply()) {
     return;
@@ -2136,8 +2175,8 @@ void HTMLInputElement::GetColor(InputPickerColor& aValue) {
   aValue.mComponent1 = color.components._0;
   aValue.mComponent2 = color.components._1;
   aValue.mComponent3 = color.components._2;
+  aValue.mAlpha = Alpha() ? color.alpha : NAN;
 
-  // aValue.mAlpha = color.alpha;
   // aValue.mColorSpace = mColorSpace;
 }
 
@@ -2170,10 +2209,10 @@ void HTMLInputElement::SetUserInputColor(const InputPickerColor& aValue) {
                   ._1 = aValue.mComponent2,
                   ._2 = aValue.mComponent3,
               },
-          .alpha = 1,
+          .alpha = aValue.mAlpha,
           .color_space = StyleColorSpace::Srgb,
       },
-      GetColorSpaceEnum(), serialized);
+      GetColorSpaceEnum(), Alpha(), serialized);
 
   // (We are either Chrome/UA but the principal doesn't matter for color inputs)
   SetUserInput(serialized, *NodePrincipal());
@@ -5144,7 +5183,7 @@ void HTMLInputElement::SanitizeValue(nsAString& aValue,
       StyleAbsoluteColor color = MaybeComputeColorOrBlack(OwnerDoc(), aValue);
       // Serialization step 6: If htmlCompatible is true, then do so with
       // HTML-compatible serialization requested.
-      SerializeColor(color, GetColorSpaceEnum(), aValue);
+      SerializeColor(color, GetColorSpaceEnum(), Alpha(), aValue);
       break;
     }
     default:
