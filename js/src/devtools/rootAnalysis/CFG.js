@@ -227,7 +227,7 @@ function BFS_upwards(start_body, start_ppoint, bodies, visitor,
 
 // Given the CFG for the constructor call of some RAII, return whether the
 // given edge is the matching destructor call.
-function isMatchingDestructor(constructor, edge)
+function isMatchingDestructor(edge, constructed)
 {
     if (edge.Kind != "Call")
         return false;
@@ -247,45 +247,36 @@ function isMatchingDestructor(constructor, edge)
     if (!("PEdgeCallInstance" in edge))
         return false;
 
-    var constructExp = constructor.PEdgeCallInstance.Exp;
-    assert(constructExp.Kind == "Var");
+    if (constructed.Kind != "Var") {
+        // The constructor has to be just the variable v we're interested in,
+        // not *v or v.field.
+        return false;
+    }
 
     var destructExp = edge.PEdgeCallInstance.Exp;
     if (destructExp.Kind != "Var")
         return false;
 
-    return sameVariable(constructExp.Variable, destructExp.Variable);
+    return sameVariable(constructed.Variable, destructExp.Variable);
 }
 
 // Return all calls within the RAII scope of any constructor matched by
-// isConstructor(). (Note that this would be insufficient if you needed to
-// treat each instance separately, such as when different regions of a function
-// body were guarded by these constructors and you needed to do something
-// different with each.)
-function allRAIIGuardedCallPoints(typeInfo, bodies, body, isConstructor)
+// matchConstructorEdge(). (Note that this would be insufficient if you needed
+// to treat each instance separately, such as when different regions of a
+// function body were guarded by these constructors and you needed to do
+// something different with each.)
+function allRAIIGuardedCallPoints(typeInfo, bodies, body)
 {
     if (!("PEdge" in body))
         return [];
 
     var points = [];
 
-    for (var edge of body.PEdge) {
-        if (edge.Kind != "Call")
-            continue;
-        var callee = edge.Exp[0];
-        if (callee.Kind != "Var")
-            continue;
-        var variable = callee.Variable;
-        assert(variable.Kind == "Func");
-        const bits = isConstructor(typeInfo, edge.Type, variable.Name);
-        if (!bits)
-            continue;
-        if (!("PEdgeCallInstance" in edge))
-            continue;
-        if (edge.PEdgeCallInstance.Exp.Kind != "Var")
-            continue;
-
-        points.push(...pointsInRAIIScope(bodies, body, edge, bits));
+    for (const edge of body.PEdge) {
+        const result = matchConstructorEdge(typeInfo, edge);
+        if (result && result.attrs != 0) {
+            points.push(...pointsInRAIIScope(bodies, body, edge, result.attrs, result.constructed));
+        }
     }
 
     return points;
@@ -343,7 +334,19 @@ function findMatchingConstructor(destructorEdge, body, warnIfNotFound=true)
     return undefined;
 }
 
-function pointsInRAIIScope(bodies, body, constructorEdge, bits) {
+// Return an array of all points within the RAII scope, each point being a tuple
+// [<body>, <point>, <attributes>].
+//
+//   bodies - the set of all (loop) bodies for this function.
+//   body - the body containing the starting point.
+//   constructorEdge - the edge representing the constructor invocation. Used
+//     only to initialize the search to the point just after the ctor call.
+//   bits - the attributes to include with each point. Currently, this is the
+//     same for every returned point tuple.
+//   constructed - the variable that was constructed. For a regular constructor
+//     call, this could be trivially inferred from `constructorEdge`, but for
+//     inlined constexpr constructors, the caller needs to figure it out.
+function pointsInRAIIScope(bodies, body, constructorEdge, bits, constructed) {
     var seen = {};
     var worklist = [constructorEdge.Index[1]];
     var points = [];
@@ -357,7 +360,7 @@ function pointsInRAIIScope(bodies, body, constructorEdge, bits) {
         if (!(point in successors))
             continue;
         for (var nedge of successors[point]) {
-            if (isMatchingDestructor(constructorEdge, nedge))
+            if (isMatchingDestructor(nedge, constructed))
                 continue;
             if (nedge.Kind == "Loop")
                 points.push(...findAllPoints(bodies, nedge.BlockId, bits));
@@ -761,8 +764,7 @@ function parseTypeName(typeName) {
 // can't get in trouble by holding a nullptr live across a GC.) A more complex
 // example is a Maybe<T> that gets reset:
 //
-//     Maybe<AutoCheckCannotGC> nogc;
-//     nogc.emplace(cx);
+//     Maybe<AutoCheckCannotGC> nogc(std::in_place, cx);
 //     nogc.reset();
 //     gc();             // <-- not a problem; nogc is invalidated by prev line
 //     nogc.emplace(cx);
@@ -777,8 +779,8 @@ function parseTypeName(typeName) {
 //
 function edgeEndsValueLiveRange(edge, variable, body)
 {
-    // var = nullptr;
     if (edge.Kind == "Assign") {
+        // [c++] somevar = nullptr;
         const [lhs, rhs] = edge.Exp;
         return expressionIsVariable(lhs, variable) && isImmobileValue(rhs);
     }

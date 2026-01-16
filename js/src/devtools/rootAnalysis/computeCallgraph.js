@@ -297,7 +297,7 @@ function process(functionName, functionBodies)
         body.attrs = [];
 
     for (var body of functionBodies) {
-        for (var [pbody, id, attrs] of allRAIIGuardedCallPoints(typeInfo, functionBodies, body, isLimitConstructor)) {
+        for (var [pbody, id, attrs] of allRAIIGuardedCallPoints(typeInfo, functionBodies, body)) {
             pbody.attrs[id] = attrs;
         }
     }
