@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef nsFmtCString_h___
-#define nsFmtCString_h___
+#ifndef nsFmtCString_h_
+#define nsFmtCString_h_
 
 #include "fmt/format.h"
 #include "fmt/xchar.h"
