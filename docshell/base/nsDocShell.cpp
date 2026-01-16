@@ -11345,11 +11345,16 @@ nsresult nsDocShell::CompleteInitialAboutBlankLoad(
     return NS_ERROR_FAILURE;
   }
 
-  const bool principalMissmatch =
-      aLoadState->PrincipalToInherit() &&
-      !aLoadState->PrincipalToInherit()->Equals(doc->GetPrincipal());
-  MOZ_ASSERT_IF(!aLoadState->PrincipalToInherit(),
-                doc->GetPrincipal()->GetIsNullPrincipal());
+  nsCOMPtr<nsIPrincipal> expectedPrincipal = aLoadState->PrincipalToInherit();
+  nsCOMPtr<nsIPrincipal> expectedPartitionedPrincipal =
+      aLoadState->PartitionedPrincipalToInherit();
+  if (!expectedPartitionedPrincipal) {
+    expectedPartitionedPrincipal = expectedPrincipal;
+  }
+
+  const bool principalMismatch =
+      expectedPrincipal && !expectedPrincipal->Equals(doc->GetPrincipal());
+  MOZ_ASSERT_IF(!expectedPrincipal, doc->GetPrincipal()->GetIsNullPrincipal());
 
   // The channel would sandbox aLoadState->PrincipalToInherit(). Even if
   // the document already has a null principal, we don't know if it's the right
@@ -11359,22 +11364,16 @@ nsresult nsDocShell::CompleteInitialAboutBlankLoad(
           ? mBrowsingContext->GetSandboxFlags()
           : mBrowsingContext->GetInitialSandboxFlags();
   const bool shouldBeSandboxed = sandboxFlags & SANDBOXED_ORIGIN;
-  MOZ_ASSERT_IF(shouldBeSandboxed, aLoadState->PrincipalToInherit());
+  MOZ_ASSERT_IF(shouldBeSandboxed, expectedPrincipal);
 
   // Clobber document before completing the synchronous load if it doesn't have
   // the right principal (bug 1979032)
-  if (principalMissmatch || shouldBeSandboxed) {
-    nsIPrincipal* principal = aLoadState->PrincipalToInherit();
-    nsIPrincipal* partitionedPrincipal =
-        aLoadState->PartitionedPrincipalToInherit();
-    if (!partitionedPrincipal) {
-      partitionedPrincipal = principal;
-    }
-
+  if (principalMismatch || shouldBeSandboxed) {
     // This will sandbox the principals as needed
     rv = CreateAboutBlankDocumentViewer(
-        principal, partitionedPrincipal, aLoadState->PolicyContainer(),
-        doc->GetDocBaseURI(), /* aIsInitialDocument */ true);
+        expectedPrincipal, expectedPartitionedPrincipal,
+        aLoadState->PolicyContainer(), doc->GetDocBaseURI(),
+        /* aIsInitialDocument */ true);
     NS_ENSURE_SUCCESS(rv, rv);
 
     doc = mDocumentViewer->GetDocument();
