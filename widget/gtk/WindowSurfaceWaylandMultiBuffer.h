@@ -43,23 +43,24 @@ class WindowSurfaceWaylandMB : public WindowSurface {
   void Commit(const LayoutDeviceIntRegion& aInvalidRegion) final;
 
  private:
-  void Commit(const MutexAutoLock& aProofOfLock,
+  void Commit(const WaylandSurfaceLock& aWaylandSurfaceLock,
               const LayoutDeviceIntRegion& aInvalidRegion);
   RefPtr<WaylandBufferSHM> ObtainBufferFromPool(
-      const MutexAutoLock& aProofOfLock, const LayoutDeviceIntSize& aSize);
-  void ReturnBufferToPool(const MutexAutoLock& aProofOfLock,
+      const WaylandSurfaceLock& aWaylandSurfaceLock,
+      const LayoutDeviceIntSize& aSize);
+  void ReturnBufferToPool(const WaylandSurfaceLock& aWaylandSurfaceLock,
                           const RefPtr<WaylandBufferSHM>& aBuffer);
-  void EnforcePoolSizeLimit(const MutexAutoLock& aProofOfLock);
-  void CollectPendingSurfaces(const MutexAutoLock& aProofOfLock);
-  void HandlePartialUpdate(const MutexAutoLock& aProofOfLock,
+  void EnforcePoolSizeLimit(const WaylandSurfaceLock& aWaylandSurfaceLock);
+  void CollectPendingSurfaces(const WaylandSurfaceLock& aWaylandSurfaceLock);
+  void HandlePartialUpdate(const WaylandSurfaceLock& aWaylandSurfaceLock,
                            const LayoutDeviceIntRegion& aInvalidRegion);
-  void IncrementBufferAge(const MutexAutoLock& aProofOfLock);
+  void IncrementBufferAge(const WaylandSurfaceLock& aWaylandSurfaceLock);
   // Return true if window size was updated.
   bool MaybeUpdateWindowSize();
 
-  mozilla::Mutex mSurfaceLock MOZ_UNANNOTATED;
-
   RefPtr<nsWindow> mWindow;
+  RefPtr<WaylandSurface> mWaylandSurface;
+
   // WindowSurfaceWaylandMB is owned by GtkCompositorWidget so we can't
   // reference it.
   GtkCompositorWidget* mCompositorWidget;
