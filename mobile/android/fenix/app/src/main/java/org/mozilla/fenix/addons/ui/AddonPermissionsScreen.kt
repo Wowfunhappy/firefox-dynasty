@@ -13,6 +13,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.PreviewLightDark
 import androidx.compose.ui.unit.dp
@@ -28,6 +29,7 @@ import org.mozilla.fenix.compose.LinkTextState
 import org.mozilla.fenix.compose.SwitchWithLabel
 import org.mozilla.fenix.compose.list.TextListItem
 import org.mozilla.fenix.compose.settings.SettingsSectionHeader
+import org.mozilla.fenix.settings.SupportUtils
 import org.mozilla.fenix.theme.FirefoxTheme
 import mozilla.components.feature.addons.R as addonsR
 
@@ -47,7 +49,6 @@ fun AddonPermissionsScreen(
     onAddAllSitesPermissions: () -> Unit,
     onRemoveAllSitesPermissions: () -> Unit,
     onLearnMoreClick: (String) -> Unit,
-    learnMoreUrl: String,
     modifier: Modifier = Modifier,
     requiredDataCollectionPermissions: List<String> = emptyList(),
     hasNoneDataCollection: Boolean = false,
@@ -76,7 +77,7 @@ fun AddonPermissionsScreen(
                 }
 
                 item {
-                    LearnMoreItem(learnMoreUrl, onLearnMoreClick)
+                    LearnMoreItem(onLearnMoreClick)
                 }
             }
         }
@@ -216,7 +217,7 @@ fun AddonPermissionsScreen(
             }
 
             item {
-                LearnMoreItem(learnMoreUrl, onLearnMoreClick)
+                LearnMoreItem(onLearnMoreClick)
             }
         }
     }
@@ -279,11 +280,14 @@ private fun SectionHeader(label: String) {
 }
 
 @Composable
-private fun LearnMoreItem(learnMoreUrl: String, onLearnMoreClick: (String) -> Unit) {
+private fun LearnMoreItem(onLearnMoreClick: (String) -> Unit) {
     val learnMoreText = stringResource(addonsR.string.mozac_feature_addons_learn_more)
     val learnMoreState = LinkTextState(
         text = learnMoreText,
-        url = learnMoreUrl,
+        url = SupportUtils.getSumoURLForTopic(
+            LocalContext.current,
+            SupportUtils.SumoTopic.MANAGE_OPTIONAL_EXTENSION_PERMISSIONS,
+        ),
         onClick = {
             onLearnMoreClick.invoke(it)
         },
@@ -408,7 +412,6 @@ private fun AddonPermissionsScreenPreview() {
             onAddAllSitesPermissions = {},
             onRemoveAllSitesPermissions = {},
             onLearnMoreClick = { _ -> },
-            learnMoreUrl = "",
         )
     }
 }
@@ -428,7 +431,6 @@ private fun AddonPermissionsScreenWithPermissionsPreview() {
             onAddAllSitesPermissions = {},
             onRemoveAllSitesPermissions = {},
             onLearnMoreClick = { _ -> },
-            learnMoreUrl = "",
         )
     }
 }
@@ -455,7 +457,6 @@ private fun AddonPermissionsScreenWithUserScriptsPermissionsPreview() {
             onAddAllSitesPermissions = {},
             onRemoveAllSitesPermissions = {},
             onLearnMoreClick = { _ -> },
-            learnMoreUrl = "",
         )
     }
 }
