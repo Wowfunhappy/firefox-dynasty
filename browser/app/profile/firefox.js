@@ -1083,7 +1083,6 @@ pref("browser.tabs.dragDrop.expandGroup.delayMS", 350);
 pref("browser.tabs.dragDrop.selectTab.delayMS", 350);
 pref("browser.tabs.dragDrop.pinInteractionCue.delayMS", 500);
 pref("browser.tabs.dragDrop.moveOverThresholdPercent", 80);
-pref("browser.tabs.dragDrop.multiselectStacking", true);
 
 pref("browser.tabs.firefox-view.logLevel", "Warn");
 
