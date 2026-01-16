@@ -8,7 +8,6 @@ import android.content.Context
 import androidx.annotation.VisibleForTesting
 import androidx.annotation.VisibleForTesting.Companion.PRIVATE
 import androidx.core.content.ContextCompat
-import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.NavController
 import kotlinx.coroutines.launch
@@ -25,7 +24,6 @@ import org.mozilla.fenix.components.accounts.FenixFxAEntryPoint
 import org.mozilla.fenix.components.menu.MenuAccessPoint
 import org.mozilla.fenix.components.usecases.FenixBrowserUseCases
 import org.mozilla.fenix.ext.nav
-import org.mozilla.fenix.ext.settings
 import org.mozilla.fenix.settings.SupportUtils
 import org.mozilla.fenix.settings.deletebrowsingdata.DeleteBrowsingDataController
 import org.mozilla.fenix.theme.ThemeManager
@@ -34,10 +32,9 @@ import java.lang.ref.WeakReference
 import org.mozilla.fenix.GleanMetrics.HomeMenu as HomeMenuMetrics
 
 /**
- * Helper class for building the [HomeMenu].
+ * Helper class for building the menu button in the home toolbar.
  *
  * @param context An Android [Context].
- * @param lifecycleOwner [LifecycleOwner] for the view.
  * @param homeActivity [HomeActivity] used for accessing various app components.
  * @param navController [NavController] used for navigation.
  * @param fenixBrowserUseCases [FenixBrowserUseCases] used to open URLs when clicked.
@@ -46,10 +43,8 @@ import org.mozilla.fenix.GleanMetrics.HomeMenu as HomeMenuMetrics
  * @param fxaEntrypoint The source entry point to FxA.
  * @param deleteBrowsingDataController [DeleteBrowsingDataController] used to delete browsing data.
  */
-@Suppress("LongParameterList")
 class HomeMenuView(
     private val context: Context,
-    private val lifecycleOwner: LifecycleOwner,
     private val homeActivity: HomeActivity,
     private val navController: NavController,
     private val fenixBrowserUseCases: FenixBrowserUseCases,
@@ -59,19 +54,9 @@ class HomeMenuView(
 ) {
 
     /**
-     * Builds the [HomeMenu].
+     * Builds the menu button in the home toolbar.
      */
     fun build() {
-        if (!context.settings().enableMenuRedesign) {
-            HomeMenu(
-                lifecycleOwner = lifecycleOwner,
-                context = context,
-                onItemTapped = ::onItemTapped,
-                onHighlightPresent = { menuButton.get()?.setHighlight(it) },
-                onMenuBuilderChanged = { menuButton.get()?.menuBuilder = it },
-            )
-        }
-
         menuButton.get()?.setColorFilter(
             ContextCompat.getColor(
                 context,
@@ -82,21 +67,14 @@ class HomeMenuView(
         menuButton.get()?.register(
             object : mozilla.components.concept.menu.MenuButton.Observer {
                 override fun onShow() {
-                    if (context.settings().enableMenuRedesign) {
-                        navController.nav(
-                            R.id.homeFragment,
-                            HomeFragmentDirections.actionGlobalMenuDialogFragment(
-                                accesspoint = MenuAccessPoint.Home,
-                            ),
-                        )
-                        Events.toolbarMenuVisible.record(NoExtras())
-                    } else {
-                        // MenuButton used in [HomeMenuView] doesn't emit toolbar facts.
-                        // A wrapper is responsible for that, but we are using the button
-                        // directly, hence recording the event directly.
-                        // Should investigate further: https://bugzilla.mozilla.org/show_bug.cgi?id=1868207
-                        Events.toolbarMenuVisible.record(NoExtras())
-                    }
+                    navController.nav(
+                        R.id.homeFragment,
+                        HomeFragmentDirections.actionGlobalMenuDialogFragment(
+                            accesspoint = MenuAccessPoint.Home,
+                        ),
+                    )
+
+                    Events.toolbarMenuVisible.record(NoExtras())
                 }
             },
         )

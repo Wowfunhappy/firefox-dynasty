@@ -160,7 +160,6 @@ internal class HomeToolbarView(
     @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
     internal fun buildHomeMenu() = HomeMenuView(
         context = context,
-        lifecycleOwner = homeFragment.viewLifecycleOwner,
         homeActivity = homeActivity,
         navController = homeFragment.findNavController(),
         fenixBrowserUseCases = context.components.useCases.fenixBrowserUseCases,

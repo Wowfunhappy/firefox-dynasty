@@ -68,7 +68,6 @@ class HomeMenuViewTest {
 
         homeMenuView = HomeMenuView(
             context = testContext,
-            lifecycleOwner = lifecycleOwner,
             homeActivity = homeActivity,
             navController = navController,
             fenixBrowserUseCases = fenixBrowserUseCases,
