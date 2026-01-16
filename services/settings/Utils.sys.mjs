@@ -148,9 +148,17 @@ export var Utils = {
   },
 
   get PREVIEW_MODE() {
+    // Release and beta require dev-tools or tests to use preview
+    if (
+      AppConstants.RELEASE_OR_BETA &&
+      !lazy.isRunningTests &&
+      Services.env.get("MOZ_REMOTE_SETTINGS_DEVTOOLS") !== "1"
+    ) {
+      return false;
+    }
     // We want to offer the ability to set preview mode via a preference
     // for consumers who want to pull from the preview bucket on startup.
-    if (_isUndefined(this._previewModeEnabled) && lazy.allowServerURL) {
+    if (_isUndefined(this._previewModeEnabled)) {
       return lazy.gPreviewEnabled;
     }
     return !!this._previewModeEnabled;
