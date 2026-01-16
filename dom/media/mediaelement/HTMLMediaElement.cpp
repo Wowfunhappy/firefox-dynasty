@@ -3802,14 +3802,16 @@ void HTMLMediaElement::AddOutputTrackSourceToOutputStream(
     // Cycle detected. This can happen since tracks are added async.
     // We avoid forwarding it to the output here or we'd get into an infloop.
     LOG(LogLevel::Warning,
-        ("NOT adding output track source %p to output stream "
+        ("%p NOT adding output track source %p to output stream "
          "%p -- cycle detected",
-         aSource, aOutputStream.mStream.get()));
+         this, aSource, aOutputStream.mStream.get()));
     return;
   }
 
-  LOG(LogLevel::Debug, ("Adding output track source %p to output stream %p",
-                        aSource, aOutputStream.mStream.get()));
+  LOG(LogLevel::Debug,
+      ("%p Adding output track source %p to output stream %p (mode=%s)", this,
+       aSource, aOutputStream.mStream.get(),
+       aMode == AddTrackMode::ASYNC ? "async" : "sync"));
 
   RefPtr<MediaStreamTrack> domTrack;
   if (aSource->Track()->mType == MediaSegment::AUDIO) {
@@ -3839,7 +3841,7 @@ void HTMLMediaElement::AddOutputTrackSourceToOutputStream(
   }
 
   LOG(LogLevel::Debug,
-      ("Created capture %s track %p",
+      ("%p Created capture %s track %p", this,
        domTrack->AsAudioStreamTrack() ? "audio" : "video", domTrack.get()));
 }
 
@@ -8077,6 +8079,7 @@ void HTMLMediaElement::ConstructMediaTracks(const MediaInfo* aInfo) {
 
   AudioTrackList* audioList = AudioTracks();
   if (audioList && aInfo->HasAudio()) {
+    LOG(LogLevel::Debug, ("%p ConstructMediaTracks, add an audio track", this));
     const TrackInfo& info = aInfo->mAudio;
     RefPtr<AudioTrack> track = MediaTrackList::CreateAudioTrack(
         audioList->GetOwnerGlobal(), info.mId, info.mKind, info.mLabel,
@@ -8087,6 +8090,7 @@ void HTMLMediaElement::ConstructMediaTracks(const MediaInfo* aInfo) {
 
   VideoTrackList* videoList = VideoTracks();
   if (videoList && aInfo->HasVideo()) {
+    LOG(LogLevel::Debug, ("%p ConstructMediaTracks, add a video track", this));
     const TrackInfo& info = aInfo->mVideo;
     RefPtr<VideoTrack> track = MediaTrackList::CreateVideoTrack(
         videoList->GetOwnerGlobal(), info.mId, info.mKind, info.mLabel,
