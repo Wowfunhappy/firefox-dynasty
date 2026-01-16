@@ -40,6 +40,7 @@ namespace mozilla {
 
 class EventChainPostVisitor;
 class EventChainPreVisitor;
+enum class StyleColorSpace : uint8_t;
 
 namespace dom {
 
@@ -477,6 +478,10 @@ class HTMLInputElement final : public TextControlElement,
   bool Checked() const { return mChecked; }
   void SetChecked(bool aChecked);
 
+  void GetColorSpace(nsAString& aValue) const;
+  StyleColorSpace GetColorSpaceEnum() const;
+  void SetColorSpace(const nsAString& aValue, ErrorResult& aRv);
+
   bool IsRadioOrCheckbox() const {
     return mType == FormControlType::InputCheckbox ||
            mType == FormControlType::InputRadio;
@@ -819,6 +824,11 @@ class HTMLInputElement final : public TextControlElement,
    * Return the current value as InputPickerColor.
    */
   void GetColor(InputPickerColor& aValue);
+
+  /**
+   * Update color value when alpha or colorspace is changed.
+   */
+  void UpdateColor();
 
   /**
    * Converts the InputPickerColor into a string and set it as user input.
