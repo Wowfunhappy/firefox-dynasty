@@ -5661,12 +5661,16 @@ var gMainPane = {
   },
 
   /**
-   *  Shows a subdialog containing the profile selector page.
+   *  Shows a window dialog containing the profile selector page.
    */
   manageProfiles() {
-    SelectableProfileService.maybeSetupDataStore().then(() => {
-      gSubDialog.open("about:profilemanager");
-    });
+    const win = window.browsingContext.topChromeWindow;
+
+    win.toOpenWindowByType(
+      "about:profilemanager",
+      "about:profilemanager",
+      "chrome,extrachrome,menubar,resizable,scrollbars,status,toolbar,centerscreen"
+    );
   },
 
   /**
