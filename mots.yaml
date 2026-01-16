@@ -8,7 +8,7 @@
 # documentation and how to modify this file.
 repo: mozilla-central
 created_at: '2021-10-14T12:50:40.073465'
-updated_at: '2026-01-16T11:21:00.960596+00:00'
+updated_at: '2026-01-16T11:21:57.623728+00:00'
 export:
   path: ./docs/mots/index.rst
   format: rst
@@ -989,6 +989,10 @@ people:
     bmo_id: 691597
     name: Sergey Galich
     nick: serg
+  - &sergesanspaille
+    bmo_id: 715495
+    name: Serge Guelton
+    nick: sergesanspaille
   - &sfink
     bmo_id: 359004
     name: Steve Fink
@@ -1402,6 +1406,7 @@ modules:
       - *glandium
     peers:
       - *ahochheiden
+      - *sergesanspaille
     submodules:
 
       - name: 'Core: Build Config - Fennec'
@@ -2819,6 +2824,8 @@ modules:
       components:
         - Core::Rewriting & Analysis
       review_group: static-analysis-reviewers
+    owners:
+      - *sergesanspaille
     peers:
       - *nika
       - *sfink
@@ -4669,5 +4676,5 @@ modules:
         - Ryan Tilder
       group: dev-platform
 hashes:
-  config: b4b142d6494183abcfd43c56b74ac229808a5f02
-  export: 67802c70bb20e792c99b91aca0fa99d9cc8b3668
+  config: a1fa08577c0ed003045f5d66cc4df34345b378a8
+  export: 3c05e959bc7d5628b595fa5b684623cedbb95972
