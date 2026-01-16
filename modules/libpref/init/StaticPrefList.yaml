@@ -15819,12 +15819,6 @@
   value: true
   mirror: always
 
-  # If true, HTTP response content-type headers will be parsed using the standards-compliant MimeType parser
-- name: network.standard_content_type_parsing.response_headers
-  type: RelaxedAtomicBool
-  value: true
-  mirror: always
-
 # If true, it will include extra tags to be sniffed by nsUnknownDecoder
 # These tags were previously sniffed by Firefox for legacy/webcompat but
 # are not part of the MIME sniffing spec.
