@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef nsHttp_h__
-#define nsHttp_h__
+#ifndef nsHttp_h_
+#define nsHttp_h_
 
 #include <stdint.h>
 #include "prtime.h"
@@ -538,4 +538,4 @@ ProxyDNSStrategy GetProxyDNSStrategyHelper(const char* aType, uint32_t aFlag);
 }  // namespace net
 }  // namespace mozilla
 
-#endif  // nsHttp_h__
+#endif  // nsHttp_h_

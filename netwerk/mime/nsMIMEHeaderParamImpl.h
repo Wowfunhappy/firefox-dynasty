@@ -3,9 +3,10 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef __nsmimeheaderparamimpl_h___
-#define __nsmimeheaderparamimpl_h___
+#ifndef _nsmimeheaderparamimpl_h_
+#define _nsmimeheaderparamimpl_h_
 #include "nsIMIMEHeaderParam.h"
+
 class nsMIMEHeaderParamImpl : public nsIMIMEHeaderParam {
  public:
   NS_DECL_ISUPPORTS
@@ -40,4 +41,4 @@ class nsMIMEHeaderParamImpl : public nsIMIMEHeaderParam {
   static bool ContainsTrailingCharPastNull(const nsACString& aVal);
 };
 
-#endif  // __nsmimeheaderparamimpl_h___
+#endif  // _nsmimeheaderparamimpl_h_
