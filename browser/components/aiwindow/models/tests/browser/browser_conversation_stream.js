@@ -239,8 +239,7 @@ add_task(async function test_chat_tool_call_get_page_content() {
         Assert.ok(
           Array.isArray(contentArray) &&
             typeof contentArray[0] === "string" &&
-            // TODO fix with bug 2010416
-            contentArray[0].includes("Error retrieving content"),
+            contentArray[0].includes("Headline Body text."),
           "Page content should be extracted"
         );
       }

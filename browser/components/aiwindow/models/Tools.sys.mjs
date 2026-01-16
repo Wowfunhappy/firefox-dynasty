@@ -276,7 +276,7 @@ export class GetPageContent {
    *  A promise resolving to a string containing the extracted page content
    *  with a descriptive header, or an error message if extraction fails.
    */
-  static async getPageContent({ url_list }, allowedUrls) {
+  static async getPageContent({ url_list }, allowedUrls = new Set()) {
     // Ensure `url_list` is always an array
     if (!Array.isArray(url_list)) {
       throw new Error("getPageContent now requires { url_list: [...] }");
