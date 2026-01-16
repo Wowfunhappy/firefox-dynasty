@@ -3868,16 +3868,18 @@ void HTMLMediaElement::UpdateOutputTrackSources() {
   }
 
   if (mDecoder) {
-    // TODO : pass mAudioOutputConfig to decoder so that the audio output can be
-    // set correctly during capture.
     if (!mTracksCaptured.Ref()) {
-      mDecoder->SetOutputCaptureState(MediaDecoder::OutputCaptureState::None);
+      mDecoder->SetOutputCaptureState(MediaDecoder::OutputCaptureInfo(
+          MediaDecoder::OutputCaptureState::None));
     } else if (!AudioTracks() || !VideoTracks() || !shouldHaveTrackSources) {
       // We've been unlinked, or tracks are not yet known.
-      mDecoder->SetOutputCaptureState(MediaDecoder::OutputCaptureState::Halt);
+      mDecoder->SetOutputCaptureState(MediaDecoder::OutputCaptureInfo(
+          MediaDecoder::OutputCaptureState::Halt));
     } else {
-      mDecoder->SetOutputCaptureState(MediaDecoder::OutputCaptureState::Capture,
-                                      mTracksCaptured.Ref().get());
+      mDecoder->SetOutputCaptureState(MediaDecoder::OutputCaptureInfo(
+          MediaDecoder::OutputCaptureState::Capture,
+          mTracksCaptured.Ref().get(),
+          mAudioOutputConfig == AudioOutputConfig::Needed, mSink.second));
     }
   }
 
@@ -4269,6 +4271,27 @@ already_AddRefed<DOMMediaStream> HTMLMediaElement::MozCaptureStreamUntilEnded(
       CaptureStreamInternal(StreamCaptureBehavior::FINISH_WHEN_ENDED,
                             StreamCaptureType::CAPTURE_ALL_TRACKS,
                             AudioOutputConfig::NotNeeded, nullptr);
+  if (!stream) {
+    aRv.Throw(NS_ERROR_FAILURE);
+    return nullptr;
+  }
+
+  return stream.forget();
+}
+
+already_AddRefed<DOMMediaStream> HTMLMediaElement::CaptureStream(
+    ErrorResult& aRv) {
+  // Spec issue https://github.com/w3c/mediacapture-fromelement/issues/20
+  // We began blocking the capture of encrypted playback in bug 1071482.
+  if (!CanBeCaptured(StreamCaptureType::CAPTURE_ALL_TRACKS)) {
+    aRv.Throw(NS_ERROR_FAILURE);
+    return nullptr;
+  }
+
+  RefPtr<DOMMediaStream> stream =
+      CaptureStreamInternal(StreamCaptureBehavior::FINISH_WHEN_ENDED,
+                            StreamCaptureType::CAPTURE_ALL_TRACKS,
+                            AudioOutputConfig::Needed, nullptr);
   if (!stream) {
     aRv.Throw(NS_ERROR_FAILURE);
     return nullptr;

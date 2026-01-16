@@ -12340,6 +12340,11 @@
   value: false
   mirror: always
 
+# This pref enables the HTMLMediaElement API captureStream.
+- name: media.captureStream.enabled
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
 
 # This pref disables the reception of RTCP. It is used for testing.
 - name: media.webrtc.net.force_disable_rtcp_reception
