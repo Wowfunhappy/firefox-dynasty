@@ -146,7 +146,6 @@ TBPL_RETRY = 4  # Defined in mozharness
 class MessageLogger:
     """File-like object for logging messages (structured logs)"""
 
-    BUFFERING_THRESHOLD = 100
     # This is a delimiter used by the JS side to avoid logs interleaving
     DELIMITER = "\ue175\uee31\u2c32\uacbf"
     BUFFERED_ACTIONS = set(["test_status", "log"])
@@ -297,15 +296,7 @@ class MessageLogger:
             self.restore_buffering = self.restore_buffering or self.buffering
             self.buffering = False
             if self.buffered_messages:
-                snipped = len(self.buffered_messages) - self.BUFFERING_THRESHOLD
-                if snipped > 0:
-                    self.logger.info(
-                        f"<snipped {snipped} output lines - "
-                        "if you need more context, please use "
-                        "SimpleTest.requestCompleteLog() in your test>"
-                    )
-                # Dumping previously buffered messages
-                self.dump_buffered(limit=True)
+                self.dump_buffered()
 
             # Logging the error message
             self.logger.log_raw(message)
@@ -342,14 +333,9 @@ class MessageLogger:
     def flush(self):
         sys.stdout.flush()
 
-    def dump_buffered(self, limit=False):
-        if limit:
-            dumped_messages = self.buffered_messages[-self.BUFFERING_THRESHOLD :]
-        else:
-            dumped_messages = self.buffered_messages
-
+    def dump_buffered(self):
         last_timestamp = None
-        for buf in dumped_messages:
+        for buf in self.buffered_messages:
             # pylint --py3k W1619
             timestamp = datetime.fromtimestamp(buf["time"] / 1000).strftime("%H:%M:%S")
             if timestamp != last_timestamp:
