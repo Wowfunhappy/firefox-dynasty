@@ -469,6 +469,7 @@ DecodedStream::DecodedStream(
     CopyableTArray<RefPtr<ProcessedMediaTrack>> aOutputTracks,
     AbstractCanonical<PrincipalHandle>* aCanonicalOutputPrincipal,
     double aVolume, double aPlaybackRate, bool aPreservesPitch,
+    bool aShouldConfigAudioOutput, AudioDeviceInfo* aDevice,
     MediaQueue<AudioData>& aAudioQueue, MediaQueue<VideoData>& aVideoQueue)
     : mOwnerThread(aOwnerThread),
       mDummyTrack(std::move(aDummyTrack)),
@@ -482,6 +483,8 @@ DecodedStream::DecodedStream(
       mVolume(aVolume),
       mPlaybackRate(aPlaybackRate),
       mPreservesPitch(aPreservesPitch),
+      mShouldConfigAudioOutput(aShouldConfigAudioOutput),
+      mDevice(aDevice),
       mAudioQueue(aAudioQueue),
       mVideoQueue(aVideoQueue) {}
 
@@ -513,8 +516,9 @@ nsresult DecodedStream::Start(const TimeUnit& aStartTime,
                                  aStartTime.ToMicroseconds());
     PLAYBACK_PROFILER_MARKER(markerString);
   }
-  LOG_DS(LogLevel::Debug, "Start() mStartTime=%" PRId64,
-         aStartTime.ToMicroseconds());
+  LOG_DS(LogLevel::Debug,
+         "Start() mStartTime=%" PRId64 ", audioOutputConfig=%d",
+         aStartTime.ToMicroseconds(), mShouldConfigAudioOutput);
 
   mStartTime.emplace(aStartTime);
   mLastOutputTime = TimeUnit::Zero();
@@ -579,6 +583,7 @@ nsresult DecodedStream::Start(const TimeUnit& aStartTime,
         // proper one. This effectively halts playback for this DecodedStream.
         return NS_OK;
       }
+      // TODO : set audio output if it's required.
       mData = MakeUnique<DecodedStreamData>(
           std::move(mInit), mDummyTrack->mTrack->Graph(),
           std::move(audioOutputTrack), std::move(videoOutputTrack),
@@ -741,6 +746,7 @@ void DecodedStream::SetPreservesPitch(bool aPreservesPitch) {
 
 RefPtr<GenericPromise> DecodedStream::SetAudioDevice(
     RefPtr<AudioDeviceInfo> aDevice) {
+  // TODO : set audio device if it's required.
   // All audio is captured, so nothing is actually played out, so nothing to do.
   return GenericPromise::CreateAndResolve(true, __func__);
 }

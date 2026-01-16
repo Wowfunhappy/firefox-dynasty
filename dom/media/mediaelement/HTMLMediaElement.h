@@ -757,6 +757,8 @@ class HTMLMediaElement : public nsGenericHTMLElement,
 
   already_AddRefed<DOMMediaStream> MozCaptureStreamUntilEnded(ErrorResult& aRv);
 
+  already_AddRefed<DOMMediaStream> CaptureStream(ErrorResult& aRv);
+
   bool MozAudioCaptured() const { return mAudioCaptured; }
 
   void MozGetMetadata(JSContext* aCx, JS::MutableHandle<JSObject*> aResult,
