@@ -214,6 +214,10 @@
       window.addEventListener("TabSplitViewActivate", this);
       window.addEventListener("TabSplitViewDeactivate", this);
 
+      window
+        .matchMedia("(prefers-color-scheme: dark)")
+        .addEventListener("change", this);
+
       this.tabContainer.init();
       this._setupInitialBrowserAndTab();
 
@@ -918,7 +922,7 @@
      * @param {MozTabbrowserTab} aTab
      *   The tab to pin.
      * @param {object} [options]
-     * @property {string} [options.telemetrySource="unknown"]
+     * @param {string} [options.telemetrySource="unknown"]
      *   The means by which the tab was pinned.
      *   @see TabMetrics.METRIC_SOURCE for possible values.
      *   Defaults to "unknown".
@@ -1155,9 +1159,7 @@
             this._remoteSVGIconDecoding &&
             url.startsWith(this.FaviconUtils.SVG_DATA_URI_PREFIX)
           ) {
-            // 16px is hardcoded for .tab-icon-image in tabs.css
-            let size = Math.floor(16 * window.devicePixelRatio);
-            url = this.FaviconUtils.getMozRemoteImageURL(url, { size });
+            url = this.#getMozRemoteImageURLForSvg(browser, url);
           }
           aTab.setAttribute("image", url);
         } else {
@@ -1171,6 +1173,48 @@
         aIconURL,
         aOriginalURL,
       ]);
+    }
+
+    // Used for refreshing the icons when the color scheme changes.
+    #maybeRefreshIcons() {
+      if (!this._remoteSVGIconDecoding) {
+        return;
+      }
+
+      for (const tab of this.tabs) {
+        let browser = this.getBrowserForTab(tab);
+        let iconURL = browser.mIconURL;
+        if (
+          !iconURL ||
+          !iconURL.startsWith(this.FaviconUtils.SVG_DATA_URI_PREFIX)
+        ) {
+          continue;
+        }
+
+        tab.setAttribute(
+          "image",
+          this.#getMozRemoteImageURLForSvg(browser, iconURL)
+        );
+      }
+    }
+
+    #getMozRemoteImageURLForSvg(browser, aUrl) {
+      let options = {
+        // 16px is hardcoded for .tab-icon-image in tabs.css
+        size: Math.floor(16 * window.devicePixelRatio),
+        colorScheme: window.matchMedia("(prefers-color-scheme: dark)").matches
+          ? "dark"
+          : "light",
+      };
+
+      // Use the tab's child process (if available) to load and render the favicon.
+      let contentParentId =
+        browser.browsingContext?.currentWindowGlobal?.contentParentId;
+      if (contentParentId !== undefined) {
+        options.contentParentId = contentParentId;
+      }
+
+      return this.FaviconUtils.getMozRemoteImageURL(aUrl, options);
     }
 
     getIcon(aTab) {
@@ -6585,12 +6629,12 @@
      *   any possibility of entering a tab group. For example, setting `true`
      *   ensures that a pinned tab will not accidentally be placed inside of
      *   a tab group, since pinned tabs are presently not allowed in tab groups.
-     * @property {boolean} [options.isUserTriggered=false]
+     * @param {boolean} [options.isUserTriggered=false]
      *   Should be true if there was an explicit action/request from the user
      *   (as opposed to some action being taken internally or for technical
      *   bookkeeping reasons alone) to move the tab. This causes telemetry
      *   events to fire.
-     * @property {string} [options.telemetrySource="unknown"]
+     * @param {string} [options.telemetrySource="unknown"]
      *   The system, surface, or control the user used to move the tab.
      *   @see TabMetrics.METRIC_SOURCE for possible values.
      *   Defaults to "unknown".
@@ -7950,6 +7994,10 @@
         // Intentional fallthrough
         case "deactivate":
           this.selectedTab.updateLastSeenActive();
+          break;
+        case "change":
+          // "(prefers-color-scheme: dark)" changed
+          this.#maybeRefreshIcons();
           break;
       }
     }

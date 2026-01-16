@@ -364,6 +364,10 @@ class SettingsFragment : PreferenceFragmentCompat() {
                 SettingsFragmentDirections.actionSettingsFragmentToSavedLoginsAuthFragment()
             }
 
+            resources.getString(R.string.pref_key_email_masks) -> {
+                SettingsFragmentDirections.actionSettingsFragmentToEmailMasksSettingsFragment()
+            }
+
             resources.getString(R.string.pref_key_credit_cards) -> {
                 SettingsMetrics.autofill.record()
                 SettingsFragmentDirections.actionSettingsFragmentToAutofillSettingFragment()
@@ -590,6 +594,8 @@ class SettingsFragment : PreferenceFragmentCompat() {
             )?.isVisible = enableFirefoxLabs
             preferenceStartProfiler?.isVisible = showSecretDebugMenuThisSession &&
                 (components.core.engine.profiler?.isProfilerActive() != null)
+            findPreference<Preference>(getPreferenceKey(R.string.pref_key_email_masks))?.isVisible =
+                isEmailMaskFeatureEnabled
         }
         setupCookieBannerPreference(settings)
         setupInstallAddonFromFilePreference(settings)

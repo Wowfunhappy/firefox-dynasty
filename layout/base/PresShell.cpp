@@ -4138,6 +4138,8 @@ void PresShell::UnsuppressAndInvalidate() {
 
   ScheduleBeforeFirstPaint();
 
+  mDocument->MaybeScheduleRenderingPhases({RenderingPhase::Reveal});
+
   PROFILER_MARKER_UNTYPED("UnsuppressAndInvalidate", GRAPHICS);
 
   mPaintingSuppressed = false;
@@ -11756,6 +11758,7 @@ void PresShell::UpdateAnchorPosForScroll(
   nsTArray<AffectedAnchorGroup> affectedAnchors =
       FindAnchorsAffectedByScroll(mAnchorPosAnchors, aScrollContainer);
   // Affected anchors may be empty, an implicit anchor may have scrolled.
+  OverflowChangedTracker oct;
 
   // Now, update all affected positioned elements' scroll offsets.
   for (auto* positioned : mAnchorPosPositioned) {
@@ -11778,11 +11781,14 @@ void PresShell::UpdateAnchorPosForScroll(
       if (referenceData->mDefaultScrollShift == offset) {
         return false;
       }
-      positioned->SetPosition(positioned->GetNormalPosition() - offset);
-      // Update positioned frame's overflow, then the absolute containing
-      // block's.
+      const auto diff = offset - referenceData->mDefaultScrollShift;
+      positioned->SetPosition(positioned->GetPosition() - diff);
       positioned->UpdateOverflow();
-      positioned->GetParent()->UpdateOverflow();
+      // Ensure that we propagate the overflow change up
+      // the ancestor chain.
+      oct.AddFrame(positioned->GetParent(),
+                   OverflowChangedTracker::CHILDREN_CHANGED);
+
       // APZ-handled scrolling may skip scheduling of paint for the relevant
       // scroll container - We need to ensure that we schedule a paint for this
       // positioned frame. Could theoretically do this when deciding to skip
@@ -11816,6 +11822,7 @@ void PresShell::UpdateAnchorPosForScroll(
       }
     }
   }
+  oct.Flush();
 }
 
 void PresShell::ActivenessMaybeChanged() {

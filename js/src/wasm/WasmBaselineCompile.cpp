@@ -6633,7 +6633,8 @@ bool BaseCompiler::emitRefNull() {
 
 bool BaseCompiler::emitRefIsNull() {
   Nothing nothing;
-  if (!iter_.readRefIsNull(&nothing)) {
+  RefType unusedRefType;
+  if (!iter_.readRefIsNull(&nothing, &unusedRefType)) {
     return false;
   }
 

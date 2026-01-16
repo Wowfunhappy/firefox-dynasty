@@ -78,9 +78,14 @@ export class PropertyValidator {
     this.allowUnits = this.config.validTypes.some(
       propType => propType.allowUnits
     );
+    this.allowedUnits = new Set(
+      this.config.validTypes.flatMap(propType => propType.allowedUnits || [])
+    );
     this.customFixes = this.config.validTypes
       .map(type => type.customFixes)
       .filter(Boolean)
+      // Reverse the list so the first specified fix is the one we use.
+      .reverse()
       .reduce((acc, fixes) => ({ ...acc, ...fixes }), {});
     this.customSuggestions = this.config.validTypes
       .map(type => type.customSuggestions)
@@ -142,6 +147,10 @@ export class PropertyValidator {
 
   isAllowedWord(word, isAlias = false) {
     if (this.allowUnits && this.isUnit(word)) {
+      if (this.allowedUnits.size) {
+        const parsed = valueParser.unit(word);
+        return this.allowedUnits.has(parsed.unit);
+      }
       return true;
     }
     const lowerWord = word.toLowerCase();
@@ -175,9 +184,16 @@ export class PropertyValidator {
   }
 
   isValidCalcFunction(node) {
-    return node.nodes.every(
-      n => PropertyValidator.isCalcOperand(n) || this.isValidNode(n)
+    const calcNodes = node.nodes.filter(
+      n => !PropertyValidator.isCalcOperand(n)
     );
+    const hasDesignToken = calcNodes.some(n => {
+      if (n.type === "function" && n.value === "var") {
+        return this.isValidVarFunction(n);
+      }
+      return false;
+    });
+    return hasDesignToken || calcNodes.every(n => this.isValidNode(n));
   }
 
   isValidColorMixFunction(node, isAlias = false) {

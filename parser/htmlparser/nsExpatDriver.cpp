@@ -107,9 +107,8 @@ inline enum XML_Status status_verifier(enum XML_Status s) {
 
 /* error_verifier is a type validator for XML_Error */
 inline enum XML_Error error_verifier(enum XML_Error code) {
-  MOZ_RELEASE_ASSERT(
-      code >= XML_ERROR_NONE && code <= XML_ERROR_INVALID_ARGUMENT,
-      "unexpected XML error code");
+  MOZ_RELEASE_ASSERT(code >= XML_ERROR_NONE && code <= XML_ERROR_NOT_STARTED,
+                     "unexpected XML error code");
   return code;
 }
 

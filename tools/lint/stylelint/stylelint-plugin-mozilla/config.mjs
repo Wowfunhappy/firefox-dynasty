@@ -15,6 +15,7 @@ import { SYSTEM_COLORS } from "./referenceColors.mjs";
  * @property {string[]} [aliasTokenTypes] Token categories from tokens-table.mjs whose tokens are valid only when used through local custom properties
  * @property {string[]} [allowFunctions] Allowed CSS function names (e.g., "url", "linear-gradient")
  * @property {boolean} [allowUnits] Whether values with CSS units (e.g., "10px", "50%") are allowed
+ * @property {string[]} [allowedUnits] Specific unit types allowed (e.g., ["em", "ch", "%"]). If provided, only these units are allowed when allowUnits is true
  * @property {Record<string, string>} [customFixes] Map of raw values to their token replacements for autofix
  * @property {Record<string, string>} [customSuggestions] Map of raw values to their token replacements for suggested fixes
  */
@@ -249,9 +250,25 @@ const Space = {
   },
 };
 
+/** @type {PropertyTypeConfig} */
+const Size = {
+  allow: ["0", "auto", "none", "fit-content", "min-content", "max-content"],
+  tokenTypes: ["size", "icon-size"],
+  allowUnits: true,
+  allowedUnits: ["em", "ch", "%", "vh", "vw"],
+  customFixes: {
+    ...createRawValuesObject(["size", "icon-size"]),
+    "0.75rem": "var(--size-item-xsmall)",
+    "1rem": "var(--size-item-small)",
+    "1.5rem": "var(--size-item-medium)",
+    "2rem": "var(--size-item-large)",
+    "3rem": "var(--size-item-xlarge)",
+  },
+};
+
 /**
  * @typedef {object} PropertyConfig
- * @property {PropertyTypeConfig[]} validTypes Valid type configurations for this property
+ * @property {PropertyTypeConfig[]} validTypes Valid type configurations for this property, ordered by precedence (first item is highest precedence)
  * @property {boolean} [shorthand] Whether this property accepts multiple space-separated values
  * @property {boolean} [multiple] Whether this property accepts comma-separated value groups
  * @property {boolean} [slash] Whether this property accepts slash-separated values (e.g., position/size)
@@ -265,16 +282,20 @@ export const propertyConfig = {
   background: {
     validTypes: [
       BackgroundColor,
-      BackgroundImage,
-      BackgroundPosition,
-      BackgroundSize,
-      BackgroundRepeat,
-      BackgroundAttachment,
       BackgroundClip,
+      BackgroundAttachment,
+      BackgroundRepeat,
+      BackgroundSize,
+      BackgroundPosition,
+      BackgroundImage,
     ],
     shorthand: true,
     multiple: true,
     slash: true,
+  },
+  "background-size": {
+    validTypes: [BackgroundSize],
+    shorthand: true,
   },
   "box-shadow": {
     validTypes: [BoxShadow],
@@ -483,40 +504,76 @@ export const propertyConfig = {
   "row-gap": {
     validTypes: [Space],
   },
+  width: {
+    validTypes: [Size],
+  },
+  "min-width": {
+    validTypes: [Size],
+  },
+  "max-width": {
+    validTypes: [Size],
+  },
+  height: {
+    validTypes: [Size],
+  },
+  "min-height": {
+    validTypes: [Size],
+  },
+  "max-height": {
+    validTypes: [Size],
+  },
+  "inline-size": {
+    validTypes: [Size],
+  },
+  "min-inline-size": {
+    validTypes: [Size],
+  },
+  "max-inline-size": {
+    validTypes: [Size],
+  },
+  "block-size": {
+    validTypes: [Size],
+  },
+  "min-block-size": {
+    validTypes: [Size],
+  },
+  "max-block-size": {
+    validTypes: [Size],
+  },
   inset: {
-    validTypes: [Space],
+    validTypes: [Space, Size],
     shorthand: true,
   },
   "inset-block": {
-    validTypes: [Space],
+    validTypes: [Space, Size],
     shorthand: true,
   },
   "inset-block-end": {
-    validTypes: [Space],
+    validTypes: [Space, Size],
   },
   "inset-block-start": {
-    validTypes: [Space],
+    validTypes: [Space, Size],
   },
   "inset-inline": {
-    validTypes: [Space],
+    validTypes: [Space, Size],
     shorthand: true,
   },
   "inset-inline-end": {
-    validTypes: [Space],
+    validTypes: [Space, Size],
   },
   "inset-inline-start": {
-    validTypes: [Space],
-  },
-  top: {
-    validTypes: [Space],
-  },
-  right: {
-    validTypes: [Space],
-  },
-  bottom: {
-    validTypes: [Space],
+    validTypes: [Space, Size],
   },
   left: {
-    validTypes: [Space],
+    validTypes: [Space, Size],
+  },
+  right: {
+    validTypes: [Space, Size],
+  },
+  top: {
+    validTypes: [Space, Size],
+  },
+  bottom: {
+    validTypes: [Space, Size],
   },
 };

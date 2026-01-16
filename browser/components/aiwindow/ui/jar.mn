@@ -13,6 +13,8 @@ browser.jar:
   content/browser/aiwindow/components/ai-chat-message.css   (components/ai-chat-message/ai-chat-message.css)
   content/browser/aiwindow/components/ai-chat-search-button.mjs (components/ai-chat-search-button/ai-chat-search-button.mjs)
   content/browser/aiwindow/components/ai-chat-search-button.css (components/ai-chat-search-button/ai-chat-search-button.css)
+  content/browser/aiwindow/components/ai-website-chip.mjs   (components/ai-website-chip/ai-website-chip.mjs)
+  content/browser/aiwindow/components/ai-website-chip.css   (components/ai-website-chip/ai-website-chip.css)
   content/browser/aiwindow/components/ai-window.mjs         (components/ai-window/ai-window.mjs)
   content/browser/aiwindow/components/ai-window.css         (components/ai-window/ai-window.css)
   content/browser/aiwindow/ai-window-content.css            (content/ai-window-content.css)
@@ -28,3 +30,4 @@ browser.jar:
   content/browser/aiwindow/components/applied-memories-button.css   (components/ai-chat-content/chat-assistant-footer/applied-memories-button.css)
   content/browser/aiwindow/components/assistant-message-footer.mjs  (components/ai-chat-content/chat-assistant-footer/assistant-message-footer.mjs)
   content/browser/aiwindow/components/assistant-message-footer.css  (components/ai-chat-content/chat-assistant-footer/assistant-message-footer.css)
+  content/browser/aiwindow/modules/TokenStreamParser.mjs    (modules/TokenStreamParser.mjs)

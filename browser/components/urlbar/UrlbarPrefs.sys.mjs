@@ -564,10 +564,6 @@ const PREF_URLBAR_DEFAULTS = /** @type {PreferenceDefinition[]} */ ([
   // active window.
   ["switchTabs.adoptIntoActiveWindow", false],
 
-  // Controls whether searching for open tabs returns tabs from any container
-  // or only from the current container.
-  ["switchTabs.searchAllContainers", true],
-
   // The minimum number of characters needed to match a tab group name.
   ["tabGroups.minSearchLength", 1],
 

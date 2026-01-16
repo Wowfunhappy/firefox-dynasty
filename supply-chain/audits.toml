@@ -5353,7 +5353,7 @@ This is a fairly straightforward FFI wrapper crate for `regex`, maintained by
 the `regex` developers in the same repository.
 
 This crate is explicitly designed for FFI use, and should not be used directly
-by Rust code. The exported `extern \"C\"` functions are not marked as `unsafe`,
+by Rust code. The exported `extern "C"` functions are not marked as `unsafe`,
 meaning that it is technically incorrect to use them from within Rust code,
 however they are reasonable to use from C code.
 
@@ -7505,7 +7505,7 @@ heavily documented, and there are extensive tests for the changes.
 who = "Makoto Kato <m_kato@ga2.so-net.ne.jp>"
 criteria = "safe-to-deploy"
 version = "0.1.2"
-notes = "This crate is zero-copy version of \"From\". This has no unsafe code and uses no ambient capabilities."
+notes = 'This crate is zero-copy version of "From". This has no unsafe code and uses no ambient capabilities.'
 
 [[audits.zerofrom]]
 who = "Makoto Kato <m_kato@ga2.so-net.ne.jp>"

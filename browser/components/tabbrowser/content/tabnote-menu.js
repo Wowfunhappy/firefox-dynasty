@@ -26,7 +26,7 @@
         id="tabNotePanel"
         type="arrow"
         titlebar="normal"
-        class="tab-note-editor-panel"
+        class="tab-note-editor-panel panel-no-padding"
         orient="vertical"
         role="dialog"
         ignorekeys="true"
@@ -43,7 +43,7 @@
         <toolbarseparator />
 
         <html:div
-          class="panel-body
+          class="panel-subview-body
           tab-note-editor-name">
           <html:textarea
             id="tab-note-text"
@@ -55,7 +55,7 @@
         </html:div>
 
         <html:div
-          class="panel-action-row">
+          class="panel-action-row panel-footer">
           <html:div
             id="tab-note-overflow-indicator">
           </html:div>

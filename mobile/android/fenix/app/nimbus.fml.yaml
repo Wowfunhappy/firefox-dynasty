@@ -557,10 +557,6 @@ features:
   menu-redesign:
     description: Control the new menu redesign.
     variables:
-      enabled:
-        description: If true, the new menu redesign is available.
-        type: Boolean
-        default: true
       report-site-issue:
         description: If true, report site issue menu item and preview is available.
         type: Boolean
@@ -570,9 +566,6 @@ features:
         type: Boolean
         default: true
     defaults:
-      - channel: release
-        value:
-          enabled: false
       - channel: release
         value:
           report-site-issue: false

@@ -276,7 +276,6 @@ module.exports = {
     "stylelint-plugin-mozilla/no-base-design-tokens": true,
     "stylelint-plugin-mozilla/use-design-tokens": true,
     "stylelint-plugin-mozilla/no-non-semantic-token-usage": true,
-    "stylelint-plugin-mozilla/use-size-tokens": true,
   },
 
   overrides: [
@@ -441,7 +440,6 @@ module.exports = {
       rules: {
         "stylelint-plugin-mozilla/use-design-tokens": null,
         "stylelint-plugin-mozilla/no-non-semantic-token-usage": null,
-        "stylelint-plugin-mozilla/use-size-tokens": null,
       },
     },
     {
@@ -453,7 +451,6 @@ module.exports = {
       rules: {
         "stylelint-plugin-mozilla/use-design-tokens": true,
         "stylelint-plugin-mozilla/no-non-semantic-token-usage": true,
-        "stylelint-plugin-mozilla/use-size-tokens": true,
       },
     },
     {

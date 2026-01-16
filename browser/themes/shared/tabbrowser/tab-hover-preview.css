@@ -84,6 +84,7 @@
 
     --gradient-width: 40px;
     --gradient-offset: 10px;
+    --gradient-direction: right;
 
     overflow: hidden;
     -webkit-line-clamp: 10;
@@ -91,15 +92,18 @@
     mask:
       /* Mask 1: make all lines except the last visible (by default,
        * unmasked portions of an element are invisible, which is why
-       * this is needed) */
-      linear-gradient(black, black) 0 0 / 100% calc(100% - 1lh) no-repeat,
-      /* Mask 2: Fade out the end of the last line */
+       * this is needed). Mask 2: Fade out the end of the last line */
+      linear-gradient(black) 0 0 / 100% calc(100% - 1lh) no-repeat,
       linear-gradient(
-          90deg,
+          to var(--gradient-direction),
           black calc(100% - var(--tab-note-expand-toggle-width) - var(--gradient-width) - var(--gradient-offset)),
           transparent calc(100% - var(--tab-note-expand-toggle-width) - var(--gradient-offset))
         )
         0 100% / 100% 1lh no-repeat;
+
+    &:dir(rtl) {
+      --gradient-direction: left;
+    }
   }
 }
 

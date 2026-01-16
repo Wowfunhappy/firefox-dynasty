@@ -859,6 +859,23 @@ export let BrowserUsageTelemetry = {
       return node.id;
     }
 
+    // Handle links inside shadow DOM
+    if (node.localName == "a" && node.getRootNode().host) {
+      let host = node.getRootNode().host;
+
+      // Try to find the setting-control and use its setting.id
+      let settingControl = host.closest("setting-control");
+      if (settingControl?.setting?.id) {
+        return `${settingControl.setting.id}Link`;
+      }
+
+      // Fall back to the host's widget ID
+      let hostId = this._getWidgetID(host);
+      if (hostId) {
+        return `${hostId}Link`;
+      }
+    }
+
     // A couple of special cases in the tabs.
     for (let cls of ["bookmark-item", "tab-icon-sound", "tab-close-button"]) {
       if (!node.classList.contains(cls)) {
@@ -913,6 +930,11 @@ export let BrowserUsageTelemetry = {
   _getWidgetContainer(node) {
     if (node.localName == "key") {
       return "keyboard";
+    }
+
+    // If the node is a link inside shadow DOM, use the host element to find the container
+    if (node.localName == "a" && node.getRootNode().host) {
+      node = node.getRootNode().host;
     }
 
     const { URL: url } = node.ownerDocument;
@@ -994,7 +1016,11 @@ export let BrowserUsageTelemetry = {
     }
 
     // Find the actual element we're interested in.
-    let node = sourceEvent.target;
+    // For links in shadow DOM, prefer originalTarget to get the actual link element
+    let node =
+      sourceEvent.originalTarget?.localName === "a"
+        ? sourceEvent.originalTarget
+        : sourceEvent.target;
     const isAboutPreferences =
       node.ownerDocument.URL.startsWith("about:preferences") ||
       node.ownerDocument.URL.startsWith("about:settings");

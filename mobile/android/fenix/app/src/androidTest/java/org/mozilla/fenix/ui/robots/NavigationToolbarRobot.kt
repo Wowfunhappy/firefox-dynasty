@@ -326,12 +326,21 @@ class NavigationToolbarRobot(private val composeTestRule: ComposeTestRule) {
             Log.i(TAG, "enterURLAndEnterToBrowser: Trying to click navigation toolbar")
             composeTestRule.onAllNodesWithTag(ADDRESSBAR_URL_BOX).onLast().performClick()
             Log.i(TAG, "enterURLAndEnterToBrowser: Clicked navigation toolbar")
-            Log.i(TAG, "enterURLAndEnterToBrowser: Trying to set toolbar text to: $url and perform IME action")
-            composeTestRule.onNodeWithTag(ADDRESSBAR_SEARCH_BOX).apply {
-                performTextReplacement(url.toString())
-                performImeAction()
+            composeTestRule.runOnIdle {
+                Log.i(TAG, "runOnIdle: Compose is idle, thread=${Thread.currentThread().name}")
             }
-            Log.i(TAG, "enterURLAndEnterToBrowser: Toolbar text was set to: $url and IME action performed")
+            Log.i(TAG, "enterURLAndEnterToBrowser: Trying to set toolbar text to: $url")
+            composeTestRule.onNodeWithTag(ADDRESSBAR_SEARCH_BOX).performTextReplacement(url.toString())
+            Log.i(TAG, "enterURLAndEnterToBrowser: Toolbar text was set to: $url")
+            composeTestRule.runOnIdle {
+                Log.i(TAG, "runOnIdle: Compose is idle, thread=${Thread.currentThread().name}")
+            }
+            Log.i(TAG, "enterURLAndEnterToBrowser: Trying to perform IME action perform on the toolbar")
+            composeTestRule.onNodeWithTag(ADDRESSBAR_SEARCH_BOX).performImeAction()
+            Log.i(TAG, "enterURLAndEnterToBrowser: IME action performed on the toolbar")
+            composeTestRule.runOnIdle {
+                Log.i(TAG, "runOnIdle: Compose is idle, thread=${Thread.currentThread().name}")
+            }
             waitForAppWindowToBeUpdated()
 
             BrowserRobot(composeTestRule).interact()

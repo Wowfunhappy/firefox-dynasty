@@ -775,6 +775,11 @@ Preferences.addSetting({
 Preferences.addSetting({
   id: "connectionSettings",
   onUserClick: () => gMainPane.showConnections(),
+  controllingExtensionInfo: {
+    storeId: PROXY_KEY,
+    l10nId: "extension-controlling-proxy-config",
+    allowControl: true,
+  },
 });
 
 Preferences.addSetting({
@@ -2132,6 +2137,8 @@ SettingGroupManager.registerGroups({
   },
   defaultBrowser: createDefaultBrowserConfig(),
   startup: {
+    l10nId: "startup-group",
+    headingLevel: 2,
     items: [
       {
         id: "browserRestoreSession",
@@ -2493,7 +2500,8 @@ SettingGroupManager.registerGroups({
     ],
   },
   appearance: {
-    l10nId: "web-appearance-group",
+    l10nId: "appearance-group",
+    headingLevel: 2,
     items: [
       {
         id: "web-appearance-override-warning",
@@ -2569,6 +2577,8 @@ SettingGroupManager.registerGroups({
     ],
   },
   drm: {
+    l10nId: "drm-group",
+    headingLevel: 2,
     subcategory: "drm",
     items: [
       {
@@ -2618,7 +2628,8 @@ SettingGroupManager.registerGroups({
     ],
   },
   browsing: {
-    l10nId: "browsing-group-label",
+    l10nId: "browsing-group",
+    headingLevel: 1,
     items: [
       {
         id: "useAutoScroll",
@@ -2698,12 +2709,14 @@ SettingGroupManager.registerGroups({
     ],
   },
   httpsOnly: {
+    l10nId: "httpsonly-group",
+    supportPage: "https-only-prefs",
+    headingLevel: 2,
     items: [
       {
         id: "httpsOnlyRadioGroup",
         control: "moz-radio-group",
-        l10nId: "httpsonly-label",
-        supportPage: "https-only-prefs",
+        l10nId: "httpsonly-label2",
         options: [
           {
             id: "httpsOnlyRadioEnabled",
@@ -2771,6 +2784,8 @@ SettingGroupManager.registerGroups({
     ],
   },
   browsingProtection: {
+    l10nId: "browsing-protection-group",
+    headingLevel: 2,
     items: [
       {
         id: "enableSafeBrowsing",
@@ -2791,7 +2806,8 @@ SettingGroupManager.registerGroups({
     ],
   },
   nonTechnicalPrivacy: {
-    l10nId: "non-technical-privacy-label",
+    l10nId: "non-technical-privacy-group",
+    headingLevel: 2,
     items: [
       {
         id: "gpcEnabled",
@@ -2897,6 +2913,8 @@ SettingGroupManager.registerGroups({
     ],
   },
   performance: {
+    l10nId: "performance-group",
+    headingLevel: 1,
     items: [
       {
         id: "useRecommendedPerformanceSettings",
@@ -2971,7 +2989,8 @@ SettingGroupManager.registerGroups({
     ],
   },
   cookiesAndSiteData: {
-    l10nId: "sitedata-label",
+    l10nId: "cookies-site-data-group",
+    headingLevel: 2,
     items: [
       {
         id: "clearSiteDataButton",
@@ -3110,6 +3129,10 @@ SettingGroupManager.registerGroups({
     ],
   },
   networkProxy: {
+    l10nId: "network-proxy-group",
+    headingLevel: 1,
+    supportPage: "prefs-connection-settings",
+    subcategory: "netsettings",
     items: [
       {
         id: "connectionSettings",
@@ -3119,10 +3142,6 @@ SettingGroupManager.registerGroups({
           "search-l10n-ids":
             "connection-window2.title,connection-proxy-option-no.label,connection-proxy-option-auto.label,connection-proxy-option-system.label,connection-proxy-option-wpad.label,connection-proxy-option-manual.label,connection-proxy-http,connection-proxy-https,connection-proxy-http-port,connection-proxy-socks,connection-proxy-socks4,connection-proxy-socks5,connection-proxy-noproxy,connection-proxy-noproxy-desc,connection-proxy-https-sharing.label,connection-proxy-autotype.label,connection-proxy-reload.label,connection-proxy-autologin-checkbox.label,connection-proxy-socks-remote-dns.label",
         },
-        // Bug 1990552: due to how this lays out in the legacy page, we do not include a
-        // controllingExtensionInfo attribute here. We will want one in the redesigned page,
-        // using storeId: "proxy.settings".
-        controllingExtensionInfo: undefined,
       },
     ],
   },
@@ -3235,6 +3254,8 @@ SettingGroupManager.registerGroups({
     ],
   },
   history: {
+    l10nId: "history-group",
+    headingLevel: 2,
     items: [
       {
         id: "historyMode",
@@ -3249,8 +3270,9 @@ SettingGroupManager.registerGroups({
         ],
         controlAttrs: {
           "search-l10n-ids": `
-            history-remember-description3,
-            history-dontremember-description3,
+            history-remember-description4,
+            history-dontremember-description4,
+            history-custom-description4,
             history-private-browsing-permanent.label,
             history-remember-browser-option.label,
             history-remember-search-option.label,
@@ -3535,6 +3557,8 @@ SettingGroupManager.registerGroups({
     ],
   },
   dnsOverHttps: {
+    l10nId: "dns-over-https-group",
+    headingLevel: 1,
     inProgress: true,
     items: [
       {
@@ -4585,6 +4609,7 @@ function initSettingGroup(id) {
     }
     group.config = config;
     group.getSetting = Preferences.getSetting.bind(Preferences);
+    group.srdEnabled = srdSectionPrefs.all;
   }
 }
 
@@ -4662,8 +4687,6 @@ var gMainPane = {
     }
 
     this.displayUseSystemLocale();
-    this.updateProxySettingsUI();
-    initializeProxyUI(gMainPane);
 
     if (Services.prefs.getBoolPref("intl.multilingual.enabled")) {
       gMainPane.initPrimaryBrowserLanguageUI();
@@ -5845,33 +5868,8 @@ var gMainPane = {
    */
   showConnections() {
     gSubDialog.open(
-      "chrome://browser/content/preferences/dialogs/connection.xhtml",
-      { closingCallback: this.updateProxySettingsUI.bind(this) }
+      "chrome://browser/content/preferences/dialogs/connection.xhtml"
     );
-  },
-
-  // Update the UI to show the proper description depending on whether an
-  // extension is in control or not.
-  async updateProxySettingsUI() {
-    let controllingExtension = await getControllingExtension(
-      PREF_SETTING_TYPE,
-      PROXY_KEY
-    );
-    let description = document.getElementById("connectionSettingsDescription");
-
-    if (controllingExtension) {
-      setControllingExtensionDescription(
-        description,
-        controllingExtension,
-        "proxy.settings"
-      );
-    } else {
-      setControllingExtensionDescription(
-        description,
-        null,
-        "network-proxy-connection-description"
-      );
-    }
   },
 
   // FONTS

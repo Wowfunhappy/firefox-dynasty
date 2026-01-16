@@ -6,7 +6,6 @@ const lazy = {};
 
 ChromeUtils.defineESModuleGetters(lazy, {
   EventPromise: "chrome://remote/content/shared/Sync.sys.mjs",
-  modal: "chrome://remote/content/shared/Prompt.sys.mjs",
   PromptListener:
     "chrome://remote/content/shared/listeners/PromptListener.sys.mjs",
   TabManager: "chrome://remote/content/shared/TabManager.sys.mjs",
@@ -36,7 +35,7 @@ export class UserPromptHandlerManager {
   }
 
   #onPromptOpened = async (eventName, data) => {
-    const { contentBrowser, prompt } = data;
+    const { browsingContext, prompt } = data;
     const { promptType } = prompt;
     const type = promptType === "beforeunload" ? "beforeUnload" : promptType;
 
@@ -44,9 +43,7 @@ export class UserPromptHandlerManager {
     const { handler } = handlerConfig;
 
     if (promptType in lazy.UserPromptType && handler !== "ignore") {
-      const tab = lazy.TabManager.getTabForBrowsingContext(
-        contentBrowser.browsingContext
-      );
+      const tab = lazy.TabManager.getTabForBrowsingContext(browsingContext);
       const window = lazy.TabManager.getWindowForTab(tab);
 
       const closePrompt = async callback => {
@@ -58,15 +55,10 @@ export class UserPromptHandlerManager {
         await dialogClosed;
       };
 
-      const dialog = lazy.modal.findPrompt({
-        window,
-        contentBrowser,
-      });
-
       if (type === "alert" || handler === "accept") {
-        await closePrompt(() => dialog.accept());
+        await closePrompt(() => prompt.accept());
       } else {
-        await closePrompt(() => dialog.dismiss());
+        await closePrompt(() => prompt.dismiss());
       }
     }
   };

@@ -1133,8 +1133,8 @@ Tester.prototype = {
 
       this.structuredLogger.testEnd(
         this.currentTest.path,
-        "OK",
-        undefined,
+        this.currentTest.failCount > 0 ? "FAIL" : "PASS",
+        "PASS",
         "finished in " + time + "ms"
       );
       this.currentTest.setDuration(time);
@@ -1634,6 +1634,12 @@ Tester.prototype = {
               self.nextTest();
             } else {
               await self.notifyProfilerOfTestEnd();
+              self.structuredLogger.testEnd(
+                self.currentTest.path,
+                "TIMEOUT",
+                "PASS",
+                "Test timed out"
+              );
               self.finish();
             }
           },

@@ -207,6 +207,7 @@
 #include "mozilla/dom/PContentChild.h"
 #include "mozilla/dom/PWindowGlobalChild.h"
 #include "mozilla/dom/PageLoadEventUtils.h"
+#include "mozilla/dom/PageRevealEvent.h"
 #include "mozilla/dom/PageTransitionEvent.h"
 #include "mozilla/dom/PageTransitionEventBinding.h"
 #include "mozilla/dom/Performance.h"
@@ -1476,6 +1477,7 @@ Document::Document(const char* aContentType,
       mSuppressNotifyingDevToolsOfNodeRemovals(false),
       mHasPolicyWithRequireTrustedTypesForDirective(false),
       mClipboardCopyTriggered(false),
+      mHasBeenRevealed(false),
       mXMLDeclarationBits(0),
       mOnloadBlockCount(0),
       mWriteLevel(0),
@@ -12600,6 +12602,13 @@ void Document::OnPageShow(bool aPersisted, EventTarget* aDispatchStartTarget,
                           nullptr);
     }
 
+    if (aPersisted) {
+      // We're coming out of bfcache, clear the revealed flag per
+      // https://html.spec.whatwg.org/#reactivate-a-document 4.2.
+      mHasBeenRevealed = false;
+      MaybeScheduleRenderingPhases({RenderingPhase::Reveal});
+    }
+
     nsCOMPtr<EventTarget> target = aDispatchStartTarget;
     if (!target) {
       target = do_QueryInterface(GetWindow());
@@ -16999,6 +17008,42 @@ void Document::PostVisibilityUpdateEvent() {
       "Document::UpdateVisibilityState", this, &Document::UpdateVisibilityState,
       DispatchVisibilityChange::Yes);
   Dispatch(event.forget());
+}
+
+// https://html.spec.whatwg.org/#reveal
+void Document::Reveal() {
+  // Step 1
+  if (mHasBeenRevealed) {
+    return;
+  }
+
+  // Step 2
+  mHasBeenRevealed = true;
+
+  if (!StaticPrefs::dom_viewTransitions_cross_document_enabled()) {
+    return;
+  }
+
+  RefPtr<nsGlobalWindowInner> win = nsGlobalWindowInner::Cast(GetInnerWindow());
+  if (!win) {
+    return;
+  }
+
+  // Step 3, Let transition be the result of resolving inbound cross-document
+  // view-transition for document.
+  // TODO
+
+  // Step 4
+  PageRevealEventInit init;
+  // init.mViewTransition = TODO
+
+  RefPtr<PageRevealEvent> event =
+      PageRevealEvent::Constructor(win, u"pagereveal"_ns, init);
+  event->SetTrusted(true);
+  win->DispatchEvent(*event);
+
+  // Step 5, If transition is not null, then:
+  // TODO
 }
 
 void Document::MaybeActiveMediaComponents() {

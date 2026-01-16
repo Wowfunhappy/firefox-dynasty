@@ -2010,7 +2010,8 @@ bool wasm::ValidateOps(ValidatingOpIter& iter, T& dumper,
       }
       case uint16_t(Op::RefIsNull): {
         Nothing nothing;
-        if (!iter.readRefIsNull(&nothing)) {
+        RefType unusedRefType;
+        if (!iter.readRefIsNull(&nothing, &unusedRefType)) {
           return false;
         }
         break;

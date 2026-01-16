@@ -162,6 +162,8 @@ interface mixin WindowEventHandlers {
            attribute EventHandler onoffline;
            attribute EventHandler ononline;
            attribute EventHandler onpagehide;
+           [Pref="dom.viewTransitions.cross-document.enabled"]
+           attribute EventHandler onpagereveal;
            attribute EventHandler onpageshow;
            attribute EventHandler onpopstate;
            attribute EventHandler onrejectionhandled;

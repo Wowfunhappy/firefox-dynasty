@@ -2281,20 +2281,15 @@ void nsXULPopupManager::UpdateMenuItems(Element* aPopup) {
         // We do! Look it up in our document
         RefPtr<dom::Element> commandElement = document->GetElementById(command);
         if (commandElement) {
-          nsAutoString commandValue;
           // The menu's disabled state needs to be updated to match the command.
-          if (commandElement->GetAttr(nsGkAtoms::disabled, commandValue)) {
-            grandChildElement->SetAttr(kNameSpaceID_None, nsGkAtoms::disabled,
-                                       commandValue, true);
-          } else {
-            grandChildElement->UnsetAttr(kNameSpaceID_None, nsGkAtoms::disabled,
-                                         true);
-          }
+          grandChildElement->SetBoolAttr(
+              nsGkAtoms::disabled,
+              commandElement->GetBoolAttr(nsGkAtoms::disabled));
 
-          // The menu's label, accesskey checked and hidden states need to be
-          // updated to match the command. Note that unlike the disabled state
-          // if the command has *no* value, we assume the menu is supplying its
-          // own.
+          // The menu's label and accesskey states need to be updated to match
+          // the command. Note that unlike the disabled state if the command has
+          // *no* value, we assume the menu is supplying its own.
+          nsAutoString commandValue;
           if (commandElement->GetAttr(nsGkAtoms::label, commandValue)) {
             grandChildElement->SetAttr(kNameSpaceID_None, nsGkAtoms::label,
                                        commandValue, true);
@@ -2302,19 +2297,6 @@ void nsXULPopupManager::UpdateMenuItems(Element* aPopup) {
 
           if (commandElement->GetAttr(nsGkAtoms::accesskey, commandValue)) {
             grandChildElement->SetAttr(kNameSpaceID_None, nsGkAtoms::accesskey,
-                                       commandValue, true);
-          }
-
-          if (commandElement->GetAttr(nsGkAtoms::checked, commandValue)) {
-            grandChildElement->SetAttr(kNameSpaceID_None, nsGkAtoms::checked,
-                                       commandValue, true);
-          } else {
-            grandChildElement->UnsetAttr(kNameSpaceID_None, nsGkAtoms::checked,
-                                         true);
-          }
-
-          if (commandElement->GetAttr(nsGkAtoms::hidden, commandValue)) {
-            grandChildElement->SetAttr(kNameSpaceID_None, nsGkAtoms::hidden,
                                        commandValue, true);
           }
         }

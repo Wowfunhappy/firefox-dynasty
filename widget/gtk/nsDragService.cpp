@@ -565,9 +565,6 @@ nsDragSession::nsDragSession() {
 
   // set up our logging module
   mTempFileTimerID = 0;
-#ifdef MOZ_X11
-  mActive = widget::GdkIsX11Display();
-#endif
 
   static std::once_flag onceFlag;
   std::call_once(onceFlag, [] {
@@ -2417,6 +2414,9 @@ void nsDragSession::SourceBeginDrag(GdkDragContext* aContext) {
   if (NS_FAILED(rv)) {
     LOGDRAGSERVICE("  FlavorsTransferableCanImport failed!");
     return;
+  }
+  if (widget::GdkIsWaylandDisplay()) {
+    mSourceDragContext = aContext;
   }
 
   for (uint32_t i = 0; i < flavors.Length(); ++i) {

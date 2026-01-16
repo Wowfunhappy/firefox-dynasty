@@ -4,6 +4,11 @@
 
 import { html } from "chrome://global/content/vendor/lit.all.mjs";
 import { MozLitElement } from "chrome://global/content/lit-utils.mjs";
+import {
+  createParserState,
+  consumeStreamChunk,
+  flushTokenRemainder,
+} from "chrome://browser/content/aiwindow/modules/TokenStreamParser.mjs";
 
 const lazy = {};
 ChromeUtils.defineESModuleGetters(lazy, {
@@ -73,7 +78,7 @@ export class AIWindow extends MozLitElement {
     browser.setAttribute("maychangeremoteness", "true");
     browser.setAttribute("disableglobalhistory", "true");
     browser.setAttribute("src", "about:aichatcontent");
-    browser.setAttribute("transparent", true);
+    browser.setAttribute("transparent", "true");
 
     const container = this.renderRoot.querySelector("#browser-container");
     container.appendChild(browser);
@@ -139,7 +144,7 @@ export class AIWindow extends MozLitElement {
     this.#dispatchMessageToChatContent({
       role: lazy.MESSAGE_ROLE.USER,
       content: {
-        body: this.userPrompt,
+        body: formattedPrompt,
       },
     });
 
@@ -150,11 +155,10 @@ export class AIWindow extends MozLitElement {
       );
 
       const stream = lazy.Chat.fetchWithHistory(
-        await this.#conversation.generatePrompt(this.userPrompt, pageUrl)
+        await this.#conversation.generatePrompt(formattedPrompt, pageUrl)
       );
       this.#updateConversation();
       this.#addConversationTitle();
-
       this.userPrompt = "";
 
       // @todo
@@ -167,13 +171,43 @@ export class AIWindow extends MozLitElement {
         assistantRoleOpts
       );
 
+      const parserState = createParserState();
+      const currentMessage = this.#conversation.messages
+        .filter(message => message.role === lazy.MESSAGE_ROLE.ASSISTANT)
+        .at(-1);
+
       for await (const chunk of stream) {
-        const currentMessage = this.#conversation.messages.at(-1);
-        currentMessage.content.body += chunk;
+        const { plainText, tokens } = consumeStreamChunk(chunk, parserState);
+
+        if (!currentMessage.tokens) {
+          currentMessage.tokens = {
+            search: [],
+            existing_memory: [],
+          };
+        }
+
+        if (plainText) {
+          currentMessage.content.body += plainText;
+        }
+
+        if (tokens?.length) {
+          tokens.forEach(token => {
+            currentMessage.tokens[token.key].push(token.value);
+          });
+        }
 
         this.#updateConversation();
         this.#dispatchMessageToChatContent(currentMessage);
+        this.requestUpdate?.();
+      }
 
+      // End of stream: if there was an unclosed §... treat as literal text
+      const remainder = flushTokenRemainder(parserState);
+
+      if (remainder) {
+        currentMessage.content.body += remainder;
+        this.#updateConversation();
+        this.#dispatchMessageToChatContent(currentMessage);
         this.requestUpdate?.();
       }
     } catch (e) {
@@ -220,12 +254,17 @@ export class AIWindow extends MozLitElement {
   #dispatchMessageToChatContent(message) {
     const actor = this.#getAIChatContentActor();
 
+    const newMessage = { ...message };
     if (typeof message.role !== "string") {
-      const roleLabel = lazy.getRoleLabel(message.role).toLowerCase();
-      message.role = roleLabel;
+      const roleLabel = lazy.getRoleLabel(newMessage.role).toLowerCase();
+      newMessage.role = roleLabel;
     }
 
-    return actor.dispatchMessageToChatContent(message);
+    if (!actor) {
+      return null;
+    }
+
+    return actor.dispatchMessageToChatContent(newMessage);
   }
 
   /**
@@ -236,7 +275,7 @@ export class AIWindow extends MozLitElement {
    * @private
    */
 
-  #handlePromptInput = async e => {
+  #handlePromptInput = e => {
     const value = e.target.value;
     this.userPrompt = value;
   };

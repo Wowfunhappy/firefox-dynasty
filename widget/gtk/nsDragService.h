@@ -332,13 +332,17 @@ class nsDragSession : public nsBaseDragSession, public nsIObserver {
   // set the drag icon during drag-begin
   void SetDragIcon(GdkDragContext* aContext);
 
-  void MarkAsActive() { mActive = true; }
-  bool IsActive() const { return mActive; }
+  void MarkAsActive() { mSourceDragContext = nullptr; }
+  bool IsActive() const { return !!mSourceDragContext; }
+  RefPtr<GdkDragContext> GetSourceDragContext() { return mSourceDragContext; }
 
  protected:
   virtual ~nsDragSession();
 
  private:
+  // Used to cancel initiated D&D operation from nsWindow.
+  RefPtr<GdkDragContext> mSourceDragContext;
+
   // target/destination side vars
   // These variables keep track of the state of the current drag.
 
@@ -367,9 +371,6 @@ class nsDragSession : public nsBaseDragSession, public nsIObserver {
 
   // the source of our drags
   GtkWidget* mHiddenWidget;
-  // Workaround for Bug 1979719. We consider D&D session running only after
-  // first "move" event on Wayland.
-  bool mActive = false;
 
   // get a list of the sources in gtk's format
   GtkTargetList* GetSourceList(void);

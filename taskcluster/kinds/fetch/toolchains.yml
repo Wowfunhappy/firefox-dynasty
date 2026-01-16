@@ -392,11 +392,11 @@ clang-20:
         revision: 87f0227cb60147a26a1eeb4fb06e3b505e9c7261
 
 clang-21:
-    description: clang 21.1.7 source code
+    description: clang 21.1.8 source code
     fetch:
         type: git
         repo: https://github.com/llvm/llvm-project
-        revision: 292dc2b86f66e39f4b85ec8b185fd8b60f5213ce
+        revision: 2078da43e25a4623cab2d0d60decddf709aaea28
 
 clang-trunk:
     description: clang main branch source code
@@ -681,7 +681,7 @@ cargo-vet:
     fetch:
         type: git
         repo: https://github.com/mozilla/cargo-vet
-        revision: c178261c96c9f820f67817e9c5458db655ddc21f
+        revision: 28f617ea97392d527799649db588a6dbb695da8d
 
 symbol-scrapers:
     description: System symbols scraper source

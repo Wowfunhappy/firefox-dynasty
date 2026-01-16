@@ -2,6 +2,474 @@
   "data": [
     {
       "stash": {
+        "blocked": [
+          "{3d65ca6d-c349-4c9d-b32c-b3734861d43e}:4.8.6",
+          "{3d65ca6d-c349-4c9d-b32c-b3734861d43e}:4.8.7",
+          "{3d65ca6d-c349-4c9d-b32c-b3734861d43e}:4.8.8",
+          "{f0e18123-9203-4b16-abf5-81b81946155e}:5.4.2",
+          "{f0e18123-9203-4b16-abf5-81b81946155e}:5.4.3",
+          "{f0e18123-9203-4b16-abf5-81b81946155e}:5.4.5",
+          "initio@addon.org:0.1.5"
+        ],
+        "unblocked": [],
+        "softblocked": [
+          "{a57096a0-5cb5-451b-b787-4140d5ba4448}:1.5.4",
+          "priceradar@priceradar.cloud:6.85.16",
+          "priceradar@priceradar.cloud:6.85.17",
+          "priceradar@priceradar.cloud:6.85.18",
+          "priceradar@priceradar.cloud:6.85.19",
+          "priceradar@priceradar.cloud:6.85.20",
+          "kick-chat-toggle@kick.com:1.0",
+          "Black7adder@gmail.com:1.6",
+          "{c466efb2-3aae-4b8d-ba13-ff210dab4bf7}:2.0.22062.1",
+          "{c466efb2-3aae-4b8d-ba13-ff210dab4bf7}:2.0.22144.1",
+          "{c466efb2-3aae-4b8d-ba13-ff210dab4bf7}:2.1.22277.1",
+          "sub-reader-b-voicevox@your-unique-id.com:1.0.0",
+          "sub-reader-c-voicevox@your-unique-id.com:1.0.0",
+          "sub-reader-d-voicevox@your-unique-id.com:1.0.0",
+          "magnolia@12.34:4.2.8.1"
+        ]
+      },
+      "schema": 1768458981071,
+      "key_format": "{guid}:{version}",
+      "stash_time": 1768480506788,
+      "id": "1bd52fc5-9779-48fc-8323-57fe43a8538f",
+      "last_modified": 1768480589514
+    },
+    {
+      "stash": {
+        "blocked": [],
+        "unblocked": [],
+        "softblocked": [
+          "{7c6a4b6f-4c2f-4a3d-8a9b-5c1f2b9d1e77}:2.0",
+          "{7c6a4b6f-4c2f-4a3d-8a9b-5c1f2b9d1e77}:1.5.3",
+          "{7c6a4b6f-4c2f-4a3d-8a9b-5c1f2b9d1e77}:1.5.5",
+          "{7c6a4b6f-4c2f-4a3d-8a9b-5c1f2b9d1e77}:1.5.2",
+          "eye-extensions@eye.com:1.0.0",
+          "eye-extensions@eye.com:1.0.1",
+          "eye@tianji.com:1.0.1",
+          "eye@tianji.com:1.0.2",
+          "contact@pokerayou.info:1.0.2",
+          "contact@pokerayou.info:1.0.1"
+        ]
+      },
+      "schema": 1768437381668,
+      "key_format": "{guid}:{version}",
+      "stash_time": 1768458905457,
+      "id": "e05cb8ee-33b8-45cd-b921-25195bee7c5d",
+      "last_modified": 1768458980897
+    },
+    {
+      "stash": {
+        "blocked": [],
+        "unblocked": [],
+        "softblocked": [
+          "addon@idriss-crypto.com:0.1.2",
+          "addon@idriss-crypto.com:0.1.5",
+          "addon@idriss-crypto.com:0.3.0",
+          "addon@idriss-crypto.com:0.3.1",
+          "addon@idriss-crypto.com:1.0.2",
+          "addon@idriss-crypto.com:1.0.3",
+          "addon@idriss-crypto.com:1.0.4",
+          "addon@idriss-crypto.com:1.0.5",
+          "addon@idriss-crypto.com:1.0.6",
+          "addon@idriss-crypto.com:1.0.7",
+          "{2500983d-3c64-46ae-87cc-c95e865ad16b}:1.1",
+          "{39f44523-4b88-4d95-b7d0-7b7db15d62f4}:1.0",
+          "{39f44523-4b88-4d95-b7d0-7b7db15d62f4}:2.0",
+          "image-downloader@ozler365:14.9",
+          "youtube-perplexity-buttons@huseyinfurkankiziloglu1.gmail.com:1.0.0",
+          "network-support.gtus@betmakers.com:1.1",
+          "{a8c60439-b92d-4982-b848-b3faff490544}:1.0",
+          "{50114083-b404-45a6-8af8-28eae06d6d45}:1.0",
+          "chim-chat@extension:2.9",
+          "chim-chat@extension:2.11",
+          "pagepulse@addon.com:1.0",
+          "hv-tools@rxtx.pt:1.0.7",
+          "hv-tools@rxtx.pt:1.0.8",
+          "dwd-taf-monitor@schoenebeckm:1.2",
+          "dwd-taf-monitor@schoenebeckm:2.1",
+          "dwd-taf-monitor@schoenebeckm:1.3",
+          "dwd-taf-monitor@schoenebeckm:1.4",
+          "dwd-taf-monitor@schoenebeckm:1.5",
+          "dwd-taf-monitor@schoenebeckm:1.6",
+          "dwd-taf-monitor@schoenebeckm:1.7",
+          "dwd-taf-monitor@schoenebeckm:1.8"
+        ]
+      },
+      "schema": 1768415789487,
+      "key_format": "{guid}:{version}",
+      "stash_time": 1768437305625,
+      "id": "3a5020e6-24e7-4888-bb12-f4ae08651e0f",
+      "last_modified": 1768437381496
+    },
+    {
+      "stash": {
+        "blocked": [],
+        "unblocked": [],
+        "softblocked": [
+          "buscaid@seudominio.com:2.5.1",
+          "viretta@truth.interface:4.2.8",
+          "priceradar@priceradar.cloud:6.85.9",
+          "priceradar@priceradar.cloud:6.85.1",
+          "priceradar@priceradar.cloud:6.85.2",
+          "priceradar@priceradar.cloud:6.85.3",
+          "priceradar@priceradar.cloud:6.85.5",
+          "priceradar@priceradar.cloud:6.85.7",
+          "priceradar@priceradar.cloud:6.85.8",
+          "{99c2c493-40f3-477a-9cf5-3368c4ed3a72}:1.0",
+          "Pwn@kasem545.github.io:1.2.0",
+          "67016c9f-14a9-4f0b-8e2b-c7b464acad3e@example.com:1.0",
+          "youtube-theme-pro@example.com:1.2.1.4",
+          "barnabas.kamilly@vodafone.com:1.0",
+          "2fdc6cdb-d239-410a-a23e-05a861bad635@example.com:1.0",
+          "admincore-vpn@admincore.org:2.0.0",
+          "csv-tracker-test@example.com:0.1"
+        ]
+      },
+      "schema": 1768394192613,
+      "key_format": "{guid}:{version}",
+      "stash_time": 1768415706832,
+      "id": "a556f619-9e71-4816-bc05-7ea1a55e52cd",
+      "last_modified": 1768415789288
+    },
+    {
+      "stash": {
+        "blocked": [
+          "{63ce3427-167c-404c-8c6c-602dac1f61b7}:1.0",
+          "{63ce3427-167c-404c-8c6c-602dac1f61b7}:109.32",
+          "{db1c726d-f1c9-4961-8373-47adf1a4c3b5}:1.0",
+          "{db1c726d-f1c9-4961-8373-47adf1a4c3b5}:3.2.4",
+          "{5f3696b8-80bc-4fa1-a9f7-c18b64749faa}:5.6.0",
+          "{5f3696b8-80bc-4fa1-a9f7-c18b64749faa}:5.6.1",
+          "{95106873-05bb-4cf4-bd4d-4423c3ff56aa}:5.3.7",
+          "{95106873-05bb-4cf4-bd4d-4423c3ff56aa}:5.3.8",
+          "{95106873-05bb-4cf4-bd4d-4423c3ff56aa}:5.3.9",
+          "{381e2858-65da-44c8-a3cf-224a3f4ef887}:2.6.4",
+          "{381e2858-65da-44c8-a3cf-224a3f4ef887}:2.6.5",
+          "{381e2858-65da-44c8-a3cf-224a3f4ef887}:2.6.6",
+          "{381e2858-65da-44c8-a3cf-224a3f4ef887}:2.6.7",
+          "{2925a488-ebaf-48d0-b059-39d2b29aa783}:1.0",
+          "{2925a488-ebaf-48d0-b059-39d2b29aa783}:2.0",
+          "{c7615d09-13b2-4a8a-b5ea-e85fcd88994f}:1.0",
+          "{c7615d09-13b2-4a8a-b5ea-e85fcd88994f}:2.0",
+          "{086496b8-5849-4286-b4fb-b6c0903105b3}:1.0",
+          "{086496b8-5849-4286-b4fb-b6c0903105b3}:2.0",
+          "{a83ca2f1-6c40-416b-952a-6a4caa814036}:1.0",
+          "{a83ca2f1-6c40-416b-952a-6a4caa814036}:2.0",
+          "{17d18343-d020-4fe3-88e8-66a6934613c7}:1.0",
+          "{17d18343-d020-4fe3-88e8-66a6934613c7}:2.0",
+          "{650d1ff8-f601-4ebf-9e68-e21aacf89b92}:1.0",
+          "{650d1ff8-f601-4ebf-9e68-e21aacf89b92}:2.0",
+          "{cfd20493-406f-4ccf-8452-c941a7dcb10f}:11.1.0",
+          "{06b670cb-b64b-4ab0-92cb-f918495eb044}:11.1.0",
+          "{024a974b-dbe5-4d4c-b141-83be0ffea8fa}:1.0",
+          "{024a974b-dbe5-4d4c-b141-83be0ffea8fa}:2.3",
+          "{024a974b-dbe5-4d4c-b141-83be0ffea8fa}:11.3",
+          "{024a974b-dbe5-4d4c-b141-83be0ffea8fa}:1091.3",
+          "{024a974b-dbe5-4d4c-b141-83be0ffea8fa}:1095.3",
+          "{7cdece7f-00fa-41a1-a1ac-bbef57e0c962}:1.0",
+          "{7cdece7f-00fa-41a1-a1ac-bbef57e0c962}:301.15.2"
+        ],
+        "unblocked": [],
+        "softblocked": [
+          "MinYT@example.org:9.0.4",
+          "{8ae6475f-8082-4e86-b55a-994aad3f7c12}:1.0.20",
+          "{8ae6475f-8082-4e86-b55a-994aad3f7c12}:1.0.27",
+          "tabme-like@carat.de:0.3.3",
+          "darkfilter@nikitka2k11.example.com:1337.0",
+          "ldcnohnnlpgglecmkldelbmiokgmikno@chrome-store-foxified-297124389:4.0.7",
+          "addon@trashmail.com:7.2.4",
+          "{d7a1626d-fe85-4aef-b8f9-7b28709b4165}:2.3.0",
+          "{401eb9fa-c372-4686-a774-0de196215737}:2.3.4",
+          "{e0c04942-b9d5-4619-a0a8-19f1eed0907a}:2.0.22062.1",
+          "{e0c04942-b9d5-4619-a0a8-19f1eed0907a}:2.0.22144.1",
+          "{e0c04942-b9d5-4619-a0a8-19f1eed0907a}:2.1.22277.1",
+          "technopatai-ai-asistan@atakan.dev:1.0.0",
+          "chim-chat@extension:2.10",
+          "eye-extensions@tianji.com:1.0.0",
+          "eye-extensions@tianji.com:1.0.1",
+          "eye-extensions@tianji.com:1.0.2",
+          "download-package@tianji.com:0.0.0",
+          "eye-extensions1@tianji.com:1.0.0",
+          "{6ab1a57b-2b1c-4c8f-a397-49ce2937d723}:4.63",
+          "{19081191-3f2a-4a52-9944-bdc2f392e9f1}:2025.2.21"
+        ]
+      },
+      "schema": 1768372592742,
+      "key_format": "{guid}:{version}",
+      "stash_time": 1768394106490,
+      "id": "b7a7f547-4f10-446a-873e-4bdf962f015a",
+      "last_modified": 1768394192458
+    },
+    {
+      "stash": {
+        "blocked": [],
+        "unblocked": [],
+        "softblocked": [
+          "{7d9b7c71-2616-4f43-b08e-4afb9c81a40a}:1.0",
+          "kbnn-tra-cuu@mydomain.com:1.3.7",
+          "kbnn-tra-cuu@mydomain.com:1.3.7.1",
+          "kbnn-tra-cuu@mydomain.com:1.3.7.2",
+          "kbnn-tra-cuu@mydomain.com:1.3.7.4",
+          "kbnn-tra-cuu@mydomain.com:1.3.7.5",
+          "chim-chat@extension:2.6",
+          "chim-chat@extension:2.7",
+          "chim-chat@extension:2.8",
+          "{3d808b4f-3422-425d-8b40-4bf9330fd6e3}:1.0",
+          "{b6a47c8f-90cf-4dc0-85fa-a57b81aaa50b}:2.2.1",
+          "kinozalhelper@elektrikis.id.lv:3.8.1",
+          "kinozalhelper@elektrikis.id.lv:3.8.2",
+          "kinozalhelper@elektrikis.id.lv:3.8.3",
+          "admincore-vpn@admincore.org:1.0.0",
+          "yang-profile-popup@example.com:1.0.4",
+          "garment-checker@thiha.com:4.0.0",
+          "animeplanet-additions@sandelier.com:2.0.4"
+        ]
+      },
+      "schema": 1768350991442,
+      "key_format": "{guid}:{version}",
+      "stash_time": 1768372506281,
+      "id": "5a6a40ef-34dc-4940-b7a8-692ec767d20e",
+      "last_modified": 1768372592491
+    },
+    {
+      "stash": {
+        "blocked": [],
+        "unblocked": [],
+        "softblocked": [
+          "eappext@rainnsoft.com:0.0.1",
+          "diba103@tab-pin:0.0.1",
+          "{c5e2fb1f-0060-4a23-ab22-9f8bf32941e8}:1.0",
+          "ingeniousbirds@proton.me:0.0.0.6",
+          "{a992c867-377e-4a14-bf66-06f61ad299fe}:1.0",
+          "{1c0575dc-870a-4ecc-a555-713bdeded888}:1.0",
+          "chim-chat@extension:2.5",
+          "chim-chat@extension:2.4",
+          "chim-chat@extension:2.3"
+        ]
+      },
+      "schema": 1768329389678,
+      "key_format": "{guid}:{version}",
+      "stash_time": 1768350906155,
+      "id": "1f9f2cdf-0409-4005-87e9-924f62b43428",
+      "last_modified": 1768350991168
+    },
+    {
+      "stash": {
+        "blocked": [
+          "{2ba4590a-e59c-49cc-b7d2-5cfa71a9df8e}:1.0",
+          "{37546f25-64a3-4e73-ad1e-ca60e8180e67}:1.0",
+          "{05f15149-2025-4135-b58e-936746cda3f1}:1.0",
+          "{05f15149-2025-4135-b58e-936746cda3f1}:109.3",
+          "{722e7e77-61e8-4c9e-b2da-6cb0e475d8dc}:1.0",
+          "{722e7e77-61e8-4c9e-b2da-6cb0e475d8dc}:1.3",
+          "{722e7e77-61e8-4c9e-b2da-6cb0e475d8dc}:32.7.1",
+          "{722e7e77-61e8-4c9e-b2da-6cb0e475d8dc}:1231.3",
+          "{722e7e77-61e8-4c9e-b2da-6cb0e475d8dc}:3333.4",
+          "{722e7e77-61e8-4c9e-b2da-6cb0e475d8dc}:16666.4",
+          "{722e7e77-61e8-4c9e-b2da-6cb0e475d8dc}:17000.4"
+        ],
+        "unblocked": [],
+        "softblocked": [
+          "slush@slushsui2.dev:0.1.1",
+          "goe-attainia-integration@goenergistics.com:1.0.0",
+          "ai-menu@exam2222ple.com:1.0",
+          "{17e88b83-99ed-49ee-9395-945821ce2cda}:2.0.22062.1",
+          "{17e88b83-99ed-49ee-9395-945821ce2cda}:2.0.22144.1",
+          "{17e88b83-99ed-49ee-9395-945821ce2cda}:2.1.22277.1",
+          "{17e56df6-3f52-4fba-85df-3953aa715c10}:2.0.22062.1",
+          "{17e56df6-3f52-4fba-85df-3953aa715c10}:2.0.22144.1",
+          "{17e56df6-3f52-4fba-85df-3953aa715c10}:2.1.22277.1",
+          "{ac373c6d-36b1-45f2-a34b-65aa715e7d3c}:1.0",
+          "{ac373c6d-36b1-45f2-a34b-65aa715e7d3c}:2.0.0",
+          "{836fd847-2bda-499a-825b-7301d7d1769c}:1.0",
+          "{836fd847-2bda-499a-825b-7301d7d1769c}:2.0",
+          "{60b64c73-06da-41c4-9eb2-b4a614cd84db}:1.0",
+          "{60b64c73-06da-41c4-9eb2-b4a614cd84db}:2.0",
+          "{ed802f99-7ba2-482d-b96f-cb9dffe2b01a}:1.0",
+          "{ed802f99-7ba2-482d-b96f-cb9dffe2b01a}:2.0",
+          "{3b3619f8-5fab-4a9c-b94b-aa4b54296a4b}:1.0",
+          "{3b3619f8-5fab-4a9c-b94b-aa4b54296a4b}:2.0",
+          "{41988268-e9f3-4f5d-b5f9-31a1b7b4fbc0}:1.0",
+          "{41988268-e9f3-4f5d-b5f9-31a1b7b4fbc0}:2.0",
+          "{83014e62-7faf-4e62-a208-b943a62510d9}:1.0",
+          "{83014e62-7faf-4e62-a208-b943a62510d9}:2.0",
+          "websummarize2notion@example.com:3.5",
+          "amazon-takipci-v5@gemini.local:12.6",
+          "{70e1944c-722b-4c7f-956c-004f7e24f008}:1.0",
+          "{70e1944c-722b-4c7f-956c-004f7e24f008}:2.0"
+        ]
+      },
+      "schema": 1768307792908,
+      "key_format": "{guid}:{version}",
+      "stash_time": 1768329307029,
+      "id": "07b849b3-1547-4f34-b4a8-6780d206a7c7",
+      "last_modified": 1768329389519
+    },
+    {
+      "stash": {
+        "blocked": [],
+        "unblocked": [],
+        "softblocked": [
+          "{06825226-7d24-4ffc-8862-c4befe4f82bd}:1.0",
+          "office-connector-v3@birthsupportbd.xyz:1.3",
+          "{774584fa-54e2-437a-bf27-104f2bc04807}:1.32",
+          "adamas.koff@yandex.ru:3.5",
+          "{da0dd7de-4d69-4079-b996-5b6088b34fbb}:2.0.64",
+          "{2679a16c-771a-4823-a9c3-33131fbc75ee}:2.0.64",
+          "{b6874cb7-8ece-43ad-8180-e3f7de48416a}:2.0.64",
+          "cartinel@cartinel.app:1.2.0",
+          "cartinel@cartinel.app:1.3.1",
+          "cartinel@cartinel.app:1.3.3",
+          "SuperDrag@qiannian.com:3.8.2",
+          "{75f06b56-4cc5-4c20-aa5e-6ccf5b0ad6fd}:2.0.64",
+          "dot-extension@parity.io:0.1.0",
+          "SuperDrag@qiannian.com:3.8.3",
+          "{2a03adba-b51d-4f92-8c63-a7adf2572d98}:220260112.2"
+        ]
+      },
+      "schema": 1768286191551,
+      "key_format": "{guid}:{version}",
+      "stash_time": 1768307706895,
+      "id": "a311be2f-43a6-45cc-96cd-97a588744c48",
+      "last_modified": 1768307792733
+    },
+    {
+      "stash": {
+        "blocked": [],
+        "unblocked": [],
+        "softblocked": [
+          "{774584fa-54e2-437a-bf27-104f2bc04807}:1.31",
+          "sis-courseforum-linker@yourdomain.com:1.3",
+          "kbnn-tra-cuu@mydomain.com:1.3.7.3",
+          "youtube-volume-normalizer@murahito130.co.jp:3.0.1",
+          "youtube-volume-normalizer-dev@murahito130.co.jp:3.0.1",
+          "emailai@sitcdinhvu.vn:1.1.4",
+          "{a1b2c3d4-e5f6-4a5b-8c9d-e1f2a3b4c5d6}:1.6",
+          "{a1b2c3d4-e5f6-4a5b-8c9d-e1f2a3b4c5d6}:1.7"
+        ]
+      },
+      "schema": 1768264594872,
+      "key_format": "{guid}:{version}",
+      "stash_time": 1768286106545,
+      "id": "a92eea01-eedd-48f1-8422-e92e9b1d4587",
+      "last_modified": 1768286191310
+    },
+    {
+      "stash": {
+        "blocked": [],
+        "unblocked": [],
+        "softblocked": [
+          "{1cb243bb-f736-4cbd-a4d3-220396c0cc1a}:1.0",
+          "{ebd57e35-a0c1-4fa1-85c7-73026e8bdc15}:1.0",
+          "{43065e13-181a-48da-98b4-f976ca462d2f}:1.0",
+          "snipper@heiko.dev:0.1.0",
+          "socks5-switcher@dein-name.addon:1.0",
+          "socks5-switcher@dein-name.addon:2.0",
+          "socks5-switcher@dein-name.addon:2.1",
+          "socks5-switcher@dein-name.addon:2.3",
+          "chim-chat@extension:2.2",
+          "{97e9c08a-78aa-4351-b5d7-1ffa96674977}:1.1",
+          "{97e9c08a-78aa-4351-b5d7-1ffa96674977}:1.2",
+          "{aa7ad30d-418b-48a0-9278-785535210e05}:1.0",
+          "tjsdeveloper.apps@gmail.com:1.1.6",
+          "amazon-takipci-v5@gemini.local:12.5",
+          "@5729ddf7-2c4f-4e57-ba92-baa51996b33a:5.3.9",
+          "@5729ddf7-2c4f-4e57-ba92-baa51996b33a:5.4.1",
+          "@5729ddf7-2c4f-4e57-ba92-baa51996b33a:5.4.2",
+          "asb-calendar-updater@asb:1.0",
+          "asb-calendar-updater@asb:1.1"
+        ]
+      },
+      "schema": 1768242995484,
+      "key_format": "{guid}:{version}",
+      "stash_time": 1768264506927,
+      "id": "9899db0c-ef7e-4d07-804d-9db4e66d6f2c",
+      "last_modified": 1768264594640
+    },
+    {
+      "stash": {
+        "blocked": [],
+        "unblocked": [
+          "atomic@example.com:1.0",
+          "atomic@example.com:1.1",
+          "atomic@example.com:1.2",
+          "atomic@example.com:1.3",
+          "atomic@example.com:2.0",
+          "atomic@example.com:2.1",
+          "atomic@example.com:2.2"
+        ],
+        "softblocked": [
+          "PublicPodTracker@gmail.com:1.3",
+          "{29206186-5a69-4bd3-98ee-f004f7ca1ec2}:1.0",
+          "semnaturaextensionsigned@sign.ro:1.6",
+          "video-previews@uivil.github:1.0.2",
+          "{b5e57a1e-8452-4499-b0c4-635b588c9486}:0.3.3",
+          "priceradar@priceradar.cloud:6.85",
+          "@f2418b15-0998-43fc-a47a-9546d3690226:4.9.8",
+          "@9a1b0c82-2f63-4fcc-bcf1-faffcd9bec5d:4.9.7",
+          "egnyte-cookie-manager@migration-app:1.3",
+          "@86deb049-c35a-4c69-b0c0-a52a14fa3186:2.5.3",
+          "@7e1be1f1-5454-43e2-b4aa-b802a88cab11:5.8.2",
+          "{67788975-7308-472b-bc17-b99e4330ed8f}:1.7",
+          "{67788975-7308-472b-bc17-b99e4330ed8f}:1.6",
+          "{67788975-7308-472b-bc17-b99e4330ed8f}:1.4",
+          "{67788975-7308-472b-bc17-b99e4330ed8f}:1.3",
+          "{67788975-7308-472b-bc17-b99e4330ed8f}:1.2",
+          "{67788975-7308-472b-bc17-b99e4330ed8f}:1.1",
+          "{67788975-7308-472b-bc17-b99e4330ed8f}:1.0",
+          "{ac083b82-c9ab-41ec-bda0-4c3505e8fb53}:1.0",
+          "{ac083b82-c9ab-41ec-bda0-4c3505e8fb53}:4.0"
+        ]
+      },
+      "schema": 1768221389790,
+      "key_format": "{guid}:{version}",
+      "stash_time": 1768242907066,
+      "id": "6ccaa70a-2454-4ab8-83e9-11e7560ab01c",
+      "last_modified": 1768242995377
+    },
+    {
+      "stash": {
+        "blocked": [
+          "{f57ae733-95d1-4fc7-b61b-09e07c7442ec}:1"
+        ],
+        "unblocked": [],
+        "softblocked": [
+          "{5abf0ed0-d3e9-474a-a304-88e89fd03df2}:1.3",
+          "{c6e1bf4d-ddeb-4dfd-b4f7-d80aae009da0}:105.3",
+          "{5abf0ed0-d3e9-474a-a304-88e89fd03df2}:1.0",
+          "emailai@sitcdinhvu.vn:1.1.2.1",
+          "{63ce3427-167c-404c-8c6c-602dac1f61b7}:109.31",
+          "priceradar@priceradar.cloud:6.84.8",
+          "{33cab89c-026a-43e2-a6b1-ec5a01a6ae54}:5.50",
+          "{c6e1bf4d-ddeb-4dfd-b4f7-d80aae009da0}:1.0",
+          "flowplugin@mostafa.dev:1.0.1",
+          "priceradar@priceradar.cloud:6.84.9",
+          "priceradar@priceradar.cloud:6.84.10",
+          "priceradar@priceradar.cloud:6.84.11",
+          "priceradar@priceradar.cloud:6.84.13",
+          "priceradar@priceradar.cloud:6.84.15",
+          "{93809a22-01b4-47c0-ae14-7b271fbf0e67}:1.0",
+          "{4c6e6c67-4cbf-4fd1-a7aa-bc1e0cd5e9c0}:1.0",
+          "youtube-upload-date@local:1.0.0",
+          "youtube-upload-date@local:1.0.1",
+          "youtube-upload-date@local:1.0.2",
+          "{2b51c334-5e28-4d7f-8272-727a8f128b5f}:1.0",
+          "@b45953e1-178f-49c4-878f-8e0f006cb850:3.8.5",
+          "@b45953e1-178f-49c4-878f-8e0f006cb850:3.8.6",
+          "@b45953e1-178f-49c4-878f-8e0f006cb850:3.8.7",
+          "MinYT@example.org:9.0"
+        ]
+      },
+      "schema": 1768199790098,
+      "key_format": "{guid}:{version}",
+      "stash_time": 1768221306784,
+      "id": "db1987e4-0968-4a47-8a05-f0caeb880f90",
+      "last_modified": 1768221389638
+    },
+    {
+      "stash": {
         "blocked": [],
         "unblocked": [],
         "softblocked": [
@@ -792,5 +1260,5 @@
       "last_modified": 1767875945345
     }
   ],
-  "timestamp": 1768199789950
+  "timestamp": 1768480589514
 }

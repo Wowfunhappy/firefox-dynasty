@@ -21,8 +21,8 @@
  */
 
 /**
- * pdfjsVersion = 5.4.549
- * pdfjsBuild = 3532ac39d
+ * pdfjsVersion = 5.4.561
+ * pdfjsBuild = 67673ea27
  */
 /******/ // The require scope
 /******/ var __webpack_require__ = {};
@@ -1257,6 +1257,9 @@ class BaseStream {
     return false;
   }
   get isAsyncDecoder() {
+    return false;
+  }
+  get isImageStream() {
     return false;
   }
   get canAsyncDecodeImageFromBuffer() {
@@ -3888,7 +3891,7 @@ async function JBig2(moduleArg = {}) {
   }
   function initRuntime() {
     runtimeInitialized = true;
-    wasmExports["i"]();
+    wasmExports["h"]();
   }
   function postRun() {
     if (Module["postRun"]) {
@@ -3947,58 +3950,6 @@ async function JBig2(moduleArg = {}) {
   var onPreRuns = [];
   var addOnPreRun = cb => onPreRuns.push(cb);
   var noExitRuntime = true;
-  class ExceptionInfo {
-    constructor(excPtr) {
-      this.excPtr = excPtr;
-      this.ptr = excPtr - 24;
-    }
-    set_type(type) {
-      HEAPU32[this.ptr + 4 >> 2] = type;
-    }
-    get_type() {
-      return HEAPU32[this.ptr + 4 >> 2];
-    }
-    set_destructor(destructor) {
-      HEAPU32[this.ptr + 8 >> 2] = destructor;
-    }
-    get_destructor() {
-      return HEAPU32[this.ptr + 8 >> 2];
-    }
-    set_caught(caught) {
-      caught = caught ? 1 : 0;
-      HEAP8[this.ptr + 12] = caught;
-    }
-    get_caught() {
-      return HEAP8[this.ptr + 12] != 0;
-    }
-    set_rethrown(rethrown) {
-      rethrown = rethrown ? 1 : 0;
-      HEAP8[this.ptr + 13] = rethrown;
-    }
-    get_rethrown() {
-      return HEAP8[this.ptr + 13] != 0;
-    }
-    init(type, destructor) {
-      this.set_adjusted_ptr(0);
-      this.set_type(type);
-      this.set_destructor(destructor);
-    }
-    set_adjusted_ptr(adjustedPtr) {
-      HEAPU32[this.ptr + 16 >> 2] = adjustedPtr;
-    }
-    get_adjusted_ptr() {
-      return HEAPU32[this.ptr + 16 >> 2];
-    }
-  }
-  var exceptionLast = 0;
-  var uncaughtExceptionCount = 0;
-  var ___cxa_throw = (ptr, type, destructor) => {
-    var info = new ExceptionInfo(ptr);
-    info.init(type, destructor);
-    exceptionLast = ptr;
-    uncaughtExceptionCount++;
-    throw exceptionLast;
-  };
   var __abort_js = () => abort("");
   var runtimeKeepaliveCounter = 0;
   var __emscripten_runtime_keepalive_clear = () => {
@@ -4121,21 +4072,20 @@ async function JBig2(moduleArg = {}) {
   Module["writeArrayToMemory"] = writeArrayToMemory;
   var _malloc, _free, _jbig2_decode, __emscripten_timeout, memory, __indirect_function_table, wasmMemory;
   function assignWasmExports(wasmExports) {
-    _malloc = Module["_malloc"] = wasmExports["j"];
-    _free = Module["_free"] = wasmExports["k"];
-    _jbig2_decode = Module["_jbig2_decode"] = wasmExports["l"];
-    __emscripten_timeout = wasmExports["m"];
-    memory = wasmMemory = wasmExports["h"];
+    _malloc = Module["_malloc"] = wasmExports["i"];
+    _free = Module["_free"] = wasmExports["j"];
+    _jbig2_decode = Module["_jbig2_decode"] = wasmExports["k"];
+    __emscripten_timeout = wasmExports["l"];
+    memory = wasmMemory = wasmExports["g"];
     __indirect_function_table = wasmExports["__indirect_function_table"];
   }
   var wasmImports = {
-    a: ___cxa_throw,
-    f: __abort_js,
-    c: __emscripten_runtime_keepalive_clear,
-    d: __setitimer_js,
-    e: _emscripten_resize_heap,
-    b: _proc_exit,
-    g: _setImageData
+    e: __abort_js,
+    b: __emscripten_runtime_keepalive_clear,
+    c: __setitimer_js,
+    d: _emscripten_resize_heap,
+    a: _proc_exit,
+    f: _setImageData
   };
   function run() {
     preRun();
@@ -4384,7 +4334,7 @@ class DecodeStream extends BaseStream {
 }
 class StreamsSequenceStream extends DecodeStream {
   constructor(streams, onError = null) {
-    streams = streams.filter(s => s instanceof BaseStream);
+    streams = streams.filter(s => s instanceof BaseStream && !s.isImageStream);
     let maybeLength = 0;
     for (const stream of streams) {
       maybeLength += stream instanceof DecodeStream ? stream._rawMinBufferLength : stream.length;
@@ -5905,6 +5855,9 @@ class JpegStream extends DecodeStream {
     } finally {
       decoder?.close();
     }
+  }
+  get isImageStream() {
+    return true;
   }
 }
 
@@ -8116,6 +8069,9 @@ class CCITTFaxStream extends DecodeStream {
       this.ensureBuffer(this.bufferLength + 1);
       this.buffer[this.bufferLength++] = c;
     }
+  }
+  get isImageStream() {
+    return true;
   }
 }
 
@@ -10508,6 +10464,9 @@ class Jbig2Stream extends DecodeStream {
   get isAsyncDecoder() {
     return true;
   }
+  get isImageStream() {
+    return true;
+  }
   async decodeImage(bytes, _decoderOptions) {
     if (this.eof) {
       return this.buffer;
@@ -10602,6 +10561,9 @@ class JpxStream extends DecodeStream {
   }
   get canAsyncDecodeImageFromBuffer() {
     return this.stream.isAsync;
+  }
+  get isImageStream() {
+    return true;
   }
 }
 
@@ -56643,7 +56605,7 @@ class Page {
   }
   async getContentStream() {
     const content = await this.pdfManager.ensure(this, "content");
-    if (content instanceof BaseStream) {
+    if (content instanceof BaseStream && !content.isImageStream) {
       return content;
     }
     if (Array.isArray(content)) {
@@ -60338,7 +60300,7 @@ class WorkerMessageHandler {
       docId,
       apiVersion
     } = docParams;
-    const workerVersion = "5.4.549";
+    const workerVersion = "5.4.561";
     if (apiVersion !== workerVersion) {
       throw new Error(`The API version "${apiVersion}" does not match ` + `the Worker version "${workerVersion}".`);
     }

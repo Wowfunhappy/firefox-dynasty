@@ -11,6 +11,8 @@
 #include "mozilla/a11y/DocAccessible.h"
 #include "mozilla/dom/Element.h"
 #include "nsTArray.h"
+#include "nsContentUtils.h"
+#include "mozilla/dom/TreeOrderedArray.h"
 
 #include <memory>
 
@@ -19,7 +21,8 @@ class nsITreeView;
 namespace mozilla {
 namespace dom {
 class Element;
-}
+class HTMLLabelElement;
+}  // namespace dom
 
 namespace a11y {
 class DocAccessibleParent;
@@ -103,8 +106,10 @@ class RelatedAccIterator : public AccIterable {
   RelatedAccIterator(const RelatedAccIterator&);
   RelatedAccIterator& operator=(const RelatedAccIterator&);
 
+  DocAccessible::AttrRelProviders* GetIdRelProvidersFor(nsIContent* aContent);
+
   DocAccessible* mDocument;
-  nsIContent* mDependentContent;
+  nsIContent* mDependentContentOrShadowHost;
   nsAtom* mRelAttr;
   DocAccessible::AttrRelProviders* mProviders;
   uint32_t mIndex;
@@ -134,13 +139,21 @@ class HTMLLabelIterator : public AccIterable {
   HTMLLabelIterator(const HTMLLabelIterator&);
   HTMLLabelIterator& operator=(const HTMLLabelIterator&);
 
+  void Initialize();
+
   bool IsLabel(LocalAccessible* aLabel);
 
-  RelatedAccIterator mRelIter;
+  DocAccessible* mDocument;
+
   // XXX: replace it on weak reference (bug 678429), it's safe to use raw
   // pointer now because iterators life cycle is short.
   const LocalAccessible* mAcc;
   LabelFilter mLabelFilter;
+
+  dom::TreeOrderedArray<nsIContent*, TreeKind::ShadowIncludingDOM>
+      mRelatedNodes;
+  size_t mNextIndex = 0;
+  bool mInitialized = false;
 };
 
 /**

@@ -2338,14 +2338,6 @@ class Settings(
     )
 
     /**
-     * Indicates if the menu redesign is enabled.
-     */
-    var enableMenuRedesign by booleanPreference(
-        key = appContext.getPreferenceKey(R.string.pref_key_enable_menu_redesign),
-        default = { FxNimbus.features.menuRedesign.value().enabled },
-    )
-
-    /**
      * Indicates if the extensions status should be shown in the menu opened for custom tabs.
      */
     var shouldShowCustomTabExtensions by booleanPreference(
@@ -2507,6 +2499,17 @@ class Settings(
     var isEmailMaskFeatureEnabled by booleanPreference(
         key = appContext.getPreferenceKey(R.string.pref_key_enable_email_masks),
         default = { FxNimbus.features.emailMasks.value().enabled },
+    )
+
+    /**
+     * Indicates whether we should suggest using Relay email masks.
+     *
+     * This is separate from [isEmailMaskFeatureEnabled] so turning suggestions off
+     * does not hide the feature from Settings. This is controlled by the user.
+     */
+    var isEmailMaskSuggestionEnabled by booleanPreference(
+        key = appContext.getPreferenceKey(R.string.pref_key_email_mask_suggestion),
+        default = true,
     )
 
     /**

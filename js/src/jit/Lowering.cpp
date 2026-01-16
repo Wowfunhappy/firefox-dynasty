@@ -8888,6 +8888,10 @@ void LIRGenerator::visitWasmRefCastConcrete(MWasmRefCastConcrete* ins) {
                    ins, 0);
 }
 
+void LIRGenerator::visitWasmRefCastInfallible(MWasmRefCastInfallible* ins) {
+  redefine(ins, ins->ref());
+}
+
 void LIRGenerator::visitWasmRefConvertAnyExtern(MWasmRefConvertAnyExtern* ins) {
   // Because any and extern have the same representation, this is a no-op.
   return redefine(ins, ins->ref());

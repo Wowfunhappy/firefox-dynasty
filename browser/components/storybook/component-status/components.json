@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2025-12-18T15:49:39.588Z",
-  "count": 29,
+  "generatedAt": "2026-01-15T21:16:26.521Z",
+  "count": 33,
   "items": [
     {
       "component": "moz-badge",
@@ -120,6 +120,15 @@
       "bugUrl": "https://bugzilla.mozilla.org/show_bug.cgi?id=1889950"
     },
     {
+      "component": "moz-input-email",
+      "title": "UI Widgets/Input Email",
+      "status": "in-development",
+      "storyId": "ui-widgets-input-email--default",
+      "storyUrl": "https://firefoxux.github.io/firefox-desktop-components/?path=/story/ui-widgets-input-email--default",
+      "sourceUrl": "https://searchfox.org/firefox-main/source/toolkit/content/widgets/moz-input-email",
+      "bugUrl": ""
+    },
+    {
       "component": "moz-input-folder",
       "title": "UI Widgets/Input Folder",
       "status": "in-development",
@@ -127,6 +136,15 @@
       "storyUrl": "https://firefoxux.github.io/firefox-desktop-components/?path=/story/ui-widgets-input-folder--default",
       "sourceUrl": "https://searchfox.org/firefox-main/source/toolkit/content/widgets/moz-input-folder",
       "bugUrl": "https://bugzilla.mozilla.org/show_bug.cgi?id=1941432"
+    },
+    {
+      "component": "moz-input-number",
+      "title": "UI Widgets/Input Number",
+      "status": "in-development",
+      "storyId": "ui-widgets-input-number--default",
+      "storyUrl": "https://firefoxux.github.io/firefox-desktop-components/?path=/story/ui-widgets-input-number--default",
+      "sourceUrl": "https://searchfox.org/firefox-main/source/toolkit/content/widgets/moz-input-number",
+      "bugUrl": ""
     },
     {
       "component": "moz-input-password",
@@ -147,6 +165,15 @@
       "bugUrl": "https://bugzilla.mozilla.org/show_bug.cgi?id=1801329"
     },
     {
+      "component": "moz-input-tel",
+      "title": "UI Widgets/Input Tel",
+      "status": "in-development",
+      "storyId": "ui-widgets-input-tel--default",
+      "storyUrl": "https://firefoxux.github.io/firefox-desktop-components/?path=/story/ui-widgets-input-tel--default",
+      "sourceUrl": "https://searchfox.org/firefox-main/source/toolkit/content/widgets/moz-input-tel",
+      "bugUrl": ""
+    },
+    {
       "component": "moz-input-text",
       "title": "UI Widgets/Input Text",
       "status": "in-development",
@@ -154,6 +181,15 @@
       "storyUrl": "https://firefoxux.github.io/firefox-desktop-components/?path=/story/ui-widgets-input-text--default",
       "sourceUrl": "https://searchfox.org/firefox-main/source/toolkit/content/widgets/moz-input-text",
       "bugUrl": "https://bugzilla.mozilla.org/show_bug.cgi?id=1912089"
+    },
+    {
+      "component": "moz-input-url",
+      "title": "UI Widgets/Input Url",
+      "status": "in-development",
+      "storyId": "ui-widgets-input-url--default",
+      "storyUrl": "https://firefoxux.github.io/firefox-desktop-components/?path=/story/ui-widgets-input-url--default",
+      "sourceUrl": "https://searchfox.org/firefox-main/source/toolkit/content/widgets/moz-input-url",
+      "bugUrl": ""
     },
     {
       "component": "moz-label",

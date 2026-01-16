@@ -7,7 +7,8 @@ prefs = [
   "browser.aiwindow.enabled=true",
 ]
 
+["browser_conversation_stream.js"]
+
 ["browser_getCurrentTabMetadata.js"]
 ["browser_get_page_content.js"]
-window_attributes = "ai-window"
 ["browser_utils_loadConfig.js"]

@@ -29,6 +29,7 @@ object SupportUtils {
     const val WHATS_NEW_URL = "https://www.mozilla.org/firefox/android/notes"
     const val FXACCOUNT_SUMO_URL = "https://support.mozilla.org/kb/access-mozilla-services-firefox-account"
     const val ANDROID_SUPPORT_SUMO_URL = "mzl.la/AndroidSupport"
+    const val RELAY_MANAGE_URL = "https://relay.firefox.com"
 
     // This is locale-less on purpose so that the content negotiation happens on the AMO side because the current
     // user language might not be supported by AMO and/or the language might not be exactly what AMO is expecting
@@ -68,6 +69,7 @@ object SupportUtils {
         MARKETING_DATA("mobile-marketing-data"),
         REQUESTED_CRASH_MINIDUMP("unsent-crash-reports-in-firefox-android"),
         TERMS_OF_USE("firefox-terms-of-use-faq"),
+        RELAY("relay-masks-android"),
 
         /**
          * SUMO page for Local Network Access & Local Device Access permissions

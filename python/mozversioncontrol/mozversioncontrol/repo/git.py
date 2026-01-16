@@ -517,6 +517,18 @@ class GitRepository(Repository):
                         "full compatibility and performance."
                     )
 
+                if not self.get_user_email():
+                    print("\nGit requires an email address to identify your commits.")
+                    email = input("Enter your email address: ").strip()
+                    if email:
+                        self.set_config_key_value("user.email", email)
+
+                if not self.get_user_name():
+                    print("\nGit requires a name to identify your commits.")
+                    name = input("Enter your name: ").strip()
+                    if name:
+                        self.set_config_key_value("user.name", name)
+
             system = platform.system()
 
             # https://git-scm.com/docs/git-config#Documentation/git-config.txt-coreuntrackedCache

@@ -16,6 +16,8 @@ support-files = [
 
 ["browser_aiwindow_applied_memories_button.js"]
 
+["browser_aiwindow_ask_button.js"]
+
 ["browser_aiwindow_assistant_message_footer.js"]
 
 ["browser_aiwindow_firstrun.js"]
@@ -27,6 +29,8 @@ support-files = [
 ["browser_aiwindow_search_button.js"]
 
 ["browser_aiwindow_switcher.js"]
+
+["browser_aiwindow_token_parsing.js"]
 
 ["browser_aiwindow_transparency.js"]
 

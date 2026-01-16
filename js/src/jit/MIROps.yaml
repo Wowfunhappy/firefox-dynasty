@@ -4525,6 +4525,19 @@
 - name: WasmRefCastAbstract
   gen_boilerplate: false
 
+# Produced by OptimizeWasmCasts when a cast is known to always succeed.
+- name: WasmRefCastInfallible
+  operands:
+    ref: WasmAnyRef
+  arguments:
+    destType: wasm::RefType
+  result_type: WasmAnyRef
+  type_policy: none
+  wasm_ref_type: wasm::MaybeRefType(destType)
+  guard: true
+  alias_set: none
+  congruent_to: custom
+
 - name: WasmRefConvertAnyExtern
   gen_boilerplate: false
 

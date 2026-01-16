@@ -55,6 +55,12 @@ aiwindow-input-cta-label-navigate = Navigate
 smartbar-placeholder =
     .placeholder = Ask, search, or type a URL
 
+## Website Chip
+
+aiwindow-website-chip-placeholder = Tag a tab or site
+aiwindow-website-chip-remove-button =
+    .aria-label = Remove
+
 ## Firstrun onboarding
 
 aiwindow-firstrun-title = Welcome to Smart Window
@@ -79,3 +85,8 @@ aiwindow-retry =
 aiwindow-copy-message =
     .tooltiptext = Copy
     .aria-label = Copy message
+
+## Ask Toolbar Button
+
+aiwindow-ask-button =
+    .label = Ask
