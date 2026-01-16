@@ -690,8 +690,6 @@ class HomeFragment : Fragment() {
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
 
-        (toolbarView as? HomeToolbarView)?.dismissMenu()
-
         // If the microsurvey feature is visible, we should update it's state.
         if (shouldShowMicrosurveyPrompt(requireContext())) {
             updateMicrosurveyPromptForConfigurationChange(

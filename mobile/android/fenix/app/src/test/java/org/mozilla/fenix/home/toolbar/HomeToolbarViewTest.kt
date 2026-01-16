@@ -99,16 +99,6 @@ class HomeToolbarViewTest {
     }
 
     @Test
-    fun `WHEN dismissMenu is called THEN dismissMenu is called on homeMenuView`() {
-        val homeMenuView: HomeMenuView = mockk(relaxed = true)
-        toolbarView.homeMenuView = homeMenuView
-
-        toolbarView.dismissMenu()
-
-        verify { homeMenuView.dismissMenu() }
-    }
-
-    @Test
     fun `WHEN updateTabCounter is called THEN update is called on tabCounterView`() {
         val tabCounterView: TabCounterView = mockk(relaxed = true)
         toolbarView.tabCounterView = tabCounterView

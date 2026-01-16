@@ -56,11 +56,4 @@ class HomeMenuView(
             },
         )
     }
-
-    /**
-     * Dismisses the menu.
-     */
-    fun dismissMenu() {
-        menuButton.get()?.dismissMenu()
-    }
 }

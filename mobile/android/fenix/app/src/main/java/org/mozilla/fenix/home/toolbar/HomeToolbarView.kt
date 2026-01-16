@@ -115,13 +115,6 @@ internal class HomeToolbarView(
     }
 
     /**
-     * Dismisses the home menu.
-     */
-    fun dismissMenu() {
-        homeMenuView?.dismissMenu()
-    }
-
-    /**
      * Configure the tab strip [ComposeView].
      *
      * @param block Configuration block for the tab strip [ComposeView].
