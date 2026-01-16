@@ -4211,6 +4211,10 @@ already_AddRefed<DOMMediaStream> HTMLMediaElement::CaptureAudio(
     return nullptr;
   }
 
+  mozilla::glean::media::capture_stream_usage
+      .EnumGet(mozilla::glean::media::CaptureStreamUsageLabel::
+                   eAudiosourcenodecaptured)
+      .Add();
   RefPtr<DOMMediaStream> stream = CaptureStreamInternal(
       StreamCaptureBehavior::CONTINUE_WHEN_ENDED,
       StreamCaptureType::CAPTURE_AUDIO, AudioOutputConfig::NotNeeded, aGraph);
@@ -4241,6 +4245,10 @@ already_AddRefed<DOMMediaStream> HTMLMediaElement::MozCaptureStream(
     return nullptr;
   }
 
+  mozilla::glean::media::capture_stream_usage
+      .EnumGet(
+          mozilla::glean::media::CaptureStreamUsageLabel::eMozcapturestream)
+      .Add();
   // TODO : our mozCaptureStreamXXX implementation doesn't render audio
   // output, which is not spec compliant. A proper implementation will be
   // implemented in CaptureStream() which will allow audio playback. We don't
@@ -4265,6 +4273,10 @@ already_AddRefed<DOMMediaStream> HTMLMediaElement::MozCaptureStreamUntilEnded(
     return nullptr;
   }
 
+  mozilla::glean::media::capture_stream_usage
+      .EnumGet(mozilla::glean::media::CaptureStreamUsageLabel::
+                   eMozcapturestreamuntilended)
+      .Add();
   // TODO : our mozCaptureStreamXXX implementation doesn't render audio
   // output, which is not spec compliant. A proper implementation will be
   // implemented in CaptureStream() which will allow audio playback. We don't
@@ -4291,6 +4303,9 @@ already_AddRefed<DOMMediaStream> HTMLMediaElement::CaptureStream(
     return nullptr;
   }
 
+  mozilla::glean::media::capture_stream_usage
+      .EnumGet(mozilla::glean::media::CaptureStreamUsageLabel::eCapturestream)
+      .Add();
   RefPtr<DOMMediaStream> stream =
       CaptureStreamInternal(StreamCaptureBehavior::FINISH_WHEN_ENDED,
                             StreamCaptureType::CAPTURE_ALL_TRACKS,
@@ -7633,6 +7648,14 @@ void HTMLMediaElement::ResetSetMediaKeysTempVariables() {
   mIncomingMediaKeys = nullptr;
 }
 
+bool HTMLMediaElement::MozAudioCaptured() const {
+  mozilla::glean::media::capture_stream_usage
+      .EnumGet(
+          mozilla::glean::media::CaptureStreamUsageLabel::eMozaudiocaptured)
+      .Add();
+  return mAudioCaptured;
+}
+
 already_AddRefed<Promise> HTMLMediaElement::SetMediaKeys(
     mozilla::dom::MediaKeys* aMediaKeys, ErrorResult& aRv) {
   LOG(LogLevel::Debug, ("%p SetMediaKeys(%p) mMediaKeys=%p mDecoder=%p", this,
@@ -7902,6 +7925,10 @@ void HTMLMediaElement::AudioCaptureTrackChange(bool aCapture) {
       return;
     }
 
+    mozilla::glean::media::capture_stream_usage
+        .EnumGet(mozilla::glean::media::CaptureStreamUsageLabel::
+                     eWindowaudiocaptured)
+        .Add();
     MediaTrackGraph* mtg = MediaTrackGraph::GetInstance(
         MediaTrackGraph::AUDIO_THREAD_DRIVER, window,
         MediaTrackGraph::REQUEST_DEFAULT_SAMPLE_RATE,
