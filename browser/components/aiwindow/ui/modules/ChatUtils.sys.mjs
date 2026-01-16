@@ -68,9 +68,9 @@ export function parseMessageRows(rows) {
       convId: row.getResultByName("conv_id"),
       pageUrl: URL.parse(row.getResultByName("page_url")),
       turnIndex: row.getResultByName("turn_index"),
-      insightsEnabled: row.getResultByName("insights_enabled"),
-      insightsFlagSource: row.getResultByName("insights_flag_source"),
-      insightsApplied: parseJSONOrNull(row.getResultByName("insights_applied")),
+      memoriesEnabled: row.getResultByName("memories_enabled"),
+      memoriesFlagSource: row.getResultByName("memories_flag_source"),
+      memoriesApplied: parseJSONOrNull(row.getResultByName("memories_applied")),
       webSearchQueries: parseJSONOrNull(
         row.getResultByName("web_search_queries")
       ),

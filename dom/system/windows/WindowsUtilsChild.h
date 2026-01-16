@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef mozilla_dom_WindowsUtilsChild_h__
-#define mozilla_dom_WindowsUtilsChild_h__
+#ifndef mozilla_dom_WindowsUtilsChild_h_
+#define mozilla_dom_WindowsUtilsChild_h_
 
 #include "mozilla/dom/PWindowsUtilsChild.h"
 #include "mozilla/dom/WindowsLocationChild.h"
@@ -27,4 +27,4 @@ class WindowsUtilsChild final : public PWindowsUtilsChild {
 
 }  // namespace mozilla::dom
 
-#endif  // mozilla_dom_WindowsUtilsChild_h__
+#endif  // mozilla_dom_WindowsUtilsChild_h_

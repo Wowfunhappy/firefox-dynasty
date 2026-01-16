@@ -7326,8 +7326,6 @@ RefPtr<GenericPromise> profiler_resume_sampling() {
 bool profiler_feature_active(uint32_t aFeature) {
   // This function runs both on and off the main thread.
 
-  MOZ_RELEASE_ASSERT(CorePS::Exists());
-
   // This function is hot enough that we use RacyFeatures, not ActivePS.
   return RacyFeatures::IsActiveWithFeature(aFeature);
 }

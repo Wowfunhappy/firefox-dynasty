@@ -1095,6 +1095,10 @@ function promiseOneEvent(eventTarget, eventType, filter) {
   });
 }
 
+function promiseScrollend(aTarget = window) {
+  return promiseOneEvent(aTarget, "scrollend");
+}
+
 function visualViewportAsZoomedRect() {
   let vv = window.visualViewport;
   return {

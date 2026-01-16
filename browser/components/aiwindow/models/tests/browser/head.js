@@ -45,7 +45,7 @@ function serveHTML(html) {
  *   - GetPageContent: The GetPageContent class
  *   - cleanup: Function to clean up the test
  */
-async function setupGetPageContentTest(html) {
+async function setupGetPageContentTests(html) {
   const { GetPageContent } = ChromeUtils.importESModule(
     "moz-src:///browser/components/aiwindow/models/Tools.sys.mjs"
   );
@@ -58,9 +58,10 @@ async function setupGetPageContentTest(html) {
     true // waitForLoad
   );
 
+  const url_list = [url];
+
   return {
-    tab,
-    url,
+    url_list,
     GetPageContent,
     async cleanup() {
       info("Cleaning up test");

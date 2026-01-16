@@ -7686,7 +7686,7 @@ bool CacheIRCompiler::emitStoreTypedArrayElement(ObjOperandId objId,
 
     // Canonicalize floating point values for differential testing.
     if (js::SupportDifferentialTesting()) {
-      masm.canonicalizeDouble(floatScratch0);
+      masm.canonicalizeDoubleNaN(floatScratch0);
     }
 
     masm.storeToTypedFloatArray(elementType, floatScratch0, dest, temp,
@@ -8012,7 +8012,7 @@ bool CacheIRCompiler::emitLoadDataViewValueResult(
       FloatRegister scratchFloat32 = floatScratch0.get().asSingle();
       masm.moveGPRToFloat16(outputScratch, scratchFloat32, scratch2,
                             liveVolatileRegs());
-      masm.canonicalizeFloat(scratchFloat32);
+      masm.canonicalizeFloatNaN(scratchFloat32);
       masm.convertFloat32ToDouble(scratchFloat32, floatScratch0);
       masm.boxDouble(floatScratch0, output.valueReg(), floatScratch0);
       break;
@@ -8020,14 +8020,14 @@ bool CacheIRCompiler::emitLoadDataViewValueResult(
     case Scalar::Float32: {
       FloatRegister scratchFloat32 = floatScratch0.get().asSingle();
       masm.moveGPRToFloat32(outputScratch, scratchFloat32);
-      masm.canonicalizeFloat(scratchFloat32);
+      masm.canonicalizeFloatNaN(scratchFloat32);
       masm.convertFloat32ToDouble(scratchFloat32, floatScratch0);
       masm.boxDouble(floatScratch0, output.valueReg(), floatScratch0);
       break;
     }
     case Scalar::Float64:
       masm.moveGPR64ToDouble(outputReg64, floatScratch0);
-      masm.canonicalizeDouble(floatScratch0);
+      masm.canonicalizeDoubleNaN(floatScratch0);
       masm.boxDouble(floatScratch0, output.valueReg(), floatScratch0);
       break;
     case Scalar::BigInt64:
@@ -8206,7 +8206,7 @@ bool CacheIRCompiler::emitStoreDataViewValueResult(
 
   // Canonicalize floating point values for differential testing.
   if (Scalar::isFloatingType(elementType) && js::SupportDifferentialTesting()) {
-    masm.canonicalizeDouble(floatScratch0);
+    masm.canonicalizeDoubleNaN(floatScratch0);
   }
 
   // Load the value into a gpr register.

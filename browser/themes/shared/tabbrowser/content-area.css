@@ -188,6 +188,7 @@
       margin: 0;
       position: absolute;
       max-width: none;
+      width: 100%;
 
       & > .browserContainer {
         border-radius: 0;

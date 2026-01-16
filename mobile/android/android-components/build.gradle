@@ -409,6 +409,16 @@ tasks.register("ktlintFormat", JavaExec) {
     jvmArgs("--add-opens", "java.base/java.lang=ALL-UNNAMED")
 }
 
+tasks.register("lint") {
+    group = "verification"
+    description = "Runs lint on all android-components subprojects."
+    subprojects.each {
+        if (it.tasks.findByName("lint") != null) {
+            dependsOn it.tasks.named("lint")
+        }
+    }
+}
+
 tasks.register("listRepositories") {
     def reposData = project.provider {
         project.repositories.collect { repo ->

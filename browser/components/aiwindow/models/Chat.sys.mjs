@@ -4,6 +4,8 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
+import { XPCOMUtils } from "resource://gre/modules/XPCOMUtils.sys.mjs";
+
 import { ToolRoleOpts } from "moz-src:///browser/components/aiwindow/ui/modules/ChatMessage.sys.mjs";
 import {
   MODEL_FEATURES,
@@ -19,7 +21,16 @@ import {
 /**
  * Chat
  */
-export const Chat = {
+export const Chat = {};
+
+XPCOMUtils.defineLazyPreferenceGetter(
+  Chat,
+  "modelId",
+  "browser.aiwindow.model",
+  "qwen3-235b-a22b-instruct-2507-maas"
+);
+
+Object.assign(Chat, {
   toolMap: {
     get_open_tabs: getOpenTabs,
     search_browsing_history: searchBrowsingHistory,
@@ -40,12 +51,7 @@ export const Chat = {
     // We can flip this switch on when more realiable
     const fxAccountToken = await openAIEngine.getFxAccountToken();
 
-    // @todo Bug 2007046
-    // Update this with correct model id
-    // Move engineInstance initialization up to access engineInstance.model
-    const modelId = "qwen3-235b-a22b-instruct-2507-maas";
-
-    const toolRoleOpts = new ToolRoleOpts(modelId);
+    const toolRoleOpts = new ToolRoleOpts(this.modelId);
     const currentTurn = conversation.currentTurnIndex();
     const engineInstance = await openAIEngine.build(MODEL_FEATURES.CHAT);
     const config = engineInstance.getConfig(engineInstance.feature);
@@ -144,4 +150,4 @@ export const Chat = {
       }
     }
   },
-};
+});

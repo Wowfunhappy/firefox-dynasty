@@ -1836,40 +1836,16 @@ struct Month {
  * NonISOCalendarDateToISO ( calendar, fields, overflow )
  * NonISOMonthDayToISOReferenceDate ( calendar, fields, overflow )
  *
- * Extract `month` and `monthCode` from |fields| and perform some initial
+ * Extract `monthCode` and `month` from |fields| and perform some initial
  * validation to ensure the values are valid for the requested calendar.
  */
 static bool CalendarFieldMonth(JSContext* cx, CalendarId calendar,
                                Handle<CalendarFields> fields,
                                TemporalOverflow overflow, Month* result) {
-  MOZ_ASSERT(fields.has(CalendarField::Month) ||
-             fields.has(CalendarField::MonthCode));
+  MOZ_ASSERT(fields.has(CalendarField::MonthCode) ||
+             fields.has(CalendarField::Month));
 
-  // Case 1: |month| field is present.
-  int32_t intMonth = 0;
-  if (fields.has(CalendarField::Month)) {
-    double month = fields.month();
-    MOZ_ASSERT(IsInteger(month) && month > 0);
-
-    if (!mozilla::NumberEqualsInt32(month, &intMonth)) {
-      intMonth = 0;
-    }
-
-    const int32_t monthsPerYear = CalendarMonthsPerYear(calendar);
-    if (intMonth < 1 || intMonth > monthsPerYear) {
-      if (overflow == TemporalOverflow::Reject) {
-        ReportCalendarFieldOverflow(cx, "month", month);
-        return false;
-      }
-      MOZ_ASSERT(overflow == TemporalOverflow::Constrain);
-
-      intMonth = monthsPerYear;
-    }
-
-    MOZ_ASSERT(intMonth > 0);
-  }
-
-  // Case 2: |monthCode| field is present.
+  // Case 1: |monthCode| field is present.
   MonthCode fromMonthCode;
   if (fields.has(CalendarField::MonthCode)) {
     auto monthCode = fields.monthCode();
@@ -1894,6 +1870,43 @@ static bool CalendarFieldMonth(JSContext* cx, CalendarId calendar,
                                MonthCodeString{monthCode}.toCString());
       return false;
     }
+  }
+
+  // Case 2: |month| field is present.
+  int32_t intMonth = 0;
+  if (fields.has(CalendarField::Month)) {
+    double month = fields.month();
+    MOZ_ASSERT(IsInteger(month) && month > 0);
+
+    if (!mozilla::NumberEqualsInt32(month, &intMonth)) {
+      intMonth = 0;
+    }
+
+    const int32_t monthsPerYear = CalendarMonthsPerYear(calendar);
+    if (intMonth < 1 || intMonth > monthsPerYear) {
+      if (overflow == TemporalOverflow::Reject) {
+        ReportCalendarFieldOverflow(cx, "month", month);
+        return false;
+      }
+      MOZ_ASSERT(overflow == TemporalOverflow::Constrain);
+
+      // An invalid month can't be equal to any valid month code.
+      if (fields.has(CalendarField::MonthCode)) {
+        ToCStringBuf cbuf;
+        const char* monthStr = NumberToCString(&cbuf, month);
+
+        JS_ReportErrorNumberUTF8(
+            cx, GetErrorMessage, nullptr,
+            JSMSG_TEMPORAL_CALENDAR_INCOMPATIBLE_MONTHCODE,
+            MonthCodeString{fields.monthCode()}.toCString(), monthStr);
+        return false;
+      }
+
+      // Constrain to largest allowed month value.
+      intMonth = monthsPerYear;
+    }
+
+    MOZ_ASSERT(intMonth > 0);
   }
 
   *result = {fromMonthCode, intMonth};
@@ -1962,11 +1975,11 @@ static bool CalendarFieldEraYearMatchesYear(JSContext* cx, CalendarId calendar,
 
   // The user requested year must match the actual (extended/epoch) year.
   if (intYear != yearFromEraYear) {
-    ToCStringBuf yearCbuf;
-    const char* yearStr = NumberToCString(&yearCbuf, intYear);
+    Int32ToCStringBuf yearCbuf;
+    const char* yearStr = Int32ToCString(&yearCbuf, intYear);
 
-    ToCStringBuf fromEraCbuf;
-    const char* fromEraStr = NumberToCString(&fromEraCbuf, yearFromEraYear);
+    Int32ToCStringBuf fromEraCbuf;
+    const char* fromEraStr = Int32ToCString(&fromEraCbuf, yearFromEraYear);
 
     JS_ReportErrorNumberASCII(cx, GetErrorMessage, nullptr,
                               JSMSG_TEMPORAL_CALENDAR_INCOMPATIBLE_YEAR,

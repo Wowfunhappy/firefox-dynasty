@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef nsGlobalWindowOuter_h___
-#define nsGlobalWindowOuter_h___
+#ifndef nsGlobalWindowOuter_h_
+#define nsGlobalWindowOuter_h_
 
 #include "nsHashKeys.h"
 #include "nsInterfaceHashtable.h"
@@ -1133,4 +1133,4 @@ inline void nsGlobalWindowOuter::MaybeClearInnerWindow(
   }
 }
 
-#endif /* nsGlobalWindowOuter_h___ */
+#endif /* nsGlobalWindowOuter_h_ */

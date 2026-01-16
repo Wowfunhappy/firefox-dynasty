@@ -55,6 +55,8 @@ async function addConvoWithSpecificTestData(
   conversation.title = title;
   conversation.addUserMessage(message, messageLink, 0);
   await gChatStore.updateConversation(conversation);
+
+  return conversation;
 }
 
 async function addConvoWithSpecificCustomContentTestData(
@@ -695,3 +697,87 @@ add_atomic_task(async function test_chatHistoryView_pageNumber() {
     soft.equal(entries[0].title, "Mozilla.org conversation 3");
   });
 });
+
+async function addConversationWithMessages() {
+  const conversation = await addConvoWithSpecificTestData(
+    new Date("1/4/2025"),
+    new URL("https://www.firefox.com"),
+    new URL("https://www.mozilla.org"),
+    "Mozilla.org conversation 3",
+    "some other message"
+  );
+
+  conversation.addUserMessage("test message 1");
+  conversation.addUserMessage("test message 2");
+  conversation.addUserMessage("test message 3");
+
+  await gChatStore.updateConversation(conversation);
+
+  return conversation;
+}
+
+add_atomic_task(async function test_ChatStorage_deleteMessages() {
+  const conversation = await addConversationWithMessages();
+
+  const messagesToDelete = [conversation.messages[1], conversation.messages[2]];
+  await gChatStore.deleteMessages(messagesToDelete);
+
+  const updatedConversation = await gChatStore.findConversationById(
+    conversation.id
+  );
+
+  Assert.withSoftAssertions(function (soft) {
+    soft.equal(
+      updatedConversation.messages.length,
+      1,
+      "Conversations were not deleted"
+    );
+
+    soft.equal(
+      updatedConversation.messages[0].convId,
+      conversation.messages[0].convId,
+      "The wrong conversations were deleted"
+    );
+  });
+});
+
+add_atomic_task(
+  async function test_deleteParentMessage_ChatStorage_deleteMessages() {
+    const conversation = await addConversationWithMessages();
+
+    const messagesToDelete = [conversation.messages[1]];
+    await gChatStore.deleteMessages(messagesToDelete);
+
+    const updatedConversation = await gChatStore.findConversationById(
+      conversation.id
+    );
+
+    Assert.withSoftAssertions(function (soft) {
+      soft.equal(
+        updatedConversation.messages.length,
+        1,
+        "Conversations were not deleted"
+      );
+
+      soft.equal(
+        updatedConversation.messages[0].convId,
+        conversation.messages[0].convId,
+        "The wrong conversations were deleted"
+      );
+    });
+  }
+);
+
+add_atomic_task(
+  async function test_removeAllMessagesFromConvo_ChatStorage_deleteMessages() {
+    const conversation = await addConversationWithMessages();
+
+    await gChatStore.deleteMessages([conversation.messages[0]]);
+
+    const updatedConversation = await gChatStore.findConversationById(
+      conversation.id
+    );
+
+    Assert.equal(null, updatedConversation);
+  }
+);

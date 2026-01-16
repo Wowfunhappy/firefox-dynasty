@@ -9,8 +9,8 @@
  * internal API for computed style data for an element
  */
 
-#ifndef nsStyleStruct_h___
-#define nsStyleStruct_h___
+#ifndef nsStyleStruct_h_
+#define nsStyleStruct_h_
 
 #include <cstddef>  // offsetof()
 
@@ -2418,4 +2418,4 @@ STATIC_ASSERT_TYPE_LAYOUTS_MATCH(nsSize, nsSize_Simple);
 STATIC_ASSERT_FIELD_OFFSET_MATCHES(nsSize, nsSize_Simple, width);
 STATIC_ASSERT_FIELD_OFFSET_MATCHES(nsSize, nsSize_Simple, height);
 
-#endif /* nsStyleStruct_h___ */
+#endif /* nsStyleStruct_h_ */

@@ -32,7 +32,7 @@ prefs = [
 
 ["browser_ipprotection_proxy_errors.js"]
 
-["browser_ipprotection_site_settings_control.js"]
+["browser_ipprotection_status_box.js"]
 
 ["browser_ipprotection_status_card.js"]
 

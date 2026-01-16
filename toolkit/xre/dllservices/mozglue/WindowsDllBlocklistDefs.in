@@ -287,6 +287,12 @@ ALL_PROCESSES += [
 
     # ExplorerPatcher (bug 1798707)
     DllBlocklistEntry("explorerpatcher.amd64.dll", ALL_VERSIONS),
+
+    # Idera Delphi DLL (bug 1400169)
+    DllBlocklistEntry("evpComponentsXE.bpl", ALL_VERSIONS),
+
+    # Intuit DLLs (bug 1400169)
+    DllBlocklistEntry("FtuEngine.dll", ALL_VERSIONS),
 ]
 
 ALL_PROCESSES_TESTS += [
@@ -409,12 +415,6 @@ CHILD_PROCESSES += [
     DllBlocklistEntry("TmUmEvt64.dll", ALL_VERSIONS),
     DllBlocklistEntry("tmmon.dll", ALL_VERSIONS),
     DllBlocklistEntry("TmUmEvt.dll", ALL_VERSIONS),
-
-    # Trellix DLLs that cause content process crashes for 32-bit (bug 2006941)
-    DllBlocklistEntry("fcagff.dll", (11, 12, 0, 483)),
-    
-    # Trellix DLLs that cause content process crashes for 64-bit (bug 2008739)
-    DllBlocklistEntry("fcagff64.dll", (11, 12, 0, 483)),
 ]
 
 GPU_PROCESSES += [

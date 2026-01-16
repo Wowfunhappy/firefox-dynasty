@@ -327,6 +327,9 @@ lextab.py
 .vscode/
 *.user
 
+# Ignore Zed editor configuration files.
+.zed/
+
 # Thunderbird source tree
 /comm/
 

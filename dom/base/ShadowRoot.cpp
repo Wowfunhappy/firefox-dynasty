@@ -71,8 +71,7 @@ ShadowRoot::ShadowRoot(Element* aElement, ShadowRootMode aMode,
       mIsAvailableToElementInternals(false),
       mIsDeclarative(aDeclarative),
       mIsClonable(aIsClonable),
-      mIsSerializable(aIsSerializable),
-      mReferenceTarget(nsGkAtoms::_empty) {
+      mIsSerializable(aIsSerializable) {
   // nsINode.h relies on this.
   MOZ_ASSERT(static_cast<nsINode*>(this) == reinterpret_cast<nsINode*>(this));
   MOZ_ASSERT(static_cast<nsIContent*>(this) ==
@@ -940,7 +939,69 @@ void ShadowRoot::GetHTML(const GetHTMLOptions& aOptions, nsAString& aResult) {
       this, true, aResult, aOptions.mSerializableShadowRoots,
       aOptions.mShadowRoots);
 }
+
+// static
+bool ShadowRoot::ReferenceTargetIDTargetChanged(Element* aOldElement,
+                                                Element* aNewElement,
+                                                void* aData) {
+  ShadowRoot* shadowRoot = static_cast<ShadowRoot*>(aData);
+  if (aOldElement) {
+    shadowRoot->RemoveReferenceTargetChangeObserver(
+        aOldElement, RecursiveReferenceTargetChanged, shadowRoot);
+  }
+  if (aNewElement) {
+    shadowRoot->AddReferenceTargetChangeObserver(
+        aNewElement, RecursiveReferenceTargetChanged, shadowRoot);
+  }
+  shadowRoot->NotifyReferenceTargetChangedObservers();
+  return true;
+}
+
+// static
+bool ShadowRoot::RecursiveReferenceTargetChanged(void* aData) {
+  ShadowRoot* shadowRoot = static_cast<ShadowRoot*>(aData);
+  shadowRoot->NotifyReferenceTargetChangedObservers();
+  return true;
+}
+
 void ShadowRoot::SetReferenceTarget(RefPtr<nsAtom> aTarget) {
-  MOZ_ASSERT(aTarget);
-  mReferenceTarget = std::move(aTarget);
+  if (!StaticPrefs::dom_shadowdom_referenceTarget_enabled()) {
+    return;
+  }
+
+  if (aTarget == mReferenceTarget) {
+    return;
+  }
+
+  if (mReferenceTarget) {
+    RemoveIDTargetObserver(mReferenceTarget, ReferenceTargetIDTargetChanged,
+                           this, false);
+  }
+
+  if (!aTarget) {
+    mReferenceTarget = nullptr;
+  } else {
+    mReferenceTarget = std::move(aTarget);
+
+    Element* referenceTargetElement = AddIDTargetObserver(
+        mReferenceTarget, ReferenceTargetIDTargetChanged, this, false);
+    if (referenceTargetElement) {
+      AddReferenceTargetChangeObserver(referenceTargetElement,
+                                       RecursiveReferenceTargetChanged, this);
+    }
+  }
+
+  NotifyReferenceTargetChangedObservers();
+}
+
+void ShadowRoot::NotifyReferenceTargetChangedObservers() {
+  Element* host = GetHost();
+  if (!host) {
+    return;
+  }
+
+  DocumentOrShadowRoot* root = host->GetContainingDocumentOrShadowRoot();
+  if (root) {
+    root->NotifyReferenceTargetChanged(host);
+  }
 }

@@ -18,7 +18,9 @@
    * A richlistbox popup custom element for for a browser search autocomplete
    * widget.
    */
-  class MozSearchAutocompleteRichlistboxPopup extends MozElements.MozAutocompleteRichlistboxPopup {
+  class MozSearchAutocompleteRichlistboxPopup
+    extends MozElements.MozAutocompleteRichlistboxPopup
+  {
     constructor() {
       super();
 

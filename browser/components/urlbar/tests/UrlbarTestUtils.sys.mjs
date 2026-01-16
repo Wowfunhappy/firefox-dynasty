@@ -1262,11 +1262,24 @@ class UrlbarInputTestUtils {
    * @returns {UrlbarController} A new controller.
    */
   newMockController(options = {}) {
+    // Ensure a sapName is defined, as otherwise we'd not get the same
+    // ProvidersManager instance across tests.
+    if (options.input && !options.input.sapName) {
+      Object.defineProperty(options.input, "sapName", {
+        get() {
+          return "urlbar";
+        },
+        configurable: true,
+      });
+    }
     return new lazy.UrlbarController(
       Object.assign(
         {
           input: {
             isPrivate: false,
+            get sapName() {
+              return "urlbar";
+            },
             onFirstResult() {
               return false;
             },

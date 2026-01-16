@@ -878,6 +878,14 @@ mac-signing:
                 - deep: false
                   runtime: true
                   force: true
+                  entitlements: public/build/security/security-module-helper.xml
+                  globs:
+                      - "/Contents/MacOS/security-module-helper.app"
+                  only-if-milestone-is-nightly: true
+
+                - deep: false
+                  runtime: true
+                  force: true
                   # In production builds, these files are signed without
                   # entitlements files, but with hardened runtime enabled. As a
                   # result, they have the default (more restrictive)
@@ -923,6 +931,14 @@ mac-signing:
                   entitlements: public/build/security/media-plugin-helper.xml
                   globs:
                       - "/Contents/MacOS/media-plugin-helper.app"
+
+                - deep: false
+                  runtime: true
+                  force: true
+                  entitlements: public/build/security/security-module-helper.xml
+                  globs:
+                      - "/Contents/MacOS/security-module-helper.app"
+                  only-if-milestone-is-nightly: true
 
                 - deep: false
                   runtime: true

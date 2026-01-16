@@ -195,7 +195,8 @@ add_task(async function suggestedIndex_only() {
 
   let index = -1;
   let provider = new SuggestedIndexProvider(index);
-  UrlbarProvidersManager.registerProvider(provider);
+  let providersManager = ProvidersManager.getInstanceForSap("urlbar");
+  providersManager.registerProvider(provider);
 
   await withSuggestions(async () => {
     await UrlbarTestUtils.promiseAutocompleteResultPopup({
@@ -214,7 +215,7 @@ add_task(async function suggestedIndex_only() {
     await UrlbarTestUtils.promisePopupClose(window);
   });
 
-  UrlbarProvidersManager.unregisterProvider(provider);
+  providersManager.unregisterProvider(provider);
 
   // Add back history so subsequent tasks run with this test's initial state.
   await addHistory();
@@ -225,7 +226,8 @@ add_task(async function suggestedIndex_only() {
 add_task(async function suggestedIndex_first() {
   let index = 1;
   let provider = new SuggestedIndexProvider(index);
-  UrlbarProvidersManager.registerProvider(provider);
+  let providersManager = ProvidersManager.getInstanceForSap("urlbar");
+  providersManager.registerProvider(provider);
 
   await UrlbarTestUtils.promiseAutocompleteResultPopup({
     window,
@@ -242,7 +244,7 @@ add_task(async function suggestedIndex_first() {
   });
   await UrlbarTestUtils.promisePopupClose(window);
 
-  UrlbarProvidersManager.unregisterProvider(provider);
+  providersManager.unregisterProvider(provider);
 });
 
 // The Firefox Suggest label should not appear above a suggested-index result
@@ -250,7 +252,8 @@ add_task(async function suggestedIndex_first() {
 add_task(async function suggestedIndex_notFirst() {
   let index = -1;
   let provider = new SuggestedIndexProvider(index);
-  UrlbarProvidersManager.registerProvider(provider);
+  let providersManager = ProvidersManager.getInstanceForSap("urlbar");
+  providersManager.registerProvider(provider);
 
   await UrlbarTestUtils.promiseAutocompleteResultPopup({
     window,
@@ -270,7 +273,7 @@ add_task(async function suggestedIndex_notFirst() {
   });
   await UrlbarTestUtils.promisePopupClose(window);
 
-  UrlbarProvidersManager.unregisterProvider(provider);
+  providersManager.unregisterProvider(provider);
 });
 
 // Labels that appear multiple times but not consecutively should be shown.
@@ -307,7 +310,8 @@ add_task(async function repeatLabels() {
     results,
     priority: Infinity,
   });
-  UrlbarProvidersManager.registerProvider(provider);
+  let providersManager = ProvidersManager.getInstanceForSap("urlbar");
+  providersManager.registerProvider(provider);
 
   await UrlbarTestUtils.promiseAutocompleteResultPopup({
     window,
@@ -321,7 +325,7 @@ add_task(async function repeatLabels() {
   });
   await UrlbarTestUtils.promisePopupClose(window);
 
-  UrlbarProvidersManager.unregisterProvider(provider);
+  providersManager.unregisterProvider(provider);
 });
 
 // Clicking a row label shouldn't do anything.
@@ -435,7 +439,8 @@ add_task(async function ariaLabel() {
     results,
     priority: Infinity,
   });
-  UrlbarProvidersManager.registerProvider(provider);
+  let providersManager = ProvidersManager.getInstanceForSap("urlbar");
+  providersManager.registerProvider(provider);
 
   await UrlbarTestUtils.promiseAutocompleteResultPopup({
     window,
@@ -454,7 +459,7 @@ add_task(async function ariaLabel() {
 
   await UrlbarTestUtils.promisePopupClose(window);
 
-  UrlbarProvidersManager.unregisterProvider(provider);
+  providersManager.unregisterProvider(provider);
 });
 
 add_task(async function hideRowLabel() {
@@ -497,7 +502,8 @@ add_task(async function hideRowLabel() {
     results,
     priority: Infinity,
   });
-  UrlbarProvidersManager.registerProvider(provider);
+  let providersManager = ProvidersManager.getInstanceForSap("urlbar");
+  providersManager.registerProvider(provider);
 
   await UrlbarTestUtils.promiseAutocompleteResultPopup({
     window,
@@ -515,7 +521,7 @@ add_task(async function hideRowLabel() {
 
   await UrlbarTestUtils.promisePopupClose(window);
 
-  UrlbarProvidersManager.unregisterProvider(provider);
+  providersManager.unregisterProvider(provider);
 });
 
 add_task(async function previousRowLabelIsHidden_then_searchResults() {
@@ -552,7 +558,8 @@ add_task(async function previousRowLabelIsHidden_then_searchResults() {
     results,
     priority: Infinity,
   });
-  UrlbarProvidersManager.registerProvider(provider);
+  let providersManager = ProvidersManager.getInstanceForSap("urlbar");
+  providersManager.registerProvider(provider);
 
   await UrlbarTestUtils.promiseAutocompleteResultPopup({
     window,
@@ -565,7 +572,7 @@ add_task(async function previousRowLabelIsHidden_then_searchResults() {
 
   await UrlbarTestUtils.promisePopupClose(window);
 
-  UrlbarProvidersManager.unregisterProvider(provider);
+  providersManager.unregisterProvider(provider);
 });
 
 /**

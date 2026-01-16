@@ -1,6 +1,10 @@
 /* Any copyright is dedicated to the Public Domain.
  * http://creativecommons.org/publicdomain/zero/1.0/ */
 
+const { EnterprisePolicyTesting, PoliciesPrefTracker } =
+  ChromeUtils.importESModule(
+    "resource://testing-common/EnterprisePolicyTesting.sys.mjs"
+  );
 const { NimbusTestUtils } = ChromeUtils.importESModule(
   "resource://testing-common/NimbusTestUtils.sys.mjs"
 );
@@ -890,3 +894,42 @@ registerCleanupFunction(async function () {
     await SidebarController.initializeUIState(initialSidebarState);
   }
 });
+let { Region } = ChromeUtils.importESModule(
+  "resource://gre/modules/Region.sys.mjs"
+);
+
+const initialHomeRegion = Region._home;
+const initialCurrentRegion = Region._current;
+
+function setupRegions(home, current) {
+  Region._setHomeRegion(home || "");
+  Region._setCurrentRegion(current || "");
+}
+
+function setLocale(language) {
+  Services.locale.availableLocales = [language];
+  Services.locale.requestedLocales = [language];
+}
+
+async function clearPolicies() {
+  await EnterprisePolicyTesting.setupPolicyEngineWithJson("");
+}
+
+async function getPromoCards() {
+  await openPreferencesViaOpenPreferencesAPI("paneMoreFromMozilla", {
+    leaveOpen: true,
+  });
+
+  let doc = gBrowser.contentDocument;
+  let vpnPromoCard = doc.getElementById("mozilla-vpn");
+  let monitorPromoCard = doc.getElementById("mozilla-monitor");
+  let mobileCard = doc.getElementById("firefox-mobile");
+  let relayPromoCard = doc.getElementById("firefox-relay");
+
+  return {
+    vpnPromoCard,
+    monitorPromoCard,
+    mobileCard,
+    relayPromoCard,
+  };
+}

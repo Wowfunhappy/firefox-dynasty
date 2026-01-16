@@ -1,11 +1,6 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-// eslint-disable-next-line mozilla/use-static-import
-const { AppConstants } = ChromeUtils.importESModule(
-  "resource://gre/modules/AppConstants.sys.mjs"
-);
-
 import {
   getDomain,
   TippyTopProvider,
@@ -35,21 +30,6 @@ ChromeUtils.defineLazyGetter(lazy, "log", () => {
     "resource://messaging-system/lib/Logger.sys.mjs"
   );
   return new Logger("TopSites");
-});
-
-ChromeUtils.defineLazyGetter(lazy, "pageFrecencyThreshold", () => {
-  // @backward-compat { version 147 }
-  // Frecency was changed in 147 Nightly. This is a pre-cautionary measure
-  // for train-hopping.
-  if (Services.vc.compare(AppConstants.MOZ_APP_VERSION, "147.0a1") >= 0) {
-    // 30 days ago, 5 visits. The threshold avoids one non-typed visit from
-    // immediately being included in recent history to mimic the original
-    // threshold which aimed to prevent first-run visits from being included in
-    // Top Sites.
-    return lazy.PlacesUtils.history.pageFrecencyThreshold(30, 5, false);
-  }
-  // The old threshold used for classic frecency: Slightly over one visit.
-  return 101;
 });
 
 export const DEFAULT_TOP_SITES = [];
@@ -637,7 +617,15 @@ class _TopSites {
       cache = await this.frecentCache.request({
         // We need to overquery due to the top 5 alexa search + default search possibly being removed
         numItems: numItems + SEARCH_FILTERS.length + 1,
-        topsiteFrecency: lazy.pageFrecencyThreshold,
+        // 30 days ago, 5 visits. The threshold avoids one non-typed visit from
+        // immediately being included in recent history to mimic the original
+        // threshold which aimed to prevent first-run visits from being included in
+        // Top Sites.
+        topsiteFrecency: lazy.PlacesUtils.history.pageFrecencyThreshold(
+          30,
+          5,
+          false
+        ),
       });
     } catch (ex) {
       cache = [];

@@ -29,6 +29,8 @@ export class PropertyValidator {
   /** @type {Set<string>} */
   allowedWords;
   /** @type {Set<string>} */
+  allowedAliasWords;
+  /** @type {Set<string>} */
   validTokenNames;
   /** @type {Set<string>} */
   allowedFunctions;
@@ -36,6 +38,8 @@ export class PropertyValidator {
   allowUnits;
   /** @type {Record<string, string>} */
   customFixes;
+  /** @type {Record<string, string>} */
+  customSuggestions;
 
   constructor(config) {
     this.config = config;
@@ -44,6 +48,11 @@ export class PropertyValidator {
         .flatMap(propType => propType.allow)
         .concat(...PropertyValidator.GLOBAL_WORDS)
     );
+    this.allowedAliasWords = new Set(
+      this.config.validTypes
+        .flatMap(propType => propType.allowAlias ?? [])
+        .concat(...this.allowedWords)
+    );
     this.validTokenNames = new Set(
       this.config.validTypes.flatMap(propType =>
         (propType.tokenTypes || []).flatMap(tokenType =>
@@ -51,8 +60,20 @@ export class PropertyValidator {
         )
       )
     );
+    this.validAliasTokenNames = new Set(
+      this.config.validTypes.flatMap(propType =>
+        (propType.aliasTokenTypes || []).flatMap(tokenType =>
+          tokensTable[tokenType].map(token => token.name)
+        )
+      )
+    );
     this.allowedFunctions = new Set(
       this.config.validTypes.flatMap(propType => propType.allowFunctions || [])
+    );
+    this.allowedAliasFunctions = new Set(
+      this.config.validTypes.flatMap(
+        propType => propType.allowAliasFunctions || []
+      )
     );
     this.allowUnits = this.config.validTypes.some(
       propType => propType.allowUnits
@@ -61,13 +82,18 @@ export class PropertyValidator {
       .map(type => type.customFixes)
       .filter(Boolean)
       .reduce((acc, fixes) => ({ ...acc, ...fixes }), {});
+    this.customSuggestions = this.config.validTypes
+      .map(type => type.customSuggestions)
+      .filter(Boolean)
+      .reduce((acc, fixes) => ({ ...acc, ...fixes }), {});
   }
 
-  getFixedValue(parsedValue) {
+  getFixedValue(value, lookupMap = {}) {
+    const parsedValue = valueParser(value);
     let hasFixes = false;
     parsedValue.walk(node => {
       if (node.type == "word") {
-        const token = this.customFixes[node.value.trim().toLowerCase()];
+        const token = lookupMap[node.value.trim().toLowerCase()];
         if (token) {
           hasFixes = true;
           node.value = token;
@@ -102,7 +128,11 @@ export class PropertyValidator {
     return false;
   }
 
-  isAllowedFunction(functionType) {
+  isAllowedFunction(functionType, isAlias = false) {
+    if (isAlias) {
+      return this.allowedAliasFunctions.has(functionType);
+    }
+
     return this.allowedFunctions.has(functionType);
   }
 
@@ -110,11 +140,18 @@ export class PropertyValidator {
     return Boolean(this.config.shorthand);
   }
 
-  isAllowedWord(word) {
+  isAllowedWord(word, isAlias = false) {
     if (this.allowUnits && this.isUnit(word)) {
       return true;
     }
     const lowerWord = word.toLowerCase();
+
+    if (isAlias) {
+      return Array.from(this.allowedAliasWords).some(
+        allowed => allowed.toLowerCase() === lowerWord
+      );
+    }
+
     return Array.from(this.allowedWords).some(
       allowed => allowed.toLowerCase() === lowerWord
     );
@@ -143,7 +180,7 @@ export class PropertyValidator {
     );
   }
 
-  isValidColorMixFunction(node) {
+  isValidColorMixFunction(node, isAlias = false) {
     // ignore the first argument (color space)
     let [, ...colors] = this.getFunctionArguments(node);
     return colors.every(color =>
@@ -151,40 +188,60 @@ export class PropertyValidator {
         part =>
           part.type == "space" ||
           (part.type == "word" && part.value.endsWith("%")) ||
-          this.isValidNode(part)
+          this.isValidNode(part, isAlias)
       )
     );
   }
 
-  isValidFunction(node) {
+  isValidOklchFunction(node, isAlias = false) {
+    let [colors] = this.getFunctionArguments(node);
+
+    // we expect relative color syntax if using oklch() to adjust colors from a token
+    if (!colors.some(part => part.type === "word" && part.value === "from")) {
+      return false;
+    }
+
+    return colors.every(
+      part =>
+        part.type == "space" ||
+        part.type == "word" ||
+        this.isValidNode(part, isAlias)
+    );
+  }
+
+  isValidFunction(node, isAlias = false) {
     switch (node.value) {
       case "var":
-        return this.isValidVarFunction(node);
+        return this.isValidVarFunction(node, isAlias);
       case "calc":
         return this.isValidCalcFunction(node);
       case "light-dark":
-        return this.isValidLightDarkFunction(node);
+        return this.isValidLightDarkFunction(node, isAlias);
       case "color-mix":
-        return this.isValidColorMixFunction(node);
+        return this.isValidColorMixFunction(node, isAlias);
+      case "oklch":
+        return this.isValidOklchFunction(node, isAlias);
       default:
-        return this.isAllowedFunction(node.value);
+        return this.isAllowedFunction(node.value, isAlias);
     }
   }
 
-  isValidLightDarkFunction(node) {
-    return node.nodes.every(n => n.type == "div" || this.isValidNode(n));
+  isValidLightDarkFunction(node, isAlias = false) {
+    return node.nodes.every(
+      n => n.type == "div" || this.isValidNode(n, isAlias)
+    );
   }
 
-  isValidNode(node) {
+  isValidNode(node, isAlias = false) {
     switch (node.type) {
       case "space":
         return this.isAllowedSpace();
       case "div":
         return this.isAllowedDiv(node.value);
       case "word":
-        return this.isAllowedWord(node.value);
+        return this.isAllowedWord(node.value, isAlias);
       case "function":
-        return this.isValidFunction(node);
+        return this.isValidFunction(node, isAlias);
       default:
         return false;
     }
@@ -197,6 +254,10 @@ export class PropertyValidator {
 
   isValidToken(tokenName) {
     return this.validTokenNames.has(tokenName);
+  }
+
+  isValidAliasToken(tokenName) {
+    return this.validAliasTokenNames.has(tokenName);
   }
 
   getTokenCategories() {
@@ -212,17 +273,47 @@ export class PropertyValidator {
     return this._categories;
   }
 
-  isValidVarFunction(node) {
+  isValidVarFunction(node, isAlias = false) {
     const [varNameNode, , fallback] = node.nodes;
     const varName = varNameNode.value;
     if (this.isValidToken(varName)) {
       return true;
     }
+
+    if (isAlias && this.isValidAliasToken(varName)) {
+      return true;
+    }
+
     const localVar = this.localVars[varName];
     return (
       (localVar &&
-        valueParser(localVar).nodes.every(n => this.isValidNode(n))) ||
+        valueParser(localVar).nodes.every(n => this.isValidNode(n, true))) ||
       (fallback && this.isValidNode(fallback))
     );
+  }
+
+  // Find local var uses and replace them with the locally defined value
+  getResolvedValue(value) {
+    let resolvedValue = value;
+    const pattern = /var\(([\-a-z\d]+)(,\s?var\([\-a-z\d]+\))?\)/gi;
+    const matches = [...value.matchAll(pattern)];
+    matches.forEach(([match, varName, fallbackVar]) => {
+      const localVar = this.localVars[varName];
+      if (localVar) {
+        resolvedValue = resolvedValue.replace(match, localVar);
+        return;
+      }
+
+      if (fallbackVar) {
+        const fallbackVarValue = this.getResolvedValue(
+          fallbackVar.replace(/,\s+/, "")
+        );
+        if (fallbackVarValue) {
+          resolvedValue = resolvedValue.replace(match, fallbackVarValue);
+        }
+      }
+    });
+
+    return resolvedValue;
   }
 }

@@ -16,6 +16,8 @@ import "chrome://browser/content/ipprotection/ipprotection-signedout.mjs";
 // eslint-disable-next-line import/no-unassigned-import
 import "chrome://browser/content/ipprotection/ipprotection-status-card.mjs";
 // eslint-disable-next-line import/no-unassigned-import
+import "chrome://browser/content/ipprotection/ipprotection-status-box.mjs";
+// eslint-disable-next-line import/no-unassigned-import
 import "chrome://global/content/elements/moz-toggle.mjs";
 
 /**
@@ -29,12 +31,16 @@ export default class IPProtectionContentElement extends MozLitElement {
     upgradeEl: "#upgrade-vpn-content",
     activeSubscriptionEl: "#active-subscription-vpn-content",
     supportLinkEl: "#vpn-support-link",
+    statusBoxEl: "ipprotection-status-box",
   };
 
   static properties = {
     state: { type: Object, attribute: false },
     _showMessageBar: { type: Boolean, state: true },
     _messageDismissed: { type: Boolean, state: true },
+    // Track toggle state separately so that we can tell when the toggle
+    // is enabled because of the existing protection state or because of user action.
+    _toggleEnabled: { type: Boolean, state: true },
   };
 
   constructor() {
@@ -62,10 +68,6 @@ export default class IPProtectionContentElement extends MozLitElement {
       this.#statusCardListener
     );
     this.addEventListener(
-      "ipprotection-site-settings-control:click",
-      this.#statusCardListener
-    );
-    this.addEventListener(
       "ipprotection-message-bar:user-dismissed",
       this.#messageBarListener
     );
@@ -81,10 +83,6 @@ export default class IPProtectionContentElement extends MozLitElement {
     );
     this.removeEventListener(
       "ipprotection-status-card:user-toggled-off",
-      this.#statusCardListener
-    );
-    this.removeEventListener(
-      "ipprotection-site-settings-control:click",
       this.#statusCardListener
     );
     this.removeEventListener(
@@ -167,10 +165,6 @@ export default class IPProtectionContentElement extends MozLitElement {
       this.dispatchEvent(
         new CustomEvent("IPProtection:UserDisable", { bubbles: true })
       );
-    } else if (event.type === "ipprotection-site-settings-control:click") {
-      this.dispatchEvent(
-        new CustomEvent("IPProtection:UserShowSiteSettings", { bubbles: true })
-      );
     }
   }
 
@@ -240,38 +234,38 @@ export default class IPProtectionContentElement extends MozLitElement {
       <ipprotection-status-card
         .protectionEnabled=${this.canEnableConnection}
         .location=${this.state.location}
-        .siteData=${ifDefined(this.state.siteData)}
       ></ipprotection-status-card>
     `;
   }
 
   pausedTemplate() {
     return html`
-      <div id="upgrade-vpn-content" class="vpn-bottom-content">
-        <h2
-          id="upgrade-vpn-title"
-          data-l10n-id="upgrade-vpn-title"
-          class="vpn-subtitle"
-        ></h2>
-        <p
-          id="upgrade-vpn-paragraph"
-          data-l10n-id="upgrade-vpn-paragraph"
-          @click=${this.handleClickSupportLink}
-        >
-          <a
-            id="vpn-support-link"
-            href=${LINKS.PRODUCT_URL}
-            data-l10n-name="learn-more-vpn"
-          ></a>
-        </p>
-        <moz-button
-          id="upgrade-vpn-button"
-          class="vpn-button"
-          @click=${this.handleUpgrade}
-          type="secondary"
-          data-l10n-id="upgrade-vpn-button"
-        ></moz-button>
-      </div>
+      <ipprotection-status-box
+        headerL10nId="ipprotection-connection-status-paused-title"
+        descriptionL10nId="ipprotection-connection-status-paused-description"
+        type="disconnected"
+      >
+        <div slot="content">
+          <link
+            rel="stylesheet"
+            href="chrome://browser/content/ipprotection/ipprotection-content.css"
+          />
+          <div id="upgrade-vpn-content">
+            <h2 id="upgrade-vpn-title" data-l10n-id="upgrade-vpn-title"></h2>
+            <span
+              id="upgrade-vpn-description"
+              data-l10n-id="upgrade-vpn-description"
+              class="text-deemphasized"
+            ></span>
+            <moz-button
+              id="upgrade-vpn-button"
+              type="primary"
+              data-l10n-id="upgrade-vpn-button"
+              @click=${this.handleUpgrade}
+            ></moz-button>
+          </div>
+        </div>
+      </ipprotection-status-box>
     `;
   }
 

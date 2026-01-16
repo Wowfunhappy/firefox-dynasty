@@ -270,7 +270,7 @@ add_task(async function tab_key_race() {
      * A no-op test provider.
      * We use this to wait for the query to start, because otherwise TAB will
      * move to the next widget since the panel is closed and there's no running
-     * query. This means waiting for the UrlbarProvidersManager to at least
+     * query. This means waiting for the ProvidersManager to at least
      * evaluate the isActive status of providers.
      * In the future we should try to reduce this latency, to defer user events
      * even more efficiently.
@@ -297,9 +297,10 @@ add_task(async function tab_key_race() {
       }
     }
     let provider = new ListeningTestProvider();
-    UrlbarProvidersManager.registerProvider(provider);
+    let providersManager = ProvidersManager.getInstanceForSap("urlbar");
+    providersManager.registerProvider(provider);
     registerCleanupFunction(async function () {
-      UrlbarProvidersManager.unregisterProvider(provider);
+      providersManager.unregisterProvider(provider);
     });
   });
   gURLBar.focus();

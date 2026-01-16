@@ -177,10 +177,13 @@
 #   - attribute not specified (default): no code generated
 #   - true: generates corresponding LIR classes in LIROpsGenerated.h
 #
-# lir_temps
-# ===================
+# lir_temps, lir_temp64s, lir_temp_boxes
+# ======================================
 # Specifies the number of temporary virtual registers, LDefinitions, used by
-# the corresponding LIR op in case generate_lir is true.
+# the corresponding LIR op in the case generate_lir is true. The temp can be
+# either a single LDefinition, a LInt64Definition, or a LBoxDefinition
+# depending on the variant used.
+#
 # Possible values:
 #   - attribute not specified (default): number of temps is set to 0
 #   - number: sets number of temps max 15
@@ -786,6 +789,7 @@
   alias_set: none
   generate_lir: true
   lir_temps: 1
+  lir_temp_boxes: 1
 
 - name: WasmAnyRefFromJSObject
   operands:

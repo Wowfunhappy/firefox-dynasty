@@ -754,7 +754,7 @@ static void SerializeColorForHTMLCompatibility(const StyleAbsoluteColor& aColor,
 }
 
 nsTArray<nsString> HTMLInputElement::GetColorsFromList() {
-  RefPtr<HTMLDataListElement> dataList = GetList();
+  RefPtr<HTMLDataListElement> dataList = GetListInternal();
   if (!dataList) {
     return {};
   }
@@ -1061,12 +1061,6 @@ UploadLastDir::Observe(nsISupports* aSubject, char const* aTopic,
   }
   return NS_OK;
 }
-
-#ifdef ACCESSIBILITY
-// Helper method
-static nsresult FireEventForAccessibility(HTMLInputElement* aTarget,
-                                          EventMessage aEventMessage);
-#endif
 
 //
 // construction, destruction
@@ -1796,7 +1790,11 @@ void HTMLInputElement::SetValue(const nsAString& aValue, CallerType aCallerType,
   }
 }
 
-HTMLDataListElement* HTMLInputElement::GetList() const {
+Element* HTMLInputElement::GetListForBindings() const {
+  return RetargetReferenceTargetForBindings(GetListInternal());
+}
+
+HTMLDataListElement* HTMLInputElement::GetListInternal() const {
   nsAutoString dataListId;
   GetAttr(nsGkAtoms::list, dataListId);
   if (dataListId.IsEmpty()) {
@@ -1808,8 +1806,9 @@ HTMLDataListElement* HTMLInputElement::GetList() const {
     return nullptr;
   }
 
-  return HTMLDataListElement::FromNodeOrNull(
-      docOrShadow->GetElementById(dataListId));
+  Element* target = docOrShadow->GetElementById(dataListId);
+  Element* list = target ? target->ResolveReferenceTarget() : nullptr;
+  return HTMLDataListElement::FromNodeOrNull(list);
 }
 
 void HTMLInputElement::SetValue(Decimal aValue, CallerType aCallerType) {
@@ -4237,21 +4236,6 @@ void HTMLInputElement::ActivationBehavior(EventChainPostVisitor& aVisitor) {
     nsContentUtils::DispatchTrustedEvent<WidgetEvent>(
         OwnerDoc(), static_cast<Element*>(this), eFormChange, CanBubble::eYes,
         Cancelable::eNo);
-#ifdef ACCESSIBILITY
-    // Fire an event to notify accessibility
-    if (mType == FormControlType::InputCheckbox) {
-      if (nsContentUtils::MayHaveFormCheckboxStateChangeListeners()) {
-        FireEventForAccessibility(this, eFormCheckboxStateChange);
-      }
-    } else if (nsContentUtils::MayHaveFormRadioStateChangeListeners()) {
-      FireEventForAccessibility(this, eFormRadioStateChange);
-      // Fire event for the previous selected radio.
-      nsCOMPtr<nsIContent> content = do_QueryInterface(aVisitor.mItemData);
-      if (auto* previous = HTMLInputElement::FromNodeOrNull(content)) {
-        FireEventForAccessibility(previous, eFormRadioStateChange);
-      }
-    }
-#endif
   }
 
   switch (mType) {
@@ -6008,7 +5992,7 @@ void HTMLInputElement::ShowPicker(ErrorResult& aRv) {
   // I.e. show the autocomplete dropdown based on the list attribute.
   // XXX Form-fill support on android is bug 1535985.
   if (StaticPrefs::dom_input_showPicker_datalist_enabled() &&
-      IsSingleLineTextControl(true) && GetList()) {
+      IsSingleLineTextControl(true) && GetListInternal()) {
     if (nsCOMPtr<nsIFormFillController> controller =
             do_GetService("@mozilla.org/satchel/form-fill-controller;1")) {
       controller->SetControlledElement(this);
@@ -6016,16 +6000,6 @@ void HTMLInputElement::ShowPicker(ErrorResult& aRv) {
     }
   }
 }
-
-#ifdef ACCESSIBILITY
-/*static*/ nsresult FireEventForAccessibility(HTMLInputElement* aTarget,
-                                              EventMessage aEventMessage) {
-  Element* element = static_cast<Element*>(aTarget);
-  return nsContentUtils::DispatchTrustedEvent<WidgetEvent>(
-      element->OwnerDoc(), element, aEventMessage, CanBubble::eYes,
-      Cancelable::eYes);
-}
-#endif
 
 void HTMLInputElement::UpdateApzAwareFlag() {
 #if !defined(ANDROID) && !defined(XP_MACOSX)

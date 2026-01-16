@@ -350,6 +350,90 @@ add_task(async function test_history_sort() {
   SidebarController.hide();
 });
 
+add_task(async function test_history_auxclick() {
+  const { component, contentWindow } = await showHistorySidebar();
+  const { lists } = component;
+  await BrowserTestUtils.waitForMutationCondition(
+    component.shadowRoot,
+    { childList: true, subtree: true },
+    () => !!lists.length
+  );
+  await BrowserTestUtils.waitForMutationCondition(
+    lists[0].shadowRoot,
+    { subtree: true, childList: true },
+    () => lists[0].rowEls.length === URLs.length
+  );
+  ok(true, "History rows are shown.");
+  const rows = lists[0].rowEls;
+
+  info("Open the first link with auxclick.");
+
+  {
+    const tabPromise = BrowserTestUtils.waitForNewTab(
+      gBrowser,
+      "http://mochi.test:8888/browser/",
+      true
+    );
+
+    // See the comment in test_history_hover_buttons.
+    AccessibilityUtils.setEnv({ focusableRule: false });
+    EventUtils.synthesizeMouseAtCenter(
+      rows[0].mainEl,
+      {
+        button: 1,
+        shiftKey: false,
+      },
+      contentWindow
+    );
+    AccessibilityUtils.resetEnv();
+
+    const tab = await tabPromise;
+
+    is(gBrowser.selectedTab, tab, "The opened tab should be selected");
+
+    BrowserTestUtils.removeTab(tab);
+  }
+
+  {
+    const selectedTabAtStart = gBrowser.selectedTab;
+
+    const tabPromise = BrowserTestUtils.waitForNewTab(
+      gBrowser,
+      "http://mochi.test:8888/browser/",
+      true
+    );
+
+    AccessibilityUtils.setEnv({ focusableRule: false });
+    EventUtils.synthesizeMouseAtCenter(
+      rows[0].mainEl,
+      {
+        button: 1,
+        shiftKey: true,
+      },
+      contentWindow
+    );
+    AccessibilityUtils.resetEnv();
+
+    const tab = await tabPromise;
+
+    is(
+      gBrowser.selectedTab,
+      selectedTabAtStart,
+      "The opened tab should not be selected"
+    );
+
+    Assert.notEqual(
+      gBrowser.selectedTab,
+      tab,
+      "The opened tab should not be selected"
+    );
+
+    BrowserTestUtils.removeTab(tab);
+  }
+
+  SidebarController.hide();
+});
+
 add_task(async function test_history_hover_buttons() {
   const { component, contentWindow } = await showHistorySidebar();
   const { lists } = component;

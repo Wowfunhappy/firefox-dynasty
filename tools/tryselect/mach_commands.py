@@ -171,7 +171,18 @@ def run(command_context, **kwargs):
     mod = importlib.import_module(
         f"tryselect.selectors.{command_context._mach_context.handler.subcommand}"
     )
-    return mod.run(**kwargs)
+    result = mod.run(**kwargs)
+
+    # NOTE: Selectors have a mixed return pattern (legacy design):
+    # - None on success (most common)
+    # - job_id (int > 1) on successful lando push
+    # - 1 on validation errors
+    # We normalize to proper exit codes: 0 for success, 1 for errors.
+    # This assumes that only 1 indicates an error. If selectors start returning
+    # other error codes (e.g., 2, 3), this logic will need to be updated.
+    if result == 1:
+        return 1
+    return 0
 
 
 @Command(

@@ -16,7 +16,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -34,6 +36,7 @@ import mozilla.components.compose.browser.toolbar.ui.BrowserToolbarQuery
 import mozilla.components.compose.engine.WebContent
 import mozilla.components.compose.tabstray.TabList
 import mozilla.components.concept.awesomebar.AwesomeBar
+import mozilla.components.concept.awesomebar.AwesomeBar.GroupedSuggestion
 import mozilla.components.feature.awesomebar.provider.ClipboardSuggestionProvider
 import mozilla.components.feature.awesomebar.provider.SearchActionProvider
 import mozilla.components.feature.awesomebar.provider.SearchSuggestionProvider
@@ -187,6 +190,7 @@ private fun Suggestions(
     val keyboardController = LocalSoftwareKeyboardController.current
     val switchToTabDescription = stringResource(awesomebarR.string.switch_to_tab_description)
     val sponsoredSuggestionDescription = stringResource(fxsuggestR.string.sponsored_suggestion_description)
+    var hiddenSuggestions by remember { mutableStateOf(emptySet<GroupedSuggestion>()) }
 
     val sessionSuggestionProvider = remember(
         components.store,
@@ -245,8 +249,10 @@ private fun Suggestions(
             searchSuggestionProvider,
             clipboardSuggestionProvider,
         ),
+        hiddenSuggestions = hiddenSuggestions,
         onSuggestionClicked = { suggestion -> onSuggestionClicked(suggestion) },
         onAutoComplete = { suggestion -> onAutoComplete(suggestion) },
+        onRemoveClicked = { suggestion -> hiddenSuggestions = hiddenSuggestions + suggestion },
         onScroll = { keyboardController?.hide() },
     )
 }

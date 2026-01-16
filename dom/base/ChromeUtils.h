@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef mozilla_dom_ChromeUtils__
-#define mozilla_dom_ChromeUtils__
+#ifndef mozilla_dom_ChromeUtils_
+#define mozilla_dom_ChromeUtils_
 
 #include "mozilla/AlreadyAddRefed.h"
 #include "mozilla/dom/BindingDeclarations.h"
@@ -377,4 +377,4 @@ class ChromeUtils {
 }  // namespace dom
 }  // namespace mozilla
 
-#endif  // mozilla_dom_ChromeUtils__
+#endif  // mozilla_dom_ChromeUtils_

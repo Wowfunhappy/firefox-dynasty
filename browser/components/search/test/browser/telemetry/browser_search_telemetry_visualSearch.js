@@ -203,14 +203,8 @@ add_task(async function nonPrivateWindow() {
     {
       impression: {
         provider: "example-visual",
-        tagged: "true",
-        partner_code: "ff",
         search_mode: "image_search",
         source: "contextmenu_visual",
-        is_shopping_page: "false",
-        is_private: "false",
-        shopping_tab_displayed: "false",
-        is_signed_in: "false",
       },
       abandonment: {
         reason: SearchSERPTelemetryUtils.ABANDONMENTS.TAB_CLOSE,
@@ -291,14 +285,9 @@ async function doPrivateWindowTest(shouldRecordCounts) {
       {
         impression: {
           provider: "example-visual",
-          tagged: "true",
-          partner_code: "ff",
           search_mode: "image_search",
           source: "contextmenu_visual",
-          is_shopping_page: "false",
           is_private: "true",
-          shopping_tab_displayed: "false",
-          is_signed_in: "false",
         },
         abandonment: {
           reason: SearchSERPTelemetryUtils.ABANDONMENTS.TAB_CLOSE,

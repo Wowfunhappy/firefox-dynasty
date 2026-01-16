@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef nsMathMLChar_h___
-#define nsMathMLChar_h___
+#ifndef nsMathMLChar_h_
+#define nsMathMLChar_h_
 
 #include "gfxTextRun.h"
 #include "nsBoundingMetrics.h"
@@ -222,4 +222,4 @@ class nsMathMLChar {
                        nsRect& r);
 };
 
-#endif /* nsMathMLChar_h___ */
+#endif /* nsMathMLChar_h_ */

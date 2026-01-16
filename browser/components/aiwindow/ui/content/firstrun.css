@@ -16,7 +16,6 @@
 #multi-stage-message-root {
   --bg-white: light-dark(#fff, #fff);
   --bg-transparent: transparent;
-  --tile-border-color: #f1e7f8;
   --shadow-color: rgb(59 34 121);
 
   .main-content,
@@ -70,7 +69,7 @@
       border: var(--border-width) solid var(--border-color-transparent);
       border-radius: var(--border-radius-medium);
       /* stylelint-disable-next-line stylelint-plugin-mozilla/use-design-tokens -- gradient defined in ai-window-content.css */
-      background: var(--gradient-button);
+      background: var(--aiwindow-gradient-button);
       color: var(--button-text-color-primary);
       text-align: center;
       font-size: var(--button-font-size);
@@ -96,7 +95,7 @@
       height: calc(var(--size-item-medium) * 11);
       padding-block: calc(var(--space-xsmall) * 9) 0;
       /* stylelint-disable-next-line -- custom border color per Figma design */
-      border: var(--border-width) solid var(--tile-border-color);
+      border: var(--border-width) solid var(--aiwindow-brand-soft-purple);
       display: flex;
       flex-direction: column;
       justify-content: start;
@@ -141,7 +140,7 @@
         /* stylelint-disable-next-line stylelint-plugin-mozilla/use-design-tokens -- gradient defined in ai-window-content.css */
         background:
           linear-gradient(#fff, #fff) padding-box,
-          var(--gradient-selected-border) border-box;
+          var(--aiwindow-input-gradient) border-box;
         /* stylelint-disable-next-line -- custom shadow color per Figma design */
         box-shadow:
           0 3px 16px 0 color-mix(in srgb, var(--shadow-color) 12%, var(--bg-transparent)),

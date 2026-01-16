@@ -78,18 +78,23 @@ export const toolsConfig = [
     function: {
       name: GET_PAGE_CONTENT,
       description:
-        "Retrieve cleaned text content of the provided browser page URL.",
+        "Retrieve cleaned text content of all the provided browser page URLs in the list.",
       parameters: {
         properties: {
-          url: {
-            type: "string",
-            description:
-              "The complete URL of the page to fetch content from. This must exactly match " +
-              "a URL from the current conversation context. Use the full URL including " +
-              "protocol (http/https). Example: 'https://www.example.com/article'.",
+          url_list: {
+            type: "array",
+            items: {
+              type: "string",
+              description:
+                "The complete URL of the page to fetch content from. This must exactly match " +
+                "a URL from the current conversation context. Use the full URL including " +
+                "protocol (http/https). Example: 'https://www.example.com/article'.",
+            },
+            minItems: 1,
+            description: "List of URLs to fetch content from.",
           },
         },
-        required: ["url"],
+        required: ["url_list"],
       },
     },
   },
@@ -256,13 +261,28 @@ export class GetPageContent {
    * Tool entrypoint for get_page_content.
    *
    * @param {object} toolParams
-   * @param {string} toolParams.url
+   * @param {string[]} toolParams.url_list
    * @param {Set<string>} allowedUrls
-   * @returns {Promise<string>}
+   * @returns {Promise<Array<string>>}
    *  A promise resolving to a string containing the extracted page content
    *  with a descriptive header, or an error message if extraction fails.
    */
-  static async getPageContent({ url }, allowedUrls) {
+  static async getPageContent({ url_list }, allowedUrls) {
+    // Ensure `url_list` is always an array
+    if (!Array.isArray(url_list)) {
+      throw new Error("getPageContent now requires { url_list: [...] }");
+    }
+
+    const promises = url_list.map(url =>
+      this.#processSingleURL(url, allowedUrls)
+    );
+
+    // Run all fetches in parallel
+    const ret_contents = await Promise.all(promises);
+    return ret_contents;
+  }
+
+  static async #processSingleURL(url, allowedUrls) {
     try {
       // Search through the allowed URLs and extract directly if exists
       if (!allowedUrls.has(url)) {

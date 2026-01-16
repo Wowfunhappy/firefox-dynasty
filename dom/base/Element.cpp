@@ -1579,6 +1579,29 @@ void Element::UnattachShadow() {
   SetShadowRoot(nullptr);
 }
 
+Element* Element::ResolveReferenceTarget() const {
+  if (!StaticPrefs::dom_shadowdom_referenceTarget_enabled()) {
+    return const_cast<Element*>(this);
+  }
+
+  const Element* element = this;
+  ShadowRoot* shadow = GetShadowRoot();
+
+  while (shadow && shadow->HasReferenceTarget()) {
+    element = shadow->GetReferenceTargetElement();
+    shadow = element ? element->GetShadowRoot() : nullptr;
+  }
+  return const_cast<Element*>(element);
+}
+
+Element* Element::RetargetReferenceTargetForBindings(Element* aElement) const {
+  if (!StaticPrefs::dom_shadowdom_referenceTarget_enabled()) {
+    return aElement;
+  }
+
+  return Element::FromNodeOrNull(nsContentUtils::Retarget(aElement, this));
+}
+
 void Element::GetAttribute(const nsAString& aName, DOMString& aReturn) {
   const nsAttrValue* val = mAttrs.GetAttr(
       aName,
@@ -1935,92 +1958,138 @@ Element* Element::GetElementByIdInDocOrSubtree(nsAtom* aID) const {
   return nsContentUtils::MatchElementId(SubtreeRoot()->AsContent(), aID);
 }
 
-Element* Element::GetAttrAssociatedElement(nsAtom* aAttr) const {
+Element* Element::GetAttrAssociatedElementInternal(nsAtom* aAttr,
+                                                   bool aForBindings) const {
+  Element* attrEl = nullptr;
+  bool hasExplicitEl = false;
+
   if (const nsExtendedDOMSlots* slots = GetExistingExtendedDOMSlots()) {
-    nsWeakPtr weakAttrEl = slots->mExplicitlySetAttrElementMap.Get(aAttr);
-    if (nsCOMPtr<Element> attrEl = do_QueryReferent(weakAttrEl)) {
-      // If reflectedTarget's explicitly set attr-element |attrEl| is
+    nsWeakPtr weakExplicitEl = slots->mExplicitlySetAttrElementMap.Get(aAttr);
+    if (nsCOMPtr<Element> explicitEl = do_QueryReferent(weakExplicitEl)) {
+      hasExplicitEl = true;
+
+      // If reflectedTarget's explicitly set attr-element |explicitEl| is
       // a descendant of any of element's shadow-including ancestors, then
-      // return |atrEl|.
-      if (HasSharedRoot(attrEl)) {
-        return attrEl;
+      // return |explicitEl|.
+      if (HasSharedRoot(explicitEl)) {
+        attrEl = explicitEl;
       }
-      return nullptr;
     }
   }
 
-  const nsAttrValue* value = GetParsedAttr(aAttr);
-  if (!value) {
+  if (!hasExplicitEl) {
+    const nsAttrValue* value = GetParsedAttr(aAttr);
+    if (!value) {
+      return nullptr;
+    }
+
+    MOZ_ASSERT(value->Type() == nsAttrValue::eAtom,
+               "Attribute used for attr associated element must be parsed");
+
+    attrEl = GetElementByIdInDocOrSubtree(value->GetAtomValue());
+  }
+
+  if (!attrEl) {
     return nullptr;
   }
 
-  MOZ_ASSERT(value->Type() == nsAttrValue::eAtom,
-             "Attribute used for attr associated element must be parsed");
+  Element* resolved = attrEl->ResolveReferenceTarget();
+  if (resolved && aForBindings) {
+    return attrEl;
+  }
 
-  return GetElementByIdInDocOrSubtree(value->GetAtomValue());
+  return resolved;
 }
 
-void Element::GetAttrAssociatedElements(
+Element* Element::GetAttrAssociatedElementForBindings(nsAtom* aAttr) const {
+  return GetAttrAssociatedElementInternal(aAttr, true);
+}
+
+Maybe<nsTArray<RefPtr<Element>>> Element::GetAttrAssociatedElementsInternal(
+    nsAtom* aAttr, bool aForBindings) {
+  // https://whatpr.org/html/10995/common-microsyntaxes.html#attr-associated-elements
+  nsTArray<RefPtr<Element>> elements;
+  auto& [explicitlySetAttrElements, _] =
+      ExtendedDOMSlots()->mAttrElementsMap.LookupOrInsert(aAttr);
+
+  if (explicitlySetAttrElements) {
+    // 3. If element has an explicitly set attr-elements which
+    for (const nsWeakPtr& weakEl : *explicitlySetAttrElements) {
+      // For each attrElement in reflectedTarget's explicitly set
+      // attr-elements:
+      if (RefPtr<Element> attrEl = do_QueryReferent(weakEl)) {
+        // If attrElement is not a descendant of any of element's
+        // shadow-including ancestors, then continue.
+        if (!HasSharedRoot(attrEl)) {
+          continue;
+        }
+        // Append attrElement to elements.
+        elements.AppendElement(std::move(attrEl));
+      }
+    }
+  } else {
+    // 4. Otherwise
+    // 4.1. Let value be the attribute value.
+    const nsAttrValue* value = GetParsedAttr(aAttr);
+    // 1. If the attribute is not specified on element, return null.
+    if (!value || value->GetAtomCount() == 0) {
+      return Nothing();
+    }
+
+    MOZ_ASSERT(value->Type() == nsAttrValue::eAtomArray ||
+                   value->Type() == nsAttrValue::eAtom,
+               "Attribute used for accessible relations must be parsed.");
+    // 4.2. Let tokens be value, split on ASCII whitespace.
+    // 4.3. For each id of tokens:
+    for (uint32_t i = 0; i < value->GetAtomCount(); i++) {
+      // 4.3.1 Let candidate be the first element, in tree order, that meets the
+      // following criteria:
+      // - candidate's root is the same as element's root; and
+      // - candidate's ID is id.
+      if (auto* candidate = GetElementByIdInDocOrSubtree(
+              value->AtomAt(static_cast<int32_t>(i)))) {
+        // Append candidate to elements.
+        elements.AppendElement(candidate);
+      }
+    }
+  }
+  if (!StaticPrefs::dom_shadowdom_referenceTarget_enabled()) {
+    return Some(std::move(elements));
+  }
+
+  // 5. Let resolvedCandidates be an empty list.
+  nsTArray<RefPtr<Element>> resolvedElements;
+  // 6. For each candidate in candidates:
+  for (const RefPtr<Element> element : elements) {
+    // 6.1 Let resolvedCandidate be the result of resolving the reference target
+    // on candidate.
+    if (Element* resolvedCandidate = element->ResolveReferenceTarget()) {
+      // 6.2 If resolvedCandidate is not null:
+      if (aForBindings) {
+        // 6.2.1 If retarget is true, append candidate to resolvedCandidates
+        resolvedElements.AppendElement(element);
+      } else {
+        // 6.2.2 Otherwise, append resolvedCandidate to resolvedCandidates
+        resolvedElements.AppendElement(resolvedCandidate);
+      }
+    }
+  }
+  return Some(std::move(resolvedElements));
+}
+
+void Element::GetAttrAssociatedElementsForBindings(
     nsAtom* aAttr, bool* aUseCachedValue,
     Nullable<nsTArray<RefPtr<Element>>>& aElements) {
   MOZ_ASSERT(aElements.IsNull());
 
-  auto& [explicitlySetAttrElements, cachedAttrElements] =
-      ExtendedDOMSlots()->mAttrElementsMap.LookupOrInsert(aAttr);
-
-  // https://html.spec.whatwg.org/multipage/common-dom-interfaces.html#attr-associated-elements
-  auto getAttrAssociatedElements =
-      [&, &explicitlySetAttrElements =
-              explicitlySetAttrElements]() -> Maybe<nsTArray<RefPtr<Element>>> {
-    nsTArray<RefPtr<Element>> elements;
-
-    if (explicitlySetAttrElements) {
-      // 3. If reflectedTarget's explicitly set attr-elements is not null
-      for (const nsWeakPtr& weakEl : *explicitlySetAttrElements) {
-        // For each attrElement in reflectedTarget's explicitly set
-        // attr-elements:
-        if (nsCOMPtr<Element> attrEl = do_QueryReferent(weakEl)) {
-          // If attrElement is not a descendant of any of element's
-          // shadow-including ancestors, then continue.
-          if (!HasSharedRoot(attrEl)) {
-            continue;
-          }
-          // Append attrElement to elements.
-          elements.AppendElement(attrEl);
-        }
-      }
-    } else {
-      // 4. Otherwise
-      //   1. Let contentAttributeValue be the result of running
-      //   reflectedTarget's get the content attribute.
-      const nsAttrValue* value = GetParsedAttr(aAttr);
-      //   2. If contentAttributeValue is null, then return null.
-      if (!value) {
-        return Nothing();
-      }
-
-      //   3. Let tokens be contentAttributeValue, split on ASCII whitespace.
-      MOZ_ASSERT(value->Type() == nsAttrValue::eAtomArray ||
-                     value->Type() == nsAttrValue::eAtom,
-                 "Attribute used for attr associated elements must be parsed");
-      for (uint32_t i = 0; i < value->GetAtomCount(); i++) {
-        // For each id of tokens:
-        if (auto* candidate = GetElementByIdInDocOrSubtree(
-                value->AtomAt(static_cast<int32_t>(i)))) {
-          // Append candidate to elements.
-          elements.AppendElement(candidate);
-        }
-      }
-    }
-
-    return Some(std::move(elements));
-  };
-
   // getter steps:
   // 1. Let elements be the result of running this's get the attr-associated
   // elements.
-  auto elements = getAttrAssociatedElements();
+  Maybe<nsTArray<RefPtr<Element>>> elements =
+      GetAttrAssociatedElementsInternal(aAttr, true);
 
+  auto& [_, cachedAttrElements] =
+      ExtendedDOMSlots()->mAttrElementsMap.LookupOrInsert(aAttr);
   if (elements && elements == cachedAttrElements) {
     // 2. If the contents of elements is equal to the contents of this's cached
     // attr-associated elements, then return this's cached attr-associated
@@ -2148,18 +2217,327 @@ Element* Element::GetExplicitlySetAttrElement(nsAtom* aAttr) const {
   return nullptr;
 }
 
-void Element::GetExplicitlySetAttrElements(
-    nsAtom* aAttr, nsTArray<Element*>& aElements) const {
+Maybe<nsTArray<RefPtr<dom::Element>>> Element::GetExplicitlySetAttrElements(
+    nsAtom* aAttr) const {
   if (const nsExtendedDOMSlots* slots = GetExistingExtendedDOMSlots()) {
     if (auto attrElementsMaybeEntry = slots->mAttrElementsMap.Lookup(aAttr)) {
       auto& [attrElements, cachedAttrElements] = attrElementsMaybeEntry.Data();
       if (attrElements) {
+        nsTArray<RefPtr<dom::Element>> elements;
         for (const nsWeakPtr& weakEl : *attrElements) {
           if (nsCOMPtr<Element> attrEl = do_QueryReferent(weakEl)) {
-            aElements.AppendElement(attrEl);
+            elements.AppendElement(attrEl);
           }
         }
+        return Some(std::move(elements));
       }
+    }
+  }
+  return Nothing();
+}
+
+bool ReferenceTargetChangedAttrAssociatedElementCallback(void* aData) {
+  using AttrElementObserverCallbackData =
+      FragmentOrElement::nsExtendedDOMSlots::AttrElementObserverCallbackData;
+
+  AttrElementObserverCallbackData* data =
+      static_cast<AttrElementObserverCallbackData*>(aData);
+  nsWeakPtr weakElement = data->mElement;
+
+  if (nsCOMPtr<Element> element = do_QueryReferent(weakElement)) {
+    return element->AttrAssociatedElementUpdated(data->mAttr);
+  }
+
+  return false;
+}
+
+bool IDTargetChangedAttrAssociatedElementCallback(Element* aOldElement,
+                                                  Element* aNewElement,
+                                                  void* aData) {
+  using AttrElementObserverCallbackData =
+      FragmentOrElement::nsExtendedDOMSlots::AttrElementObserverCallbackData;
+
+  AttrElementObserverCallbackData* data =
+      static_cast<AttrElementObserverCallbackData*>(aData);
+
+  nsWeakPtr weakElement = data->mElement;
+  if (nsCOMPtr<Element> element = do_QueryReferent(weakElement)) {
+    DocumentOrShadowRoot* root = element->GetContainingDocumentOrShadowRoot();
+    if (aOldElement) {
+      root->RemoveReferenceTargetChangeObserver(
+          aOldElement, ReferenceTargetChangedAttrAssociatedElementCallback,
+          aData);
+    }
+    if (aNewElement) {
+      root->AddReferenceTargetChangeObserver(
+          aNewElement, ReferenceTargetChangedAttrAssociatedElementCallback,
+          aData);
+    }
+
+    return element->AttrAssociatedElementUpdated(data->mAttr);
+  }
+
+  return false;
+}
+
+Element* Element::AddAttrAssociatedElementObserver(
+    nsAtom* aAttr, AttrTargetObserver aObserver) {
+  using AttrElementObserverData =
+      FragmentOrElement::nsExtendedDOMSlots::AttrElementObserverData;
+  using AttrElementObserverCallbackData =
+      FragmentOrElement::nsExtendedDOMSlots::AttrElementObserverCallbackData;
+
+  AttrElementObserverData& observerData =
+      ExtendedDOMSlots()->mAttrElementObserverMap.LookupOrInsert(aAttr);
+
+  // TODO (bug 1997286): Observe explicitly set attr-element binding/unbinding.
+
+  if (!observerData.mCallbackData) {
+    observerData.mCallbackData.reset(new AttrElementObserverCallbackData());
+    observerData.mCallbackData->mAttr = aAttr;
+    observerData.mCallbackData->mElement = do_GetWeakReference(this);
+
+    const nsAttrValue* value = GetParsedAttr(aAttr);
+    MOZ_ASSERT(value);
+    if (!value->IsEmptyString()) {
+      RefPtr<nsAtom> idValue = value->GetAsAtom();
+      observerData.mLastKnownAttrValue = idValue;
+    }
+
+    DocumentOrShadowRoot* docOrShadow = GetUncomposedDocOrConnectedShadowRoot();
+    if (docOrShadow) {
+      AddDocOrShadowObserversForAttrAssociatedElement(*docOrShadow, aAttr);
+    }
+  }
+
+  Element* lastAttrElement;
+  if (nsCOMPtr<Element> element =
+          do_QueryReferent(observerData.mLastKnownAttrElement)) {
+    lastAttrElement = element.get();
+  } else {
+    lastAttrElement = GetAttrAssociatedElementInternal(aAttr);
+    observerData.mLastKnownAttrElement = do_GetWeakReference(lastAttrElement);
+  }
+
+  observerData.mObservers.Insert(aObserver);
+
+  return lastAttrElement;
+}
+
+void Element::RemoveAttrAssociatedElementObserver(
+    nsAtom* aAttr, AttrTargetObserver aObserver) {
+  using AttrElementObserverData =
+      FragmentOrElement::nsExtendedDOMSlots::AttrElementObserverData;
+
+  AttrElementObserverData* observerData = GetAttrElementObserverData(aAttr);
+  if (!observerData) {
+    return;
+  }
+
+  DocumentOrShadowRoot* docOrShadow = GetUncomposedDocOrConnectedShadowRoot();
+  if (docOrShadow) {
+    RemoveDocOrShadowObserversForAttrAssociatedElement(*docOrShadow, aAttr);
+  }
+  observerData->mObservers.Remove(aObserver);
+
+  if (observerData->mObservers.IsEmpty()) {
+    DeleteAttrAssociatedElementObserverData(aAttr);
+  }
+}
+
+bool Element::AttrAssociatedElementUpdated(nsAtom* aAttr) {
+  using AttrElementObserverData =
+      FragmentOrElement::nsExtendedDOMSlots::AttrElementObserverData;
+
+  AttrElementObserverData* observerData = GetAttrElementObserverData(aAttr);
+  if (!observerData) {
+    return false;
+  }
+
+  Element* newAttrElement = GetAttrAssociatedElementInternal(aAttr);
+
+  nsCOMPtr<Element> oldAttrElement =
+      do_QueryReferent(observerData->mLastKnownAttrElement);
+
+  for (auto iter = observerData->mObservers.begin();
+       iter != observerData->mObservers.end(); ++iter) {
+    AttrTargetObserver observer = *iter;
+    bool keep = observer(oldAttrElement.get(), newAttrElement, this);
+    if (!keep) {
+      observerData->mObservers.Remove(iter);
+    }
+  }
+
+  if (observerData->mObservers.IsEmpty()) {
+    DeleteAttrAssociatedElementObserverData(aAttr);
+    return false;
+  }
+
+  return true;
+}
+
+void Element::IDREFAttributeValueChanged(nsAtom* aAttr,
+                                         const nsAttrValue* aValue) {
+  using AttrElementObserverData =
+      FragmentOrElement::nsExtendedDOMSlots::AttrElementObserverData;
+  using AttrElementObserverCallbackData =
+      FragmentOrElement::nsExtendedDOMSlots::AttrElementObserverCallbackData;
+
+  if (!AttrAssociatedElementUpdated(aAttr)) {
+    return;
+  }
+
+  DocumentOrShadowRoot* docOrShadow = GetUncomposedDocOrConnectedShadowRoot();
+  if (!docOrShadow) {
+    return;
+  }
+
+  AttrElementObserverData* observerData = GetAttrElementObserverData(aAttr);
+  if (!observerData) {
+    return;
+  }
+
+  AttrElementObserverCallbackData* callbackData =
+      observerData->mCallbackData.get();
+  if (observerData->mLastKnownAttrValue) {
+    docOrShadow->RemoveIDTargetObserver(
+        observerData->mLastKnownAttrValue,
+        IDTargetChangedAttrAssociatedElementCallback, callbackData, false);
+    Element* oldIdTarget =
+        docOrShadow->GetElementById(observerData->mLastKnownAttrValue);
+    if (oldIdTarget) {
+      docOrShadow->RemoveReferenceTargetChangeObserver(
+          oldIdTarget, ReferenceTargetChangedAttrAssociatedElementCallback,
+          callbackData);
+    }
+  }
+
+  if (!aValue || aValue->GetAtomValue()->IsEmpty()) {
+    observerData->mLastKnownAttrValue = nullptr;
+    return;
+  }
+
+  RefPtr<nsAtom> idValue = aValue->GetAsAtom();
+  observerData->mLastKnownAttrValue = idValue;
+  docOrShadow->AddIDTargetObserver(idValue,
+                                   IDTargetChangedAttrAssociatedElementCallback,
+                                   callbackData, false);
+
+  Element* newIdTarget = docOrShadow->GetElementById(idValue);
+  if (newIdTarget) {
+    docOrShadow->AddReferenceTargetChangeObserver(
+        newIdTarget, ReferenceTargetChangedAttrAssociatedElementCallback,
+        callbackData);
+  }
+}
+
+FragmentOrElement::nsExtendedDOMSlots::AttrElementObserverData*
+Element::GetAttrElementObserverData(nsAtom* aAttr) {
+  if (const nsExtendedDOMSlots* slots = GetExistingExtendedDOMSlots()) {
+    if (auto entry = slots->mAttrElementObserverMap.Lookup(aAttr)) {
+      return &entry.Data();
+    }
+  }
+  return nullptr;
+}
+
+void Element::DeleteAttrAssociatedElementObserverData(nsAtom* aAttr) {
+  DocumentOrShadowRoot* docOrShadow = GetUncomposedDocOrConnectedShadowRoot();
+  if (docOrShadow) {
+    RemoveDocOrShadowObserversForAttrAssociatedElement(*docOrShadow, aAttr);
+  }
+
+  ExtendedDOMSlots()->mAttrElementObserverMap.Remove(aAttr);
+}
+
+void Element::AddDocOrShadowObserversForAttrAssociatedElement(
+    DocumentOrShadowRoot& aContainingDocOrShadow, nsAtom* aAttr) {
+  using AttrElementObserverData =
+      FragmentOrElement::nsExtendedDOMSlots::AttrElementObserverData;
+  using AttrElementObserverCallbackData =
+      FragmentOrElement::nsExtendedDOMSlots::AttrElementObserverCallbackData;
+
+  AttrElementObserverData* observerData = GetAttrElementObserverData(aAttr);
+  if (!observerData) {
+    return;
+  }
+
+  Element* explicitlySetAttrElement = GetExplicitlySetAttrElement(aAttr);
+  AttrElementObserverCallbackData* callbackData =
+      observerData->mCallbackData.get();
+
+  if (explicitlySetAttrElement) {
+    aContainingDocOrShadow.AddReferenceTargetChangeObserver(
+        explicitlySetAttrElement,
+        ReferenceTargetChangedAttrAssociatedElementCallback, callbackData);
+  } else {
+    MOZ_ASSERT(observerData->mLastKnownAttrValue);
+    aContainingDocOrShadow.AddIDTargetObserver(
+        observerData->mLastKnownAttrValue,
+        IDTargetChangedAttrAssociatedElementCallback, callbackData, false);
+
+    Element* idTarget = aContainingDocOrShadow.GetElementById(
+        observerData->mLastKnownAttrValue);
+    if (idTarget) {
+      aContainingDocOrShadow.AddReferenceTargetChangeObserver(
+          idTarget, ReferenceTargetChangedAttrAssociatedElementCallback,
+          callbackData);
+    }
+  }
+}
+
+void Element::RemoveDocOrShadowObserversForAttrAssociatedElement(
+    DocumentOrShadowRoot& aContainingDocOrShadow, nsAtom* aAttr) {
+  using AttrElementObserverData =
+      FragmentOrElement::nsExtendedDOMSlots::AttrElementObserverData;
+  using AttrElementObserverCallbackData =
+      FragmentOrElement::nsExtendedDOMSlots::AttrElementObserverCallbackData;
+
+  AttrElementObserverData* observerData = GetAttrElementObserverData(aAttr);
+  if (!observerData) {
+    return;
+  }
+
+  Element* explicitlySetAttrElement = GetExplicitlySetAttrElement(aAttr);
+  AttrElementObserverCallbackData* callbackData =
+      observerData->mCallbackData.get();
+
+  if (explicitlySetAttrElement) {
+    aContainingDocOrShadow.RemoveReferenceTargetChangeObserver(
+        explicitlySetAttrElement,
+        ReferenceTargetChangedAttrAssociatedElementCallback, callbackData);
+  } else if (observerData->mLastKnownAttrValue) {
+    aContainingDocOrShadow.RemoveIDTargetObserver(
+        observerData->mLastKnownAttrValue,
+        IDTargetChangedAttrAssociatedElementCallback,
+        observerData->mCallbackData.get(), false);
+
+    Element* idTarget = aContainingDocOrShadow.GetElementById(
+        observerData->mLastKnownAttrValue);
+    if (idTarget) {
+      aContainingDocOrShadow.RemoveReferenceTargetChangeObserver(
+          idTarget, ReferenceTargetChangedAttrAssociatedElementCallback,
+          callbackData);
+    }
+  }
+}
+
+void Element::BindAttrAssociatedElementObservers(
+    DocumentOrShadowRoot& aContainingDocOrShadow) {
+  if (const nsExtendedDOMSlots* slots = GetExistingExtendedDOMSlots()) {
+    for (const RefPtr<nsAtom>& attr : slots->mAttrElementObserverMap.Keys()) {
+      AddDocOrShadowObserversForAttrAssociatedElement(aContainingDocOrShadow,
+                                                      attr);
+    }
+  }
+}
+
+void Element::UnbindAttrAssociatedElementObservers(
+    DocumentOrShadowRoot& aContainingDocOrShadow) {
+  if (const nsExtendedDOMSlots* slots = GetExistingExtendedDOMSlots()) {
+    for (const RefPtr<nsAtom>& attr : slots->mAttrElementObserverMap.Keys()) {
+      RemoveDocOrShadowObserversForAttrAssociatedElement(aContainingDocOrShadow,
+                                                         attr);
     }
   }
 }
@@ -2467,6 +2845,12 @@ nsresult Element::BindToTree(BindContext& aContext, nsINode& aParent) {
         /* aForceInDataDoc = */ false);
   }
 
+  DocumentOrShadowRoot* containingDocOrShadow =
+      GetUncomposedDocOrConnectedShadowRoot();
+  if (containingDocOrShadow) {
+    BindAttrAssociatedElementObservers(*containingDocOrShadow);
+  }
+
   // XXXbz script execution during binding can trigger some of these
   // postcondition asserts....  But we do want that, since things will
   // generally be quite broken when that happens.
@@ -2499,6 +2883,12 @@ static bool WillDetachFromShadowOnUnbind(const Element& aElement,
 
 void Element::UnbindFromTree(UnbindContext& aContext) {
   const bool nullParent = aContext.IsUnbindRoot(this);
+
+  DocumentOrShadowRoot* containingDocOrShadow =
+      GetUncomposedDocOrConnectedShadowRoot();
+  if (containingDocOrShadow) {
+    UnbindAttrAssociatedElementObservers(*containingDocOrShadow);
+  }
 
   HandleShadowDOMRelatedRemovalSteps(nullParent);
 
@@ -3297,15 +3687,22 @@ bool Element::ParseAttribute(int32_t aNamespaceID, nsAtom* aAttribute,
     return true;
   }
 
+  if (aAttribute == nsGkAtoms::form) {
+    aResult.ParseAtom(aValue);
+    return true;
+  }
+
   if (aNamespaceID == kNameSpaceID_None) {
     if (aAttribute == nsGkAtoms::_class || aAttribute == nsGkAtoms::part ||
+        aAttribute == nsGkAtoms::aria_actions ||
         aAttribute == nsGkAtoms::aria_controls ||
         aAttribute == nsGkAtoms::aria_describedby ||
         aAttribute == nsGkAtoms::aria_details ||
         aAttribute == nsGkAtoms::aria_errormessage ||
         aAttribute == nsGkAtoms::aria_flowto ||
         aAttribute == nsGkAtoms::aria_labelledby ||
-        aAttribute == nsGkAtoms::aria_owns) {
+        aAttribute == nsGkAtoms::aria_owns || aAttribute == nsGkAtoms::_for ||
+        aAttribute == nsGkAtoms::headers) {
       aResult.ParseAtomArray(aValue);
       return true;
     }
@@ -3377,6 +3774,7 @@ void Element::AfterSetAttr(int32_t aNamespaceID, nsAtom* aName,
       }
     } else if (aName == nsGkAtoms::aria_activedescendant) {
       ClearExplicitlySetAttrElement(aName);
+      IDREFAttributeValueChanged(aName, aValue);
     } else if (aName == nsGkAtoms::aria_controls ||
                aName == nsGkAtoms::aria_describedby ||
                aName == nsGkAtoms::aria_details ||

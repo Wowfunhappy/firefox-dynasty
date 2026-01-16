@@ -78,9 +78,8 @@ let ShellServiceInternal = {
   async getOSUserProfileAgeInDays() {
     let currentDate = new Date();
     let homeFolderCreationDate = new Date(
-      (
-        await IOUtils.stat(Services.dirsvc.get("Home", Ci.nsIFile).path)
-      ).creationTime
+      (await IOUtils.stat(Services.dirsvc.get("Home", Ci.nsIFile).path))
+        .creationTime
     );
     // Round and return the age (=difference between today and creation) to a
     // resolution of days.

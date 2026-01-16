@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef __DetailedPromise_h__
-#define __DetailedPromise_h__
+#ifndef DetailedPromise_h_
+#define DetailedPromise_h_
 
 #include "EMEUtils.h"
 #include "mozilla/dom/Promise.h"
@@ -42,7 +42,7 @@ class DetailedPromise : public Promise {
     Promise::MaybeRejectWith##name(aMessage);                     \
   }                                                               \
   template <int N>                                                \
-  void MaybeRejectWith##name(const char(&aMessage)[N]) {          \
+  void MaybeRejectWith##name(const char (&aMessage)[N]) {         \
     MaybeRejectWith##name(nsLiteralCString(aMessage));            \
   }
 
@@ -92,4 +92,4 @@ class DetailedPromise : public Promise {
 
 }  // namespace mozilla::dom
 
-#endif  // __DetailedPromise_h__
+#endif  // DetailedPromise_h_

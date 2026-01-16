@@ -302,7 +302,7 @@ LightweightThemeConsumer.prototype = {
         themeData = manager.aiThemeData;
       } else {
         manager.promiseAIThemeData().then(() => {
-          if (this._isAIWindow) {
+          if (this._isAIWindow && this._win && !this._win.closed) {
             this._update(manager.aiThemeData);
           }
         });

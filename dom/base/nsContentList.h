@@ -10,8 +10,8 @@
  * getElementsByTagName, some properties on HTMLDocument/Document, etc).
  */
 
-#ifndef nsContentList_h___
-#define nsContentList_h___
+#ifndef nsContentList_h_
+#define nsContentList_h_
 
 #include "mozilla/Attributes.h"
 #include "mozilla/HashFunctions.h"
@@ -652,4 +652,4 @@ class nsLabelsNodeList final : public nsContentList {
   void PopulateSelf(uint32_t aNeededLength,
                     uint32_t aExpectedElementsIfDirty = 0) override;
 };
-#endif  // nsContentList_h___
+#endif  // nsContentList_h_

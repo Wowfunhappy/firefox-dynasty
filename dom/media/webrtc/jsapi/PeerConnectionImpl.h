@@ -2,8 +2,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef _PEER_CONNECTION_IMPL_H_
-#define _PEER_CONNECTION_IMPL_H_
+#ifndef PEER_CONNECTION_IMPL_H_
+#define PEER_CONNECTION_IMPL_H_
 
 #include <cmath>
 #include <map>
@@ -958,4 +958,4 @@ class PeerConnectionWrapper {
 
 #undef NS_IMETHODIMP_TO_ERRORRESULT
 #undef NS_IMETHODIMP_TO_ERRORRESULT_RETREF
-#endif  // _PEER_CONNECTION_IMPL_H_
+#endif  // PEER_CONNECTION_IMPL_H_

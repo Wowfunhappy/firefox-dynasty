@@ -1003,10 +1003,10 @@ def readSupplementalData(core_file):
                     # subtags are present. A single variant subtags may be present
                     # in |type|. And |i_type| definitely has a single variant subtag.
                     # Should this ever change, update this code accordingly.
-                    assert type in {
+                    assert type in (
                         (Any, None, None, None),
                         (Any, None, None, Any),
-                    }
+                    )
                     assert replacement == (Any, None, None, None)
                     assert i_type == (Any, None, None, Any)
                     assert i_replacement == (Any, None, None, None)
@@ -1091,10 +1091,10 @@ def readSupplementalData(core_file):
         if modified_rules and loop_count > 1:
             new_rules = {k for k in transitive_rules.keys() if k not in rules}
             for k in new_rules:
-                assert k in {
+                assert k in (
                     (Any, None, None, "guoyu-hakka"),
                     (Any, None, None, "guoyu-xiang"),
-                }
+                )
 
         # Merge the transitive rules.
         rules.update(transitive_rules)

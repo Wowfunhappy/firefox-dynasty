@@ -6,8 +6,8 @@
 
 /* base class #1 for rendering objects that have child lists */
 
-#ifndef nsContainerFrame_h___
-#define nsContainerFrame_h___
+#ifndef nsContainerFrame_h_
+#define nsContainerFrame_h_
 
 #include "LayoutConstants.h"
 #include "mozilla/Attributes.h"
@@ -1098,4 +1098,4 @@ class nsOverflowContinuationTracker {
   bool mWalkOOFFrames;
 };
 
-#endif /* nsContainerFrame_h___ */
+#endif /* nsContainerFrame_h_ */

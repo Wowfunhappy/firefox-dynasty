@@ -5040,8 +5040,8 @@ void CodeGenerator::visitMegamorphicStoreSlot(LMegamorphicStoreSlot* lir) {
   masm.jump(&done);
   masm.bind(&cacheHit);
 
-  masm.branchPtrInNurseryChunk(Assembler::Equal, obj, temp0, &done);
   masm.branchValueIsNurseryCell(Assembler::NotEqual, value, temp0, &done);
+  masm.branchPtrInNurseryChunk(Assembler::Equal, obj, temp0, &done);
 
   // Note: because this is a call-instruction, no registers need to be saved.
   MOZ_ASSERT(lir->isCall());
@@ -5854,15 +5854,14 @@ void CodeGenerator::emitElementPostWriteBarrier(
   });
   addOutOfLineCode(ool, mir);
 
-  masm.branchPtrInNurseryChunk(Assembler::Equal, obj, scratch, ool->rejoin());
-
   if (reg.hasValue()) {
-    masm.branchValueIsNurseryCell(Assembler::Equal, reg.valueReg(), scratch,
-                                  ool->entry());
+    masm.branchValueIsNurseryCell(Assembler::NotEqual, reg.valueReg(), scratch,
+                                  ool->rejoin());
   } else {
-    masm.branchPtrInNurseryChunk(Assembler::Equal, reg.typedReg().gpr(),
-                                 scratch, ool->entry());
+    masm.branchPtrInNurseryChunk(Assembler::NotEqual, reg.typedReg().gpr(),
+                                 scratch, ool->rejoin());
   }
+  masm.branchPtrInNurseryChunk(Assembler::NotEqual, obj, scratch, ool->entry());
 
   masm.bind(ool->rejoin());
 }
@@ -5948,19 +5947,20 @@ void CodeGenerator::visitPostWriteBarrierCommonV(LPostBarrierType* lir,
 
   Register temp = ToTempRegisterOrInvalid(lir->temp0());
 
+  maybeEmitGlobalBarrierCheck(lir->object(), ool);
+
+  ValueOperand value = ToValue(lir->value());
   if (lir->object()->isConstant()) {
     // The object must be tenured because MIR and LIR can't contain nursery
     // pointers.
     MOZ_ASSERT(!IsInsideNursery(&lir->object()->toConstant()->toObject()));
+    masm.branchValueIsNurseryCell(Assembler::Equal, value, temp, ool->entry());
   } else {
-    masm.branchPtrInNurseryChunk(Assembler::Equal, ToRegister(lir->object()),
-                                 temp, ool->rejoin());
+    masm.branchValueIsNurseryCell(Assembler::NotEqual, value, temp,
+                                  ool->rejoin());
+    masm.branchPtrInNurseryChunk(Assembler::NotEqual, ToRegister(lir->object()),
+                                 temp, ool->entry());
   }
-
-  maybeEmitGlobalBarrierCheck(lir->object(), ool);
-
-  ValueOperand value = ToValue(lir->value());
-  masm.branchValueIsNurseryCell(Assembler::Equal, value, temp, ool->entry());
 
   masm.bind(ool->rejoin());
 }
@@ -6081,8 +6081,8 @@ void CodeGenerator::visitAssertCanElidePostWriteBarrier(
   Register temp = ToRegister(lir->temp0());
 
   Label ok;
-  masm.branchPtrInNurseryChunk(Assembler::Equal, object, temp, &ok);
   masm.branchValueIsNurseryCell(Assembler::NotEqual, value, temp, &ok);
+  masm.branchPtrInNurseryChunk(Assembler::Equal, object, temp, &ok);
 
   masm.assumeUnreachable("Unexpected missing post write barrier");
 
@@ -17960,8 +17960,8 @@ void CodeGenerator::visitMegamorphicSetElement(LMegamorphicSetElement* lir) {
   masm.jump(&done);
   masm.bind(&cacheHit);
 
-  masm.branchPtrInNurseryChunk(Assembler::Equal, obj, temp0, &done);
   masm.branchValueIsNurseryCell(Assembler::NotEqual, value, temp0, &done);
+  masm.branchPtrInNurseryChunk(Assembler::Equal, obj, temp0, &done);
 
   // Note: because this is a call-instruction, no registers need to be saved.
   MOZ_ASSERT(lir->isCall());
@@ -18945,8 +18945,8 @@ void CodeGenerator::visitStoreSlotByIteratorIndexCommon(Register object,
   emitPreBarrier(storeAddress);
   masm.storeValue(value, storeAddress);
 
-  masm.branchPtrInNurseryChunk(Assembler::Equal, object, kindScratch, &done);
   masm.branchValueIsNurseryCell(Assembler::NotEqual, value, kindScratch, &done);
+  masm.branchPtrInNurseryChunk(Assembler::Equal, object, kindScratch, &done);
 
   saveVolatile(kindScratch);
   emitPostWriteBarrier(object);
@@ -19615,15 +19615,15 @@ void CodeGenerator::visitLoadDataViewElement(LLoadDataViewElement* lir) {
       break;
     case Scalar::Float16:
       masm.moveGPRToFloat16(temp1, out.fpu(), temp2, volatileRegs);
-      masm.canonicalizeFloat(out.fpu());
+      masm.canonicalizeFloatNaN(out.fpu());
       break;
     case Scalar::Float32:
       masm.moveGPRToFloat32(temp1, out.fpu());
-      masm.canonicalizeFloat(out.fpu());
+      masm.canonicalizeFloatNaN(out.fpu());
       break;
     case Scalar::Float64:
       masm.moveGPR64ToDouble(temp64, out.fpu());
-      masm.canonicalizeDouble(out.fpu());
+      masm.canonicalizeDoubleNaN(out.fpu());
       break;
     case Scalar::Int8:
     case Scalar::Uint8:
@@ -23073,14 +23073,14 @@ void CodeGenerator::visitCanonicalizeNaND(LCanonicalizeNaND* ins) {
   auto output = ToFloatRegister(ins->output());
   MOZ_ASSERT(output == ToFloatRegister(ins->input()));
 
-  masm.canonicalizeDouble(output);
+  masm.canonicalizeDoubleNaN(output);
 }
 
 void CodeGenerator::visitCanonicalizeNaNF(LCanonicalizeNaNF* ins) {
   auto output = ToFloatRegister(ins->output());
   MOZ_ASSERT(output == ToFloatRegister(ins->input()));
 
-  masm.canonicalizeFloat(output);
+  masm.canonicalizeFloatNaN(output);
 }
 
 template <size_t NumDefs>
@@ -23227,13 +23227,29 @@ void CodeGenerator::visitWasmFence(LWasmFence* lir) {
 
 void CodeGenerator::visitWasmAnyRefFromJSValue(LWasmAnyRefFromJSValue* lir) {
   ValueOperand input = ToValue(lir->def());
+  ValueOperand temp = ToValue(lir->temp1());
   Register output = ToRegister(lir->output());
   FloatRegister tempFloat = ToFloatRegister(lir->temp0());
 
   using Fn = JSObject* (*)(JSContext * cx, HandleValue value);
   OutOfLineCode* oolBoxValue = oolCallVM<Fn, wasm::AnyRef::boxValue>(
-      lir, ArgList(input), StoreRegisterTo(output));
-  masm.convertValueToWasmAnyRef(input, output, tempFloat, oolBoxValue->entry());
+      lir, ArgList(temp), StoreRegisterTo(output));
+
+  // If the value is a double that is a negative denormal and denormals
+  // are disabled, then `convertValueToWasmAnyRef` will view
+  // it as '-0' (which must be boxed in the OOL path). However, the
+  // AnyRef boxing code uses `mozilla::NumberIsInt32` which does not
+  // properly handle the CPU DAZ/FTZ flags and asserts that the value doesn't
+  // actually need to be boxed.
+  //
+  // Making `mozilla::NumberIsInt32` handle the CPU DAZ/FTZ flags would
+  // add a significant cost to many hot-paths. We instead just
+  // eagerly canonicalize denormals to +-0.0 here to avoid inconsistent
+  // results (see Bug 1971519).
+  masm.moveValue(input, temp);
+  masm.canonicalizeValueZero(temp, tempFloat);
+
+  masm.convertValueToWasmAnyRef(temp, output, tempFloat, oolBoxValue->entry());
   masm.bind(oolBoxValue->rejoin());
 }
 

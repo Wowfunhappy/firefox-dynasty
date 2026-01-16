@@ -144,7 +144,7 @@ const TIMEOUT_WAIT_FOR_VISIBILITY = 250;
  * @readonly
  * @enum {UserPromptType}
  */
-const UserPromptType = {
+export const UserPromptType = {
   alert: "alert",
   confirm: "confirm",
   prompt: "prompt",
@@ -2240,7 +2240,7 @@ class BrowsingContextModule extends RootBiDiModule {
 
   #onPromptOpened = async (eventName, data) => {
     if (this.#subscribedEvents.has("browsingContext.userPromptOpened")) {
-      const { contentBrowser, prompt } = data;
+      const { contentBrowser, prompt, promptDetails } = data;
       const type = prompt.promptType;
 
       // TODO: Bug 2007385. We can remove this fallback
@@ -2272,17 +2272,20 @@ class BrowsingContextModule extends RootBiDiModule {
       const session = lazy.getWebDriverSessionById(
         this.messageHandler.sessionId
       );
-      const handlerConfig = session.userPromptHandler.getPromptHandler(type);
+      const handlerConfig = session.userPromptHandler.getPromptHandler(
+        type == "beforeunload" ? "beforeUnload" : type
+      );
+      const { defaultValue, message } = promptDetails;
 
       const eventPayload = {
         context: navigableId,
         handler: handlerConfig.handler,
-        message: await prompt.getText(),
+        message,
         type,
       };
 
-      if (type === "prompt") {
-        eventPayload.defaultValue = await prompt.getInputText();
+      if (defaultValue !== null) {
+        eventPayload.defaultValue = defaultValue;
       }
 
       this.#emitContextEventForBrowsingContext(

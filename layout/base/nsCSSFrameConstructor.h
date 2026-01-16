@@ -9,8 +9,8 @@
  * tree and updating of that tree in response to dynamic changes
  */
 
-#ifndef nsCSSFrameConstructor_h___
-#define nsCSSFrameConstructor_h___
+#ifndef nsCSSFrameConstructor_h_
+#define nsCSSFrameConstructor_h_
 
 #include "mozilla/ArenaAllocator.h"
 #include "mozilla/Attributes.h"
@@ -2127,4 +2127,4 @@ class nsCSSFrameConstructor final : public nsFrameManager {
   nsCOMPtr<nsILayoutHistoryState> mFrameTreeState;
 };
 
-#endif /* nsCSSFrameConstructor_h___ */
+#endif /* nsCSSFrameConstructor_h_ */

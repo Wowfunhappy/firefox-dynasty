@@ -664,9 +664,10 @@ add_task(async function selected_result_clipboard() {
   });
 
   SpecialPowers.clipboardCopyString("");
-  UrlbarProvidersManager.getProvider(
-    "UrlbarProviderClipboard"
-  ).setPreviousClipboardValue("");
+  let providersManager = ProvidersManager.getInstanceForSap("urlbar");
+  providersManager
+    .getProvider("UrlbarProviderClipboard")
+    .setPreviousClipboardValue("");
   await SpecialPowers.popPrefEnv();
 });
 

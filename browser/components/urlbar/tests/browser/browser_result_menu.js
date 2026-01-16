@@ -207,7 +207,8 @@ add_task(async function firefoxSuggest() {
     controller.removeResult(details.result);
   };
 
-  UrlbarProvidersManager.registerProvider(provider);
+  let providersManager = ProvidersManager.getInstanceForSap("urlbar");
+  providersManager.registerProvider(provider);
 
   async function openResults() {
     await UrlbarTestUtils.promiseAutocompleteResultPopup({
@@ -255,5 +256,5 @@ add_task(async function firefoxSuggest() {
   );
 
   await UrlbarTestUtils.promisePopupClose(window);
-  UrlbarProvidersManager.unregisterProvider(provider);
+  providersManager.unregisterProvider(provider);
 });

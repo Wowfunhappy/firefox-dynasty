@@ -55,13 +55,11 @@ export class OpenAIPipeline {
   static async initialize(mlEngineWorker, wasm, options = {}, errorFactory) {
     lazy.console.debug("Initializing OpenAI pipeline");
     if (AppConstants.NIGHTLY_BUILD) {
-      OpenAIPipeline.OpenAILib = await import(
-        "chrome://global/content/ml/openai-dev.mjs"
-      );
+      OpenAIPipeline.OpenAILib =
+        await import("chrome://global/content/ml/openai-dev.mjs");
     } else {
-      OpenAIPipeline.OpenAILib = await import(
-        "chrome://global/content/ml/openai.mjs"
-      );
+      OpenAIPipeline.OpenAILib =
+        await import("chrome://global/content/ml/openai.mjs");
     }
     if (options.logLevel) {
       _logLevel = options.logLevel;

@@ -43,11 +43,6 @@ const BTP_PREF = "privacy.bounceTrackingProtection.mode";
 const LNA_PREF = "network.lna.blocking";
 const LNA_ETP_PREF = "network.lna.etp.enabled";
 
-const { EnterprisePolicyTesting, PoliciesPrefTracker } =
-  ChromeUtils.importESModule(
-    "resource://testing-common/EnterprisePolicyTesting.sys.mjs"
-  );
-
 requestLongerTimeout(3);
 
 // Enable LNA ETP integration for all tests so lna rules are processed

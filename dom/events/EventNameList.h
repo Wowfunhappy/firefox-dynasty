@@ -156,10 +156,6 @@ EVENT(cancel, eCancel, EventNameType_HTMLXUL, eBasicEventClass)
 EVENT(canplay, eCanPlay, EventNameType_HTML, eBasicEventClass)
 EVENT(canplaythrough, eCanPlayThrough, EventNameType_HTML, eBasicEventClass)
 EVENT(change, eFormChange, EventNameType_HTMLXUL, eBasicEventClass)
-EVENT(CheckboxStateChange, eFormCheckboxStateChange, EventNameType_None,
-      eBasicEventClass)
-EVENT(RadioStateChange, eFormRadioStateChange, EventNameType_None,
-      eBasicEventClass)
 EVENT(auxclick, ePointerAuxClick, EventNameType_All, ePointerEventClass)
 EVENT(click, ePointerClick, EventNameType_All, ePointerEventClass)
 EVENT(close, eClose, EventNameType_HTMLXUL, eBasicEventClass)

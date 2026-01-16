@@ -2615,13 +2615,6 @@
   value: true
   mirror: always
 
-# Disable custom highlight API; implementation pending.
-- name: dom.customHighlightAPI.enabled
-  type: RelaxedAtomicBool
-  value: true
-  mirror: always
-  rust: true
-
 # Allow control characters appear in composition string.
 # When this is false, control characters except
 # CHARACTER TABULATION (horizontal tab) are removed from
@@ -5164,7 +5157,8 @@
     *.nvidia.com,
     *.fedex.com,
     *.msci.com,
-    *.the-saleroom.com
+    *.the-saleroom.com,
+    *.si.com
   mirror: never
 
 # Maximum amount of time in milliseconds consecutive setTimeout()/setInterval()
@@ -7822,7 +7816,11 @@
 
 - name: gfx.webrender.dcomp-texture-overlay-win
   type: bool
+#if defined(XP_WIN)
+  value: @IS_EARLY_BETA_OR_EARLIER@
+#else
   value: false
+#endif
   mirror: once
 
 - name: gfx.webrender.scissored-cache-clears.enabled
@@ -9349,6 +9347,12 @@
     mirror: always
     set_spidermonkey_pref: startup
 
+-   name: javascript.options.wasm_compact_imports
+    type: bool
+    value: false
+    mirror: always
+    set_spidermonkey_pref: always
+
 #if defined(ENABLE_WASM_SIMD)
 #if defined(JS_CODEGEN_X64) || defined(JS_CODEGEN_X86)
   # Enables AVX instructions support on X86/X64 platforms.
@@ -9370,14 +9374,6 @@
 -   name: javascript.options.wasm_test_serialization
     type: bool
     value: false
-    mirror: always
-    set_spidermonkey_pref: always
-
-# Enables lazy tiering for wasm modules that have a GC type defined in them.
-# Use wasm_lazy_tiering to enable it for any module.
--   name: javascript.options.wasm_lazy_tiering_for_gc
-    type: bool
-    value: true
     mirror: always
     set_spidermonkey_pref: always
 
@@ -14492,7 +14488,7 @@
 # This is the number of dns cache entries allowed
 - name: network.dnsCacheEntries
   type: RelaxedAtomicUint32
-  value: 800
+  value: 1600
   mirror: always
 
 # In the absence of OS TTLs, the DNS cache TTL value
@@ -15539,6 +15535,12 @@
   value: false
   mirror: always
   rust: true
+
+# When true, force TRR connections to use HTTP/3 first
+- name: network.trr.force_http3_first
+  type: RelaxedAtomicBool
+  value: false
+  mirror: always
 
 # When true, a http request will be upgraded to https when HTTPS RR is
 # available.
@@ -16774,11 +16776,6 @@
   value: 900
   mirror: always
 
-- name: privacy.sanitize.useOldClearHistoryDialog
-  type: RelaxedAtomicBool
-  value: true
-  mirror: always
-
 - name: privacy.sanitize.sanitizeOnShutdown
   type: RelaxedAtomicBool
   value: false
@@ -17480,6 +17477,16 @@
   type: RelaxedAtomicBool
   value: true
   mirror: always
+
+#if defined(NIGHTLY_BUILD) && !defined(MOZ_NO_SMART_CARDS)
+# If true, load PKCS#11 third-party modules in a dedicated utility process
+# rather than the main process. (Well, that's the long-term goal for the code
+# paths behind this pref, but right now this is still work in progress!)
+- name: security.utility_pkcs11_module_process.enabled
+  type: bool
+  value: false
+  mirror: once
+#endif  // NIGHTLY_BUILD && !MOZ_NO_SMART_CARDS
 
 - name: security.pki.cert_short_lifetime_in_days
   type: RelaxedAtomicUint32

@@ -96,6 +96,11 @@ export class UrlbarInput extends HTMLElement {
           <image class="searchmode-switcher-icon toolbarbutton-icon"/>
           <image class="searchmode-switcher-dropmarker toolbarbutton-icon toolbarbutton-combined-buttons-dropmarker"
                  data-l10n-id="urlbar-searchmode-dropmarker" />
+          <label class="searchmode-switcher-title" />
+          <toolbarbutton class="searchmode-switcher-close toolbarbutton-icon close-button"
+                         data-action="exitsearchmode"
+                         role="button"
+                         data-l10n-id="urlbar-searchmode-exit-button" />
           <menupopup class="searchmode-switcher-popup toolbar-menupopup"
                      consumeoutsideclicks="false">
             <label class="searchmode-switcher-popup-description"
@@ -108,13 +113,6 @@ export class UrlbarInput extends HTMLElement {
                       data-l10n-id="urlbar-searchmode-popup-search-settings-menuitem"/>
           </menupopup>
         </toolbarbutton>
-        <box class="searchmode-switcher-chicklet">
-          <label class="searchmode-switcher-title" />
-          <toolbarbutton class="searchmode-switcher-close toolbarbutton-icon close-button"
-                         data-action="exitsearchmode"
-                         role="button"
-                         data-l10n-id="urlbar-searchmode-exit-button" />
-        </box>
         <moz-urlbar-slot name="site-info"> </moz-urlbar-slot>
         <moz-input-box tooltip="aHTMLTooltip"
                        class="urlbar-input-box"
@@ -1673,7 +1671,11 @@ export class UrlbarInput extends HTMLElement {
           // be reverted when they're notified of the engagement, but before
           // reverting, copy the search mode since it's nulled on revert.
           const { searchMode } = this;
-          this.handleRevert();
+          if (this.sapName != "searchbar") {
+            // The searchbar is not reverted so providers enabled in
+            // the searchbar should be able to handle both cases.
+            this.handleRevert();
+          }
           this.controller.engagementEvent.record(event, {
             result,
             element,
@@ -3259,6 +3261,14 @@ export class UrlbarInput extends HTMLElement {
    * attributes to appear at the proper side of the urlbar.
    */
   updateTextOverflow() {
+    if (!this.#isAddressbar) {
+      // The main purpose of overflow fading is to make it clear when URLs
+      // overflow. We don't need this in more traditional search inputs where
+      // the text is controlled by the users. Fading also doesn't work correctly
+      // when the search input has a clear button.
+      return;
+    }
+
     if (!this._overflowing) {
       this.removeAttribute("textoverflow");
       return;

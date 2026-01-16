@@ -397,7 +397,11 @@ def get_decision_parameters(graph_config, options):
     # An empty release_history is fine, it just means no partials will be built
     parameters.setdefault("release_history", dict())
     if "nightly" in parameters.get("target_tasks_method", ""):
-        parameters["release_history"] = populate_release_history("Firefox", project)
+        # generate 8 days' worth of partials so users who update once a week
+        # can get to the latest in one step
+        parameters["release_history"] = populate_release_history(
+            "Firefox", project, maxbuilds=16, maxsearch=32
+        )
 
     if options.get("try_task_config_file"):
         task_config_file = os.path.abspath(options.get("try_task_config_file"))

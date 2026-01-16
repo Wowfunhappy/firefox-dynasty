@@ -89,10 +89,10 @@ var FullZoom = {
   handleEvent: function FullZoom_handleEvent(event) {
     switch (event.type) {
       case "DoZoomEnlargeBy10":
-        this.changeZoomBy(this._getTargetedBrowser(event), 0.1);
+        this.enlarge(this._getTargetedBrowser(event));
         break;
       case "DoZoomReduceBy10":
-        this.changeZoomBy(this._getTargetedBrowser(event), -0.1);
+        this.reduce(this._getTargetedBrowser(event));
         break;
       case "MozScaleGestureComplete": {
         let nonDefaultScalingZoom = event.detail != 1.0;
@@ -373,65 +373,42 @@ var FullZoom = {
 
   /**
    * If browser in reader mode sends message to reader in order to decrease font size,
-   * Otherwise reduces the zoom level of the page in the current browser.
+   * Otherwise reduces the zoom level of the page in the passed browser.
+   *
+   * @param {Browser} [aBrowser=gBrowser.selectedBrowser]
+   *   The browser to reduce the zoom level on.
+   * @returns {Promise<void>}
    */
-  async reduce() {
-    let browser = gBrowser.selectedBrowser;
-    if (browser.currentURI.spec.startsWith("about:reader")) {
-      browser.sendMessageToActor("Reader:ZoomOut", {}, "AboutReader");
-    } else if (this._isPDFViewer(browser)) {
-      this.sendMessageToPDFViewer(browser, "PDFJS:ZoomOut");
-    } else {
-      ZoomManager.reduce();
-      this._ignorePendingZoomAccesses(browser);
-      await this._applyZoomToPref(browser);
-    }
-  },
-
-  /**
-   * If browser in reader mode sends message to reader in order to increase font size,
-   * Otherwise enlarges the zoom level of the page in the current browser.
-   */
-  async enlarge() {
-    let browser = gBrowser.selectedBrowser;
-    if (browser.currentURI.spec.startsWith("about:reader")) {
-      browser.sendMessageToActor("Reader:ZoomIn", {}, "AboutReader");
-    } else if (this._isPDFViewer(browser)) {
-      this.sendMessageToPDFViewer(browser, "PDFJS:ZoomIn");
-    } else {
-      ZoomManager.enlarge();
-      this._ignorePendingZoomAccesses(browser);
-      await this._applyZoomToPref(browser);
-    }
-  },
-
-  /**
-   * If browser in reader mode sends message to reader in order to increase font size,
-   * Otherwise enlarges the zoom level of the page in the current browser.
-   * This function is not async like reduce/enlarge, because it is invoked by our
-   * event handler. This means that the call to _applyZoomToPref is not awaited and
-   * will happen asynchronously.
-   */
-  changeZoomBy(aBrowser, aValue) {
+  async reduce(aBrowser = gBrowser.selectedBrowser) {
     if (aBrowser.currentURI.spec.startsWith("about:reader")) {
-      const message = aValue > 0 ? "Reader::ZoomIn" : "Reader:ZoomOut";
-      aBrowser.sendMessageToActor(message, {}, "AboutReader");
-      return;
+      aBrowser.sendMessageToActor("Reader:ZoomOut", {}, "AboutReader");
     } else if (this._isPDFViewer(aBrowser)) {
-      const message = aValue > 0 ? "PDFJS::ZoomIn" : "PDFJS:ZoomOut";
-      this.sendMessageToPDFViewer(aBrowser, message);
-      return;
+      this.sendMessageToPDFViewer(aBrowser, "PDFJS:ZoomOut");
+    } else {
+      ZoomManager.reduceForBrowser(aBrowser);
+      this._ignorePendingZoomAccesses(aBrowser);
+      await this._applyZoomToPref(aBrowser);
     }
-    let zoom = ZoomManager.getZoomForBrowser(aBrowser);
-    zoom += aValue;
-    if (zoom < ZoomManager.MIN) {
-      zoom = ZoomManager.MIN;
-    } else if (zoom > ZoomManager.MAX) {
-      zoom = ZoomManager.MAX;
+  },
+
+  /**
+   * If browser in reader mode sends message to reader in order to increase font size,
+   * Otherwise enlarges the zoom level of the page in the passed browser.
+   *
+   * @param {Browser} [aBrowser=gBrowser.selectedBrowser]
+   *   The browser to enlarge the zoom level on.
+   * @returns {Promise<void>}
+   */
+  async enlarge(aBrowser = gBrowser.selectedBrowser) {
+    if (aBrowser.currentURI.spec.startsWith("about:reader")) {
+      aBrowser.sendMessageToActor("Reader:ZoomIn", {}, "AboutReader");
+    } else if (this._isPDFViewer(aBrowser)) {
+      this.sendMessageToPDFViewer(aBrowser, "PDFJS:ZoomIn");
+    } else {
+      ZoomManager.enlargeForBrowser(aBrowser);
+      this._ignorePendingZoomAccesses(aBrowser);
+      await this._applyZoomToPref(aBrowser);
     }
-    ZoomManager.setZoomForBrowser(aBrowser, zoom);
-    this._ignorePendingZoomAccesses(aBrowser);
-    this._applyZoomToPref(aBrowser);
   },
 
   /**

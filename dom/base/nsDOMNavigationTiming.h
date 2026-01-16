@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef nsDOMNavigationTiming_h___
-#define nsDOMNavigationTiming_h___
+#ifndef nsDOMNavigationTiming_h_
+#define nsDOMNavigationTiming_h_
 
 #include "mozilla/BaseProfilerMarkersPrerequisites.h"
 #include "mozilla/RelativeTimeline.h"
@@ -271,4 +271,4 @@ struct ParamTraits<nsDOMNavigationTiming*> {
 
 }  // namespace IPC
 
-#endif /* nsDOMNavigationTiming_h___ */
+#endif /* nsDOMNavigationTiming_h_ */

@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef nsGlobalWindowInner_h___
-#define nsGlobalWindowInner_h___
+#ifndef nsGlobalWindowInner_h_
+#define nsGlobalWindowInner_h_
 
 #include "nsHashKeys.h"
 #include "nsPIDOMWindow.h"
@@ -1575,4 +1575,4 @@ inline nsGlobalWindowOuter* nsGlobalWindowInner::GetOuterWindowInternal()
   return nsGlobalWindowOuter::Cast(GetOuterWindow());
 }
 
-#endif /* nsGlobalWindowInner_h___ */
+#endif /* nsGlobalWindowInner_h_ */

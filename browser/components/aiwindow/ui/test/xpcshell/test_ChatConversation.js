@@ -3,14 +3,24 @@
 
 do_get_profile();
 
-const { ChatConversation, MESSAGE_ROLE } = ChromeUtils.importESModule(
-  "moz-src:///browser/components/aiwindow/ui/modules/ChatStore.sys.mjs"
+const { ChatConversation, MESSAGE_ROLE, ChatMessage } =
+  ChromeUtils.importESModule(
+    "moz-src:///browser/components/aiwindow/ui/modules/ChatStore.sys.mjs"
+  );
+
+const { SYSTEM_PROMPT_TYPE } = ChromeUtils.importESModule(
+  "moz-src:///browser/components/aiwindow/ui/modules/ChatEnums.sys.mjs"
 );
 
 const { UserRoleOpts, AssistantRoleOpts, ToolRoleOpts } =
   ChromeUtils.importESModule(
     "moz-src:///browser/components/aiwindow/ui/modules/ChatMessage.sys.mjs"
   );
+
+const lazy = {};
+ChromeUtils.defineESModuleGetters(lazy, {
+  sinon: "resource://testing-common/Sinon.sys.mjs",
+});
 
 add_task(function test_ChatConversation_constructor_defaults() {
   const conversation = new ChatConversation({});
@@ -147,7 +157,7 @@ add_task(function test_ChatConversation_addUserMessage() {
   const conversation = new ChatConversation({});
 
   const content = "user to assistant msg";
-  conversation.addUserMessage(content, "https://www.mozilla.com");
+  conversation.addUserMessage(content, new URL("https://www.mozilla.com"));
 
   const message = conversation.messages[0];
 
@@ -208,19 +218,19 @@ add_task(function test_ChatConversation_addAssistantMessage() {
     soft.strictEqual(message.params, null, "params should default to null");
     soft.strictEqual(message.usage, null, "usage should default to null");
     soft.strictEqual(
-      message.insightsEnabled,
+      message.memoriesEnabled,
       false,
-      "insightsEnabled should default to false"
+      "memoriesEnabled should default to false"
     );
     soft.strictEqual(
-      message.insightsFlagSource,
+      message.memoriesFlagSource,
       null,
-      "insightsFlagSource should default to null"
+      "memoriesFlagSource should default to null"
     );
     soft.deepEqual(
-      message.insightsApplied,
+      message.memoriesApplied,
       [],
-      "insightsApplied should default to emtpy array"
+      "memoriesApplied should default to emtpy array"
     );
     soft.deepEqual(
       message.webSearchQueries,
@@ -240,7 +250,7 @@ add_task(function test_opts_ChatConversation_addAssistantMessage() {
     { usage: "data" },
     true,
     1,
-    ["insight"],
+    ["memory"],
     ["search"]
   );
   conversation.addAssistantMessage("text", content, assistantOpts);
@@ -271,24 +281,24 @@ add_task(function test_opts_ChatConversation_addAssistantMessage() {
       'usage should equal {"usage": "data"}'
     );
     soft.strictEqual(
-      message.insightsEnabled,
+      message.memoriesEnabled,
       true,
-      "insightsEnabled should equal true"
+      "memoriesEnabled should equal true"
     );
     soft.strictEqual(
-      message.insightsFlagSource,
+      message.memoriesFlagSource,
       1,
-      "insightsFlagSource equal 1"
+      "memoriesFlagSource equal 1"
     );
     soft.deepEqual(
-      message.insightsApplied,
-      ["insight"],
-      "insightsApplied should equal ['insight']"
+      message.memoriesApplied,
+      ["memory"],
+      "memoriesApplied should equal ['memory']"
     );
     soft.deepEqual(
       message.webSearchQueries,
       ["search"],
-      "insightsApplied should equal ['search']"
+      "memoriesApplied should equal ['search']"
     );
   });
 });
@@ -364,12 +374,12 @@ add_task(function test_ChatConversation_getSitesList() {
   const conversation = new ChatConversation({});
 
   const content = "user to assistant msg";
-  conversation.addUserMessage(content, "https://www.mozilla.com");
-  conversation.addUserMessage(content, "https://www.mozilla.com");
-  conversation.addUserMessage(content, "https://www.firefox.com");
-  conversation.addUserMessage(content, "https://www.cnn.com");
-  conversation.addUserMessage(content, "https://www.espn.com");
-  conversation.addUserMessage(content, "https://www.espn.com");
+  conversation.addUserMessage(content, new URL("https://www.mozilla.com"));
+  conversation.addUserMessage(content, new URL("https://www.mozilla.com"));
+  conversation.addUserMessage(content, new URL("https://www.firefox.com"));
+  conversation.addUserMessage(content, new URL("https://www.cnn.com"));
+  conversation.addUserMessage(content, new URL("https://www.espn.com"));
+  conversation.addUserMessage(content, new URL("https://www.espn.com"));
 
   const sites = conversation.getSitesList();
 
@@ -385,12 +395,12 @@ add_task(function test_ChatConversation_getMostRecentPageVisited() {
   const conversation = new ChatConversation({});
 
   const content = "user to assistant msg";
-  conversation.addUserMessage(content, "https://www.mozilla.com");
-  conversation.addUserMessage(content, "https://www.mozilla.com");
-  conversation.addUserMessage(content, "https://www.firefox.com");
-  conversation.addUserMessage(content, "https://www.cnn.com");
-  conversation.addUserMessage(content, "https://www.espn.com");
-  conversation.addUserMessage(content, "https://www.espn.com");
+  conversation.addUserMessage(content, new URL("https://www.mozilla.com"));
+  conversation.addUserMessage(content, new URL("https://www.mozilla.com"));
+  conversation.addUserMessage(content, new URL("https://www.firefox.com"));
+  conversation.addUserMessage(content, new URL("https://www.cnn.com"));
+  conversation.addUserMessage(content, new URL("https://www.espn.com"));
+  conversation.addUserMessage(content, new URL("https://www.espn.com"));
 
   const mostRecentPageVisited = conversation.getMostRecentPageVisited();
 
@@ -401,8 +411,8 @@ add_task(function test_noBrowsing_ChatConversation_getMostRecentPageVisited() {
   const conversation = new ChatConversation({});
 
   const content = "user to assistant msg";
-  conversation.addUserMessage(content, "about:aiwindow");
-  conversation.addUserMessage(content, "");
+  conversation.addUserMessage(content, new URL("about:aiwindow"));
+  conversation.addUserMessage(content, null);
   conversation.addUserMessage(content, null);
 
   const mostRecentPageVisited = conversation.getMostRecentPageVisited();
@@ -501,3 +511,207 @@ add_task(function test_ChatConversation_getMessagesInOpenAiFormat() {
     { role: "assistant", content: "the second llm response" },
   ]);
 });
+
+add_task(async function test_unrelatedMessage_ChatConversation_retryMessage() {
+  const conversation = new ChatConversation({});
+  conversation.addSystemMessage("text", "the system prompt");
+  conversation.addUserMessage("a user's prompt", "https://www.somesite.com");
+
+  const unrelatedMessage = new ChatMessage({
+    ordinal: 0,
+    role: MESSAGE_ROLE.USER,
+    content: "some content",
+    turnIndex: 0,
+  });
+
+  await Assert.rejects(
+    conversation.retryMessage(unrelatedMessage),
+    /Unrelated message/
+  );
+});
+
+add_task(async function test_nonUserMessage_ChatConversation_retryMessage() {
+  const conversation = new ChatConversation({});
+  conversation.addSystemMessage("text", "the system prompt");
+  conversation.addUserMessage("a user's prompt", "https://www.somesite.com");
+
+  await Assert.rejects(
+    conversation.retryMessage(conversation.messages[0]),
+    /Not a user message/
+  );
+});
+
+add_task(async function test_withMemories_ChatConversation_retryMessage() {
+  let sandbox = lazy.sinon.createSandbox();
+
+  const conversation = new ChatConversation({});
+
+  sandbox.stub(conversation, "getRealTimeInfo").callsFake(() => {
+    conversation.addSystemMessage(
+      SYSTEM_PROMPT_TYPE.REAL_TIME,
+      "real time data"
+    );
+  });
+
+  sandbox.stub(conversation, "getMemoriesContext").callsFake(() => {
+    conversation.addSystemMessage(SYSTEM_PROMPT_TYPE.MEMORIES, "memories data");
+  });
+
+  conversation.addSystemMessage("text", "the system prompt");
+  conversation.addUserMessage("a user's prompt", "https://www.somesite.com");
+  conversation.addToolCallMessage({ some: "tool call details" });
+  conversation.addAssistantMessage("text", "the llm response");
+  conversation.addUserMessage("a user's second prompt", "some question");
+  conversation.addToolCallMessage({ some: "more tool call details" });
+  conversation.addAssistantMessage("text", "the second llm response");
+
+  await conversation.retryMessage(conversation.messages[1], true);
+
+  Assert.withSoftAssertions(function (soft) {
+    soft.equal(conversation.messages.length, 4, "Incorrect number of messages");
+    soft.equal(conversation.messages[3].content.body, "a user's prompt");
+  });
+
+  sandbox.restore();
+});
+
+add_task(async function test_withoutMemories_ChatConversation_retryMessage() {
+  let sandbox = lazy.sinon.createSandbox();
+
+  const conversation = new ChatConversation({});
+
+  sandbox.stub(conversation, "getRealTimeInfo").callsFake(() => {
+    conversation.addSystemMessage(
+      SYSTEM_PROMPT_TYPE.REAL_TIME,
+      "real time data"
+    );
+  });
+
+  sandbox.stub(conversation, "getMemoriesContext");
+
+  conversation.addSystemMessage("text", "the system prompt");
+  conversation.addUserMessage("a user's prompt", "https://www.somesite.com");
+  conversation.addToolCallMessage({ some: "tool call details" });
+  conversation.addAssistantMessage("text", "the llm response");
+  conversation.addUserMessage("a user's second prompt", "some question");
+  conversation.addToolCallMessage({ some: "more tool call details" });
+  conversation.addAssistantMessage("text", "the second llm response");
+
+  await conversation.retryMessage(conversation.messages[1], false);
+
+  Assert.withSoftAssertions(function (soft) {
+    soft.equal(conversation.messages.length, 3, "Incorrect number of messages");
+    soft.equal(conversation.messages[2].content.body, "a user's prompt");
+  });
+
+  sandbox.restore();
+});
+
+add_task(
+  async function test_ChatConversation_retryMessage_returnsRemovedMessages() {
+    let sandbox = lazy.sinon.createSandbox();
+
+    const conversation = new ChatConversation({});
+
+    sandbox.stub(conversation, "getRealTimeInfo").callsFake(() => {
+      conversation.addSystemMessage(
+        SYSTEM_PROMPT_TYPE.REAL_TIME,
+        "real time data"
+      );
+    });
+
+    sandbox.stub(conversation, "getMemoriesContext").callsFake(() => {
+      conversation.addSystemMessage(
+        SYSTEM_PROMPT_TYPE.MEMORIES,
+        "memories data"
+      );
+    });
+
+    conversation.addSystemMessage("text", "the system prompt");
+    conversation.addUserMessage("a user's prompt", "https://www.somesite.com");
+    conversation.addToolCallMessage({ some: "tool call details" });
+    conversation.addAssistantMessage("text", "the llm response");
+    conversation.addUserMessage("a user's second prompt", "some question");
+    conversation.addToolCallMessage({ some: "more tool call details" });
+    conversation.addAssistantMessage("text", "the second llm response");
+
+    const toDeleteMessages = await conversation.retryMessage(
+      conversation.messages[1],
+      true
+    );
+
+    Assert.withSoftAssertions(function (soft) {
+      soft.equal(toDeleteMessages.length, 6, "Incorrect number of messages");
+      soft.equal(toDeleteMessages[0].content.body, "a user's prompt");
+      soft.equal(toDeleteMessages[1].content.some, "tool call details");
+      soft.equal(toDeleteMessages[2].content.body, "the llm response");
+      soft.equal(toDeleteMessages[3].content.body, "a user's second prompt");
+      soft.equal(toDeleteMessages[4].content.some, "more tool call details");
+      soft.equal(toDeleteMessages[5].content.body, "the second llm response");
+    });
+
+    sandbox.restore();
+  }
+);
+
+add_task(async function test_returnsContent_ChatConversation_getRealTimeInfo() {
+  console.log(Object.keys(lazy.sinon));
+  const constructRealTime = lazy.sinon
+    .stub()
+    .resolves({ content: "real time data" });
+
+  const conversation = new ChatConversation({});
+  await conversation.getRealTimeInfo(constructRealTime);
+
+  Assert.withSoftAssertions(function (soft) {
+    soft.equal(conversation.messages[0].role, 2);
+    soft.deepEqual(conversation.messages[0].content, {
+      type: "injected_real_time_info",
+      body: "real time data",
+    });
+  });
+});
+
+add_task(
+  async function test_returnsNoContent_ChatConversation_getRealTimeInfo() {
+    console.log(Object.keys(lazy.sinon));
+    const constructRealTime = lazy.sinon.stub().resolves({});
+
+    const conversation = new ChatConversation({});
+    await conversation.getRealTimeInfo(constructRealTime);
+
+    Assert.equal(conversation.messages.length, 0);
+  }
+);
+
+add_task(
+  async function test_returnsContent_ChatConversation_getMemoriesContext() {
+    console.log(Object.keys(lazy.sinon));
+    const constructMemories = lazy.sinon
+      .stub()
+      .resolves({ content: "memories data" });
+
+    const conversation = new ChatConversation({});
+    await conversation.getMemoriesContext(constructMemories);
+
+    Assert.withSoftAssertions(function (soft) {
+      soft.equal(conversation.messages[0].role, 2);
+      soft.deepEqual(conversation.messages[0].content, {
+        type: "injected_memories",
+        body: "memories data",
+      });
+    });
+  }
+);
+
+add_task(
+  async function test_returnsNoContent_ChatConversation_getMemoriesContext() {
+    console.log(Object.keys(lazy.sinon));
+    const constructMemories = lazy.sinon.stub().resolves({});
+
+    const conversation = new ChatConversation({});
+    await conversation.getMemoriesContext(constructMemories);
+
+    Assert.equal(conversation.messages.length, 0);
+  }
+);

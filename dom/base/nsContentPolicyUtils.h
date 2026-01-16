@@ -11,8 +11,8 @@
  * nsContentUtils.  That would work for almost all the callers...
  */
 
-#ifndef __nsContentPolicyUtils_h__
-#define __nsContentPolicyUtils_h__
+#ifndef _nsContentPolicyUtils_h_
+#define _nsContentPolicyUtils_h_
 
 #include "mozilla/BasePrincipal.h"
 #include "mozilla/dom/nsCSPService.h"
@@ -319,4 +319,4 @@ inline nsIDocShell* NS_CP_GetDocShellFromContext(nsISupports* aContext) {
   return window->GetDocShell();
 }
 
-#endif /* __nsContentPolicyUtils_h__ */
+#endif /* _nsContentPolicyUtils_h_ */

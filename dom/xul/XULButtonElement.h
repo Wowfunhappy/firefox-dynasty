@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef dom_xul_XULButtonElement_h__
-#define dom_xul_XULButtonElement_h__
+#ifndef dom_xul_XULButtonElement_h_
+#define dom_xul_XULButtonElement_h_
 
 #include "mozilla/Attributes.h"
 #include "nsINode.h"
@@ -106,6 +106,8 @@ class XULButtonElement : public nsXULElement {
   MOZ_CAN_RUN_SCRIPT void StartBlinking();
   void KillMenuOpenTimer();
   MOZ_CAN_RUN_SCRIPT void PassMenuCommandEventToPopupManager();
+
+  nsAtom* GetCheckedStateAttribute() const;
 
   bool mIsHandlingKeyEvent = false;
 

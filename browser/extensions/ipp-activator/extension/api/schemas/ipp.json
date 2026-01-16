@@ -154,6 +154,17 @@
             "type": "function"
           }
         ]
+      },
+      {
+        "name": "onIPPExceptionsChanged",
+        "type": "function",
+        "description": "Fired when the ipp-vpn permission changes.",
+        "parameters": [
+          {
+            "name": "listener",
+            "type": "function"
+          }
+        ]
       }
     ]
   }

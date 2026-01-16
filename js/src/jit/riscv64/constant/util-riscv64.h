@@ -6,7 +6,6 @@
 #define jit_riscv64_constant_util_riscv64__h_
 #include <stdarg.h>
 #include <stdio.h>
-#include <string.h>
 namespace js {
 namespace jit {
 template <typename T>

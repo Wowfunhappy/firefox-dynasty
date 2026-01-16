@@ -95,7 +95,6 @@ selfhosted_inputs = [
         "intl/DateTimeFormat.js",
         "intl/DisplayNames.js",
         "intl/DurationFormat.js",
-        "intl/IntlObject.js",
         "intl/ListFormat.js",
         "intl/NumberFormat.js",
         "intl/PluralRules.js",

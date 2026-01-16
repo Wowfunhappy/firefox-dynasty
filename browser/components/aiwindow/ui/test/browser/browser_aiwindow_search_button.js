@@ -10,6 +10,7 @@ ChromeUtils.defineESModuleGetters(lazy, {
   SearchTestUtils: "resource://testing-common/SearchTestUtils.sys.mjs",
   AIWindow:
     "moz-src:///browser/components/aiwindow/ui/modules/AIWindow.sys.mjs",
+  TelemetryTestUtils: "resource://testing-common/TelemetryTestUtils.sys.mjs",
 });
 
 const { sinon } = ChromeUtils.importESModule(
@@ -92,6 +93,10 @@ add_task(async function test_chat_search_button() {
  * Test the telemetry from the performSearch function called by the search handoff button
  */
 add_task(async function test_telemetry_chat_search_button() {
+  // Clear telemetry
+  lazy.TelemetryTestUtils.getAndClearKeyedHistogram("SEARCH_COUNTS");
+  Services.fog.testResetFOG();
+
   lazy.SearchUITestUtils.init(this);
   lazy.SearchTestUtils.init(this);
   await lazy.SearchTestUtils.updateRemoteSettingsConfig([

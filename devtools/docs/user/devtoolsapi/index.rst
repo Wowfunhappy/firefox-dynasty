@@ -32,7 +32,7 @@ The ``gDevTools`` API can be used to register new tools, themes and handle toolb
 
 .. code-block:: JavaScript
 
-  const { gDevTools } = require("resource:///modules/devtools/gDevTools.jsm");
+  const { gDevTools } = require("resource://devtools/client/framework/devtools.js");
 
 
 Methods

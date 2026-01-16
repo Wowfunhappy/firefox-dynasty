@@ -309,6 +309,15 @@ add_task(async function test_resize_split_view_panels() {
     "Right panel is larger."
   );
 
+  info("Reverse split view panels and resize.");
+  splitView.reverseTabs();
+  dragSplitter(-100, tabpanels.splitViewSplitter);
+  await BrowserTestUtils.waitForMutationCondition(
+    leftPanel,
+    { attributeFilter: ["width"] },
+    () => !leftPanel.hasAttribute("width")
+  );
+
   info("Separate split view panels to remove the custom width.");
   splitView.unsplitTabs();
   for (const panel of [leftPanel, rightPanel]) {

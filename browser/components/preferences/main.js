@@ -1228,7 +1228,9 @@ const DefaultBrowserHelper = {
 
     const pollForDefaultBrowser = () => {
       if (
-        (location.hash == "" || location.hash == "#general") &&
+        (location.hash == "" ||
+          location.hash == "#general" ||
+          location.hash == "#sync") &&
         document.visibilityState == "visible"
       ) {
         const { isBrowserDefault } = this;
@@ -2019,6 +2021,45 @@ Preferences.addSetting(
   }
 );
 
+function createDefaultBrowserConfig({
+  includeIsDefaultPane = true,
+  inProgress = false,
+} = {}) {
+  const isDefaultPane = {
+    id: "isDefaultPane",
+    l10nId: "is-default-browser-2",
+    control: "moz-promo",
+  };
+
+  const isNotDefaultPane = {
+    id: "isNotDefaultPane",
+    l10nId: "is-not-default-browser-2",
+    control: "moz-promo",
+    options: [
+      {
+        control: "moz-button",
+        l10nId: "set-as-my-default-browser-2",
+        id: "setDefaultButton",
+        slot: "actions",
+        controlAttrs: {
+          type: "primary",
+        },
+      },
+    ],
+  };
+
+  const items = includeIsDefaultPane
+    ? [isDefaultPane, isNotDefaultPane]
+    : [isNotDefaultPane];
+
+  return {
+    l10nId: "home-default-browser-title",
+    headingLevel: 2,
+    items,
+    ...(inProgress && { inProgress }),
+  };
+}
+
 SettingGroupManager.registerGroups({
   containers: {
     // This section is marked as in progress for testing purposes
@@ -2089,6 +2130,7 @@ SettingGroupManager.registerGroups({
       },
     ],
   },
+  defaultBrowser: createDefaultBrowserConfig(),
   startup: {
     items: [
       {
@@ -2128,27 +2170,6 @@ SettingGroupManager.registerGroups({
       {
         id: "alwaysCheckDefault",
         l10nId: "always-check-default",
-      },
-      {
-        id: "isDefaultPane",
-        l10nId: "is-default-browser",
-        control: "moz-promo",
-      },
-      {
-        id: "isNotDefaultPane",
-        l10nId: "is-not-default-browser",
-        control: "moz-promo",
-        options: [
-          {
-            control: "moz-button",
-            l10nId: "set-as-my-default-browser",
-            id: "setDefaultButton",
-            slot: "actions",
-            controlAttrs: {
-              type: "primary",
-            },
-          },
-        ],
       },
     ],
   },
@@ -4063,6 +4084,10 @@ SettingGroupManager.registerGroups({
       },
     ],
   },
+  defaultBrowserSync: createDefaultBrowserConfig({
+    includeIsDefaultPane: false,
+    inProgress: true,
+  }),
   sync: {
     inProgress: true,
     l10nId: "sync-group-label",
@@ -4656,6 +4681,7 @@ var gMainPane = {
     initSettingGroup("support");
     initSettingGroup("translations");
     initSettingGroup("performance");
+    initSettingGroup("defaultBrowser");
     initSettingGroup("startup");
     initSettingGroup("importBrowserData");
     initSettingGroup("networkProxy");

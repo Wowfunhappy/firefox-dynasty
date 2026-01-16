@@ -23,7 +23,6 @@ let gSandbox;
 
 add_setup(async function () {
   await promiseSyncReady();
-  await Services.search.init();
   gSync.init();
 
   gSandbox = sinon.createSandbox();

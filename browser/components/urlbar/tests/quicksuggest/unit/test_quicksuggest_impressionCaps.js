@@ -3172,7 +3172,8 @@ async function doTimedCallbacks(callbacksBySecond) {
  *   The results that are expected from the search.
  */
 async function checkSearch({ name, searchString, expectedResults }) {
-  let quickSuggestProviderInstance = UrlbarProvidersManager.getProvider(
+  let providersManager = ProvidersManager.getInstanceForSap("urlbar");
+  let quickSuggestProviderInstance = providersManager.getProvider(
     UrlbarProviderQuickSuggest.name
   );
   info(`Preparing search "${name}" with search string "${searchString}"`);

@@ -393,8 +393,9 @@ export class _Weather extends React.PureComponent {
               </div>
             ) : (
               <a
-                data-l10n-id="newtab-weather-see-forecast"
+                data-l10n-id="newtab-weather-see-forecast-description"
                 data-l10n-args='{"provider": "AccuWeather®"}'
+                data-l10n-attrs="aria-description"
                 href={WEATHER_SUGGESTION.forecast.url}
                 className="weatherInfoLink"
                 onClick={this.onProviderClick}
@@ -461,7 +462,7 @@ export class _Weather extends React.PureComponent {
                 : WEATHER_SOURCE_CONTEXT_MENU_OPTIONS
             )}
           </div>
-          <span className="weatherSponsorText">
+          <span className="weatherSponsorText" aria-hidden="true">
             <span
               data-l10n-id="newtab-weather-sponsored"
               data-l10n-args='{"provider": "AccuWeather®"}'

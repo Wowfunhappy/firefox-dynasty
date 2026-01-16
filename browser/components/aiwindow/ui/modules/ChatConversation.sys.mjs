@@ -153,22 +153,26 @@ export class ChatConversation {
    * Limit/filter out data uris from message data
    *
    * @param {string} contentBody - The user message content
-   * @param {string?} [pageUrl=""] - The current page url when message was submitted
+   * @param {URL?} [pageUrl=null] - The current page url when message was submitted
    * @param {UserRoleOpts} [userOpts=new UserRoleOpts()] - User message options
    */
-  addUserMessage(contentBody, pageUrl = "", userOpts = new UserRoleOpts()) {
+  addUserMessage(contentBody, pageUrl = null, userOpts = new UserRoleOpts()) {
     const content = {
       type: "text",
       body: contentBody,
     };
 
-    let url = URL.parse(pageUrl);
-
     let currentTurn = this.currentTurnIndex();
     const newTurnIndex =
       this.#messages.length === 1 ? currentTurn : currentTurn + 1;
 
-    this.addMessage(MESSAGE_ROLE.USER, content, url, newTurnIndex, userOpts);
+    this.addMessage(
+      MESSAGE_ROLE.USER,
+      content,
+      pageUrl,
+      newTurnIndex,
+      userOpts
+    );
   }
 
   /**
@@ -191,7 +195,7 @@ export class ChatConversation {
     this.addMessage(
       MESSAGE_ROLE.ASSISTANT,
       content,
-      "",
+      null,
       this.currentTurnIndex(),
       assistantOpts
     );
@@ -207,7 +211,7 @@ export class ChatConversation {
     this.addMessage(
       MESSAGE_ROLE.TOOL,
       content,
-      "",
+      null,
       this.currentTurnIndex(),
       toolOpts
     );
@@ -216,13 +220,18 @@ export class ChatConversation {
   /**
    * Add a system message to the conversation
    *
-   * @param {string} type - The assistant message type: text|injected_insights|injected_real_time_info
+   * @param {string} type - The assistant message type: text|injected_memories|injected_real_time_info
    * @param {string} contentBody - The system message object to be saved as JSON
    */
   addSystemMessage(type, contentBody) {
     const content = { type, body: contentBody };
 
-    this.addMessage(MESSAGE_ROLE.SYSTEM, content, "", this.currentTurnIndex());
+    this.addMessage(
+      MESSAGE_ROLE.SYSTEM,
+      content,
+      null,
+      this.currentTurnIndex()
+    );
   }
 
   /**
@@ -231,33 +240,115 @@ export class ChatConversation {
    *
    * @param {string} prompt - new user prompt
    * @param {URL} pageUrl - The URL of the page when prompt was submitted
+   * @param {boolean} withMemories - Whether to generate memories for new prompt message
    */
-  async generatePrompt(prompt, pageUrl) {
+  async generatePrompt(prompt, pageUrl, withMemories) {
     if (!this.#messages.length) {
       // TODO: Bug 2008865
       // switch to use remote settings prompt accessed via engine.loadPrompt(feature)
       this.addSystemMessage(SYSTEM_PROMPT_TYPE.TEXT, assistantPrompt);
     }
 
-    const nextConversationTurn = this.currentTurnIndex() + 1;
+    await this.getRealTimeInfo();
 
-    const realTime = await constructRealTimeInfoInjectionMessage();
-    if (realTime.content) {
-      this.addSystemMessage(SYSTEM_PROMPT_TYPE.REAL_TIME, realTime.content);
+    if (withMemories) {
+      await this.getMemoriesContext();
     }
 
-    const insightsContext = await constructRelevantMemoriesContextMessage();
-    if (insightsContext?.content) {
-      this.addSystemMessage(
-        SYSTEM_PROMPT_TYPE.INSIGHTS,
-        insightsContext.content,
-        nextConversationTurn
-      );
-    }
-
-    this.addUserMessage(prompt, pageUrl, nextConversationTurn);
+    this.addUserMessage(prompt, pageUrl);
 
     return this;
+  }
+
+  /**
+   * Retries a specified user message. Will remove the original message
+   * being retried as well as all messages that come after the message
+   * being retried.
+   *
+   * @param {ChatMessage} message
+   * @param {boolean} withMemories
+   *
+   * @returns {Array<ChatMessage>} - Array of messages removed from the conversation
+   */
+  async retryMessage(message, withMemories) {
+    if (message.role !== MESSAGE_ROLE.USER) {
+      throw new Error("Not a user message");
+    }
+
+    const retryMessageIndex = this.#messages.findIndex(
+      chatMessage => message.id === chatMessage.id
+    );
+
+    if (retryMessageIndex === -1) {
+      throw new Error("Unrelated message");
+    }
+
+    const toDeleteMessages = this.#messages.splice(retryMessageIndex);
+
+    await this.getRealTimeInfo();
+
+    if (withMemories) {
+      await this.getMemoriesContext();
+    }
+
+    this.addUserMessage(message.content.body, message.pageUrl);
+
+    return toDeleteMessages;
+  }
+
+  /**
+   * Gets the real time brower tab data for a new chat message and
+   * adds a system message if the real time data API function
+   * returns content.
+   *
+   * @typedef {
+   *   (depsOverride?: object) => Promise<{ role: string; content: string; }>
+   * } RealTimeApiFunction
+   *
+   * @param {RealTimeApiFunction} [constructRealTime=constructRealTimeInfoInjectionMessage]
+   * Function that returns promise that resolves with real time info
+   */
+  async getRealTimeInfo(
+    constructRealTime = constructRealTimeInfoInjectionMessage
+  ) {
+    const realTime = await constructRealTime();
+    if (!realTime.content) {
+      return;
+    }
+
+    this.addSystemMessage(SYSTEM_PROMPT_TYPE.REAL_TIME, realTime.content);
+  }
+
+  /**
+   * Gets the memories for a new chat message and adds
+   * a system message if the memories API function returns
+   * content.
+   *
+   * @todo Bug2009434
+   * Rename type and change enum to renamed values
+   *
+   * @typedef {{
+   *    role: string;
+   *    tool_call_id: string;
+   *    content: string;
+   *  }} MemoryApiFunctionReturn
+   *
+   *  @typedef {
+   *    (message: string) => Promise<null | MemoryApiFunctionReturn>
+   *  } MemoriesApiFunction
+   *
+   * @param {MemoriesApiFunction} [constructMemories=constructRelevantMemoriesContextMessage]
+   * Function that returns promise that resolves with memories data
+   */
+  async getMemoriesContext(
+    constructMemories = constructRelevantMemoriesContextMessage
+  ) {
+    const memoriesContext = await constructMemories();
+    if (!memoriesContext?.content) {
+      return;
+    }
+
+    this.addSystemMessage(SYSTEM_PROMPT_TYPE.MEMORIES, memoriesContext.content);
   }
 
   /**

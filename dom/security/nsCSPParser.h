@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef nsCSPParser_h___
-#define nsCSPParser_h___
+#ifndef nsCSPParser_h_
+#define nsCSPParser_h_
 
 #include "PolicyTokenizer.h"
 #include "nsCSPContext.h"
@@ -223,4 +223,4 @@ class nsCSPParser {
   bool mSuppressLogMessages;
 };
 
-#endif /* nsCSPParser_h___ */
+#endif /* nsCSPParser_h_ */

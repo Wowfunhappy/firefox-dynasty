@@ -3336,21 +3336,6 @@ impl Renderer {
         let mut current_textures = BatchTextures::empty();
         let mut instances = Vec::new();
 
-        self.shaders
-            .borrow_mut()
-            .get_composite_shader(
-                current_shader_params.0,
-                current_shader_params.1,
-                current_shader_params.2,
-            ).bind(
-                &mut self.device,
-                projection,
-                None,
-                &mut self.renderer_errors,
-                &mut self.profile,
-                &mut self.command_log,
-            );
-
         for item in tiles_iter {
             let tile = &composite_state.tiles[item.key.tile_index];
 
@@ -3485,34 +3470,31 @@ impl Renderer {
             let flush_batch = !current_textures.is_compatible_with(&textures) ||
                 shader_params != current_shader_params;
 
-            if flush_batch {
-                if !instances.is_empty() {
-                    self.draw_instanced_batch(
-                        &instances,
-                        VertexArrayKind::Composite,
-                        &current_textures,
-                        stats,
-                    );
-                    instances.clear();
-                }
-            }
-
-            if shader_params != current_shader_params {
+            if flush_batch && !instances.is_empty() {
                 self.shaders
                     .borrow_mut()
-                    .get_composite_shader(shader_params.0, shader_params.1, shader_params.2)
-                    .bind(
+                    .get_composite_shader(
+                        current_shader_params.0,
+                        current_shader_params.1,
+                        current_shader_params.2,
+                    ).bind(
                         &mut self.device,
                         projection,
-                        shader_params.3,
+                        current_shader_params.3,
                         &mut self.renderer_errors,
                         &mut self.profile,
                         &mut self.command_log,
                     );
+                self.draw_instanced_batch(
+                    &instances,
+                    VertexArrayKind::Composite,
+                    &current_textures,
+                    stats,
+                );
 
-                current_shader_params = shader_params;
+                instances.clear();
             }
-
+            current_shader_params = shader_params;
             current_textures = textures;
 
             // Add instance to current batch
@@ -3521,6 +3503,20 @@ impl Renderer {
 
         // Flush the last batch
         if !instances.is_empty() {
+            self.shaders
+                .borrow_mut()
+                .get_composite_shader(
+                    current_shader_params.0,
+                    current_shader_params.1,
+                    current_shader_params.2,
+                ).bind(
+                    &mut self.device,
+                    projection,
+                    current_shader_params.3,
+                    &mut self.renderer_errors,
+                    &mut self.profile,
+                    &mut self.command_log,
+                );
             self.draw_instanced_batch(
                 &instances,
                 VertexArrayKind::Composite,

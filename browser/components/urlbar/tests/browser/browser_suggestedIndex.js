@@ -23,9 +23,10 @@ add_task(async function suggestedIndex() {
   let provider = new UrlbarTestUtils.TestProvider({
     results: [result1, result2],
   });
-  UrlbarProvidersManager.registerProvider(provider);
+  let providersManager = ProvidersManager.getInstanceForSap("urlbar");
+  providersManager.registerProvider(provider);
   async function clean() {
-    UrlbarProvidersManager.unregisterProvider(provider);
+    providersManager.unregisterProvider(provider);
     await PlacesUtils.history.clear();
   }
   registerCleanupFunction(clean);
@@ -81,9 +82,10 @@ add_task(async function suggestedIndex_append() {
   });
 
   let provider = new UrlbarTestUtils.TestProvider({ results: [result] });
-  UrlbarProvidersManager.registerProvider(provider);
+  let providersManager = ProvidersManager.getInstanceForSap("urlbar");
+  providersManager.registerProvider(provider);
   async function clean() {
-    UrlbarProvidersManager.unregisterProvider(provider);
+    providersManager.unregisterProvider(provider);
     await PlacesUtils.history.clear();
   }
   registerCleanupFunction(clean);

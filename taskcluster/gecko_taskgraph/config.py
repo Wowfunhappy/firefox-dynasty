@@ -99,6 +99,7 @@ graph_config_schema = Schema({
                         "build-platform", "project", str
                     ),
                     Required("globs"): [str],
+                    Optional("only-if-milestone-is-nightly"): bool,
                 }
             ],
         ),

@@ -11,8 +11,6 @@ import {
 
 // eslint-disable-next-line import/no-unassigned-import
 import "chrome://global/content/elements/moz-toggle.mjs";
-// eslint-disable-next-line import/no-unassigned-import
-import "chrome://browser/content/ipprotection/ipprotection-site-settings-control.mjs";
 
 /**
  * Custom element that implements a status card for IP protection.
@@ -26,7 +24,6 @@ export default class IPProtectionStatusCard extends MozLitElement {
     connectionToggleEl: "#connection-toggle",
     connectionButtonEl: "#connection-toggle-button",
     locationEl: "#location-wrapper",
-    siteSettingsEl: "ipprotection-site-settings-control",
   };
 
   static shadowRootOptions = {
@@ -39,7 +36,6 @@ export default class IPProtectionStatusCard extends MozLitElement {
     canShowTime: { type: Boolean },
     enabledSince: { type: Object },
     location: { type: Object },
-    siteData: { type: Object },
     // Track toggle state separately so that we can tell when the toggle
     // is enabled because of the existing protection state or because of user action.
     _toggleEnabled: { type: Boolean, state: true },
@@ -83,7 +79,6 @@ export default class IPProtectionStatusCard extends MozLitElement {
     this._toggleEnabled = isEnabled;
   }
 
-  // TODO: Move button handling logic and button to new ipprotection-status-box component in Bug 2008854
   handleOnOffButtonClick() {
     let isEnabled = !this._toggleEnabled;
 
@@ -162,10 +157,6 @@ export default class IPProtectionStatusCard extends MozLitElement {
       ? "ipprotection-button-turn-vpn-off"
       : "ipprotection-button-turn-vpn-on";
 
-    const siteSettingsTemplate = this.protectionEnabled
-      ? this.siteSettingsTemplate()
-      : null;
-
     return html` <link
         rel="stylesheet"
         href="chrome://browser/content/ipprotection/ipprotection-status-card.css"
@@ -188,7 +179,6 @@ export default class IPProtectionStatusCard extends MozLitElement {
             slot="actions"
           ></moz-toggle>
         </moz-box-item>
-        ${siteSettingsTemplate}
       </moz-box-group>
       <moz-button
         type=${toggleButtonType}
@@ -198,27 +188,6 @@ export default class IPProtectionStatusCard extends MozLitElement {
         hidden
       >
       </moz-button>`;
-  }
-
-  siteSettingsTemplate() {
-    // TODO: Once we're able to detect the current site and its exception status, show
-    // ipprotection-site-settings-control (Bug 1997412).
-    if (!this.siteData?.siteName) {
-      return null;
-    }
-
-    return html` <moz-box-item
-      id="site-settings"
-      class=${classMap({
-        "is-enabled": this.protectionEnabled,
-      })}
-    >
-      <ipprotection-site-settings-control
-        .site=${this.siteData.siteName}
-        .exceptionEnabled=${this.siteData.isException}
-        class="slotted"
-      ></ipprotection-site-settings-control>
-    </moz-box-item>`;
   }
 
   cardDescriptionTemplate() {

@@ -3,8 +3,8 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-#ifndef nsIContent_h___
-#define nsIContent_h___
+#ifndef nsIContent_h_
+#define nsIContent_h_
 
 #include "mozilla/FlushType.h"
 #include "nsINode.h"
@@ -782,4 +782,4 @@ class nsIContent : public nsINode {
 
 NON_VIRTUAL_ADDREF_RELEASE(nsIContent)
 
-#endif /* nsIContent_h___ */
+#endif /* nsIContent_h_ */

@@ -6,8 +6,8 @@
 
 /* A namespace class for static content utilities. */
 
-#ifndef nsContentUtils_h___
-#define nsContentUtils_h___
+#ifndef nsContentUtils_h_
+#define nsContentUtils_h_
 
 #if defined(XP_WIN)
 #  include <float.h>
@@ -3519,22 +3519,6 @@ class nsContentUtils {
    */
   static void RequestGeckoTaskBurst();
 
-  static void SetMayHaveFormCheckboxStateChangeListeners() {
-    sMayHaveFormCheckboxStateChangeListeners = true;
-  }
-
-  static bool MayHaveFormCheckboxStateChangeListeners() {
-    return sMayHaveFormCheckboxStateChangeListeners;
-  }
-
-  static void SetMayHaveFormRadioStateChangeListeners() {
-    sMayHaveFormRadioStateChangeListeners = true;
-  }
-
-  static bool MayHaveFormRadioStateChangeListeners() {
-    return sMayHaveFormRadioStateChangeListeners;
-  }
-
   /**
    * Returns the closest link element in the flat tree of aContent if there's
    * one, otherwise returns nullptr.
@@ -3743,9 +3727,6 @@ class nsContentUtils {
 
   static int32_t sInnerOrOuterWindowCount;
   static uint32_t sInnerOrOuterWindowSerialCounter;
-
-  static bool sMayHaveFormCheckboxStateChangeListeners;
-  static bool sMayHaveFormRadioStateChangeListeners;
 };
 
 /* static */ inline ExtContentPolicyType
@@ -3938,4 +3919,4 @@ class TreeOrderComparator {
     }                                                       \
   }
 
-#endif /* nsContentUtils_h___ */
+#endif /* nsContentUtils_h_ */

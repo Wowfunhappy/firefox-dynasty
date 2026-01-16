@@ -369,8 +369,9 @@ feature-highlight-wallpaper =
 
 # Variables:
 #   $provider (string) - Service provider for weather data
-newtab-weather-see-forecast =
+newtab-weather-see-forecast-description =
     .title = See forecast in { $provider }
+    .aria-description = { $provider } ∙ Sponsored
 # Variables:
 #   $provider (string) - Service provider for weather data
 newtab-weather-sponsored = { $provider } ∙ Sponsored

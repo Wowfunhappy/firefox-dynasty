@@ -391,26 +391,23 @@ var InterventionHelpers = {
     return false;
   },
 
-  async getOS() {
-    const os =
+  getOS() {
+    return (
       browser.aboutConfigPrefs.getPref("platform_override") ??
-      (await browser.runtime.getPlatformInfo()).os;
-    if (os === "win") {
-      return "windows";
-    }
-    return os;
+      browser.appConstants.getPlatform()
+    );
   },
 
-  async getPlatformMatches() {
+  getPlatformMatches() {
     if (!InterventionHelpers._platformMatches) {
-      const os = await this.getOS();
+      const os = this.getOS();
       InterventionHelpers._platformMatches = [
         "all",
         os,
         os == "android" ? "android" : "desktop",
       ];
       if (os == "android") {
-        const packageName = await browser.appConstants.getAndroidPackageName();
+        const packageName = browser.appConstants.getAndroidPackageName();
         if (packageName.includes("fenix") || packageName.includes("firefox")) {
           InterventionHelpers._platformMatches.push("fenix");
         }
@@ -419,14 +416,14 @@ var InterventionHelpers = {
     return InterventionHelpers._platformMatches;
   },
 
-  async checkPlatformMatches(intervention) {
+  checkPlatformMatches(intervention) {
     let desired = intervention.platforms;
     let undesired = intervention.not_platforms;
     if (!desired && !undesired) {
       return true;
     }
 
-    const actual = await InterventionHelpers.getPlatformMatches();
+    const actual = InterventionHelpers.getPlatformMatches();
     if (undesired) {
       if (!Array.isArray(undesired)) {
         undesired = [undesired];
@@ -496,5 +493,48 @@ var InterventionHelpers = {
    */
   matchPatternsForGoogle(base, suffix = "/*") {
     return InterventionHelpers.matchPatternsForTLDs(base, suffix, GOOGLE_TLDS);
+  },
+
+  async _registerContentScripts(scriptsToReg, typeStr, logger) {
+    // Try to avoid re-registering scripts already registered
+    // (e.g. if the webcompat background page is restarted
+    // after an extension process crash, after having registered
+    // the content scripts already once), but do not prevent
+    // to try registering them again if the getRegisteredContentScripts
+    // method returns an unexpected rejection.
+
+    const ids = scriptsToReg.map(s => s.id);
+    if (!ids.length) {
+      return;
+    }
+    try {
+      const alreadyRegged = await browser.scripting.getRegisteredContentScripts(
+        { ids }
+      );
+      const alreadyReggedIds = alreadyRegged.map(script => script.id);
+      const stillNeeded = scriptsToReg.filter(
+        ({ id }) => !alreadyReggedIds.includes(id)
+      );
+      await browser.scripting.registerContentScripts(stillNeeded);
+      logger(
+        `Registered still-not-active ${typeStr} content scripts`,
+        stillNeeded
+      );
+    } catch (e) {
+      try {
+        await browser.scripting.registerContentScripts(scriptsToReg);
+        logger(
+          `Registered all ${typeStr} content scripts after error registering just non-active ones`,
+          scriptsToReg,
+          e
+        );
+      } catch (e2) {
+        console.error(
+          `Error while registering ${typeStr} content scripts:`,
+          e2,
+          scriptsToReg
+        );
+      }
+    }
   },
 };

@@ -3303,6 +3303,9 @@ pref("urlclassifier.malwareTable", "goog-malware-proto,goog-unwanted-proto,mozte
 pref("urlclassifier.downloadAllowTable", "goog-downloadwhite-proto");
 pref("urlclassifier.downloadBlockTable", "goog-badbinurl-proto");
 
+// Tables for the Global Cache
+pref("urlclassifier.globalCacheTable", "goog-globalcache-proto");
+
 // Tables for anti-tracking features
 pref("urlclassifier.trackingAnnotationTable", "moztest-track-simple,ads-track-digest256,social-track-digest256,analytics-track-digest256,content-track-digest256");
 pref("urlclassifier.trackingAnnotationWhitelistTable", "moztest-trackwhite-simple,mozstd-trackwhite-digest256,google-trackwhite-digest256");
@@ -3384,6 +3387,9 @@ pref("browser.safebrowsing.downloads.remote.block_dangerous_host",       true);
 pref("browser.safebrowsing.downloads.remote.block_potentially_unwanted", true);
 pref("browser.safebrowsing.downloads.remote.block_uncommon",             true);
 
+// Global Cache
+pref("browser.safebrowsing.globalCache.enabled", false);
+
 // Android SafeBrowsing's configuration is in ContentBlocking.java, keep in sync.
 #ifndef MOZ_WIDGET_ANDROID
 
@@ -3413,7 +3419,7 @@ pref("browser.safebrowsing.provider.google4.dataSharing.enabled", false);
 
 // Google Safe Browsing V5 prefs.
 pref("browser.safebrowsing.provider.google5.enabled", true);
-pref("browser.safebrowsing.provider.google5.lists", "goog-badbinurl-proto,goog-downloadwhite-proto,goog-phish-proto,googpub-phish-proto,goog-malware-proto,goog-unwanted-proto,goog-harmful-proto");
+pref("browser.safebrowsing.provider.google5.lists", "goog-badbinurl-proto,goog-downloadwhite-proto,goog-phish-proto,googpub-phish-proto,goog-malware-proto,goog-unwanted-proto,goog-harmful-proto,goog-globalcache-proto");
 pref("browser.safebrowsing.provider.google5.updateURL", "https://safebrowsing.googleapis.com/v5/hashLists:batchGet?key=%GOOGLE_SAFEBROWSING_API_KEY%");
 pref("browser.safebrowsing.provider.google5.gethashURL", "https://safebrowsing.googleapis.com/v5/hashes:search?key=%GOOGLE_SAFEBROWSING_API_KEY%");
 pref("browser.safebrowsing.provider.google5.reportURL", "https://safebrowsing.google.com/safebrowsing/diagnostic?site=");
@@ -3477,25 +3483,6 @@ pref("media.gmp-manager.allowLocalSources", true);
 // Update service URL for GMP install/updates:
 pref("media.gmp-manager.url", "https://aus5.mozilla.org/update/3/GMP/%VERSION%/%BUILD_ID%/%BUILD_TARGET%/%LOCALE%/%CHANNEL%/%OS_VERSION%/%DISTRIBUTION%/%DISTRIBUTION_VERSION%/update.xml");
 
-// When |media.gmp-manager.checkContentSignature| is true, then the reply
-// containing the update xml file is expected to provide a content signature
-// header. Information from this header will be used to validate the response.
-// If this header is not present, is malformed, or cannot be determined as
-// valid then the update will fail.
-// We should eventually remove this pref and any cert pinning code and make
-// the content signature path the sole path. We retain this for now in case
-// we need to debug content sig vs cert pin.
-pref("media.gmp-manager.checkContentSignature", true);
-
-// When |media.gmp-manager.cert.requireBuiltIn| is true or not specified the
-// final certificate and all certificates the connection is redirected to before
-// the final certificate for the url specified in the |media.gmp-manager.url|
-// preference must be built-in. The check related to this pref is not done if
-// |media.gmp-manager.checkContentSignature| is set to true (the content
-// signature check provides protection that supersedes the built in
-// requirement).
-pref("media.gmp-manager.cert.requireBuiltIn", true);
-
 // The |media.gmp-manager.certs.| preference branch contains branches that are
 // sequentially numbered starting at 1 that contain attribute name / value
 // pairs for the certificate used by the server that hosts the update xml file
@@ -3509,9 +3496,7 @@ pref("media.gmp-manager.cert.requireBuiltIn", true);
 // no update available. This validation will not be performed when the
 // |media.gmp-manager.url.override| user preference has been set for testing updates or
 // when the |media.gmp-manager.cert.checkAttributes| preference is set to false.
-// This check will also not be done if the |media.gmp-manager.checkContentSignature|
-// pref is set to true. Also, the |media.gmp-manager.url.override| preference should
-// ONLY be used for testing.
+// Also, the |media.gmp-manager.url.override| preference should ONLY be used for testing.
 // IMPORTANT! app.update.certs.* prefs should also be updated if these
 // are updated.
 pref("media.gmp-manager.cert.checkAttributes", true);
@@ -4115,11 +4100,6 @@ pref("dom.sitepermsaddon-provider.separatedBlocklistedDomains", "shopee.co.th,sh
 
 // Log level for logger in URLQueryStrippingListService
 pref("privacy.query_stripping.listService.logLevel", "Error");
-
-// Signal to the webcompat site intervention add-on to use the MV3
-// scripting.registerContentScripts API instead of the older MV2
-// contentScripts.register API.
-pref("extensions.webcompat.useScriptingAPI", true);
 
 // Controls the log level for Fingerprinting Remote Overrides.
 pref("privacy.fingerprintingProtection.WebCompatService.logLevel", "Error");

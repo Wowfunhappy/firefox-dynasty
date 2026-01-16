@@ -3,8 +3,8 @@
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
-#ifndef nsIMathMLFrame_h___
-#define nsIMathMLFrame_h___
+#ifndef nsIMathMLFrame_h_
+#define nsIMathMLFrame_h_
 
 #include "nsMathMLOperators.h"
 #include "nsQueryFrame.h"
@@ -20,7 +20,6 @@ class ReflowOutput;
 // For MathML, this 'type' will be used to determine the spacing between frames
 // Subclasses can return a 'type' that will give them a particular spacing
 enum class MathMLFrameType {
-  Unknown = -1,
   Ordinary,
   OperatorOrdinary,
   OperatorInvisible,
@@ -28,8 +27,9 @@ enum class MathMLFrameType {
   Inner,
   ItalicIdentifier,
   UprightIdentifier,
-  Count
+  Unknown,
 };
+constexpr auto MathMLFrameTypeCount = size_t(MathMLFrameType::Unknown);
 
 // Bits used for the presentation flags -- these bits are set
 // in their relevant situation as they become available

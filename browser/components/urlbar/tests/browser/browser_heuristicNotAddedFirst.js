@@ -31,7 +31,8 @@ add_task(async function slowHeuristicSelected() {
     priority: Infinity,
     addTimeout: 500,
   });
-  UrlbarProvidersManager.registerProvider(heuristicProvider);
+  let providersManager = ProvidersManager.getInstanceForSap("urlbar");
+  providersManager.registerProvider(heuristicProvider);
 
   // Second, add another provider that adds a non-heuristic result immediately
   // with suggestedIndex = 1.
@@ -41,7 +42,7 @@ add_task(async function slowHeuristicSelected() {
     name: "nonHeuristicProvider",
     priority: Infinity,
   });
-  UrlbarProvidersManager.registerProvider(nonHeuristicProvider);
+  providersManager.registerProvider(nonHeuristicProvider);
 
   // Do a search.
   const win = await BrowserTestUtils.openNewBrowserWindow();
@@ -60,8 +61,8 @@ add_task(async function slowHeuristicSelected() {
   Assert.equal(actualNonHeuristic.type, UrlbarUtils.RESULT_TYPE.TIP);
 
   await UrlbarTestUtils.promisePopupClose(win);
-  UrlbarProvidersManager.unregisterProvider(heuristicProvider);
-  UrlbarProvidersManager.unregisterProvider(nonHeuristicProvider);
+  providersManager.unregisterProvider(heuristicProvider);
+  providersManager.unregisterProvider(nonHeuristicProvider);
   await BrowserTestUtils.closeWindow(win);
 });
 
@@ -88,7 +89,8 @@ add_task(async function oneOffRemainsSelected() {
     priority: Infinity,
     addTimeout: 500,
   });
-  UrlbarProvidersManager.registerProvider(heuristicProvider);
+  let providersManager = ProvidersManager.getInstanceForSap("urlbar");
+  providersManager.registerProvider(heuristicProvider);
 
   // Second, add another provider that adds a non-heuristic result immediately
   // with suggestedIndex = 1.
@@ -98,7 +100,7 @@ add_task(async function oneOffRemainsSelected() {
     name: "nonHeuristicProvider",
     priority: Infinity,
   });
-  UrlbarProvidersManager.registerProvider(nonHeuristicProvider);
+  providersManager.registerProvider(nonHeuristicProvider);
 
   // Do a search but don't wait for it to finish.
   const win = await BrowserTestUtils.openNewBrowserWindow();
@@ -136,8 +138,8 @@ add_task(async function oneOffRemainsSelected() {
   );
 
   await UrlbarTestUtils.promisePopupClose(win);
-  UrlbarProvidersManager.unregisterProvider(heuristicProvider);
-  UrlbarProvidersManager.unregisterProvider(nonHeuristicProvider);
+  providersManager.unregisterProvider(heuristicProvider);
+  providersManager.unregisterProvider(nonHeuristicProvider);
   await BrowserTestUtils.closeWindow(win);
 });
 

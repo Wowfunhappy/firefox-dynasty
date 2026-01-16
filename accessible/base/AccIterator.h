@@ -4,11 +4,12 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef mozilla_a11y_AccIterator_h__
-#define mozilla_a11y_AccIterator_h__
+#ifndef mozilla_a11y_AccIterator_h_
+#define mozilla_a11y_AccIterator_h_
 
 #include "Filters.h"
 #include "mozilla/a11y/DocAccessible.h"
+#include "mozilla/dom/Element.h"
 #include "nsTArray.h"
 
 #include <memory>
@@ -218,20 +219,9 @@ class AssociatedElementsIterator : public AccIterable {
   virtual ~AssociatedElementsIterator() {}
 
   /**
-   * Return next ID.
-   */
-  const nsDependentSubstring NextID();
-
-  /**
    * Return next element.
    */
   dom::Element* NextElem();
-
-  /**
-   * Return the element with the given ID.
-   */
-  static dom::Element* GetElem(nsIContent* aContent, const nsAString& aID);
-  dom::Element* GetElem(const nsDependentSubstring& aID);
 
   // AccIterable
   virtual LocalAccessible* Next() override;
@@ -241,11 +231,9 @@ class AssociatedElementsIterator : public AccIterable {
   AssociatedElementsIterator(const AssociatedElementsIterator&);
   AssociatedElementsIterator operator=(const AssociatedElementsIterator&);
 
-  nsString mIDs;
   nsIContent* mContent;
   DocAccessible* mDoc;
-  nsAString::index_type mCurrIdx;
-  nsTArray<dom::Element*> mElements;
+  nsTArray<RefPtr<dom::Element>> mElements;
   uint32_t mElemIdx;
 };
 

@@ -269,6 +269,12 @@
      * @type {XULElement}
      */
     #splitViewSplitter = null;
+    #splitViewSplitterObserver = new MutationObserver(() => {
+      const splitterState = this.#splitViewSplitter.getAttribute("state");
+      if (splitterState === "dragging") {
+        gBrowser.activeSplitView.resetRightPanelWidth();
+      }
+    });
 
     static #SPLIT_VIEW_PANEL_EVENTS = Object.freeze([
       "click",
@@ -279,6 +285,11 @@
     constructor() {
       super();
       this._tabbox = null;
+    }
+
+    disconnectedCallback() {
+      super.disconnectedCallback();
+      this.#splitViewSplitterObserver.disconnect();
     }
 
     handleEvent(e) {
@@ -327,6 +338,12 @@
         splitter.setAttribute("resizebefore", "sibling");
         splitter.setAttribute("resizeafter", "none");
         this.#splitViewSplitter = splitter;
+        splitter.addEventListener("command", () =>
+          gBrowser.activeSplitView.resetRightPanelWidth()
+        );
+        this.#splitViewSplitterObserver.observe(splitter, {
+          attributeFilter: ["state"],
+        });
       }
       return this.#splitViewSplitter;
     }

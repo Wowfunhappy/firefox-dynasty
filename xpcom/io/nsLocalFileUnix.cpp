@@ -155,7 +155,7 @@ class nsDirEnumeratorUnix final : public nsSimpleEnumerator,
   // nsIDirectoryEnumerator interface
   NS_DECL_NSIDIRECTORYENUMERATOR
 
-  NS_IMETHOD Init(nsLocalFile* aParent, bool aIgnored);
+  NS_IMETHOD Init(nsLocalFile* aParent);
 
   NS_FORWARD_NSISIMPLEENUMERATORBASE(nsSimpleEnumerator::)
 
@@ -180,8 +180,7 @@ NS_IMPL_ISUPPORTS_INHERITED(nsDirEnumeratorUnix, nsSimpleEnumerator,
                             nsIDirectoryEnumerator)
 
 NS_IMETHODIMP
-nsDirEnumeratorUnix::Init(nsLocalFile* aParent,
-                          bool aResolveSymlinks /*ignored*/) {
+nsDirEnumeratorUnix::Init(nsLocalFile* aParent) {
   nsAutoCString dirPath;
   if (NS_FAILED(aParent->GetNativePath(dirPath)) || dirPath.IsEmpty()) {
     return NS_ERROR_FILE_INVALID_PATH;
@@ -1273,63 +1272,50 @@ nsLocalFile::Remove(bool aRecursive, uint32_t* aRemoveCount) {
   CHECK_mPath();
   ENSURE_STAT_CACHE();
 
-  bool isSymLink;
-
-  nsresult rv = IsSymlink(&isSymLink);
+  bool isLink = false;
+  nsresult rv = IsSymlink(&isLink);
   if (NS_FAILED(rv)) {
     return rv;
   }
 
-  if (isSymLink || !S_ISDIR(mCachedStat.st_mode)) {
-    rv = NSRESULT_FOR_RETURN(unlink(mPath.get()));
-    if (NS_SUCCEEDED(rv) && aRemoveCount) {
-      *aRemoveCount += 1;
-    }
-    return rv;
-  }
-
-  if (aRecursive) {
-    auto* dir = new nsDirEnumeratorUnix();
-
-    RefPtr<nsSimpleEnumerator> dirRef(dir);  // release on exit
-
-    rv = dir->Init(this, false);
+  // only check to see if we have a directory if it isn't a link
+  bool isDir = false;
+  if (!isLink) {
+    rv = IsDirectory(&isDir);
     if (NS_FAILED(rv)) {
       return rv;
     }
+  }
 
-    bool more;
-    while (NS_SUCCEEDED(dir->HasMoreElements(&more)) && more) {
-      nsCOMPtr<nsISupports> item;
-      rv = dir->GetNext(getter_AddRefs(item));
-      if (NS_FAILED(rv)) {
-        return NS_ERROR_FAILURE;
-      }
-
-      nsCOMPtr<nsIFile> file = do_QueryInterface(item, &rv);
-      if (NS_FAILED(rv)) {
-        return NS_ERROR_FAILURE;
-      }
-      // XXX: We care the result of the removal here while
-      // nsLocalFileWin does not. We should align the behavior. (bug 1779696)
-      rv = file->Remove(aRecursive, aRemoveCount);
-
-#ifdef ANDROID
-      // See bug 580434 - Bionic gives us just deleted files
-      if (rv == NS_ERROR_FILE_NOT_FOUND) {
-        continue;
-      }
-#endif
+  if (isDir) {
+    if (aRecursive) {
+      RefPtr<nsDirEnumeratorUnix> dirEnum = new nsDirEnumeratorUnix();
+      rv = dirEnum->Init(this);
       if (NS_FAILED(rv)) {
         return rv;
       }
+
+      nsCOMPtr<nsIFile> file;
+      while (NS_SUCCEEDED(dirEnum->GetNextFile(getter_AddRefs(file))) && file) {
+        file->Remove(aRecursive, aRemoveCount);
+      }
+    }
+
+    rv = NSRESULT_FOR_RETURN(rmdir(mPath.get()));
+    if (NS_FAILED(rv)) {
+      return rv;
+    }
+  } else {
+    rv = NSRESULT_FOR_RETURN(unlink(mPath.get()));
+    if (NS_FAILED(rv)) {
+      return rv;
     }
   }
 
-  rv = NSRESULT_FOR_RETURN(rmdir(mPath.get()));
-  if (NS_SUCCEEDED(rv) && aRemoveCount) {
+  if (aRemoveCount) {
     *aRemoveCount += 1;
   }
+
   return rv;
 }
 
@@ -1344,7 +1330,7 @@ nsresult nsLocalFile::GetTimeImpl(PRTime* aTime,
   using StatFn = int (*)(const char*, struct STAT*);
   StatFn statFn = aFollowLinks ? &STAT : &LSTAT;
 
-  struct STAT fileStats{};
+  struct STAT fileStats {};
   if (statFn(mPath.get(), &fileStats) < 0) {
     return NSRESULT_FOR_ERRNO();
   }
@@ -1499,7 +1485,7 @@ nsresult nsLocalFile::GetCreationTimeImpl(PRTime* aCreationTime,
   using StatFn = int (*)(const char*, struct STAT*);
   StatFn statFn = aFollowLinks ? &STAT : &LSTAT;
 
-  struct STAT fileStats{};
+  struct STAT fileStats {};
   if (statFn(mPath.get(), &fileStats) < 0) {
     return NSRESULT_FOR_ERRNO();
   }
@@ -2250,7 +2236,7 @@ NS_IMETHODIMP
 nsLocalFile::GetDirectoryEntriesImpl(nsIDirectoryEnumerator** aEntries) {
   RefPtr<nsDirEnumeratorUnix> dir = new nsDirEnumeratorUnix();
 
-  nsresult rv = dir->Init(this, false);
+  nsresult rv = dir->Init(this);
   if (NS_FAILED(rv)) {
     *aEntries = nullptr;
   } else {

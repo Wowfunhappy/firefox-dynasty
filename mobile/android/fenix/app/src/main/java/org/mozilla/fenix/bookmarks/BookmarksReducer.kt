@@ -454,12 +454,14 @@ private fun BookmarksState.handleSortMenuAction(action: BookmarksAction): Bookma
 @Suppress("CyclomaticComplexMethod")
 private fun BookmarksState.handleListMenuAction(action: BookmarksListMenuAction): BookmarksState =
     when (action) {
+        is BookmarksListMenuAction.Bookmark.SelectClicked -> toggleSelectionOf(action.bookmark)
         is BookmarksListMenuAction.Bookmark.EditClicked -> this.copy(
             bookmarksEditBookmarkState = BookmarksEditBookmarkState(
                 bookmark = action.bookmark,
                 folder = currentFolder,
             ),
         )
+        is BookmarksListMenuAction.Folder.SelectClicked -> toggleSelectionOf(action.folder)
         is BookmarksListMenuAction.Folder.EditClicked -> copy(
             bookmarksEditFolderState = BookmarksEditFolderState(
                 parent = currentFolder,

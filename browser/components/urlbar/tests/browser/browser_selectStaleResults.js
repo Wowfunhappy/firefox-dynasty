@@ -37,9 +37,10 @@ add_task(async function viewContainsStaleRows() {
     name: "emptySlowProvider",
     addTimeout: 1000,
   });
-  UrlbarProvidersManager.registerProvider(slowProvider);
+  let providersManager = ProvidersManager.getInstanceForSap("urlbar");
+  providersManager.registerProvider(slowProvider);
   registerCleanupFunction(() => {
-    UrlbarProvidersManager.unregisterProvider(slowProvider);
+    providersManager.unregisterProvider(slowProvider);
   });
 
   await PlacesUtils.history.clear();
@@ -148,7 +149,7 @@ add_task(async function viewContainsStaleRows() {
   await UrlbarTestUtils.promisePopupClose(window, () =>
     EventUtils.synthesizeKey("KEY_Escape")
   );
-  UrlbarProvidersManager.unregisterProvider(slowProvider);
+  ProvidersManager.getInstanceForSap("urlbar").unregisterProvider(slowProvider);
 });
 
 // This tests the case where, before the search finishes, stale results have

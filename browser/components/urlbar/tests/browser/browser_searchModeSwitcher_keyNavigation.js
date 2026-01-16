@@ -81,7 +81,8 @@ add_task(
     ];
 
     let provider = new UrlbarTestUtils.TestProvider({ results, priority: 1 });
-    UrlbarProvidersManager.registerProvider(provider);
+    let providersManager = ProvidersManager.getInstanceForSap("urlbar");
+    providersManager.registerProvider(provider);
 
     const FOCUS_ORDER_ASSERTIONS = [
       () =>
@@ -129,7 +130,7 @@ add_task(
       gURLBar.handleRevert();
     }
 
-    UrlbarProvidersManager.unregisterProvider(provider);
+    providersManager.unregisterProvider(provider);
     await SpecialPowers.popPrefEnv();
   }
 );

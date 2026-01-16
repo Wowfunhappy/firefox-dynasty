@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef __FFmpegVideoDecoder_h__
-#define __FFmpegVideoDecoder_h__
+#ifndef FFmpegVideoDecoder_h_
+#define FFmpegVideoDecoder_h_
 
 #include <atomic>
 
@@ -204,6 +204,9 @@ class FFmpegVideoDecoder<LIBAV_VER>
 #endif
 
 #ifdef MOZ_WIDGET_ANDROID
+#  ifdef USING_MOZFFVPX
+  MediaResult AllocateExtraData();
+#  endif
   MediaResult InitMediaCodecDecoder();
   MediaResult CreateImageMediaCodec(int64_t aOffset, int64_t aPts,
                                     int64_t aTimecode, int64_t aDuration,
@@ -421,4 +424,4 @@ class ImageBufferWrapper final {
 
 }  // namespace mozilla
 
-#endif  // __FFmpegVideoDecoder_h__
+#endif  // FFmpegVideoDecoder_h_

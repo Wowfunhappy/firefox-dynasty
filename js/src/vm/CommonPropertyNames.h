@@ -102,6 +102,7 @@
   MACRO_(currencyDisplay, "currencyDisplay")                                   \
   MACRO_(currencySign, "currencySign")                                         \
   MACRO_(css, "css")                                                           \
+  MACRO_(dataLocale, "dataLocale")                                             \
   MACRO_(date, "date")                                                         \
   MACRO_(dateStyle, "dateStyle")                                               \
   MACRO_(day, "day")                                                           \
@@ -534,6 +535,7 @@
   MACRO_(UnsafeGetReservedSlot, "UnsafeGetReservedSlot")                       \
   MACRO_(UnsafeGetStringFromReservedSlot, "UnsafeGetStringFromReservedSlot")   \
   MACRO_(UnsafeSetReservedSlot, "UnsafeSetReservedSlot")                       \
+  MACRO_(upper, "upper")                                                       \
   MACRO_(url, "url")                                                           \
   MACRO_(usage, "usage")                                                       \
   MACRO_(use_asm_, "use asm")                                                  \

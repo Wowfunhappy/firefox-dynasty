@@ -209,6 +209,7 @@ nsXULElement* nsXULElement::Construct(
       nodeInfo->Equals(nsGkAtoms::thumb) ||
       nodeInfo->Equals(nsGkAtoms::button) ||
       nodeInfo->Equals(nsGkAtoms::menuitem) ||
+      nodeInfo->Equals(nsGkAtoms::richlistitem) ||
       nodeInfo->Equals(nsGkAtoms::toolbarbutton) ||
       nodeInfo->Equals(nsGkAtoms::toolbarpaletteitem) ||
       nodeInfo->Equals(nsGkAtoms::scrollbarbutton)) {
@@ -1331,6 +1332,19 @@ nsresult nsXULPrototypeElement::SetAttrAt(uint32_t aPos,
     return NS_OK;
   } else if (mAttributes[aPos].mName.Equals(nsGkAtoms::aria_activedescendant)) {
     mAttributes[aPos].mValue.ParseAtom(aValue);
+
+    return NS_OK;
+  } else if (mAttributes[aPos].mName.Equals(nsGkAtoms::aria_controls) ||
+             mAttributes[aPos].mName.Equals(nsGkAtoms::aria_describedby) ||
+             mAttributes[aPos].mName.Equals(nsGkAtoms::aria_details) ||
+             mAttributes[aPos].mName.Equals(nsGkAtoms::aria_errormessage) ||
+             mAttributes[aPos].mName.Equals(nsGkAtoms::aria_flowto) ||
+             mAttributes[aPos].mName.Equals(nsGkAtoms::aria_labelledby) ||
+             mAttributes[aPos].mName.Equals(nsGkAtoms::aria_owns) ||
+             mAttributes[aPos].mName.Equals(nsGkAtoms::control) ||
+             mAttributes[aPos].mName.Equals(nsGkAtoms::_for) ||
+             mAttributes[aPos].mName.Equals(nsGkAtoms::headers)) {
+    mAttributes[aPos].mValue.ParseAtomArray(aValue);
 
     return NS_OK;
   } else if (mAttributes[aPos].mName.Equals(nsGkAtoms::is)) {

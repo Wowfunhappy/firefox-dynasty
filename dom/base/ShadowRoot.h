@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef mozilla_dom_shadowroot_h__
-#define mozilla_dom_shadowroot_h__
+#ifndef mozilla_dom_shadowroot_h_
+#define mozilla_dom_shadowroot_h_
 
 #include "mozilla/BindgenUniquePtr.h"
 #include "mozilla/DOMEventTargetHelper.h"
@@ -275,17 +275,24 @@ class ShadowRoot final : public DocumentFragment, public DocumentOrShadowRoot {
 
   void GetHTML(const GetHTMLOptions& aOptions, nsAString& aResult);
 
+  bool HasReferenceTarget() const { return mReferenceTarget; }
   void GetReferenceTarget(nsAString& aResult) const {
+    if (!mReferenceTarget) {
+      aResult.SetIsVoid(true);
+      return;
+    }
     mReferenceTarget->ToString(aResult);
   }
   nsAtom* ReferenceTarget() const { return mReferenceTarget; }
   void SetReferenceTarget(const nsAString& aValue) {
+    if (aValue.IsVoid()) {
+      return SetReferenceTarget(nullptr);
+    }
     SetReferenceTarget(NS_Atomize(aValue));
   }
   void SetReferenceTarget(RefPtr<nsAtom> aTarget);
   Element* GetReferenceTargetElement() const {
-    return mReferenceTarget->IsEmpty() ? nullptr
-                                       : GetElementById(mReferenceTarget);
+    return mReferenceTarget ? GetElementById(mReferenceTarget) : nullptr;
   }
 
  protected:
@@ -336,10 +343,16 @@ class ShadowRoot final : public DocumentFragment, public DocumentOrShadowRoot {
 
   RefPtr<nsAtom> mReferenceTarget;
 
+  static bool ReferenceTargetIDTargetChanged(Element* aOldElement,
+                                             Element* aNewElement, void* aData);
+  static bool RecursiveReferenceTargetChanged(void* aData);
+
+  void NotifyReferenceTargetChangedObservers();
+
   nsresult Clone(dom::NodeInfo*, nsINode** aResult) const override;
 };
 
 }  // namespace dom
 }  // namespace mozilla
 
-#endif  // mozilla_dom_shadowroot_h__
+#endif  // mozilla_dom_shadowroot_h_

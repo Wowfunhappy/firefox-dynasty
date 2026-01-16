@@ -58,12 +58,13 @@ const withTabMenu = async function (tab, callback) {
   const moveTabToNewSplitViewItem = document.getElementById(
     "context_moveTabToSplitView"
   );
+  const unsplitTabItem = document.getElementById("context_separateSplitView");
 
   let contextMenuHidden = BrowserTestUtils.waitForPopupEvent(
     tabContextMenu,
     "hidden"
   );
-  await callback(moveTabToNewSplitViewItem);
+  await callback(moveTabToNewSplitViewItem, unsplitTabItem);
   tabContextMenu.hidePopup();
   info("Hide popup");
   return await contextMenuHidden;
@@ -205,6 +206,66 @@ add_task(async function test_contextMenuMoveTabsToNewSplitView() {
   );
 
   splitview.unsplitTabs();
+
+  // Ensure about:opentabs tab is closed when separating the split view via the context menu
+
+  tabToClick = tab1;
+  EventUtils.synthesizeMouseAtCenter(tab1, {});
+  openTabsPromise = BrowserTestUtils.waitForNewTab(gBrowser, "about:opentabs");
+  tabContainer = document.getElementById("tabbrowser-tabs");
+  splitViewCreated = BrowserTestUtils.waitForEvent(
+    tabContainer,
+    "SplitViewCreated"
+  );
+  await withTabMenu(tabToClick, async moveTabToNewSplitViewItem => {
+    await BrowserTestUtils.waitForMutationCondition(
+      moveTabToNewSplitViewItem,
+      { attributes: true },
+      () =>
+        !moveTabToNewSplitViewItem.hidden &&
+        !moveTabToNewSplitViewItem.disabled,
+      "moveTabToNewSplitViewItem is visible and not disabled"
+    );
+    Assert.ok(
+      !moveTabToNewSplitViewItem.hidden && !moveTabToNewSplitViewItem.disabled,
+      "moveTabToNewSplitViewItem is visible and not disabled"
+    );
+
+    info("Click menu option to add new split view");
+    moveTabToNewSplitViewItem.click();
+    await splitViewCreated;
+    await openTabsPromise;
+    info("about:opentabs has been opened");
+    Assert.equal(
+      gBrowser.selectedTab.linkedBrowser.currentURI.spec,
+      "about:opentabs",
+      "about:opentabs is active in split view"
+    );
+  });
+
+  await withTabMenu(
+    tabToClick,
+    async (moveTabToNewSplitViewItem, unsplitTabItem) => {
+      await BrowserTestUtils.waitForMutationCondition(
+        unsplitTabItem,
+        { attributes: true },
+        () => !unsplitTabItem.hidden,
+        "unsplitTabItem is visible"
+      );
+      Assert.ok(!unsplitTabItem.hidden, "unsplitTabItem is visible");
+
+      info("Unsplit split view using menu option");
+      unsplitTabItem.click();
+    }
+  );
+
+  Assert.ok(
+    !gBrowser.tabs.some(
+      openTab => openTab.linkedBrowser.currentURI.spec === "about:opentabs"
+    ),
+    "The about:opentabs page has been closed upon separation of the split view"
+  );
+
   while (gBrowser.tabs.length > 1) {
     BrowserTestUtils.removeTab(gBrowser.tabs.at(-1));
   }

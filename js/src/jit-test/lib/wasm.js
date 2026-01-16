@@ -488,6 +488,7 @@ let WasmNonAnyrefValues = [
     {x:1337},
     ["abracadabra"],
     13.37,
+    -0,
     0x7fffffff + 0.1,
     -0x7fffffff - 0.1,
     0x80000000 + 0.1,
@@ -524,6 +525,9 @@ const MaxMemory64PagesValidation = BigInt(Math.pow(2, 37) - 1); // from spec
 const MaxTable64ElemsValidation = 0xFFFF_FFFF_FFFF_FFFFn; // from spec
 const MaxTableElemsRuntime = 10000000; // from WasmConstants.h
 const MaxUint32 = 0xFFFF_FFFF;
+
+// Constants related to other limits.
+const MaxImports = 1000000; // from WasmConstants.h
 
 // Common array utilities
 

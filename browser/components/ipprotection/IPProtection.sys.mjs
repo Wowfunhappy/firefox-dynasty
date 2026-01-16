@@ -2,7 +2,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-import { XPCOMUtils } from "resource://gre/modules/XPCOMUtils.sys.mjs";
 import { ERRORS } from "chrome://browser/content/ipprotection/ipprotection-constants.mjs";
 
 const lazy = {};
@@ -42,7 +41,6 @@ class IPProtectionWidget {
   static PANEL_ID = "PanelUI-ipprotection";
 
   static ENABLED_PREF = "browser.ipProtection.enabled";
-  static VARIANT_PREF = "browser.ipProtection.variant";
   static ADDED_PREF = "browser.ipProtection.added";
 
   #inited = false;
@@ -364,12 +362,5 @@ class IPProtectionWidget {
 }
 
 const IPProtection = new IPProtectionWidget();
-
-XPCOMUtils.defineLazyPreferenceGetter(
-  IPProtection,
-  "variant",
-  IPProtectionWidget.VARIANT_PREF,
-  ""
-);
 
 export { IPProtection, IPProtectionWidget };
