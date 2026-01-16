@@ -4,8 +4,6 @@
 
 package org.mozilla.fenix.components.toolbar
 
-import mozilla.components.browser.menu.BrowserMenuBuilder
-import mozilla.components.browser.menu.item.BrowserMenuItemToolbar
 import org.mozilla.fenix.components.accounts.AccountState
 
 interface ToolbarMenu {
@@ -71,7 +69,4 @@ interface ToolbarMenu {
         object Downloads : Item()
         object NewTab : Item()
     }
-
-    val menuBuilder: BrowserMenuBuilder
-    val menuToolbar: BrowserMenuItemToolbar
 }
