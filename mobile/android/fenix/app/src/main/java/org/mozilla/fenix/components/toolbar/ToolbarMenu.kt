@@ -4,8 +4,6 @@
 
 package org.mozilla.fenix.components.toolbar
 
-import org.mozilla.fenix.components.accounts.AccountState
-
 interface ToolbarMenu {
     sealed class Item {
         object Settings : Item()
@@ -47,7 +45,6 @@ interface ToolbarMenu {
         object RemoveFromTopSites : Item()
         object InstallPwaToHomeScreen : Item()
         object AddToHomeScreen : Item()
-        data class SyncAccount(val accountState: AccountState) : Item()
         object AddonsManager : Item()
         object Quit : Item()
         object OpenInApp : Item()
