@@ -101,7 +101,6 @@
     <string name="pref_key_use_onboarding_redesign" translatable="false">pref_key_use_onboarding_redesign</string>
     <string name="pref_key_crash_pull_never_show_again" translatable="false">pref_key_crash_pull_never_show_again</string>
     <string name="pref_key_crash_pull_dont_show_before" translatable="false">pref_key_crash_pull_dont_show_before</string>
-    <string name="pref_key_enable_email_masks" translatable="false">pref_key_enable_email_masks</string>
     <string name="pref_key_privacy_notice_banner_last_displayed_time" translatable="false">pref_key_privacy_notice_banner_last_displayed_time</string>
 
     <!-- Data Choices -->
@@ -263,6 +262,14 @@
     <string name="pref_key_saved_logins" translatable="false">pref_key_saved_logins</string>
     <string name="pref_key_logins_secure_warning_sync" translatable="false">pref_key_logins_secure_warning_sync</string>
     <string name="pref_key_secure_warning" translatable="false">pref_key_secure_warning</string>
+
+    <!-- Email masks Settings -->
+    <!-- Key for the "Email masks" preference in the "Settings" fragment -->
+    <string name="pref_key_email_masks" translatable="false">pref_key_email_masks</string>
+    <!-- Key for the feature flag that controls whether the Email Masks feature is visible in Settings -->
+    <string name="pref_key_enable_email_masks" translatable="false">pref_key_enable_email_masks</string>
+    <!-- Key for the user preference controlling whether Email Masks suggestions should be shown -->
+    <string name="pref_key_email_mask_suggestion" translatable="false">pref_key_relay_email_masks_suggestions</string>
 
     <!-- Autofill Settings -->
     <!-- Key for the "Credit cards" preference in the "Settings" fragment -->

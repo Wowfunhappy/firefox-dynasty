@@ -2510,6 +2510,17 @@ class Settings(
     )
 
     /**
+     * Indicates whether we should suggest using Relay email masks.
+     *
+     * This is separate from [isEmailMaskFeatureEnabled] so turning suggestions off
+     * does not hide the feature from Settings. This is controlled by the user.
+     */
+    var isEmailMaskSuggestionEnabled by booleanPreference(
+        key = appContext.getPreferenceKey(R.string.pref_key_email_mask_suggestion),
+        default = true,
+    )
+
+    /**
      * Indicates if the feature to close synced tabs is enabled.
      */
     val enableCloseSyncedTabs: Boolean

@@ -520,6 +520,11 @@
     </fragment>
 
     <fragment
+        android:id="@+id/emailMasksSettingsFragment"
+        android:name="org.mozilla.fenix.settings.emailmasks.EmailMasksSettingsFragment"
+        android:label="@string/preferences_email_masks" />
+
+    <fragment
         android:id="@+id/savedLoginsAuthFragment"
         android:name="org.mozilla.fenix.settings.logins.fragment.SavedLoginsAuthFragment"
         android:label="@string/preferences_passwords_logins_and_passwords_2">
@@ -604,6 +609,13 @@
         <action
             android:id="@+id/action_settingsFragment_to_savedLoginsAuthFragment"
             app:destination="@id/savedLoginsAuthFragment"
+            app:enterAnim="@anim/slide_in_right"
+            app:exitAnim="@anim/slide_out_left"
+            app:popEnterAnim="@anim/slide_in_left"
+            app:popExitAnim="@anim/slide_out_right" />
+        <action
+            android:id="@+id/action_settingsFragment_to_emailMasksSettingsFragment"
+            app:destination="@id/emailMasksSettingsFragment"
             app:enterAnim="@anim/slide_in_right"
             app:exitAnim="@anim/slide_out_left"
             app:popEnterAnim="@anim/slide_in_left"
