@@ -32,7 +32,6 @@ const lazy = XPCOMUtils.declareLazy({
   clearTimeout: "resource://gre/modules/Timer.sys.mjs",
   ModelHub: "chrome://global/content/ml/ModelHub.sys.mjs",
   Progress: "chrome://global/content/ml/Utils.sys.mjs",
-  allSettledOrReject: "chrome://global/content/ml/Utils.sys.mjs",
   OPFS: "chrome://global/content/ml/OPFS.sys.mjs",
   BACKENDS: "chrome://global/content/ml/EngineProcess.sys.mjs",
   stringifyForLog: "chrome://global/content/ml/Utils.sys.mjs",
@@ -122,18 +121,6 @@ export class MLEngineParent extends JSProcessActorParent {
    * @type {Map<string, ?AbortSignal>}
    */
   static engineCreationAbortSignal = new Map();
-
-  /**
-   * AbortControllers used to cancel ongoing operations initiated by the engine worker
-   * but not owned by it (e.g. operations executed in the parent process such as
-   * model downloads). This ensures that when the engine is terminated, any related
-   * in-flight work started on its behalf can also be aborted.
-   *
-   * Key: engineId
-   *
-   * @type {Map<string, AbortController>}
-   */
-  static engineCreationAbortControllers = new Map();
 
   /**
    * The ChildID gets set by EngineProcess.sys.mjs
@@ -278,11 +265,7 @@ export class MLEngineParent extends JSProcessActorParent {
     const { promise: lockPromise, resolve: resolveLock } =
       Promise.withResolvers();
     MLEngineParent.engineLocks.set(engineId, lockPromise);
-
-    /** @type {?AbortController} */
-    // Parent-owned controller used to cancel engine-related operations
-    // (e.g. model downloads) when the engine is terminated.
-    let abortController = null;
+    MLEngineParent.engineCreationAbortSignal.set(engineId, abortSignal);
 
     try {
       const currentEngine = MLEngine.getInstance(engineId);
@@ -311,27 +294,6 @@ export class MLEngineParent extends JSProcessActorParent {
 
       const start = ChromeUtils.now();
 
-      // Parent-owned controller used to cancel engine-related operations
-      // (e.g. model downloads) if the engine is terminated during creation.
-      abortController = new AbortController();
-
-      // Allow cancellation from either the parent or an optional caller-provided signal.
-      const signals = [abortController.signal, abortSignal].filter(s =>
-        AbortSignal.isInstance(s)
-      );
-
-      // Signal passed to operations initiated by the engine.
-      MLEngineParent.engineCreationAbortSignal.set(
-        engineId,
-        AbortSignal.any(signals)
-      );
-
-      // Keep the controller so the parent can trigger cancellation.
-      MLEngineParent.engineCreationAbortControllers.set(
-        engineId,
-        abortController
-      );
-
       /** @type {MLEngine<any>} */
       const engine = await MLEngine.initialize({
         mlEngineParent: this,
@@ -352,8 +314,6 @@ export class MLEngineParent extends JSProcessActorParent {
       // TODO - What happens if the engine is already killed here?
       return engine;
     } catch (error) {
-      // Abort any pending operations as the engine creating failed
-      abortController?.abort();
       const { modelId, taskName, flowId } = pipelineOptions;
       const telemetry = new MLTelemetry({ featureId, flowId });
       telemetry.recordEngineCreationFailure({
@@ -363,10 +323,10 @@ export class MLEngineParent extends JSProcessActorParent {
         engineId,
         error,
       });
-
       throw error;
     } finally {
       MLEngineParent.engineLocks.delete(engineId);
+      MLEngineParent.engineCreationAbortSignal.delete(engineId);
       resolveLock();
     }
   }
@@ -423,7 +383,7 @@ export class MLEngineParent extends JSProcessActorParent {
           this.processKeepAlive.invalidateKeepAlive();
           this.processKeepAlive = null;
         }
-        return null;
+        break;
       case "MLEngine:GetInferenceOptions":
         this.checkTaskName(message.json.taskName);
         return MLEngineParent.getInferenceOptions(
@@ -444,7 +404,7 @@ export class MLEngineParent extends JSProcessActorParent {
             lazy.console.error("Failed to remove instance", e);
           }
         }
-        return null;
+        break;
     }
   }
 
@@ -1058,6 +1018,14 @@ export class MLEngine {
   engineId;
 
   /**
+   * Allow tests to await on the last resource request, as this is not exposed
+   * in the response, @see {MLEngine#run}.
+   *
+   * @type {null | Promise<void>}
+   */
+  lastResourceRequest = null;
+
+  /**
    * Callback to call when receiving an initializing progress status.
    *
    * @type {?function(ProgressAndStatusCallbackParams):void}
@@ -1077,10 +1045,8 @@ export class MLEngine {
       if (engine.engineId == engineId) {
         lazy.console.debug(`Removing engine ${engineId}`);
         await engine.terminate(shutdown, replacement);
-        // Abort any pending operations for the engine
-        MLEngineParent.engineCreationAbortControllers.get(engineId)?.abort();
-        MLEngine.#instances.delete(id);
         lazy.console.debug(`Removed engine ${engineId}`);
+        MLEngine.#instances.delete(id);
       }
     }
   }
@@ -1428,10 +1394,6 @@ export class MLEngine {
         // The engine was terminated, and if a new run is needed a new port
         // will need to be requested.
         this.setEngineStatus("closed");
-        newPortResolvers?.reject(
-          new Error("Engine was terminated before initialization completed.")
-        );
-
         this.discardPort();
         break;
       }
@@ -1611,43 +1573,46 @@ export class MLEngine {
       transferables
     );
 
-    lazy
-      .allSettledOrReject([resourcesPromise, resolvers.promise])
-      .then(async ([resourcesBefore, result]) => {
-        if (!result) {
-          // The request failed, do not report the telemetry.
-          return;
-        }
-        const resourcesAfter = await this.getInferenceResources();
-        if (!resourcesBefore || !resourcesAfter) {
-          return;
-        }
+    this.lastResourceRequest = Promise.all([
+      resourcesPromise,
+      resolvers.promise.catch(() => {
+        // Catch this error so that we don't trigger an unhandled promise rejection.
+        return false;
+      }),
+    ]).then(async ([resourcesBefore, result]) => {
+      if (!result) {
+        // The request failed, do not report the telemetry.
+        return;
+      }
+      const resourcesAfter = await this.getInferenceResources();
+      if (!resourcesBefore || !resourcesAfter) {
+        return;
+      }
 
-        // Convert nanoseconds to milliseconds
-        let cpuMilliseconds = null;
-        let cpuUtilization = null;
-        const wallMilliseconds = ChromeUtils.now() - beforeRun;
-        const cores = lazy.mlUtils.getOptimalCPUConcurrency();
-        const memoryBytes = resourcesAfter.memory;
+      // Convert nanoseconds to milliseconds
+      let cpuMilliseconds = null;
+      let cpuUtilization = null;
+      const wallMilliseconds = ChromeUtils.now() - beforeRun;
+      const cores = lazy.mlUtils.getOptimalCPUConcurrency();
+      const memoryBytes = resourcesAfter.memory;
 
-        if (resourcesAfter.cpuTime != null && resourcesBefore.cpuTime != null) {
-          cpuMilliseconds =
-            (resourcesAfter.cpuTime - resourcesBefore.cpuTime) / 1_000_000;
-          cpuUtilization = (cpuMilliseconds / wallMilliseconds / cores) * 100;
-        }
+      if (resourcesAfter.cpuTime != null && resourcesBefore.cpuTime != null) {
+        cpuMilliseconds =
+          (resourcesAfter.cpuTime - resourcesBefore.cpuTime) / 1_000_000;
+        cpuUtilization = (cpuMilliseconds / wallMilliseconds / cores) * 100;
+      }
 
-        this.telemetry.recordEngineRun({
-          cpuMilliseconds,
-          wallMilliseconds,
-          cores,
-          cpuUtilization,
-          memoryBytes,
-          engineId: this.engineId,
-          modelId: this.pipelineOptions.modelId,
-          backend: this.pipelineOptions.backend,
-        });
-      })
-      .catch(() => {}); // Catch this error so that we don't trigger an unhandled promise rejection
+      this.telemetry.recordEngineRun({
+        cpuMilliseconds,
+        wallMilliseconds,
+        cores,
+        cpuUtilization,
+        memoryBytes,
+        engineId: this.engineId,
+        modelId: this.pipelineOptions.modelId,
+        backend: this.pipelineOptions.backend,
+      });
+    });
 
     return resolvers.promise;
   }

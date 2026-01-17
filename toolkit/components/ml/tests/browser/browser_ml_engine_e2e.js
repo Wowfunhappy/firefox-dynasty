@@ -536,7 +536,6 @@ add_task(async function test_e2e_engine_can_be_cancelled_after_fetch() {
     Assert.ok(false, `Expected AbortError. Got ${err}`);
   } finally {
     await EngineProcess.destroyMLEngine();
-    Assert.equal(MLEngine.getInstance("main5"), null);
     await IndexedDBCache.init({ reset: true });
     wasmBufferStub.restore();
     promiseStub.restore();

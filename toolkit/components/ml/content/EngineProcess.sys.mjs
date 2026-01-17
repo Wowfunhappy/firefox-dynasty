@@ -1157,7 +1157,7 @@ export class EngineProcess {
  * @param {object} options - Configuration options for the ML engine.
  * @param {?function(ProgressAndStatusCallbackParams):void} [notificationsCallback] - A function to call to indicate notifications.
  * @param {?AbortSignal} [abortSignal] - AbortSignal to cancel the download.
- * @returns {Promise<MLEngine<FeatureID>>}
+ * @returns {MLEngine<FeatureID>}
  */
 export async function createEngine(
   options,
