@@ -537,13 +537,10 @@ class MediaDecoderStateMachine
   // set.
   Mirror<RefPtr<AudioDeviceInfo>> mSinkDevice;
 
-  // Whether all output should be captured into mOutputTracks, halted, or not
-  // captured.
-  Mirror<MediaDecoder::OutputCaptureState> mOutputCaptureState;
-
-  // A dummy track used to access the right MediaTrackGraph instance. Needed
-  // since there's no guarantee that output tracks are present.
-  Mirror<nsMainThreadPtrHandle<SharedDummyTrack>> mOutputDummyTrack;
+  // Stream capture information. When the state is Capturing, it contains a
+  // dummy track used to access the correct MediaTrackGraph instance, along with
+  // an indication of whether audio should be played out via audio devices.
+  Mirror<MediaDecoder::OutputCaptureInfo> mOutputCaptureInfo;
 
   // Tracks to capture data into.
   Mirror<CopyableTArray<RefPtr<ProcessedMediaTrack>>> mOutputTracks;
