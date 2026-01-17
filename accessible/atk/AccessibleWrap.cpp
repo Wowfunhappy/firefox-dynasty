@@ -585,7 +585,7 @@ AtkRole getRoleCB(AtkObject* aAtkObj) {
     break;
 
   switch (acc->Role()) {
-#include "RoleMap.h"
+#include "RoleMap.inc"
     default:
       MOZ_CRASH("Unknown role.");
   }
@@ -822,7 +822,7 @@ AtkRelationSet* refRelationSetCB(AtkObject* aAtkObj) {
 #define RELATIONTYPE(geckoType, geckoTypeName, atkType, msaaType, ia2Type) \
   UpdateAtkRelation(RelationType::geckoType, acc, atkType, relation_set);
 
-#include "RelationTypeMap.h"
+#include "RelationTypeMap.inc"
 
 #undef RELATIONTYPE
 

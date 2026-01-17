@@ -765,7 +765,7 @@ MsaaAccessible::get_accRole(
     break;
 
   switch (geckoRole) {
-#include "RoleMap.h"
+#include "RoleMap.inc"
     default:
       MOZ_CRASH("Unknown role.");
   }
@@ -1199,7 +1199,7 @@ MsaaAccessible::accNavigate(
       return E_NOTIMPL;
 
       // MSAA relationship extensions to accNavigate
-#include "RelationTypeMap.h"
+#include "RelationTypeMap.inc"
 
     default:
       return E_INVALIDARG;

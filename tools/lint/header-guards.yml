@@ -113,11 +113,6 @@ header-guards:
     - widget/GfxInfoWindowProtocolDefs.h
     - widget/NativeKeyToDOMCodeName.h
     - widget/NativeKeyToDOMKeyName.h
-    - accessible/base/HTMLMarkupMap.h
-    - accessible/base/XULMap.h
-    - accessible/base/RoleMap.h
-    - accessible/base/RelationTypeMap.h
-    - accessible/base/MathMLMarkupMap.h
   type: external
   payload: header_guards:lint
   support-files: ['tools/lint/header_guards/**']

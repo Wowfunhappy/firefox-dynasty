@@ -1423,7 +1423,7 @@ long uiaRawElmProvider::GetControlType() const {
     return uiaControlType;                                                   \
     break;
   switch (acc->Role()) {
-#include "RoleMap.h"
+#include "RoleMap.inc"
   }
 #undef ROLE
   MOZ_CRASH("Unknown role.");
