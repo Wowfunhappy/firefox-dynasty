@@ -3,7 +3,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  */
-import { AIFeature } from "chrome://global/content/ml/AIFeature.sys.mjs";
 import { XPCOMUtils } from "resource://gre/modules/XPCOMUtils.sys.mjs";
 
 const lazy = {};
@@ -148,111 +147,6 @@ export const LinkPreview = {
   recentTyping: 0,
   _windowStates: new Map(),
   linkPreviewPanelId: "link-preview-panel",
-
-  /**
-   * Returns the unique identifier for this AI feature.
-   *
-   * @returns {string}
-   */
-  get id() {
-    return lazy.LinkPreviewModel.id;
-  },
-
-  /**
-   * Enable the feature by setting its preference.
-   * Also enables opt-in pref.
-   * The preference observer will handle the actual setup.
-   */
-  async enable() {
-    Services.prefs.setBoolPref("browser.ml.linkPreview.enabled", true);
-    Services.prefs.setBoolPref("browser.ml.linkPreview.optin", true);
-  },
-
-  /**
-   * Disable the feature by setting its preference.
-   * Also disables opt-in pref and uninstalls models.
-   * Waits for model uninstallation to complete before resolving.
-   */
-  async disable() {
-    // Disable both feature and opt-in prefs (triggers onEnabledPref to remove listeners)
-    Services.prefs.setBoolPref("browser.ml.linkPreview.enabled", false);
-    Services.prefs.setBoolPref("browser.ml.linkPreview.optin", false);
-
-    // Uninstall models and wait for completion
-    try {
-      await this.uninstallModel();
-    } catch (error) {
-      console.error("Failed to uninstall model during disable:", error);
-    }
-  },
-
-  /**
-   * Reset the feature to its default state.
-   * Clears all user prefs to restore factory defaults and uninstalls models.
-   */
-  async reset() {
-    // Clear all related prefs (returns to default values, triggers onEnabledPref if enabled was true)
-    const prefs = [
-      "browser.ml.linkPreview.enabled",
-      "browser.ml.linkPreview.optin",
-      "browser.ml.linkPreview.collapsed",
-      "browser.ml.linkPreview.shift",
-      "browser.ml.linkPreview.shiftAlt",
-      "browser.ml.linkPreview.longPress",
-      "browser.ml.linkPreview.labs",
-      "browser.ml.linkPreview.onboardingTimes",
-      "browser.ml.linkPreview.nimbus",
-    ];
-
-    for (const pref of prefs) {
-      if (Services.prefs.prefHasUserValue(pref)) {
-        Services.prefs.clearUserPref(pref);
-      }
-    }
-
-    // Uninstall models and wait for completion
-    try {
-      await this.uninstallModel();
-    } catch (error) {
-      console.error("Failed to uninstall model during reset:", error);
-    }
-  },
-
-  /**
-   * Check if the feature is currently enabled.
-   *
-   * @returns {boolean}
-   */
-  get isEnabled() {
-    const enabled = Services.prefs.getBoolPref(
-      "browser.ml.linkPreview.enabled",
-      false
-    );
-    const optin = Services.prefs.getBoolPref(
-      "browser.ml.linkPreview.optin",
-      false
-    );
-
-    return enabled && optin;
-  },
-
-  /**
-   * Check if the feature is allowed to be enabled.
-   *
-   * @returns {boolean}
-   */
-  get isAllowed() {
-    return this.canShowKeyPoints;
-  },
-
-  /**
-   * Check if the feature is blocked from being enabled.
-   *
-   * @returns {boolean}
-   */
-  get isBlocked() {
-    return !this.canShowKeyPoints;
-  },
 
   /**
    * Gets the context value for the current tab.
@@ -1237,5 +1131,3 @@ export const LinkPreview = {
     // the only permitted action is to drop the reference (e.g. set it to null).
   },
 };
-
-Object.setPrototypeOf(LinkPreview, AIFeature);
