@@ -2539,7 +2539,7 @@ STATIC_ATOMS = [
     # CSS anchor positioning implicit anchor
     Atom("AnchorPosImplicitAnchor", "AnchorPosImplicitAnchor"),
     # CSS pseudo-elements -- these must appear in the same order as
-    # in nsCSSPseudoElementList.h
+    # in nsCSSPseudoElementList.inc
     PseudoElementAtom("PseudoElement_after", ":after"),
     PseudoElementAtom("PseudoElement_before", ":before"),
     PseudoElementAtom("PseudoElement_marker", ":marker"),
