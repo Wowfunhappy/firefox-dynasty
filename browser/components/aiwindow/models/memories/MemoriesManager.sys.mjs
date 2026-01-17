@@ -23,6 +23,7 @@ import {
   INTENTS,
   HISTORY as SOURCE_HISTORY,
   CONVERSATION as SOURCE_CONVERSATION,
+  PREF_GENERATE_MEMORIES,
 } from "moz-src:///browser/components/aiwindow/models/memories/MemoriesConstants.sys.mjs";
 import {
   getFormattedMemoryAttributeList,
@@ -34,6 +35,9 @@ import {
   messageMemoryClassificationPrompt,
 } from "moz-src:///browser/components/aiwindow/models/prompts/MemoriesPrompts.sys.mjs";
 import { MEMORIES_MESSAGE_CLASSIFY_SCHEMA } from "moz-src:///browser/components/aiwindow/models/memories/MemoriesSchemas.sys.mjs";
+import { AIWindow } from "moz-src:///browser/components/aiwindow/ui/modules/AIWindow.sys.mjs";
+import { EveryWindow } from "resource:///modules/EveryWindow.sys.mjs";
+import { AIWindowAccountAuth } from "moz-src:///browser/components/aiwindow/ui/modules/AIWindowAccountAuth.sys.mjs";
 
 const K_DOMAINS_FULL = 100;
 const K_TITLES_FULL = 60;
@@ -66,14 +70,41 @@ export class MemoriesManager {
    * @returns {Promise<openAIEngine>}  openAIEngine instance
    */
   static async ensureOpenAIEngine() {
-    if (!this.#openAIEnginePromise) {
-      this.#openAIEnginePromise = await openAIEngine.build(
+    // Helper to build a new engine and cache the in-flight promise.
+    const buildFresh = () => {
+      this.#openAIEnginePromise = openAIEngine.build(
         MODEL_FEATURES.MEMORIES,
         DEFAULT_ENGINE_ID,
         SERVICE_TYPES.MEMORIES
       );
+      return this.#openAIEnginePromise;
+    };
+
+    // If we don't have one yet, build it.
+    if (!this.#openAIEnginePromise) {
+      return await buildFresh();
     }
-    return this.#openAIEnginePromise;
+
+    // Otherwise, await the existing one and validate.
+    let engine;
+    try {
+      engine = await this.#openAIEnginePromise;
+    } catch (e) {
+      // Previous build failed; clear cache and retry once.
+      this.#openAIEnginePromise = null;
+      return await buildFresh();
+    }
+
+    // validate engine health
+    const status = engine?.engineInstance?.engineStatus;
+
+    // If the engine is closed or not in ready state then rebuild.
+    if (status !== "ready") {
+      this.#openAIEnginePromise = null;
+      return await buildFresh();
+    }
+
+    return engine;
   }
 
   /**
@@ -481,5 +512,39 @@ export class MemoriesManager {
     });
 
     return candidateRelevantMemories;
+  }
+
+  /**
+   * Helper returns true if memories generation should be enabled.
+   *
+   * Gating logic for all schedulers:
+   * - browser.aiwindow.enabled pref
+   * - memories-specific pref
+   * - and whether any AIWindow is currently active
+   *
+   * If window APIs are not available (or throw), this falls back to false.
+   */
+  static shouldEnableMemoriesSchedulers() {
+    // Pref checks
+    const aiWindowEnabled = AIWindow.isAIWindowEnabled();
+    const memoriesEnabled = Services.prefs.getBoolPref(
+      PREF_GENERATE_MEMORIES,
+      false
+    );
+    const hasConsent = AIWindowAccountAuth.hasToSConsent;
+
+    if (!aiWindowEnabled || !memoriesEnabled || !hasConsent) {
+      return false;
+    }
+
+    // Window/activity gate (fail closed)
+    try {
+      return EveryWindow.readyWindows.some(win =>
+        AIWindow.isAIWindowActive(win)
+      );
+    } catch (e) {
+      // If we cannot check window state, do NOT enable schedulers.
+      return false;
+    }
   }
 }

@@ -62,6 +62,10 @@ add_task(async function test_scheduler_runs_when_drift_triggers() {
       },
     });
 
+  const enableStub = sinon
+    .stub(MemoriesManager, "shouldEnableMemoriesSchedulers")
+    .returns(true);
+
   try {
     let scheduler = MemoriesHistoryScheduler.maybeInit();
 
@@ -75,6 +79,7 @@ add_task(async function test_scheduler_runs_when_drift_triggers() {
   } finally {
     generateStub.restore();
     driftStub.restore();
+    enableStub.restore();
   }
 });
 
@@ -99,6 +104,10 @@ add_task(async function test_scheduler_skips_when_drift_not_triggered() {
       },
     });
 
+  const enableStub = sinon
+    .stub(MemoriesManager, "shouldEnableMemoriesSchedulers")
+    .returns(true);
+
   try {
     let scheduler = MemoriesHistoryScheduler.maybeInit();
     await addTestVisits(60);
@@ -107,6 +116,7 @@ add_task(async function test_scheduler_skips_when_drift_not_triggered() {
   } finally {
     generateStub.restore();
     driftStub.restore();
+    enableStub.restore();
   }
 });
 
@@ -135,6 +145,10 @@ add_task(async function test_scheduler_runs_on_first_run_with_small_history() {
     .stub(MemoriesManager, "getLastHistoryMemoryTimestamp")
     .resolves(0);
 
+  const enableStub = sinon
+    .stub(MemoriesManager, "shouldEnableMemoriesSchedulers")
+    .returns(true);
+
   try {
     let scheduler = MemoriesHistoryScheduler.maybeInit();
     Assert.ok(scheduler, "Scheduler should be initialized when pref is true");
@@ -151,5 +165,6 @@ add_task(async function test_scheduler_runs_on_first_run_with_small_history() {
     generateStub.restore();
     driftStub.restore();
     lastTsStub.restore();
+    enableStub.restore();
   }
 });
