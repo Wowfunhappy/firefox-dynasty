@@ -32,7 +32,6 @@ header-guards:
     - js/src/tests/style/BadIncludes2-inl.h
     - js/src/tests/style/BadIncludes.h
     - media/gmp-clearkey/0.1/WMFSymbols.h
-    - memory/build/Globals_inc.h
     - modules/libpref/init/StaticPrefListBegin.h
     - modules/libpref/init/StaticPrefListEnd.h
     - netwerk/protocol/http/nsHttpAtomList.h
