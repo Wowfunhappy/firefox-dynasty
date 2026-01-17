@@ -23,7 +23,7 @@
  *
  * NOTE: What you need to do when you add new event messages?
  * - If the new events are dispatched to the DOM, they should be registered in
- *   dom/events/EventNameList.h
+ *   dom/events/EventNameList.inc
  * - If the new events are dispatched to the DOM, set proper default values of
  *   "bubbles" and "cancelable" in WidgetEvent::SetDefaultCancelableAndBubbles()
  *   defined in widget/BasicEvents.h.

@@ -125,7 +125,7 @@ typedef uint16_t Modifiers;
 
 typedef uint16_t KeyNameIndexType;
 enum KeyNameIndex : KeyNameIndexType {
-#include "mozilla/KeyNameList.h"
+#include "mozilla/KeyNameList.inc"
   // If a DOM keyboard event is synthesized by script, this is used.  Then,
   // specified key name should be stored and use it as .key value.
   KEY_NAME_INDEX_USE_STRING
@@ -140,7 +140,7 @@ const nsCString ToString(KeyNameIndex aKeyNameIndex);
 
 typedef uint8_t CodeNameIndexType;
 enum CodeNameIndex : CodeNameIndexType {
-#include "mozilla/PhysicalKeyCodeNameList.h"
+#include "mozilla/PhysicalKeyCodeNameList.inc"
   // If a DOM keyboard event is synthesized by script, this is used.  Then,
   // specified code name should be stored and use it as .code value.
   CODE_NAME_INDEX_USE_STRING
@@ -154,7 +154,7 @@ const nsCString ToString(CodeNameIndex aCodeNameIndex);
 
 using EditorInputTypeType = uint8_t;
 enum class EditorInputType : EditorInputTypeType {
-#include "mozilla/InputTypeList.h"
+#include "mozilla/InputTypeList.inc"
   // If a DOM input event is synthesized by script, this is used.  Then,
   // specified input type should be stored as string and use it as .inputType
   // value.
@@ -170,7 +170,7 @@ enum class EditorInputType : EditorInputTypeType {
 inline const std::ostream& operator<<(std::ostream& aStream,
                                       const EditorInputType& aInputType) {
   switch (aInputType) {
-#include "mozilla/InputTypeList.h"
+#include "mozilla/InputTypeList.inc"
     case EditorInputType::eUnknown:
       return aStream << "EditorInputType::eUnknown";
   }

@@ -40,7 +40,7 @@ class nsStringHashKey;
 
 enum {
 #define NS_DEFINE_VK(aDOMKeyName, aDOMKeyCode) NS_##aDOMKeyName = aDOMKeyCode,
-#include "mozilla/VirtualKeyCodeList.h"
+#include "mozilla/VirtualKeyCodeList.inc"
 #undef NS_DEFINE_VK
   NS_VK_UNKNOWN = 0xFF
 };

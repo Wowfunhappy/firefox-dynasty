@@ -356,7 +356,7 @@ class PostMessageEvent;
 
 #define DEPRECATED_OPERATION(_op) e##_op,
 enum class DeprecatedOperations : uint16_t {
-#include "nsDeprecatedOperationList.h"
+#include "nsDeprecatedOperationList.inc"
   eDeprecatedOperationCount
 };
 #undef DEPRECATED_OPERATION
@@ -3372,7 +3372,7 @@ class Document : public nsINode,
 
 #define DOCUMENT_WARNING(_op) e##_op,
   enum DocumentWarnings {
-#include "nsDocumentWarningList.h"
+#include "nsDocumentWarningList.inc"
     eDocumentWarningCount
   };
 #undef DOCUMENT_WARNING

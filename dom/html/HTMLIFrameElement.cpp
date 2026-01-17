@@ -50,7 +50,7 @@ NS_INTERFACE_MAP_END_INHERITING(nsGenericHTMLFrameElement)
 const DOMTokenListSupportedToken HTMLIFrameElement::sSupportedSandboxTokens[] =
     {
 #define SANDBOX_KEYWORD(string, atom, flags) string,
-#include "IframeSandboxKeywordList.h"
+#include "IframeSandboxKeywordList.inc"
 #undef SANDBOX_KEYWORD
         nullptr};
 

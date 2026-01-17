@@ -11,9 +11,9 @@
  * Use CONTROL to define the control key.
  *   CONTROL(keyNameIndex, codeNameIndex, keyCode)
  *   @param keyNameIndex  The keyNameIndex of this control key.
- *                        See KeyNameList.h for details.
+ *                        See KeyNameList.inc for details.
  *   @param codeNameIndex The codeNameIndex of this contorl key.
- *                        See PhysicalKeyCodeNameList.h for details.
+ *                        See PhysicalKeyCodeNameList.inc for details.
  *   @param keyCode       The keyCode of this control key.
  *                        See KeyEvent.webidl for details.
  *
@@ -22,7 +22,7 @@
  *   KEY(keyString, codeNameIndex, keyCode, modifiers)
  *   @param keyString     The key string of this key.
  *   @param codeNameIndex The codeNameIndex of this key.
- *                        See PhysicalKeyCodeNameList.h for details.
+ *                        See PhysicalKeyCodeNameList.inc for details.
  *   @param keyCode       The keyCode of this key.
  *                        See KeyEvent.webidl for details.
  *   @param modifiers     The spoofing modifier states for this key.

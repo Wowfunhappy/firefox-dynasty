@@ -277,7 +277,7 @@ const nsCString GetDOMKeyCodeName(uint32_t aKeyCode) {
   case aDOMKeyCode:                            \
     return nsLiteralCString(#aDOMKeyName);
 
-#include "mozilla/VirtualKeyCodeList.h"
+#include "mozilla/VirtualKeyCodeList.inc"
 
 #undef NS_DEFINE_VK
 #undef NS_DISALLOW_SAME_KEYCODE
@@ -1174,14 +1174,14 @@ double WidgetWheelEvent::OverriddenDeltaY() const {
 
 #define NS_DEFINE_KEYNAME(aCPPName, aDOMKeyName) (u"" aDOMKeyName),
 const char16_t* const WidgetKeyboardEvent::kKeyNames[] = {
-#include "mozilla/KeyNameList.h"
+#include "mozilla/KeyNameList.inc"
 };
 #undef NS_DEFINE_KEYNAME
 
 #define NS_DEFINE_PHYSICAL_KEY_CODE_NAME(aCPPName, aDOMCodeName) \
   (u"" aDOMCodeName),
 const char16_t* const WidgetKeyboardEvent::kCodeNames[] = {
-#include "mozilla/PhysicalKeyCodeNameList.h"
+#include "mozilla/PhysicalKeyCodeNameList.inc"
 };
 #undef NS_DEFINE_PHYSICAL_KEY_CODE_NAME
 
@@ -1717,9 +1717,9 @@ uint32_t WidgetKeyboardEvent::GetFallbackKeyCodeOfPunctuationKey(
 /* static */
 uint32_t WidgetKeyboardEvent::ComputeLocationFromCodeValue(
     CodeNameIndex aCodeNameIndex) {
-  // Following commented out cases are not defined in PhysicalKeyCodeNameList.h
-  // but are defined by D3E spec.  So, they should be uncommented when the
-  // code values are defined in the header.
+  // Following commented out cases are not defined in
+  // PhysicalKeyCodeNameList.inc but are defined by D3E spec.  So, they should
+  // be uncommented when the code values are defined in the header.
   switch (aCodeNameIndex) {
     case CODE_NAME_INDEX_AltLeft:
     case CODE_NAME_INDEX_ControlLeft:
@@ -2299,7 +2299,7 @@ bool WidgetKeyboardEvent::IsLockableModifier(KeyNameIndex aKeyNameIndex) {
 
 #define NS_DEFINE_INPUTTYPE(aCPPName, aDOMName) (u"" aDOMName),
 const char16_t* const InternalEditorInputEvent::kInputTypeNames[] = {
-#include "mozilla/InputTypeList.h"
+#include "mozilla/InputTypeList.inc"
 };
 #undef NS_DEFINE_INPUTTYPE
 

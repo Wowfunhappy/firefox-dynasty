@@ -504,7 +504,7 @@ def parse_use_counters():
 
     # nsDeprecatedOperationsList.h parsing is adapted from parse_histograms.py.
     operation_list_path = os.path.join(
-        buildconfig.topsrcdir, "dom", "base", "nsDeprecatedOperationList.h"
+        buildconfig.topsrcdir, "dom", "base", "nsDeprecatedOperationList.inc"
     )
     operation_regex = re.compile("^DEPRECATED_OPERATION\\(([^)]+)\\)")
     ops_page = []

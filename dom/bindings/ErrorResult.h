@@ -383,7 +383,7 @@ class TErrorResult {
     ThrowDOMException(err, aMessage);                          \
   }
 
-#include "mozilla/dom/DOMExceptionNames.h"
+#include "mozilla/dom/DOMExceptionNames.inc"
 
 #undef DOMEXCEPTION
 

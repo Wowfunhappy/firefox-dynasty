@@ -4080,7 +4080,7 @@ namespace {
 
 #define DEPRECATED_OPERATION(_op) #_op,
 static const char* kDeprecatedOperations[] = {
-#include "nsDeprecatedOperationList.h"
+#include "nsDeprecatedOperationList.inc"
     nullptr};
 #undef DEPRECATED_OPERATION
 
