@@ -1140,7 +1140,7 @@ void nsRFPService::MaybeCreateSpoofingKeyCodesForEnUS() {
   {u""_ns,                                           \
    KEY_NAME_INDEX_##keyNameIdx_,                     \
    {CODE_NAME_INDEX_##_codeNameIdx, _keyCode, MODIFIER_NONE}},
-#include "KeyCodeConsensus_En_US.h"
+#include "KeyCodeConsensus_En_US.inc"
 #undef CONTROL
 #undef KEY
   };
