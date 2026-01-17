@@ -4258,6 +4258,10 @@ RefPtr<GenericNonExclusivePromise> HTMLMediaElement::GetAllowedToPlayPromise() {
 
 already_AddRefed<DOMMediaStream> HTMLMediaElement::MozCaptureStream(
     ErrorResult& aRv) {
+  if (StaticPrefs::media_captureStream_enabled()) {
+    ReportToConsole(nsIScriptError::warningFlag,
+                    "MozCaptureStreamDeprecatedWarning");
+  }
   if (!CanBeCaptured(StreamCaptureType::CAPTURE_ALL_TRACKS)) {
     aRv.Throw(NS_ERROR_FAILURE);
     return nullptr;
@@ -4286,6 +4290,10 @@ already_AddRefed<DOMMediaStream> HTMLMediaElement::MozCaptureStream(
 
 already_AddRefed<DOMMediaStream> HTMLMediaElement::MozCaptureStreamUntilEnded(
     ErrorResult& aRv) {
+  if (StaticPrefs::media_captureStream_enabled()) {
+    ReportToConsole(nsIScriptError::warningFlag,
+                    "MozCaptureStreamDeprecatedWarning");
+  }
   if (!CanBeCaptured(StreamCaptureType::CAPTURE_ALL_TRACKS)) {
     aRv.Throw(NS_ERROR_FAILURE);
     return nullptr;
@@ -7667,6 +7675,8 @@ void HTMLMediaElement::ResetSetMediaKeysTempVariables() {
 }
 
 bool HTMLMediaElement::MozAudioCaptured() const {
+  ReportToConsole(nsIScriptError::warningFlag,
+                  "MozAudioCapturedDeprecatedWarning");
   mozilla::glean::media::capture_stream_usage
       .EnumGet(
           mozilla::glean::media::CaptureStreamUsageLabel::eMozaudiocaptured)
