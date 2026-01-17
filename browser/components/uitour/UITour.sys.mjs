@@ -8,8 +8,6 @@ const lazy = {};
 
 ChromeUtils.defineESModuleGetters(lazy, {
   AboutReaderParent: "resource:///actors/AboutReaderParent.sys.mjs",
-  AIWindow:
-    "moz-src:///browser/components/aiwindow/ui/modules/AIWindow.sys.mjs",
   BrowserUsageTelemetry: "resource:///modules/BrowserUsageTelemetry.sys.mjs",
   CustomizableUI:
     "moz-src:///browser/components/customizableui/CustomizableUI.sys.mjs",
@@ -486,17 +484,6 @@ export var UITour = {
                 Services.scriptSecurityManager.createNullPrincipal({}),
             });
           });
-        break;
-      }
-
-      case "showFirefoxAccountsForAIWindow": {
-        lazy.AIWindow.launchWindow(browser).then(success => {
-          if (!success) {
-            lazy.log.warn(
-              "showFirefoxAccountsForAIWindow: Failed to launch Smart Window"
-            );
-          }
-        });
         break;
       }
 
@@ -1629,7 +1616,7 @@ export var UITour = {
   async setConfiguration(aWindow, aConfiguration, _aValue) {
     switch (aConfiguration) {
       case "defaultBrowser":
-        // Ignore _aValue in this case because the default browser can only
+        // Ignore aValue in this case because the default browser can only
         // be set, not unset.
         try {
           let shell = aWindow.getShellService();
