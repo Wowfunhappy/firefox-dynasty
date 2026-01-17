@@ -32,8 +32,6 @@ header-guards:
     - js/src/tests/style/BadIncludes.h
     - modules/libpref/init/StaticPrefListBegin.h
     - modules/libpref/init/StaticPrefListEnd.h
-    - parser/html/nsHtml5NamedCharactersInclude.h
-    - parser/htmlparser/nsHTMLTagList.h
     - parser/html/nsHtml5UTF16BufferHSupplement.h
     - parser/html/nsHtml5UTF16BufferCppSupplement.h
     - parser/html/nsHtml5TreeBuilderHSupplement.h
