@@ -17,7 +17,6 @@ header-guards:
     - dom/events/EventDispatcher.h
     - editor/txmgr/nsTransactionManagerCID.h
     - gfx/vr/service/oculus/ovr_capi_dynamic.h
-    - gfx/thebes/gfxFontPrefLangList.h
     - gfx/src/X11UndefineNone.h
     - intl/lwbrk/jisx4051class.h
     - js/src/tests/style/HeaderCycleB4-inl.h
