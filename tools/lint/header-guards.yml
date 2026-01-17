@@ -101,18 +101,6 @@ header-guards:
     - toolkit/components/maintenanceservice/resource.h
     - toolkit/components/resistfingerprinting/KeyCodeConsensus_En_US.h
     - tools/clang-tidy/test/structures.h
-    - widget/CommandList.h
-    - widget/EventClassList.h
-    - widget/GfxInfoDeviceVendorDefs.h
-    - widget/GfxInfoDriverVendorDefs.h
-    - widget/GfxInfoDriverVersionCmpDefs.h
-    - widget/GfxInfoFeatureDefs.h
-    - widget/GfxInfoFeatureStatusDefs.h
-    - widget/GfxInfoOperatingSystemDefs.h
-    - widget/GfxInfoRefreshRateStatusDefs.h
-    - widget/GfxInfoWindowProtocolDefs.h
-    - widget/NativeKeyToDOMCodeName.h
-    - widget/NativeKeyToDOMKeyName.h
   type: external
   payload: header_guards:lint
   support-files: ['tools/lint/header_guards/**']

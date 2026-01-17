@@ -124,14 +124,14 @@ namespace widget {
 enum class OperatingSystem : uint8_t {
   Unknown,
 #define GFXINFO_OS(id, name) id,
-#include "mozilla/widget/GfxInfoOperatingSystemDefs.h"
+#include "mozilla/widget/GfxInfoOperatingSystemDefs.inc"
 #undef GFXINFO_OS
   Count
 };
 
 enum VersionComparisonOp {
 #define GFXINFO_DRIVER_VERSION_CMP(id) DRIVER_##id,
-#include "mozilla/widget/GfxInfoDriverVersionCmpDefs.h"
+#include "mozilla/widget/GfxInfoDriverVersionCmpDefs.inc"
 #undef GFXINFO_DRIVER_VERSION_CMP
   DRIVER_COUNT
 };
@@ -186,28 +186,28 @@ enum class DeviceFamily : uint8_t {
 
 enum class DeviceVendor : uint8_t {
 #define GFXINFO_DEVICE_VENDOR(id, name) id,
-#include "mozilla/widget/GfxInfoDeviceVendorDefs.h"
+#include "mozilla/widget/GfxInfoDeviceVendorDefs.inc"
 #undef GFXINFO_DEVICE_VENDOR
   Max
 };
 
 enum DriverVendor : uint8_t {
 #define GFXINFO_DRIVER_VENDOR(id, name) id,
-#include "mozilla/widget/GfxInfoDriverVendorDefs.h"
+#include "mozilla/widget/GfxInfoDriverVendorDefs.inc"
 #undef GFXINFO_DRIVER_VENDOR
   Max
 };
 
 enum class WindowProtocol : uint8_t {
 #define GFXINFO_WINDOW_PROTOCOL(id, name) id,
-#include "mozilla/widget/GfxInfoWindowProtocolDefs.h"
+#include "mozilla/widget/GfxInfoWindowProtocolDefs.inc"
 #undef GFXINFO_WINDOW_PROTOCOL
   Max
 };
 
 enum class RefreshRateStatus {
 #define GFXINFO_REFRESH_RATE_STATUS(id, name) id,
-#include "mozilla/widget/GfxInfoRefreshRateStatusDefs.h"
+#include "mozilla/widget/GfxInfoRefreshRateStatusDefs.inc"
 #undef GFXINFO_REFRESH_RATE_STATUS
   Unknown,
   Count

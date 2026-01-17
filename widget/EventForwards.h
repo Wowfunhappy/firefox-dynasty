@@ -111,7 +111,7 @@ enum EventClassID : EventClassIDType {
 #define NS_ROOT_EVENT_CLASS(aPrefix, aName) eBasic##aName##Class
 #define NS_EVENT_CLASS(aPrefix, aName) , e##aName##Class
 
-#include "mozilla/EventClassList.h"
+#include "mozilla/EventClassList.inc"
 
 #undef NS_EVENT_CLASS
 #undef NS_ROOT_EVENT_CLASS
@@ -400,7 +400,7 @@ typedef uint8_t CommandInt;
 enum class Command : CommandInt {
   DoNothing
 
-#include "mozilla/CommandList.h"
+#include "mozilla/CommandList.inc"
 };
 #undef NS_DEFINE_COMMAND
 #undef NS_DEFINE_COMMAND_WITH_PARAM
@@ -441,7 +441,7 @@ class StaticRange;
 #define NS_EVENT_CLASS(aPrefix, aName) class aPrefix##aName;
 #define NS_ROOT_EVENT_CLASS(aPrefix, aName) NS_EVENT_CLASS(aPrefix, aName)
 
-#include "mozilla/EventClassList.h"
+#include "mozilla/EventClassList.inc"
 
 #undef NS_EVENT_CLASS
 #undef NS_ROOT_EVENT_CLASS

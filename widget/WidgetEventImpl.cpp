@@ -194,7 +194,7 @@ const char* ToChar(EventClassID aEventClassID) {
   case e##aName##Class:                \
     return "e" #aName "Class";
 
-#include "mozilla/EventClassList.h"
+#include "mozilla/EventClassList.inc"
 
 #undef NS_EVENT_CLASS
 #undef NS_ROOT_EVENT_CLASS
@@ -259,7 +259,7 @@ const char* ToChar(Command aCommand) {
   case Command::aName:                           \
     return "Command::" #aName;
 
-#include "mozilla/CommandList.h"
+#include "mozilla/CommandList.inc"
 
 #undef NS_DEFINE_COMMAND
 #undef NS_DEFINE_COMMAND_WITH_PARAM
@@ -341,7 +341,7 @@ Command GetInternalCommand(const nsACString& aCommandName,
 
 #define NS_DEFINE_COMMAND_NO_EXEC_COMMAND(aName)
 
-#include "mozilla/CommandList.h"
+#include "mozilla/CommandList.inc"
 
 #undef NS_DEFINE_COMMAND
 #undef NS_DEFINE_COMMAND_WITH_PARAM
@@ -366,7 +366,7 @@ Command GetInternalCommand(const nsACString& aCommandName,
     return const_cast<WidgetEvent*>(this)->As##aName();        \
   }
 
-#include "mozilla/EventClassList.h"
+#include "mozilla/EventClassList.inc"
 
 #undef NS_EVENT_CLASS
 #undef NS_ROOT_EVENT_CLASS
@@ -1703,7 +1703,7 @@ uint32_t WidgetKeyboardEvent::GetFallbackKeyCodeOfPunctuationKey(
 #define NS_DEFINE_COMMAND_NO_EXEC_COMMAND(aName) , ""
   static const char* const kCommands[] = {
       ""  // DoNothing
-#include "mozilla/CommandList.h"
+#include "mozilla/CommandList.inc"
   };
 #undef NS_DEFINE_COMMAND
 #undef NS_DEFINE_COMMAND_WITH_PARAM

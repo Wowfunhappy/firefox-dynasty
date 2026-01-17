@@ -772,7 +772,7 @@ class WidgetEvent : public WidgetEventTime {
   virtual aPrefix##aName* As##aName(); \
   const aPrefix##aName* As##aName() const;
 
-#include "mozilla/EventClassList.h"
+#include "mozilla/EventClassList.inc"
 
 #undef NS_EVENT_CLASS
 #undef NS_ROOT_EVENT_CLASS
