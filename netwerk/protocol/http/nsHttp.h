@@ -391,13 +391,13 @@ namespace nsHttp {
 
 // Declare all atoms
 //
-// The atom names and values are stored in nsHttpAtomList.h and are brought
+// The atom names and values are stored in nsHttpAtomList.inc and are brought
 // to you by the magic of C preprocessing.  Add new atoms to nsHttpAtomList
 // and all support logic will be auto-generated.
 //
 #define HTTP_ATOM(_name, _value) \
   inline constexpr nsHttpAtomLiteral _name(_value);
-#include "nsHttpAtomList.h"
+#include "nsHttpAtomList.inc"
 #undef HTTP_ATOM
 }  // namespace nsHttp
 
