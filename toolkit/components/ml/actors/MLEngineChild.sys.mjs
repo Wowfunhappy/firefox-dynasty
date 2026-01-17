@@ -241,12 +241,12 @@ export class MLEngineChild extends JSProcessActorChild {
    * @param {boolean} shutDownIfEmpty - If true, shuts down the engine process if no engines remain.
    * @param {boolean} replacement - Flag indicating whether the engine is being replaced.
    */
-  removeEngine(engineId, shutDownIfEmpty, replacement) {
+  async removeEngine(engineId, shutDownIfEmpty, replacement) {
     this.#engineDispatchers.delete(engineId);
     this.#enginesPresent.delete(engineId);
 
     try {
-      this.sendAsyncMessage("MLEngine:Removed", {
+      await this.sendQuery("MLEngine:Removed", {
         engineId,
         shutdown: shutDownIfEmpty,
         replacement,
@@ -257,7 +257,7 @@ export class MLEngineChild extends JSProcessActorChild {
 
     if (this.#engineDispatchers.size === 0 && shutDownIfEmpty) {
       try {
-        this.sendAsyncMessage("MLEngine:DestroyEngineProcess");
+        await this.sendQuery("MLEngine:DestroyEngineProcess");
       } catch (error) {
         lazy.console.error(
           "Failed to send MLEngine:DestroyEngineProcess",
@@ -607,13 +607,13 @@ class EngineDispatcher {
     this.#status = "TERMINATING";
     try {
       const engine = await this.#engine;
-      engine.terminate();
+      await engine.terminate();
     } catch (error) {
       lazy.console.error("Failed to get the engine", error);
     }
     this.#status = "TERMINATED";
 
-    this.mlEngineChild.removeEngine(
+    await this.mlEngineChild.removeEngine(
       this.#engineId,
       shutDownIfEmpty,
       replacement
@@ -769,7 +769,7 @@ class InferenceEngine {
     return this.#worker.post("run", [request, requestId, engineRunOptions]);
   }
 
-  terminate() {
+  async terminate() {
     if (this.#worker) {
       this.#worker.terminate();
       this.#worker = null;
