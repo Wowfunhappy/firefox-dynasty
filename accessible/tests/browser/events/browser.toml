@@ -14,9 +14,6 @@ prefs = [
 ["browser_alert.js"]
 
 ["browser_announcement.js"]
-skip-if = [
-  "os == 'win'", # Bug 1288839
-]
 
 ["browser_content_prompt.js"]
 
