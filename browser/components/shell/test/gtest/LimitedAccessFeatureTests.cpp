@@ -5,8 +5,7 @@
 
 #include "gtest/gtest.h"
 
-#include "nsILimitedAccessFeature.h"
-#include "nsServiceManagerUtils.h"
+#include "Windows11LimitedAccessFeatures.h"
 #include "WinUtils.h"
 
 TEST(LimitedAccessFeature, VerifyGeneratedInfo)
@@ -17,31 +16,25 @@ TEST(LimitedAccessFeature, VerifyGeneratedInfo)
     return;
   }
 
-  const auto featureId = "com.microsoft.windows.taskbar.pin"_ns;
-  const auto* token = "kRFiWpEK5uS6PMJZKmR7MQ==";
-  const auto* attestation =
-      "pcsmm0jrprpb2 has registered their use of "
-      "com.microsoft.windows.taskbar.pin with Microsoft and agrees to the "
-      "terms of use.";
+  LimitedAccessFeatureInfo knownLafInfo = {
+      // Win11LimitedAccessFeatureType::Taskbar
+      "Win11LimitedAccessFeatureType::Taskbar"_ns,      // debugName
+      u"com.microsoft.windows.taskbar.pin"_ns,          // feature
+      u"kRFiWpEK5uS6PMJZKmR7MQ=="_ns,                   // token
+      u"pcsmm0jrprpb2 has registered their use of "_ns  // attestation
+      u"com.microsoft.windows.taskbar.pin with Microsoft and agrees to the "_ns
+      u"terms "_ns
+      u"of use."_ns};
 
-  nsCOMPtr<nsILimitedAccessFeatureService> lafService =
-      do_GetService("@mozilla.org/limited-access-feature-service;1");
-  nsCOMPtr<nsILimitedAccessFeature> feature;
-  nsresult rv = lafService->GenerateLimitedAccessFeature(
-      featureId, getter_AddRefs(feature));
-  ASSERT_TRUE(NS_SUCCEEDED(rv));
+  auto generatedLafInfoResult = GenerateLimitedAccessFeatureInfo(
+      "Win11LimitedAccessFeatureType::Taskbar"_ns,
+      u"com.microsoft.windows.taskbar.pin"_ns);
+  ASSERT_TRUE(generatedLafInfoResult.isOk());
+  LimitedAccessFeatureInfo generatedLafInfo = generatedLafInfoResult.unwrap();
 
-  nsAutoCString str;
-
-  rv = feature->GetFeatureId(str);
-  ASSERT_TRUE(NS_SUCCEEDED(rv));
-  EXPECT_STREQ(featureId.get(), str.get());
-
-  rv = feature->GetToken(str);
-  ASSERT_TRUE(NS_SUCCEEDED(rv));
-  EXPECT_STREQ(token, str.get());
-
-  rv = feature->GetAttestation(str);
-  ASSERT_TRUE(NS_SUCCEEDED(rv));
-  EXPECT_STREQ(attestation, str.get());
+  // Check for equality between generated values and known good values
+  ASSERT_TRUE(knownLafInfo.debugName.Equals(generatedLafInfo.debugName));
+  ASSERT_TRUE(knownLafInfo.feature.Equals(generatedLafInfo.feature));
+  ASSERT_TRUE(knownLafInfo.token.Equals(generatedLafInfo.token));
+  ASSERT_TRUE(knownLafInfo.attestation.Equals(generatedLafInfo.attestation));
 }

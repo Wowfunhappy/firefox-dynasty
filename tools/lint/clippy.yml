@@ -2,7 +2,6 @@
 clippy:
     description: Lint rust
     include:
-        - browser/components/shell/rust/shell_windows/
         - build/workspace-hack/
         - dom/midi/midir_impl/
         - dom/media/gtest/
