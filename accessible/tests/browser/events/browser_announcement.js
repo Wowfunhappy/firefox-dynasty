@@ -7,16 +7,32 @@
 addAccessibleTask(
   `<p id="p">abc</p>`,
   async function (browser, accDoc) {
+    function announce(announcement, priority) {
+      return invokeContentTask(
+        browser,
+        [announcement, priority],
+        (cAnnouncement, cPriority) => {
+          const accService = Cc[
+            "@mozilla.org/accessibilityService;1"
+          ].getService(Ci.nsIAccessibilityService);
+          const cAcc = accService.getAccessibleFor(
+            content.document.getElementById("p")
+          );
+          cAcc.announce(cAnnouncement, cPriority);
+        }
+      );
+    }
+
     let acc = findAccessibleChildByID(accDoc, "p");
     let onAnnounce = waitForEvent(EVENT_ANNOUNCEMENT, acc);
-    acc.announce("please", nsIAccessibleAnnouncementEvent.POLITE);
+    await announce("please", nsIAccessibleAnnouncementEvent.POLITE);
     let evt = await onAnnounce;
     evt.QueryInterface(nsIAccessibleAnnouncementEvent);
     is(evt.announcement, "please", "announcement matches.");
     is(evt.priority, nsIAccessibleAnnouncementEvent.POLITE, "priority matches");
 
     onAnnounce = waitForEvent(EVENT_ANNOUNCEMENT, acc);
-    acc.announce("do it", nsIAccessibleAnnouncementEvent.ASSERTIVE);
+    await announce("do it", nsIAccessibleAnnouncementEvent.ASSERTIVE);
     evt = await onAnnounce;
     evt.QueryInterface(nsIAccessibleAnnouncementEvent);
     is(evt.announcement, "do it", "announcement matches.");
@@ -26,5 +42,5 @@ addAccessibleTask(
       "priority matches"
     );
   },
-  { iframe: true, remoteIframe: true }
+  { chrome: true, topLevel: true, iframe: true, remoteIframe: true }
 );
