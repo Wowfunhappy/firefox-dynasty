@@ -193,7 +193,7 @@ add_task(async function firefoxSuggest() {
           isBlockable: true,
           helpUrl,
           helpL10n: {
-            id: "urlbar-result-menu-learn-more-about-firefox-suggest",
+            id: "urlbar-result-menu-learn-more",
           },
         },
       }),

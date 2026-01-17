@@ -349,7 +349,7 @@ add_task(async function buttons() {
           url: mainResultUrl,
           helpUrl: mainResultHelpUrl,
           helpL10n: {
-            id: "urlbar-result-menu-learn-more-about-firefox-suggest",
+            id: "urlbar-result-menu-learn-more",
           },
           isBlockable: true,
         },
