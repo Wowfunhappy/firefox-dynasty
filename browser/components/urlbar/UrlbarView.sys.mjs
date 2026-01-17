@@ -2147,14 +2147,10 @@ export class UrlbarView {
     let isVisitAction = false;
     let setURL = false;
     let isRowSelectable = true;
-    let isSplitViewActive = this.window.gBrowser.selectedTab.splitview;
     switch (result.type) {
       case lazy.UrlbarUtils.RESULT_TYPE.TAB_SWITCH:
         // Hide chiclet when showing secondaryActions.
-        if (
-          !lazy.UrlbarPrefs.get("secondaryActions.switchToTab") &&
-          !isSplitViewActive
-        ) {
+        if (!lazy.UrlbarPrefs.get("secondaryActions.switchToTab")) {
           actionSetter = () => {
             this.#setSwitchTabActionChiclet(result, action);
           };

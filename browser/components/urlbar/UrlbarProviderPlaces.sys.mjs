@@ -97,7 +97,6 @@ import {
 import { XPCOMUtils } from "resource://gre/modules/XPCOMUtils.sys.mjs";
 
 const lazy = XPCOMUtils.declareLazy({
-  BrowserWindowTracker: "resource:///modules/BrowserWindowTracker.sys.mjs",
   KeywordUtils: "resource://gre/modules/KeywordUtils.sys.mjs",
   ObjectUtils: "resource://gre/modules/ObjectUtils.sys.mjs",
   PlacesUtils: "resource://gre/modules/PlacesUtils.sys.mjs",
@@ -313,9 +312,6 @@ function convertLegacyMatches(context, matches, urls) {
  */
 function makeUrlbarResult(queryContext, info) {
   let action = lazy.PlacesUtils.parseActionUrl(info.url);
-  let isSplitViewActive =
-    lazy.BrowserWindowTracker.getTopWindow().gBrowser.selectedTab.splitview !==
-    null;
   if (action) {
     switch (action.type) {
       case "searchengine":
@@ -351,11 +347,9 @@ function makeUrlbarResult(queryContext, info) {
             lastVisit: info.lastVisit,
             tabGroup: info.tabGroup,
             frecency: info.frecency,
-            action:
-              lazy.UrlbarPrefs.get("secondaryActions.switchToTab") ||
-              isSplitViewActive
-                ? UrlbarUtils.createTabSwitchSecondaryAction(info.userContextId)
-                : undefined,
+            action: lazy.UrlbarPrefs.get("secondaryActions.switchToTab")
+              ? UrlbarUtils.createTabSwitchSecondaryAction(info.userContextId)
+              : undefined,
           },
           highlights: {
             url: UrlbarUtils.HIGHLIGHT.TYPED,

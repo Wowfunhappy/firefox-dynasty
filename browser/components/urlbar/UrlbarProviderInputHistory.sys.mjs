@@ -17,7 +17,6 @@ import {
 const lazy = {};
 
 ChromeUtils.defineESModuleGetters(lazy, {
-  BrowserWindowTracker: "resource:///modules/BrowserWindowTracker.sys.mjs",
   PlacesUtils: "resource://gre/modules/PlacesUtils.sys.mjs",
   UrlbarPrefs: "moz-src:///browser/components/urlbar/UrlbarPrefs.sys.mjs",
   UrlbarProviderOpenTabs:
@@ -115,8 +114,6 @@ export class UrlbarProviderInputHistory extends UrlbarProvider {
     if (instance != this.queryInstance) {
       return;
     }
-    let isSplitViewActive =
-      lazy.BrowserWindowTracker.getTopWindow().gBrowser.selectedTab.splitview;
 
     for (let row of rows) {
       const url = row.getResultByName("url");
@@ -148,11 +145,9 @@ export class UrlbarProviderInputHistory extends UrlbarProvider {
             icon: UrlbarUtils.getIconForUrl(url),
             userContextId,
             lastVisit,
-            action:
-              lazy.UrlbarPrefs.get("secondaryActions.switchToTab") ||
-              isSplitViewActive
-                ? UrlbarUtils.createTabSwitchSecondaryAction(userContextId)
-                : undefined,
+            action: lazy.UrlbarPrefs.get("secondaryActions.switchToTab")
+              ? UrlbarUtils.createTabSwitchSecondaryAction(userContextId)
+              : undefined,
           },
           highlights: {
             url: UrlbarUtils.HIGHLIGHT.TYPED,

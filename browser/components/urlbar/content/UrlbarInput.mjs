@@ -1496,11 +1496,9 @@ export class UrlbarInput extends HTMLElement {
       case lazy.UrlbarUtils.RESULT_TYPE.TAB_SWITCH: {
         // Behaviour is reversed with SecondaryActions, default behaviour is to navigate
         // and button is provided to switch to tab.
-        let isSplitViewActive = this.window.gBrowser.selectedTab.splitview;
         if (
           this.hasAttribute("action-override") ||
-          ((lazy.UrlbarPrefs.get("secondaryActions.switchToTab") ||
-            isSplitViewActive) &&
+          (lazy.UrlbarPrefs.get("secondaryActions.switchToTab") &&
             element?.dataset.action !== "tabswitch")
         ) {
           where = "current";

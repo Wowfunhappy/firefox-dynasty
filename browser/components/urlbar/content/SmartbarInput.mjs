@@ -1579,7 +1579,6 @@ export class SmartbarInput extends HTMLElement {
       ? { url: resultUrl, postData: null }
       : lazy.UrlbarUtils.getUrlFromResult(result, { element });
     openParams.postData = postData;
-    let isSplitViewActive = this.window.gBrowser.selectedTab.splitview;
 
     switch (result.type) {
       case lazy.UrlbarUtils.RESULT_TYPE.URL: {
@@ -1627,8 +1626,7 @@ export class SmartbarInput extends HTMLElement {
         // and button is provided to switch to tab.
         if (
           this.hasAttribute("action-override") ||
-          ((lazy.UrlbarPrefs.get("secondaryActions.switchToTab") ||
-            isSplitViewActive) &&
+          (lazy.UrlbarPrefs.get("secondaryActions.switchToTab") &&
             element?.dataset.action !== "tabswitch")
         ) {
           where = "current";
