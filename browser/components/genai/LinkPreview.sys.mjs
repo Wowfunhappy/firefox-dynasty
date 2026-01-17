@@ -12,7 +12,6 @@ ChromeUtils.defineESModuleGetters(lazy, {
   NimbusFeatures: "resource://nimbus/ExperimentAPI.sys.mjs",
   PrefUtils: "moz-src:///toolkit/modules/PrefUtils.sys.mjs",
   Region: "resource://gre/modules/Region.sys.mjs",
-  MLUninstallService: "chrome://global/content/ml/Utils.sys.mjs",
 });
 
 export const LABS_STATE = Object.freeze({
@@ -863,7 +862,7 @@ export const LinkPreview = {
     const previous = this.lastRequest;
     const { promise, resolve } = Promise.withResolvers();
     this.lastRequest = promise;
-    await Promise.allSettled([previous]); // Wait on previous without failing current
+    await previous;
     const delay = Date.now() - startTime;
 
     // No need to generate if already removed.
@@ -1104,30 +1103,5 @@ export const LinkPreview = {
       activeShortcuts.push("long_press");
     }
     Glean.genaiLinkpreview.shortcut.set(activeShortcuts.join(","));
-  },
-
-  /**
-   * Remove all model files created by the Link Preview feature.
-   *
-   * This triggers removal of all ML Engine artifacts associated with
-   * the feature's engine ID. Link Preview does not cache engine instances, so
-   * no additional in-memory cleanup is required.
-   *
-   * @returns {Promise<void>}
-   */
-  async uninstallModel() {
-    // Remove all ML Engine files associated with this feature.
-    await lazy.MLUninstallService.uninstall({
-      engineIds: [lazy.LinkPreviewModel.engineId],
-      // Used only for attribution/telemetry; the specific value is not significant.
-      actor: "LinkPreview",
-    });
-
-    // No cached engine cleanup is required for Link Preview.
-    // All engine file and artifact cleanup is fully handled by MLUninstallService above.
-    //
-    // IMPORTANT: After uninstall completes, any cached engine instance must be
-    // considered invalid and MUST NOT be reused. No methods may be called on it;
-    // the only permitted action is to drop the reference (e.g. set it to null).
   },
 };
