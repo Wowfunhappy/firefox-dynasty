@@ -770,9 +770,7 @@ mozilla::ipc::IPCResult DocAccessibleParent::RecvAnnouncementEvent(
     return IPC_OK();
   }
 
-#  if defined(ANDROID)
   PlatformAnnouncementEvent(target, aAnnouncement, aPriority);
-#  endif
 
   if (!nsCoreUtils::AccEventObserversExist()) {
     return IPC_OK();

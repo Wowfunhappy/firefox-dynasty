@@ -1145,6 +1145,10 @@ void a11y::PlatformSelectionEvent(Accessible*, Accessible* aWidget, uint32_t) {
   g_signal_emit_by_name(obj, "selection_changed");
 }
 
+void a11y::PlatformAnnouncementEvent(Accessible* aTarget,
+                                     const nsAString& aAnnouncement,
+                                     uint16_t aPriority) {}
+
 mozilla::StaticAutoPtr<nsCString> sReturnedString;
 
 // static

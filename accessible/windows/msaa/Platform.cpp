@@ -171,6 +171,10 @@ void a11y::PlatformSelectionEvent(Accessible* aTarget, Accessible*,
   uiaRawElmProvider::RaiseUiaEventForGeckoEvent(aTarget, aType);
 }
 
+void a11y::PlatformAnnouncementEvent(Accessible* aTarget,
+                                     const nsAString& aAnnouncement,
+                                     uint16_t aPriority) {}
+
 static bool GetInstantiatorExecutable(const DWORD aPid,
                                       nsIFile** aOutClientExe) {
   nsAutoHandle callingProcess(
