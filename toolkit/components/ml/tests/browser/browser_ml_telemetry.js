@@ -96,7 +96,6 @@ add_task(async function test_default_telemetry() {
 
   {
     info("Test the engine_run event");
-    await engineInstance.lastResourceRequest;
     const value = Glean.firefoxAiRuntime.engineRun.testGetValue();
     Assert.ok(
       value && !!value.length,

@@ -55,6 +55,10 @@ const LOCAL_CHROME_PREFIX = "chrome://";
 // Default indexedDB revision.
 const DEFAULT_MODEL_REVISION = 6;
 
+const DEFAULT_DB_NAME = "modelFiles";
+
+const DEFAULT_OWNER_ROOT = "modelOwners";
+
 // The origin to use for storage. If null uses system.
 const DEFAULT_PRINCIPAL_ORIGIN = null;
 
@@ -120,11 +124,11 @@ class ModelOwner {
    * @returns {Promise<void>}
    */
   #getIconFilePath() {
-    return `modelOwners/${this.hostname}/${this.owner}/icon`;
+    return `${DEFAULT_OWNER_ROOT}/${this.hostname}/${this.owner}/icon`;
   }
 
   /**
-   * Removes ant cache associated with this owner
+   * Removes any cache associated with this owner
    *
    */
   async pruneCache() {
@@ -287,7 +291,7 @@ class IndexedDBCache {
    * @param {principal} config.principal - The principal to use for the database.
    */
   constructor({
-    dbName = "modelFiles",
+    dbName = DEFAULT_DB_NAME,
     version = DEFAULT_MODEL_REVISION,
     maxSize = lazy.DEFAULT_MAX_CACHE_SIZE,
     principal,
@@ -307,11 +311,14 @@ class IndexedDBCache {
    */
   static async deleteDatabaseAndWait(
     principal,
-    dbName,
+    dbName = DEFAULT_DB_NAME,
     timeoutMs = DEFAULT_DELETE_TIMEOUT_MS
   ) {
     try {
-      await lazy.OPFS.remove(dbName, { recursive: true });
+      await Promise.all([
+        lazy.OPFS.remove(dbName, { recursive: true }),
+        lazy.OPFS.remove(DEFAULT_OWNER_ROOT, { recursive: true }),
+      ]);
     } catch (e) {
       // can be empty
     }
@@ -344,17 +351,26 @@ class IndexedDBCache {
   }
 
   /**
+   * Get the principal used by the the cache for storage access.
+   *
+   * @returns {nsIPrincipal} The principal to use for database operations.
+   */
+  getPrincipal() {
+    return this.#principal;
+  }
+
+  /**
    * Static method to create and initialize an instance of IndexedDBCache.
    *
    * @param {object} config
-   * @param {string} [config.dbName="modelFiles"] - The name of the database.
+   * @param {string} [config.dbName] - The name of the database.
    * @param {number} [config.version] - The version number of the database.
    * @param {number} config.maxSize Maximum size of the cache in bytes. Defaults to "browser.ml.modelCacheMaxSize".
    * @param {boolean} [config.reset=false] - Whether to reset the database.
    * @returns {Promise<IndexedDBCache>} An initialized instance of IndexedDBCache.
    */
   static async init({
-    dbName = "modelFiles",
+    dbName = DEFAULT_DB_NAME,
     version = DEFAULT_MODEL_REVISION,
     maxSize = lazy.DEFAULT_MAX_CACHE_SIZE,
     reset = false,
@@ -542,6 +558,16 @@ class IndexedDBCache {
             "The version of this database is changing. Closing."
           );
           db.close();
+          if (this.db == db) {
+            this.db = null;
+          }
+        };
+
+        db.onclose = () => {
+          lazy.console.debug("Database is closed");
+          if (this.db == db) {
+            this.db = null;
+          }
         };
 
         resolve(db); // Immediately resolve after DB is ready
@@ -549,13 +575,22 @@ class IndexedDBCache {
     }).then(async db => {
       if (wasUpgraded) {
         lazy.console.debug("Clearing OPFS cache");
-        await lazy.OPFS.remove("modelFiles", {
+        await lazy.OPFS.remove(this.dbName, {
           recursive: true,
           ignoreErrors: true,
         });
       }
       return db;
     });
+  }
+
+  /**
+   * Check whether the database connection is currently open.
+   *
+   * @returns {boolean} `true` if a database connection is currently open.
+   */
+  isOpen() {
+    return this.db != null;
   }
 
   /**
@@ -1050,51 +1085,46 @@ class IndexedDBCache {
    * @returns {Promise<void>} A promise that resolves once the deletion process is complete.
    */
   async deleteFilesByEngine({ engineId, deletedBy = "other" }) {
-    // looking at all files for deletion candidates
-    const files = [];
-    const uniqueModelRevisions = [];
     const items = await this.#getData({ storeName: this.enginesStoreName });
 
+    /** @type {Map<string, Set<string>>} */
+    const filesToDelete = new Map();
+
     for (const item of items) {
-      if (item.engineIds.includes(engineId)) {
-        // if it's the only one, we delete the file
-        if (item.engineIds.length === 1) {
-          files.push({
-            model: item.model,
-            file: item.file,
-            revision: item.revision,
-          });
-        } else {
-          // we remove the entry
-          const engineIds = new Set(item.engineIds);
-          engineIds.delete(engineId);
+      if (!item.engineIds?.includes(engineId)) {
+        continue;
+      }
 
-          await this.#updateData(this.enginesStoreName, {
-            engineIds: Array.from(engineIds),
-            model: item.model,
-            revision: item.revision,
-            file: item.file,
-          });
-        }
+      // Always remove the engine from the association list.
+      const newEngineIds = item.engineIds.filter(id => id !== engineId);
 
-        // Track unique (model, revision) pairs
-        if (
-          !uniqueModelRevisions.some(
-            ([m, r]) => m === item.model && r === item.revision
-          )
-        ) {
-          uniqueModelRevisions.push([item.model, item.revision]);
-        }
+      // If no engines remain, queue physical deletion.
+      if (newEngineIds.length === 0) {
+        const key = JSON.stringify([item.model, item.revision]);
+        const set = filesToDelete.get(key) ?? new Set();
+        set.add(item.file);
+        filesToDelete.set(key, set);
+      } else {
+        // Update the item with the new engine ids
+        await this.#updateData(this.enginesStoreName, {
+          engineIds: newEngineIds,
+          model: item.model,
+          revision: item.revision,
+          file: item.file,
+        });
       }
     }
 
-    // deleting the files from task, engines, files, headers
-    for (const file of files) {
-      await this.#deleteFile(file);
-    }
+    // Delete queued files grouped by (model, revision)
+    for (const [key, fileSet] of filesToDelete) {
+      const [model, revision] = JSON.parse(key);
 
-    // send metrics events
-    for (const [model, revision] of uniqueModelRevisions) {
+      await this.deleteModels({
+        model,
+        revision,
+        filterFn: record => fileSet.has(record.file),
+      });
+
       Glean.firefoxAiRuntime.modelDeletion.record({
         modelId: model,
         modelRevision: revision,
@@ -1121,6 +1151,7 @@ class IndexedDBCache {
       // For now we delete the icon file any time a file from a model is removed.
       owner.pruneCache(),
       this.#deleteData(this.headersStoreName, [model, revision, file]),
+      this.#deleteData(this.enginesStoreName, [model, revision, file]),
       lazy.OPFS.remove(this.generateFilePathInOPFS({ model, revision, file })),
     ]);
   }
@@ -1406,7 +1437,7 @@ export class ModelHub {
   }
 
   async #initCache() {
-    if (this.cache) {
+    if (this.cache && this.cache.isOpen()) {
       return;
     }
     this.cache = await IndexedDBCache.init({ reset: this.reset });
@@ -1419,6 +1450,25 @@ export class ModelHub {
     }
 
     return lazy.MLUtils.fetchUrl(url, options);
+  }
+
+  /**
+   * Completely purge the IndexedDB-backed cache.
+   *
+   * This deletes the database using default parameters and waits until all
+   * open connections are closed and the deletion completes.
+   *
+   * All OPFS files are also deleted.
+   *
+   * @returns {Promise<void>}
+   * @throws {Error} If the database deletion fails or does not complete.
+   */
+  async purgeDatabase() {
+    await this.#initCache();
+    return IndexedDBCache.deleteDatabaseAndWait(
+      this.cache.getPrincipal(),
+      this.cache.dbName
+    );
   }
 
   /**
