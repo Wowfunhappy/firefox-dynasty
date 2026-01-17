@@ -64,7 +64,6 @@ ChromeUtils.defineESModuleGetters(lazy, {
   FeatureCalloutBroker:
     "resource:///modules/asrouter/FeatureCalloutBroker.sys.mjs",
   HomePage: "resource:///modules/HomePage.sys.mjs",
-  PrivateBrowsingUtils: "resource://gre/modules/PrivateBrowsingUtils.sys.mjs",
   ProfileAge: "resource://gre/modules/ProfileAge.sys.mjs",
   Region: "resource://gre/modules/Region.sys.mjs",
   // eslint-disable-next-line mozilla/no-browser-refs-in-toolkit
@@ -1388,13 +1387,6 @@ const TargetingGetters = {
         null
       ) === "full";
     return isEncryptedBackup;
-  },
-
-  get isPrivateWindow() {
-    let win = lazy.BrowserWindowTracker.getTopWindow({
-      allowFromInactiveWorkspace: true,
-    });
-    return lazy.PrivateBrowsingUtils.isContentWindowPrivate(win);
   },
 };
 

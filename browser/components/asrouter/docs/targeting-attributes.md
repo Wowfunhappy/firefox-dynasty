@@ -59,7 +59,6 @@ Please note that some targeting attributes require stricter controls on the tele
 * [isFxASignedIn](#isfxasignedin)
 * [isMajorUpgrade](#ismajorupgrade)
 * [isMSIX](#ismsix)
-* [isPrivateWindow](#isprivatewindow)
 * [isRTAMO](#isrtamo)
 * [unhandledCampaignAction](#unhandledCampaignAction)
 * [launchOnLoginEnabled](#launchonloginenabled)
@@ -1149,10 +1148,6 @@ A boolean. `true` if the user is configured to use the embedded Migration Wizard
 ### `isRTAMO`
 
 A boolean. `true` when [RTAMO](first-run.md#return-to-amo-rtamo) has been used to download Firefox, `false` otherwise.
-
-### `isPrivateWindow`
-
-A boolean. `true` when the current active content window is in Private Browsing Mode; `false` otherwise.
 
 ### `canCreateSelectableProfiles`
 
