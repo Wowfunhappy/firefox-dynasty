@@ -62,16 +62,7 @@ ShadowRoot::ShadowRoot(Element* aElement, ShadowRootMode aMode,
                        IsClonable aIsClonable, IsSerializable aIsSerializable,
                        Declarative aDeclarative,
                        already_AddRefed<mozilla::dom::NodeInfo>&& aNodeInfo)
-    : DocumentFragment(std::move(aNodeInfo)),
-      DocumentOrShadowRoot(this),
-      mMode(aMode),
-      mDelegatesFocus(aDelegatesFocus),
-      mSlotAssignment(aSlotAssignment),
-      mIsDetailsShadowTree(aElement->IsHTMLElement(nsGkAtoms::details)),
-      mIsAvailableToElementInternals(false),
-      mIsDeclarative(aDeclarative),
-      mIsClonable(aIsClonable),
-      mIsSerializable(aIsSerializable) {
+    : DocumentFragment(std::move(aNodeInfo)), DocumentOrShadowRoot(this) {
   // nsINode.h relies on this.
   MOZ_ASSERT(static_cast<nsINode*>(this) == reinterpret_cast<nsINode*>(this));
   MOZ_ASSERT(static_cast<nsIContent*>(this) ==
@@ -84,7 +75,37 @@ ShadowRoot::ShadowRoot(Element* aElement, ShadowRootMode aMode,
   // track the subtree root using GetContainingShadow().
   ClearSubtreeRootPointer();
 
-  SetFlags(NODE_IS_IN_SHADOW_TREE);
+  uint32_t flags = NODE_IS_IN_SHADOW_TREE;
+
+  if (aMode == ShadowRootMode::Closed) {
+    flags |= SHADOW_ROOT_MODE_CLOSED;
+  }
+
+  if (aDelegatesFocus == Element::DelegatesFocus::Yes) {
+    flags |= SHADOW_ROOT_DELEGATES_FOCUS;
+  }
+
+  if (aSlotAssignment == SlotAssignmentMode::Manual) {
+    flags |= SHADOW_ROOT_SLOT_ASSIGNMENT_MANUAL;
+  }
+
+  if (aElement->IsHTMLElement(nsGkAtoms::details)) {
+    flags |= SHADOW_ROOT_IS_DETAILS_SHADOW_TREE;
+  }
+
+  if (aDeclarative == Declarative::Yes) {
+    flags |= SHADOW_ROOT_IS_DECLARATIVE;
+  }
+
+  if (aIsClonable == IsClonable::Yes) {
+    flags |= SHADOW_ROOT_IS_CLONABLE;
+  }
+
+  if (aIsSerializable == IsSerializable::Yes) {
+    flags |= SHADOW_ROOT_IS_SERIALIZABLE;
+  }
+
+  SetFlags(flags);
   if (Host()->IsInNativeAnonymousSubtree()) {
     // NOTE(emilio): We could consider just propagating the
     // IN_NATIVE_ANONYMOUS_SUBTREE flag (not making this an anonymous root), but
@@ -623,7 +644,7 @@ void ShadowRoot::GetEventTargetParent(EventChainPreVisitor& aVisitor) {
 
 void ShadowRoot::GetSlotNameFor(const nsIContent& aContent,
                                 nsAString& aName) const {
-  if (mIsDetailsShadowTree) {
+  if (IsDetailsShadowTree()) {
     const auto* summary = HTMLSummaryElement::FromNode(aContent);
     if (summary && summary->IsMainSummary()) {
       aName.AssignLiteral("internal-main-summary");
@@ -756,7 +777,7 @@ void ShadowRoot::MaybeReassignContent(nsIContent& aElementOrText) {
 }
 
 void ShadowRoot::MaybeReassignMainSummary(SummaryChangeReason aReason) {
-  MOZ_ASSERT(mIsDetailsShadowTree);
+  MOZ_ASSERT(IsDetailsShadowTree());
   if (aReason == SummaryChangeReason::Insertion) {
     // We've inserted a summary element, may need to remove the existing one.
     SlotArray* array = mSlotMap.Get(u"internal-main-summary"_ns);
@@ -842,7 +863,7 @@ void ShadowRoot::MaybeUnslotHostChild(nsIContent& aChild) {
 
   slot->EnqueueSlotChangeEvent();
   slot->RemoveAssignedNode(aChild);
-  if (mIsDetailsShadowTree && aChild.IsHTMLElement(nsGkAtoms::summary)) {
+  if (IsDetailsShadowTree() && aChild.IsHTMLElement(nsGkAtoms::summary)) {
     MaybeReassignMainSummary(SummaryChangeReason::Deletion);
   }
 }
@@ -860,7 +881,7 @@ void ShadowRoot::MaybeSlotHostChild(nsIContent& aChild) {
     return;
   }
 
-  if (mIsDetailsShadowTree && aChild.IsHTMLElement(nsGkAtoms::summary)) {
+  if (IsDetailsShadowTree() && aChild.IsHTMLElement(nsGkAtoms::summary)) {
     MaybeReassignMainSummary(SummaryChangeReason::Insertion);
   }
 
