@@ -108,6 +108,10 @@ firefox-suggest-command-dont-show-this-suggestion =
   .label = Don’t show this suggestion
 firefox-suggest-command-dont-show-any-suggestions =
   .label = Don’t show any suggestions
+firefox-suggest-command-dismiss-this-suggestion =
+  .label = Dismiss this suggestion
+firefox-suggest-command-dont-show-addons =
+  .label = Don’t show { -brand-product-name } extension suggestions
 
 ## These strings are used for add-on suggestions in the urlbar.
 
