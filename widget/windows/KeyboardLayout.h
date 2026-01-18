@@ -1102,9 +1102,9 @@ class RedirectedKeyDownMessageManager {
     const MSG& mMsg;
   };
 
-  static void WillRedirect(const MSG& aMsg, bool aDefualtPrevented) {
+  static void WillRedirect(const MSG& aMsg, bool aDefaultPrevented) {
     sRedirectedKeyDownMsg = aMsg;
-    sDefaultPreventedOfRedirectedMsg = aDefualtPrevented;
+    sDefaultPreventedOfRedirectedMsg = aDefaultPrevented;
   }
 
   static void Forget() { sRedirectedKeyDownMsg.message = WM_NULL; }
