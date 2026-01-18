@@ -354,8 +354,7 @@ struct AnchorPositioningUtils {
 
   // Trigger a layout for positioned items that are currently overflowing their
   // abs-cb and that have available fallbacks to try.
-  static bool TriggerLayoutOnOverflow(PresShell* aPresShell,
-                                      bool aEvaluateAllFallbacksIfNeeded);
+  static bool TriggerLayoutOnOverflow(PresShell*, bool aFirstIteration);
 };
 
 }  // namespace mozilla
