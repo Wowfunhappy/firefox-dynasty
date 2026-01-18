@@ -4,25 +4,22 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef mozilla_dom_WindowsUtilsChild_h_
-#define mozilla_dom_WindowsUtilsChild_h_
+#include "WindowsUtilsChild.h"
 
+#include "WindowsLegacyLocationChild.h"
+#include "WindowsRuntimeLocationChild.h"
+#include "mozilla/StaticPrefs_geo.h"
 #include "mozilla/dom/PWindowsUtilsChild.h"
 #include "mozilla/dom/WindowsLocationChild.h"
 
 namespace mozilla::dom {
 
-// Manager for utilities in the WindowsUtils utility process.
-class WindowsUtilsChild final : public PWindowsUtilsChild {
-  NS_INLINE_DECL_THREADSAFE_REFCOUNTING(WindowsUtilsChild, override);
-
- public:
-  already_AddRefed<PWindowsLocationChild> AllocPWindowsLocationChild();
-
- protected:
-  ~WindowsUtilsChild() = default;
-};
+already_AddRefed<PWindowsLocationChild>
+WindowsUtilsChild::AllocPWindowsLocationChild() {
+  if (StaticPrefs::geo_provider_use_winrt()) {
+    return MakeAndAddRef<WindowsRuntimeLocationChild>();
+  }
+  return MakeAndAddRef<WindowsLegacyLocationChild>();
+}
 
 }  // namespace mozilla::dom
-
-#endif  // mozilla_dom_WindowsUtilsChild_h_
