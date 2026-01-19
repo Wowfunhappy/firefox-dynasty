@@ -4843,7 +4843,7 @@
 
 - name: dom.workers.throttling.enabled
   type: bool
-  value: @IS_EARLY_BETA_OR_EARLIER@
+  value: true
   mirror: once
 
 - name: dom.workers.serialized-sab-access
