@@ -18975,9 +18975,10 @@ void Document::DetermineProximityToViewportAndNotifyResizeObservers() {
     // https://github.com/whatwg/html/issues/11210 for the timing of this.
     UpdateLastRememberedSizes();
 
-    const bool firstTime = !initialAnchorOverflowDone;
+    const bool evaluateAllFallbacksIfNeeded = !initialAnchorOverflowDone;
     initialAnchorOverflowDone = true;
-    if (AnchorPositioningUtils::TriggerLayoutOnOverflow(ps, firstTime)) {
+    if (AnchorPositioningUtils::TriggerLayoutOnOverflow(
+            ps, evaluateAllFallbacksIfNeeded)) {
       // If any of the anchor positioned items overflow its cb, then we trigger
       // a layout for them. If we triggered for any item, we have to restart the
       // loop to flush all layouts.
