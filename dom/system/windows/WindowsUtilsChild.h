@@ -17,9 +17,7 @@ class WindowsUtilsChild final : public PWindowsUtilsChild {
   NS_INLINE_DECL_THREADSAFE_REFCOUNTING(WindowsUtilsChild, override);
 
  public:
-  already_AddRefed<PWindowsLocationChild> AllocPWindowsLocationChild() {
-    return MakeAndAddRef<WindowsLocationChild>();
-  }
+  already_AddRefed<PWindowsLocationChild> AllocPWindowsLocationChild();
 
  protected:
   ~WindowsUtilsChild() = default;

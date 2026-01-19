@@ -196,11 +196,8 @@ tab-split-view-wrapper[dragtarget] {
   position: absolute !important;
   pointer-events: none; /* avoid blocking dragover events on scroll buttons */
 
-  /* stylelint-disable-next-line media-query-no-invalid */
-  @media -moz-pref("browser.tabs.dragDrop.multiselectStacking") {
-    &[multiselected]:not([small-stack], [big-stack]) {
-      visibility: hidden;
-    }
+  &[multiselected]:not([small-stack], [big-stack]) {
+    visibility: hidden;
   }
 }
 

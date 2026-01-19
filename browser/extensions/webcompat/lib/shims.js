@@ -947,7 +947,8 @@ class Shims {
       message !== "embedClicked" &&
       message !== "smartblockEmbedReplaced" &&
       message !== "smartblockGetFluentString" &&
-      message !== "checkFacebookLoginStatus"
+      message !== "checkFacebookLoginStatus" &&
+      message !== "shouldShowEmbedContentInPlaceholders"
     ) {
       return undefined;
     }
@@ -1012,6 +1013,11 @@ class Shims {
 
       // If the cookie is found, the user is logged in to Facebook.
       return cookie != null;
+    } else if (message === "shouldShowEmbedContentInPlaceholders") {
+      // Only show embed content in placeholders if the Sanitizer API is available.
+      // setHTML is available in Firefox 148+.
+      // TODO(Bug 2010092): Remove when `documentElement.setHTML` becomes available in esr.
+      return true;
     }
 
     return undefined;

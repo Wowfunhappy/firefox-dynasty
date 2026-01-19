@@ -314,7 +314,7 @@ using namespace mozilla::a11y;
     return macRole;
 
   switch (mRole) {
-#include "RoleMap.h"
+#include "RoleMap.inc"
     default:
       MOZ_ASSERT_UNREACHABLE("Unknown role.");
       return NSAccessibilityUnknownRole;
@@ -390,7 +390,7 @@ using namespace mozilla::a11y;
     }
 
   switch (mRole) {
-#include "RoleMap.h"
+#include "RoleMap.inc"
   }
 
   // These are special. They map to roles::NOTHING

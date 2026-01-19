@@ -339,7 +339,7 @@ static RefPtr<LocalAccessible> MaybeCreateSVGAccessible(
 }
 
 /**
- * Used by XULMap.h to map both menupopup and popup elements
+ * Used by XULMap.inc to map both menupopup and popup elements
  */
 LocalAccessible* CreateMenupopupAccessible(Element* aElement,
                                            LocalAccessible* aContext) {
@@ -410,11 +410,11 @@ static int32_t sPlatformDisabledState = 0;
   {nsGkAtoms::atom, new_func, static_cast<a11y::role>(r), {__VA_ARGS__}},
 
 static const MarkupMapInfo sHTMLMarkupMapList[] = {
-#include "HTMLMarkupMap.h"
+#include "HTMLMarkupMap.inc"
 };
 
 static const MarkupMapInfo sMathMLMarkupMapList[] = {
-#include "MathMLMarkupMap.h"
+#include "MathMLMarkupMap.inc"
 };
 
 #undef MARKUPMAP
@@ -429,7 +429,7 @@ static const MarkupMapInfo sMathMLMarkupMapList[] = {
       })
 
 static const XULMarkupMapInfo sXULMarkupMapList[] = {
-#include "XULMap.h"
+#include "XULMap.inc"
 };
 
 #undef XULMAP_TYPE
@@ -973,7 +973,7 @@ void nsAccessibilityService::GetStringRole(uint32_t aRole, nsAString& aString) {
     return;
 
   switch (aRole) {
-#include "RoleMap.h"
+#include "RoleMap.inc"
     default:
       aString.AssignLiteral("unknown");
       return;
@@ -1190,7 +1190,7 @@ void nsAccessibilityService::GetStringRelationType(uint32_t aRelationType,
 
   RelationType relationType = static_cast<RelationType>(aRelationType);
   switch (relationType) {
-#include "RelationTypeMap.h"
+#include "RelationTypeMap.inc"
     default:
       aString.AssignLiteral("unknown");
       return;

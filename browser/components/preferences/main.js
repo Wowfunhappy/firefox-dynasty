@@ -2965,26 +2965,12 @@ SettingGroupManager.registerGroups({
         ],
       },
       {
-        id: "ipProtectionAdditionalLinks",
-        control: "moz-box-group",
-        options: [
-          {
-            id: "ipProtectionSupportLink",
-            l10nId: "ip-protection-contact-support-link",
-            control: "moz-box-link",
-            controlAttrs: {
-              href: "https://support.mozilla.org/questions/new/mozilla-vpn/form",
-            },
-          },
-          {
-            id: "ipProtectionUpgradeLink",
-            l10nId: "ip-protection-upgrade-link",
-            control: "moz-box-link",
-            controlAttrs: {
-              href: "https://www.mozilla.org/products/vpn/",
-            },
-          },
-        ],
+        id: "ipProtectionLinks",
+        control: "moz-box-link",
+        l10nId: "ip-protection-vpn-upgrade-link",
+        controlAttrs: {
+          href: "https://www.mozilla.org/products/vpn/",
+        },
       },
     ],
   },
@@ -5675,12 +5661,16 @@ var gMainPane = {
   },
 
   /**
-   *  Shows a subdialog containing the profile selector page.
+   *  Shows a window dialog containing the profile selector page.
    */
   manageProfiles() {
-    SelectableProfileService.maybeSetupDataStore().then(() => {
-      gSubDialog.open("about:profilemanager");
-    });
+    const win = window.browsingContext.topChromeWindow;
+
+    win.toOpenWindowByType(
+      "about:profilemanager",
+      "about:profilemanager",
+      "chrome,extrachrome,menubar,resizable,scrollbars,status,toolbar,centerscreen"
+    );
   },
 
   /**

@@ -199,6 +199,10 @@ void PlatformRoleChangedEvent(Accessible* aTarget, const a11y::role& aRole,
   }
 }
 
+void PlatformAnnouncementEvent(Accessible* aTarget,
+                               const nsAString& aAnnouncement,
+                               uint16_t aPriority) {}
+
 // This enum lists possible assistive technology clients. It's intended for use
 // in an EnumSet since there can be multiple ATs active at once.
 enum class Client : uint64_t {

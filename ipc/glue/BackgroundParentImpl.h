@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef mozilla_ipc_backgroundparentimpl_h__
-#define mozilla_ipc_backgroundparentimpl_h__
+#ifndef mozilla_ipc_backgroundparentimpl_h_
+#define mozilla_ipc_backgroundparentimpl_h_
 
 #include "mozilla/ipc/PBackgroundParent.h"
 
@@ -368,4 +368,4 @@ class BackgroundParentImpl : public PBackgroundParent {
 
 }  // namespace mozilla::ipc
 
-#endif  // mozilla_ipc_backgroundparentimpl_h__
+#endif  // mozilla_ipc_backgroundparentimpl_h_

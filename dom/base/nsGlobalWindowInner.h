@@ -597,7 +597,7 @@ class nsGlobalWindowInner final : public mozilla::dom::EventTarget,
   }
 #define WINDOW_ONLY_EVENT EVENT
 #define TOUCH_EVENT EVENT
-#include "mozilla/EventNameList.h"
+#include "mozilla/EventNameList.inc"
 #undef TOUCH_EVENT
 #undef WINDOW_ONLY_EVENT
 #undef BEFOREUNLOAD_EVENT
@@ -985,6 +985,13 @@ class nsGlobalWindowInner final : public mozilla::dom::EventTarget,
       const mozilla::dom::SynthesizeMouseEventOptions& aOptions,
       const mozilla::dom::Optional<
           mozilla::OwningNonNull<mozilla::dom::VoidFunction>>& aCallback,
+      mozilla::ErrorResult& aError);
+
+  MOZ_CAN_RUN_SCRIPT bool SynthesizeTouchEvent(
+      const nsAString& aType,
+      const nsTArray<mozilla::dom::SynthesizeTouchEventData>& aTouches,
+      const int32_t aModifiers,
+      const mozilla::dom::SynthesizeTouchEventOptions& aOptions,
       mozilla::ErrorResult& aError);
 
  protected:

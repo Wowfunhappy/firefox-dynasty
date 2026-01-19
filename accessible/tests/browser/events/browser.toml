@@ -13,6 +13,8 @@ prefs = [
 
 ["browser_alert.js"]
 
+["browser_announcement.js"]
+
 ["browser_content_prompt.js"]
 
 ["browser_focus_document.js"]

@@ -2,8 +2,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef CacheObserver__h__
-#define CacheObserver__h__
+#ifndef CacheObserver_h_
+#define CacheObserver_h_
 
 #include "nsIObserver.h"
 #include "nsIFile.h"

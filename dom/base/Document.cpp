@@ -14381,13 +14381,13 @@ nsContentList* Document::ImageMapList() {
 
 #define DEPRECATED_OPERATION(_op) #_op "Warning",
 static const char* kDeprecationWarnings[] = {
-#include "nsDeprecatedOperationList.h"
+#include "nsDeprecatedOperationList.inc"
     nullptr};
 #undef DEPRECATED_OPERATION
 
 #define DOCUMENT_WARNING(_op) #_op "Warning",
 static const char* kDocumentWarnings[] = {
-#include "nsDocumentWarningList.h"
+#include "nsDocumentWarningList.inc"
     nullptr};
 #undef DOCUMENT_WARNING
 
@@ -14396,7 +14396,7 @@ static UseCounter OperationToUseCounter(DeprecatedOperations aOperation) {
 #define DEPRECATED_OPERATION(_op)    \
   case DeprecatedOperations::e##_op: \
     return eUseCounter_##_op;
-#include "nsDeprecatedOperationList.h"
+#include "nsDeprecatedOperationList.inc"
 #undef DEPRECATED_OPERATION
     default:
       MOZ_CRASH();

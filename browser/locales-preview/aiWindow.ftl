@@ -90,3 +90,12 @@ aiwindow-copy-message =
 
 aiwindow-ask-button =
     .label = Ask
+
+## Memories toggle button
+
+aiwindow-memories-on =
+    .tooltiptext = Memories on
+    .aria-label = Memories on
+aiwindow-memories-off =
+    .tooltiptext = Memories off
+    .aria-label = Memories off

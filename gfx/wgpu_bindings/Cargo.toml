@@ -69,6 +69,19 @@ io-surface = "0.15"
 # `wgpu_bindings` at that point.
 block2 = "0.6.2"
 objc2 = "0.6.3"
+objc2-foundation = { version = "0.3.2", default-features = false, features = [
+  "NSProcessInfo",
+] }
+objc2-io-surface = { version = "0.3", default-features = false, features = [
+  "IOSurfaceTypes",
+  "objc2-core-foundation",
+] }
+objc2-metal = { version = "0.3", default-features = false, features = [
+  "MTLAllocation",
+  "MTLResource",
+  "MTLTexture",
+  "objc2-io-surface",
+] }
 
 [dependencies]
 bincode = "1"

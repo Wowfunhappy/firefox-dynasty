@@ -1124,9 +1124,9 @@ bool WaylandSurface::AttachLocked(const WaylandSurfaceLock& aSurfaceLock,
       "WaylandSurface::AttachLocked() transactions [%d] WaylandBuffer [%p] "
       "attached [%d] buffer size [%d x %d] surface (scaled) size [%d x %d] "
       "fractional scale %f matches %d",
-      (int)mBufferTransactions.Length(), aBuffer.get(), aBuffer->IsAttached(),
-      bufferSize.width, bufferSize.height, surfaceSize.width,
-      surfaceSize.height, scale, sizeMatches);
+      (int)mBufferTransactions.Length(), aBuffer.get(),
+      aBuffer->IsAttached(aSurfaceLock), bufferSize.width, bufferSize.height,
+      surfaceSize.width, surfaceSize.height, scale, sizeMatches);
 
   if (mViewportFollowsSizeChanges) {
     DesktopIntSize viewportSize;

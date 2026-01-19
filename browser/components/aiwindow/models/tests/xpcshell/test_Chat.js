@@ -371,6 +371,95 @@ add_task(
   }
 );
 
+add_task(
+  async function test_Chat_fetchWithHistory_handles_tool_call_with_empty_arguments() {
+    const sb = sinon.createSandbox();
+    try {
+      let callCount = 0;
+      const fakeEngine = {
+        runWithGenerator(_options) {
+          callCount++;
+          async function* gen() {
+            if (callCount === 1) {
+              // First call: yield tool call with empty string arguments
+              yield { text: "Calling tool with no args: " };
+              yield {
+                toolCalls: [
+                  {
+                    id: "call_empty_args",
+                    function: {
+                      name: "get_open_tabs",
+                      arguments: "", // Empty string instead of "{}"
+                    },
+                  },
+                ],
+              };
+            } else {
+              // Second call: after tool execution
+              yield { text: "Tool completed." };
+            }
+          }
+          return gen();
+        },
+        getConfig() {
+          return {};
+        },
+      };
+
+      sb.stub(Chat.toolMap, "get_open_tabs").resolves([]);
+      sb.stub(openAIEngine, "build").resolves(fakeEngine);
+
+      const conversation = new ChatConversation({
+        title: "chat title",
+        description: "chat desc",
+        pageUrl: new URL("https://www.firefox.com"),
+        pageMeta: {},
+      });
+      conversation.addUserMessage(
+        "Get my open tabs",
+        "https://www.firefox.com",
+        0
+      );
+
+      let textOutput = "";
+      for await (const chunk of Chat.fetchWithHistory(conversation)) {
+        if (typeof chunk === "string") {
+          textOutput += chunk;
+        }
+      }
+
+      // Find the assistant message with tool_calls
+      const assistantToolCallMessage = conversation.messages.find(
+        message =>
+          message.role === MESSAGE_ROLE.ASSISTANT &&
+          message?.content?.type === "function" &&
+          message?.content?.body?.tool_calls
+      );
+
+      Assert.ok(
+        assistantToolCallMessage,
+        "Should have assistant message with tool_calls"
+      );
+      Assert.equal(
+        assistantToolCallMessage.content.body.tool_calls[0].function.arguments,
+        "{}",
+        "Empty arguments string should be converted to '{}'"
+      );
+      Assert.ok(
+        Chat.toolMap.get_open_tabs.calledOnce,
+        "Tool should be called once even with empty args"
+      );
+      Assert.equal(
+        textOutput,
+        "Calling tool with no args: Tool completed.",
+        "Should yield text from both calls"
+      );
+    } finally {
+      sb.restore();
+    }
+  }
+);
+
 add_task(async function test_Chat_modelId_reads_from_pref() {
   const defaultModelId = "qwen3-235b-a22b-instruct-2507-maas";
   const customModelId = "custom-model-id";

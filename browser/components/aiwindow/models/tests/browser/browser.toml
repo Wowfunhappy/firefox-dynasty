@@ -11,4 +11,5 @@ prefs = [
 
 ["browser_getCurrentTabMetadata.js"]
 ["browser_get_page_content.js"]
+["browser_title_generation.js"]
 ["browser_utils_loadConfig.js"]

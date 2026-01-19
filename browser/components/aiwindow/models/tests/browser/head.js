@@ -270,3 +270,7 @@ async function withServer(serverOptions, task) {
     await stopMockOpenAI(server);
   }
 }
+
+function startTitleGenerationServer(title) {
+  return startMockOpenAI({ streamChunks: [title] });
+}

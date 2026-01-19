@@ -37,6 +37,12 @@ signed-out-vpn-title = Sign in to boost your browser’s privacy with free VPN
 signed-out-vpn-message = You’ve been selected for early access to our new, <a data-l10n-name="learn-more-vpn-signed-out">built-in VPN</a>. Enhance your browser’s protection by hiding your location and encrypting your traffic.
 sign-in-vpn = Next
 
+site-exclusion-toggle-label = Use VPN for this site
+site-exclusion-toggle-enabled =
+  .aria-label = VPN is on for this site
+site-exclusion-toggle-disabled =
+  .aria-label = VPN is off for this site
+
 ## Status card
 
 ipprotection-connection-status-on =
@@ -48,18 +54,6 @@ ipprotection-connection-status-off =
 # Location refers to the VPN server geographical position.
 ipprotection-location-title =
   .title = Location selected based on fastest server
-
-# Variables:
-#   $sitename (String) - The name of the site that we're currently on (eg. example.com)
-ipprotection-site-settings-button-vpn-off =
-  .label = { $sitename }
-  .description = VPN is off
-
-# Variables:
-#   $sitename (String) - The name of the site that we're currently on (eg. example.com)
-ipprotection-site-settings-button-vpn-on =
-  .label = { $sitename }
-  .description = VPN is on
 
 # When VPN is toggled on
 ipprotection-toggle-active =
@@ -122,10 +116,9 @@ ip-protection-autostart-checkbox =
 ip-protection-autostart-private-checkbox =
   .label = In private windows
 
-ip-protection-contact-support-link =
-  .label = Contact support
-ip-protection-upgrade-link =
-  .label = Upgrade to { -mozilla-vpn-brand-name }
+ip-protection-vpn-upgrade-link =
+  .label = Get even more protection outside { -brand-short-name } with { -mozilla-vpn-brand-name }
+  .description = Choose custom VPN locations and add protection to all your apps on up to five devices, whether you’re at home or on public Wi-Fi.
 
 ## IP Protection dialogs
 

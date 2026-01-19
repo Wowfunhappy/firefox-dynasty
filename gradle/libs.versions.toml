@@ -62,6 +62,7 @@ play-services-fido = "21.2.0"
 protobuf = "4.33.2" # Keep Protobuf in sync with the version used by AppServices.
 
 # Gradle plugins
+dependency-analysis = "3.5.1"
 jacoco = "0.8.14"
 kotlin-dsl = "6.4.1"
 protobuf-plugin = "0.9.6"
@@ -277,6 +278,7 @@ sentry = { group = "io.sentry", name = "sentry-android", version.ref = "sentry" 
 zxing = { group = "com.google.zxing", name = "core", version.ref = "zxing" }
 
 [plugins]
+dependency-analysis = { id = "com.autonomousapps.dependency-analysis", version.ref = "dependency-analysis" }
 detekt = { id = "io.gitlab.arturbosch.detekt", version.ref = "detekt" }
 kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }

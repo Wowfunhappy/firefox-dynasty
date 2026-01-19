@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -90,6 +91,7 @@ fun TabSearchScreen(
     LaunchedEffect(Unit) {
         focusRequester.requestFocus()
     }
+
     Scaffold(
         topBar = {
             TopSearchBar(
@@ -138,6 +140,7 @@ fun TabSearchScreen(
             } else {
                 TabSearchResults(
                     searchResults = state.searchResults,
+                    query = state.query,
                     modifier = Modifier
                         .padding(horizontal = SearchResultsPadding),
                     onSearchResultClicked = { store.dispatch(TabSearchAction.SearchResultClicked(it)) },
@@ -151,19 +154,30 @@ fun TabSearchScreen(
  * Composable for the tab search screen results.
  *
  * @param searchResults List of search results.
+ * @param query The current search query the user has entered.
  * @param modifier The [Modifier] to be applied.
  * @param onSearchResultClicked Invoked when a search result item is clicked.
  */
 @Composable
 private fun TabSearchResults(
     searchResults: List<TabSessionState>,
+    query: String,
     modifier: Modifier = Modifier,
     onSearchResultClicked: (TabSessionState) -> Unit,
 ) {
+    val listState = rememberLazyListState()
+
+    LaunchedEffect(query) {
+        if (listState.firstVisibleItemIndex != 0 || listState.firstVisibleItemScrollOffset != 0) {
+            listState.scrollToItem(0)
+        }
+    }
+
     val lastIndex = searchResults.lastIndex
     val maxWidth = FirefoxTheme.layout.size.containerMaxWidth
 
     LazyColumn(
+        state = listState,
         modifier = modifier.fillMaxWidth(),
         contentPadding = PaddingValues(vertical = SearchResultsPadding),
         horizontalAlignment = Alignment.CenterHorizontally,

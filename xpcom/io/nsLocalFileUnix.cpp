@@ -108,11 +108,6 @@ extern "C" int statvfs(const char*, struct statvfs*);
 
 using namespace mozilla;
 
-#define ENSURE_STAT_CACHE()                            \
-  do {                                                 \
-    if (!FillStatCache()) return NSRESULT_FOR_ERRNO(); \
-  } while (0)
-
 #define CHECK_mPath()                                     \
   do {                                                    \
     if (mPath.IsEmpty()) return NS_ERROR_NOT_INITIALIZED; \
@@ -273,7 +268,7 @@ nsDirEnumeratorUnix::Close() {
   return NS_OK;
 }
 
-nsLocalFile::nsLocalFile() : mCachedStat() {}
+nsLocalFile::nsLocalFile() {}
 
 nsLocalFile::nsLocalFile(const nsLocalFile& aOther) : mPath(aOther.mPath) {}
 
@@ -295,19 +290,19 @@ nsresult nsLocalFile::nsLocalFileConstructor(const nsIID& aIID,
   return inst->QueryInterface(aIID, aInstancePtr);
 }
 
-bool nsLocalFile::FillStatCache() {
+nsresult nsLocalFile::StatFile(struct STAT* statInfo) {
   if (!FilePreferences::IsAllowedPath(mPath)) {
-    errno = EACCES;
-    return false;
+    return NS_ERROR_FILE_ACCESS_DENIED;
   }
 
-  if (STAT(mPath.get(), &mCachedStat) == -1) {
+  if (STAT(mPath.get(), statInfo) == -1) {
     // try lstat it may be a symlink
-    if (LSTAT(mPath.get(), &mCachedStat) == -1) {
-      return false;
+    if (LSTAT(mPath.get(), statInfo) == -1) {
+      return NSRESULT_FOR_ERRNO();
     }
   }
-  return true;
+
+  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -1270,7 +1265,6 @@ nsLocalFile::MoveToFollowingLinksNative(nsIFile* aNewParent,
 NS_IMETHODIMP
 nsLocalFile::Remove(bool aRecursive, uint32_t* aRemoveCount) {
   CHECK_mPath();
-  ENSURE_STAT_CACHE();
 
   bool isLink = false;
   nsresult rv = IsSymlink(&isLink);
@@ -1376,8 +1370,6 @@ nsresult nsLocalFile::SetTimeImpl(PRTime aTime,
   }
 #endif
 
-  ENSURE_STAT_CACHE();
-
   if (aTime == 0) {
     aTime = PR_Now();
   }
@@ -1397,13 +1389,17 @@ nsresult nsLocalFile::SetTimeImpl(PRTime aTime,
   const size_t writeIndex = aTimeField == TimeField::AccessedTime ? 0 : 1;
   const size_t copyIndex = aTimeField == TimeField::AccessedTime ? 1 : 0;
 
+  struct STAT statInfo {};
+  nsresult rv = StatFile(&statInfo);
+  NS_ENSURE_SUCCESS(rv, rv);
+
 #if (defined(__APPLE__) && defined(__MACH__))
   auto* copyFrom = aTimeField == TimeField::AccessedTime
-                       ? &mCachedStat.st_mtimespec
-                       : &mCachedStat.st_atimespec;
+                       ? &statInfo.st_mtimespec
+                       : &statInfo.st_atimespec;
 #else
-  auto* copyFrom = aTimeField == TimeField::AccessedTime ? &mCachedStat.st_mtim
-                                                         : &mCachedStat.st_atim;
+  auto* copyFrom = aTimeField == TimeField::AccessedTime ? &statInfo.st_mtim
+                                                         : &statInfo.st_atim;
 #endif
 
   times[copyIndex].tv_sec = copyFrom->tv_sec;
@@ -1509,8 +1505,12 @@ nsLocalFile::GetPermissions(uint32_t* aPermissions) {
   if (NS_WARN_IF(!aPermissions)) {
     return NS_ERROR_INVALID_ARG;
   }
-  ENSURE_STAT_CACHE();
-  *aPermissions = NORMALIZE_PERMS(mCachedStat.st_mode);
+
+  struct STAT statInfo {};
+  nsresult rv = StatFile(&statInfo);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  *aPermissions = NORMALIZE_PERMS(statInfo.st_mode);
   return NS_OK;
 }
 
@@ -1569,10 +1569,13 @@ nsLocalFile::GetFileSize(int64_t* aFileSize) {
     return NS_ERROR_INVALID_ARG;
   }
   *aFileSize = 0;
-  ENSURE_STAT_CACHE();
 
-  if (!S_ISDIR(mCachedStat.st_mode)) {
-    *aFileSize = (int64_t)mCachedStat.st_size;
+  struct STAT statInfo {};
+  nsresult rv = StatFile(&statInfo);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  if (!S_ISDIR(statInfo.st_mode)) {
+    *aFileSize = (int64_t)statInfo.st_size;
   }
   return NS_OK;
 }
@@ -1725,13 +1728,12 @@ nsresult nsLocalFile::GetDiskInfo(StatInfoFunc&& aStatInfoFunc,
 
 #  if defined(USE_LINUX_QUOTACTL)
 
-  if (!FillStatCache()) {
-    // Returns info from statfs
-    return NS_OK;
-  }
+  struct STAT statInfo {};
+  nsresult rv = StatFile(&statInfo);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   nsAutoCString deviceName;
-  if (!GetDeviceName(major(mCachedStat.st_dev), minor(mCachedStat.st_dev),
+  if (!GetDeviceName(major(statInfo.st_dev), minor(statInfo.st_dev),
                      deviceName)) {
     // Returns info from statfs
     return NS_OK;
@@ -2009,9 +2011,15 @@ nsLocalFile::IsDirectory(bool* aResult) {
   if (NS_WARN_IF(!aResult)) {
     return NS_ERROR_INVALID_ARG;
   }
+
   *aResult = false;
-  ENSURE_STAT_CACHE();
-  *aResult = S_ISDIR(mCachedStat.st_mode);
+
+  struct STAT statInfo {};
+  nsresult rv = StatFile(&statInfo);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  *aResult = S_ISDIR(statInfo.st_mode);
+
   return NS_OK;
 }
 
@@ -2021,8 +2029,12 @@ nsLocalFile::IsFile(bool* aResult) {
     return NS_ERROR_INVALID_ARG;
   }
   *aResult = false;
-  ENSURE_STAT_CACHE();
-  *aResult = S_ISREG(mCachedStat.st_mode);
+
+  struct STAT statInfo {};
+  nsresult rv = StatFile(&statInfo);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  *aResult = S_ISREG(statInfo.st_mode);
   return NS_OK;
 }
 
@@ -2057,12 +2069,16 @@ nsLocalFile::IsSpecial(bool* aResult) {
   if (NS_WARN_IF(!aResult)) {
     return NS_ERROR_INVALID_ARG;
   }
-  ENSURE_STAT_CACHE();
-  *aResult = S_ISCHR(mCachedStat.st_mode) || S_ISBLK(mCachedStat.st_mode) ||
+
+  struct STAT statInfo {};
+  nsresult rv = StatFile(&statInfo);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  *aResult = S_ISCHR(statInfo.st_mode) || S_ISBLK(statInfo.st_mode) ||
 #ifdef S_ISSOCK
-             S_ISSOCK(mCachedStat.st_mode) ||
+             S_ISSOCK(statInfo.st_mode) ||
 #endif
-             S_ISFIFO(mCachedStat.st_mode);
+             S_ISFIFO(statInfo.st_mode);
 
   return NS_OK;
 }

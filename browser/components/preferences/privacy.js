@@ -1530,7 +1530,7 @@ Preferences.addSetting({
   visible: ({ ipProtectionVisible }) => ipProtectionVisible.value,
 });
 Preferences.addSetting({
-  id: "ipProtectionAdditionalLinks",
+  id: "ipProtectionLinks",
   deps: ["ipProtectionVisible"],
   visible: ({ ipProtectionVisible }) => ipProtectionVisible.value,
 });

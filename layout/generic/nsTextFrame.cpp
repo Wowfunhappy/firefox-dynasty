@@ -1993,6 +1993,22 @@ gfx::ShapedTextFlags nsTextFrame::GetSpacingFlags() const {
                             : gfx::ShapedTextFlags();
 }
 
+// Returns true if the frame has alignment-baseline and baseline-shift
+// set to their initial values.
+static bool HasDefaultVerticalAlignment(const nsIFrame* aFrame) {
+  if (aFrame->AlignmentBaseline() != StyleAlignmentBaseline::Baseline) {
+    return false;
+  }
+
+  const auto& baselineShift = aFrame->BaselineShift();
+  if (baselineShift.IsKeyword() ||
+      !baselineShift.AsLength().IsDefinitelyZero()) {
+    return false;
+  }
+
+  return true;
+}
+
 bool BuildTextRunsScanner::ContinueTextRunAcrossFrames(nsTextFrame* aFrame1,
                                                        nsTextFrame* aFrame2) {
   // We don't need to check font size inflation, since
@@ -2036,55 +2052,50 @@ bool BuildTextRunsScanner::ContinueTextRunAcrossFrames(nsTextFrame* aFrame1,
       aFrame2->GetParent()->GetContent()) {
     // Does aFrame, or any ancestor between it and aAncestor, have a property
     // that should inhibit cross-element-boundary shaping on aSide?
-    auto PreventCrossBoundaryShaping = [](const nsIFrame* aFrame,
-                                          const nsIFrame* aAncestor,
-                                          Side aSide) {
-      while (aFrame != aAncestor) {
-        ComputedStyle* ctx = aFrame->Style();
-        const auto anchorResolutionParams =
-            AnchorPosResolutionParams::From(aFrame);
-        // According to https://drafts.csswg.org/css-text/#boundary-shaping:
-        //
-        // Text shaping must be broken at inline box boundaries when any of
-        // the following are true for any box whose boundary separates the
-        // two typographic character units:
-        //
-        // 1. Any of margin/border/padding separating the two typographic
-        //    character units in the inline axis is non-zero.
-        const auto margin =
-            ctx->StyleMargin()->GetMargin(aSide, anchorResolutionParams);
-        if (!margin->ConvertsToLength() ||
-            margin->AsLengthPercentage().ToLength() != 0) {
-          return true;
-        }
-        const auto& padding = ctx->StylePadding()->mPadding.Get(aSide);
-        if (!padding.ConvertsToLength() || padding.ToLength() != 0) {
-          return true;
-        }
-        if (ctx->StyleBorder()->GetComputedBorderWidth(aSide) != 0) {
-          return true;
-        }
+    auto PreventCrossBoundaryShaping =
+        [](const nsIFrame* aFrame, const nsIFrame* aAncestor, Side aSide) {
+          while (aFrame != aAncestor) {
+            ComputedStyle* ctx = aFrame->Style();
+            const auto anchorResolutionParams =
+                AnchorPosResolutionParams::From(aFrame);
+            // According to https://drafts.csswg.org/css-text/#boundary-shaping:
+            //
+            // Text shaping must be broken at inline box boundaries when any of
+            // the following are true for any box whose boundary separates the
+            // two typographic character units:
+            //
+            // 1. Any of margin/border/padding separating the two typographic
+            //    character units in the inline axis is non-zero.
+            const auto margin =
+                ctx->StyleMargin()->GetMargin(aSide, anchorResolutionParams);
+            if (!margin->ConvertsToLength() ||
+                margin->AsLengthPercentage().ToLength() != 0) {
+              return true;
+            }
+            const auto& padding = ctx->StylePadding()->mPadding.Get(aSide);
+            if (!padding.ConvertsToLength() || padding.ToLength() != 0) {
+              return true;
+            }
+            if (ctx->StyleBorder()->GetComputedBorderWidth(aSide) != 0) {
+              return true;
+            }
 
-        // 2. vertical-align is not baseline.
-        //
-        // FIXME: Should this use VerticalAlignEnum()?
-        const auto& verticalAlign = ctx->StyleDisplay()->mVerticalAlign;
-        if (!verticalAlign.IsKeyword() ||
-            verticalAlign.AsKeyword() != StyleVerticalAlignKeyword::Baseline) {
-          return true;
-        }
+            // 2. vertical-align is not baseline.
+            if (!HasDefaultVerticalAlignment(aFrame)) {
+              return true;
+            }
 
-        // 3. The boundary is a bidi isolation boundary.
-        const auto unicodeBidi = ctx->StyleTextReset()->mUnicodeBidi;
-        if (unicodeBidi == StyleUnicodeBidi::Isolate ||
-            unicodeBidi == StyleUnicodeBidi::IsolateOverride) {
-          return true;
-        }
+            // 3. The boundary is a bidi isolation boundary.
+            const auto unicodeBidi = ctx->StyleTextReset()->mUnicodeBidi;
+            if (unicodeBidi == StyleUnicodeBidi::Isolate ||
+                unicodeBidi == StyleUnicodeBidi::IsolateOverride) {
+              return true;
+            }
 
-        aFrame = aFrame->GetParent();
-      }
-      return false;
-    };
+            aFrame = aFrame->GetParent();
+          }
+          return false;
+        };
 
     const nsIFrame* ancestor =
         nsLayoutUtils::FindNearestCommonAncestorFrameWithinBlock(aFrame1,
@@ -5443,9 +5454,7 @@ void nsTextFrame::GetTextDecorations(
     // that should be set (see nsLineLayout::VerticalAlignLine).
     if (firstBlock) {
       // At this point, fChild can't be null since TextFrames can't be blocks
-      Maybe<StyleVerticalAlignKeyword> verticalAlign =
-          fChild->VerticalAlignEnum();
-      if (verticalAlign != Some(StyleVerticalAlignKeyword::Baseline)) {
+      if (!HasDefaultVerticalAlignment(fChild)) {
         // Since offset is the offset in the child's coordinate space, we have
         // to undo the accumulation to bring the transform out of the block's
         // coordinate space

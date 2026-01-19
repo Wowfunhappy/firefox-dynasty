@@ -72,9 +72,7 @@ export async function generateChatTitle(message, current_tab) {
 
     // Extract the generated title from the response
     const title =
-      response?.choices?.[0]?.message?.content?.trim() ||
-      generateDefaultTitle(message);
-
+      response?.finalOutput?.trim() || generateDefaultTitle(message);
     return title;
   } catch (error) {
     console.error("Failed to generate chat title:", error);

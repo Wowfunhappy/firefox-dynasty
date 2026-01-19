@@ -110,6 +110,7 @@ STATIC_ATOMS = [
     Atom("allowtopnavigationbyuseractivation", "allow-top-navigation-by-user-activation"),
     Atom("allowtopnavigationcustomprotocols", "allow-top-navigation-to-custom-protocols"),
     Atom("allowuntrusted", "allowuntrusted"),
+    Atom("alpha", "alpha"),
     Atom("alt", "alt"),
     Atom("alternate", "alternate"),
     Atom("always", "always"),
@@ -298,6 +299,7 @@ STATIC_ATOMS = [
     Atom("headerContentScriptType", "content-script-type"),
     Atom("headerContentStyleType", "content-style-type"),
     Atom("headerContentType", "content-type"),
+    Atom("colorspace", "colorspace"),
     Atom("consumeanchor", "consumeanchor"),
     Atom("context", "context"),
     Atom("contextmenu", "contextmenu"),
@@ -2537,7 +2539,7 @@ STATIC_ATOMS = [
     # CSS anchor positioning implicit anchor
     Atom("AnchorPosImplicitAnchor", "AnchorPosImplicitAnchor"),
     # CSS pseudo-elements -- these must appear in the same order as
-    # in nsCSSPseudoElementList.h
+    # in nsCSSPseudoElementList.inc
     PseudoElementAtom("PseudoElement_after", ":after"),
     PseudoElementAtom("PseudoElement_before", ":before"),
     PseudoElementAtom("PseudoElement_marker", ":marker"),

@@ -65,8 +65,8 @@
 
 /* All the XPConnect private declarations - only include locally. */
 
-#ifndef xpcprivate_h___
-#define xpcprivate_h___
+#ifndef xpcprivate_h_
+#define xpcprivate_h_
 
 #include "mozilla/Assertions.h"
 #include "mozilla/Attributes.h"
@@ -2836,4 +2836,4 @@ void xpc_DelocalizeRuntime(JSRuntime* rt);
 
 /***************************************************************************/
 
-#endif /* xpcprivate_h___ */
+#endif /* xpcprivate_h_ */

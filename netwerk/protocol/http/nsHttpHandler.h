@@ -3,8 +3,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef nsHttpHandler_h__
-#define nsHttpHandler_h__
+#ifndef nsHttpHandler_h_
+#define nsHttpHandler_h_
 
 #include <functional>
 
@@ -929,4 +929,4 @@ class HSTSDataCallbackWrapper final {
 
 }  // namespace mozilla::net
 
-#endif  // nsHttpHandler_h__
+#endif  // nsHttpHandler_h_

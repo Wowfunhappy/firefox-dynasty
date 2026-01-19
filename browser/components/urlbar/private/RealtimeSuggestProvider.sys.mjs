@@ -548,12 +548,7 @@ export class RealtimeSuggestProvider extends SuggestProvider {
     }
 
     /** @type {UrlbarResultCommand[]} */
-    let commands = [
-      {
-        name: "not_interested",
-        l10n: this.notInterestedCommandL10n,
-      },
-    ];
+    let commands = [];
 
     if (this.canShowLessFrequently) {
       commands.push({
@@ -565,6 +560,10 @@ export class RealtimeSuggestProvider extends SuggestProvider {
     }
 
     commands.push(
+      {
+        name: "not_interested",
+        l10n: this.notInterestedCommandL10n,
+      },
       { name: "separator" },
       {
         name: "manage",
@@ -575,7 +574,7 @@ export class RealtimeSuggestProvider extends SuggestProvider {
       {
         name: "help",
         l10n: {
-          id: "urlbar-result-menu-learn-more-about-firefox-suggest",
+          id: "urlbar-result-menu-learn-more",
         },
       }
     );

@@ -201,6 +201,9 @@ def setup_zed(command_context, interactive):
             "**/moz.build",
             "**/*.configure",
         ],
+        "C++": [
+            "**/*.mm",
+        ],
     }
 
     zed_settings_dir = mozpath.join(command_context.topsrcdir, ".zed")

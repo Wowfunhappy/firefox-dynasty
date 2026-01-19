@@ -8,7 +8,7 @@
 # documentation and how to modify this file.
 repo: mozilla-central
 created_at: '2021-10-14T12:50:40.073465'
-updated_at: '2026-01-14T14:31:15.419745+00:00'
+updated_at: '2026-01-16T11:21:57.623728+00:00'
 export:
   path: ./docs/mots/index.rst
   format: rst
@@ -989,6 +989,10 @@ people:
     bmo_id: 691597
     name: Sergey Galich
     nick: serg
+  - &sergesanspaille
+    bmo_id: 715495
+    name: Serge Guelton
+    nick: sergesanspaille
   - &sfink
     bmo_id: 359004
     name: Steve Fink
@@ -1393,6 +1397,7 @@ modules:
         - Ricky Stewart
         - David Major
         - Mitchell Hentges
+        - *andi
       group: dev-builds
       url: :ref:`Build System`
       components:
@@ -1400,8 +1405,8 @@ modules:
     owners:
       - *glandium
     peers:
-      - *andi
       - *ahochheiden
+      - *sergesanspaille
     submodules:
 
       - name: 'Core: Build Config - Fennec'
@@ -2810,6 +2815,8 @@ modules:
       - tools/rewriting/**/*
       # TODO among other out of tree tools
     meta:
+      owners_emeritus:
+        - *andi
       peers_emeritus:
         - Birunthan Mohanathas
         - Ehsan Akhgari
@@ -2818,7 +2825,7 @@ modules:
         - Core::Rewriting & Analysis
       review_group: static-analysis-reviewers
     owners:
-      - *andi
+      - *sergesanspaille
     peers:
       - *nika
       - *sfink
@@ -4669,5 +4676,5 @@ modules:
         - Ryan Tilder
       group: dev-platform
 hashes:
-  config: 1c3f9e7420e6576c0c6aab0284e24065cef693cd
-  export: 893801873e863ce0fa52beee166bf7b357e6582a
+  config: a1fa08577c0ed003045f5d66cc4df34345b378a8
+  export: 3c05e959bc7d5628b595fa5b684623cedbb95972

@@ -12,8 +12,6 @@ ChromeUtils.defineESModuleGetters(lazy, {
     "moz-src:///browser/components/aiwindow/models/memories/MemoriesManager.sys.mjs",
   MemoriesDriftDetector:
     "moz-src:///browser/components/aiwindow/models/memories/MemoriesDriftDetector.sys.mjs",
-  PREF_GENERATE_MEMORIES:
-    "moz-src:///browser/components/aiwindow/models/memories/MemoriesConstants.sys.mjs",
   DRIFT_EVAL_DELTA_COUNT:
     "moz-src:///browser/components/aiwindow/models/memories/MemoriesConstants.sys.mjs",
   DRIFT_TRIGGER_QUANTILE:
@@ -31,10 +29,12 @@ ChromeUtils.defineLazyGetter(lazy, "console", function () {
 const INITIAL_MEMORIES_PAGES_THRESHOLD = 10;
 
 // Only run if at least this many pages have been visited.
-const MEMORIES_SCHEDULER_PAGES_THRESHOLD = 25;
+const MEMORIES_SCHEDULER_PAGES_THRESHOLD = 15;
 
-// Memories history schedule every 6 hours
-const MEMORIES_SCHEDULER_INTERVAL_MS = 6 * 60 * 60 * 1000;
+// Memories history schedule every 30 mins
+const MEMORIES_SCHEDULER_INTERVAL_MS = 30 * 60 * 1000;
+// Cooldown period - don't run more than once every 6 hours
+const MEMORIES_SCHEDULER_COOLDOWN_MS = 6 * 60 * 60 * 1000;
 
 /**
  * Schedules periodic generation of browsing history based memories.
@@ -62,7 +62,7 @@ export class MemoriesHistoryScheduler {
    *          The scheduler instance if initialized, otherwise null.
    */
   static maybeInit() {
-    if (!Services.prefs.getBoolPref(lazy.PREF_GENERATE_MEMORIES, false)) {
+    if (!lazy.MemoriesManager.shouldEnableMemoriesSchedulers()) {
       return null;
     }
     if (!this.#instance) {
@@ -146,6 +146,15 @@ export class MemoriesHistoryScheduler {
       return;
     }
 
+    // Re-check gating conditions on every tick (AIWindow may have closed, prefs may have changed).
+    if (!lazy.MemoriesManager.shouldEnableMemoriesSchedulers()) {
+      lazy.console.debug(
+        "[MemoriesHistoryScheduler] Memories schedulers no longer enabled; stopping history scheduler."
+      );
+      this.destroy();
+      return;
+    }
+
     if (this.#running) {
       lazy.console.debug(
         "[MemoriesHistoryScheduler] Skipping run because a previous run is still in progress."
@@ -161,6 +170,22 @@ export class MemoriesHistoryScheduler {
       const lastMemoryTs =
         (await lazy.MemoriesManager.getLastHistoryMemoryTimestamp()) ?? 0;
       const isFirstRun = lastMemoryTs === 0;
+
+      const now = Date.now();
+
+      // Cooldown check - don't run more than once every 6 hours.
+      // keep accumulating pagesVisited until eligible.
+      if (!isFirstRun && now - lastMemoryTs < MEMORIES_SCHEDULER_COOLDOWN_MS) {
+        lazy.console.debug(
+          `[MemoriesHistoryScheduler] Cooldown not met; last run was ${Math.floor(
+            (now - lastMemoryTs) / (60 * 1000)
+          )}m ago (<${Math.floor(
+            MEMORIES_SCHEDULER_COOLDOWN_MS / (60 * 60 * 1000)
+          )}h). Skipping. pagesVisited=${this.#pagesVisited}`
+        );
+        return;
+      }
+
       const minPagesThreshold = isFirstRun
         ? INITIAL_MEMORIES_PAGES_THRESHOLD
         : MEMORIES_SCHEDULER_PAGES_THRESHOLD;
@@ -220,7 +245,10 @@ export class MemoriesHistoryScheduler {
         error
       );
     } finally {
-      if (!this.#destroyed) {
+      if (
+        !this.#destroyed &&
+        lazy.MemoriesManager.shouldEnableMemoriesSchedulers()
+      ) {
         this.#startInterval();
       }
       this.#running = false;
@@ -241,6 +269,7 @@ export class MemoriesHistoryScheduler {
       this.#onPageVisited
     );
     this.#destroyed = true;
+    MemoriesHistoryScheduler.#instance = null;
     lazy.console.debug("[MemoriesHistoryScheduler] Destroyed");
   }
 

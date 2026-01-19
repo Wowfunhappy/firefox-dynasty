@@ -5,8 +5,8 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 // IWYU pragma: private, include "nsString.h"
 
-#ifndef nsAString_h___
-#define nsAString_h___
+#ifndef nsAString_h_
+#define nsAString_h_
 
 #include "nsStringFwd.h"
 #include "nsStringIterator.h"
@@ -31,4 +31,4 @@ class nsCaseInsensitiveCStringArrayComparator {
   }
 };
 
-#endif  // !defined(nsAString_h___)
+#endif  // !defined(nsAString_h_)

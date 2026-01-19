@@ -14,7 +14,7 @@
 const fs = require("fs");
 const { RESERVED_WORDS } = require("peggy");
 
-const TAGLIST = require.resolve("../../parser/htmlparser/nsHTMLTagList.h");
+const TAGLIST = require.resolve("../../parser/htmlparser/nsHTMLTagList.inc");
 const BINDINGS = require.resolve("../../dom/bindings/Bindings.conf");
 
 // TODO Bug TBD: Ideally we should get details about the generated files from
@@ -65,7 +65,7 @@ function preprocess(webidl) {
 }
 
 function customize(all, baseTypes) {
-  // Parse HTML element interfaces from nsHTMLTagList.h.
+  // Parse HTML element interfaces from nsHTMLTagList.inc.
   const RE = /^HTML_(HTMLELEMENT_)?TAG\((\w+)(, \w+, (\w*))?\)/gm;
   for (let match of fs.readFileSync(TAGLIST, "utf8").matchAll(RE)) {
     let iface = all.interfaces.interface[`HTML${match[4] ?? ""}Element`];

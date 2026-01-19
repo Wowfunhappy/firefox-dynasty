@@ -497,6 +497,7 @@ async function generateTestShims() {
         "embedClicked",
         "smartblockEmbedReplaced",
         "smartblockGetFluentString",
+        "shouldShowEmbedContentInPlaceholders",
       ],
       isSmartblockEmbedShim: true,
       onlyIfBlockedByETP: true,

@@ -20,7 +20,7 @@ describe("settings ai features", () => {
   });
 
   async function openAiFeaturePanel() {
-    const paneLoaded = waitForPaneChange("aiFeatures");
+    const paneLoaded = waitForPaneChange("ai");
     const categoryButton = doc.getElementById("category-ai-features");
     categoryButton.scrollIntoView();
     EventUtils.synthesizeMouseAtCenter(categoryButton, {}, win);

@@ -114,7 +114,7 @@ add_task(async function engagement_type_help() {
           isBlockable: true,
           helpUrl,
           helpL10n: {
-            id: "urlbar-result-menu-learn-more-about-firefox-suggest",
+            id: "urlbar-result-menu-learn-more",
           },
         },
       }),

@@ -32,6 +32,8 @@ export default class IPProtectionContentElement extends MozLitElement {
     activeSubscriptionEl: "#active-subscription-vpn-content",
     supportLinkEl: "#vpn-support-link",
     statusBoxEl: "ipprotection-status-box",
+    siteExclusionControlEl: "#site-exclusion-control",
+    siteExclusionToggleEl: "#site-exclusion-toggle",
   };
 
   static properties = {
@@ -96,7 +98,7 @@ export default class IPProtectionContentElement extends MozLitElement {
   }
 
   get #hasErrors() {
-    return !this.state || this.state.error !== "";
+    return !this.state || !!this.state.error;
   }
 
   handleClickSupportLink(event) {
@@ -177,6 +179,25 @@ export default class IPProtectionContentElement extends MozLitElement {
     }
   }
 
+  handleToggleExclusion(event) {
+    let isEnabled = event.target.pressed;
+
+    if (isEnabled) {
+      this.dispatchEvent(
+        new CustomEvent("IPProtection:ToggleOnExclusion", {
+          bubbles: true,
+        })
+      );
+    } else {
+      this.dispatchEvent(
+        new CustomEvent("IPProtection:ToggleOffExclusion", {
+          bubbles: true,
+          composed: true,
+        })
+      );
+    }
+  }
+
   updated(changedProperties) {
     super.updated(changedProperties);
 
@@ -228,8 +249,6 @@ export default class IPProtectionContentElement extends MozLitElement {
   }
 
   statusCardTemplate() {
-    // TODO: Pass site information to status-card to conditionally
-    // render the site settings control. (Bug 1997412)
     return html`
       <ipprotection-status-card
         .protectionEnabled=${this.canEnableConnection}
@@ -269,6 +288,42 @@ export default class IPProtectionContentElement extends MozLitElement {
     `;
   }
 
+  exclusionToggleTemplate() {
+    if (
+      !this.state.siteData ||
+      !this.state.isProtectionEnabled ||
+      this.#hasErrors
+    ) {
+      return null;
+    }
+
+    const isExclusion = this.state.siteData.isExclusion;
+    const siteExclusionToggleStateL10nId = isExclusion
+      ? "site-exclusion-toggle-enabled"
+      : "site-exclusion-toggle-disabled";
+    return html` <div id="site-exclusion-control">
+      <span id="site-exclusion-label-container">
+        <img
+          id="site-exclusion-icon"
+          src="chrome://browser/content/ipprotection/assets/shield-vpn-exceptions.svg"
+        />
+        <label
+          data-l10n-id="site-exclusion-toggle-label"
+          id="site-exclusion-label"
+          for="site-exclusion-toggle"
+        ></label>
+      </span>
+      <moz-toggle
+        data-l10n-id=${siteExclusionToggleStateL10nId}
+        data-l10n-attrs="label"
+        id="site-exclusion-toggle"
+        ?pressed=${isExclusion}
+        @toggle=${this.handleToggleExclusion}
+      >
+      </moz-toggle>
+    </div>`;
+  }
+
   mainContentTemplate() {
     // TODO: Update support-page with new SUMO link for Mozilla VPN - Bug 1975474
     if (this.state.isSignedOut) {
@@ -279,7 +334,9 @@ export default class IPProtectionContentElement extends MozLitElement {
       return html` ${this.pausedTemplate()} `;
     }
 
-    return html` ${this.statusCardTemplate()} `;
+    return html`
+      ${this.statusCardTemplate()} ${this.exclusionToggleTemplate()}
+    `;
   }
 
   render() {

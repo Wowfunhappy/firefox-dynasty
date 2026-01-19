@@ -3,8 +3,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef PendingTransactionQueue_h__
-#define PendingTransactionQueue_h__
+#ifndef PendingTransactionQueue_h_
+#define PendingTransactionQueue_h_
 
 #include "nsClassHashtable.h"
 #include "nsHttpTransaction.h"
@@ -89,4 +89,4 @@ class PendingTransactionQueue {
 }  // namespace net
 }  // namespace mozilla
 
-#endif  // !PendingTransactionQueue_h__
+#endif  // !PendingTransactionQueue_h_

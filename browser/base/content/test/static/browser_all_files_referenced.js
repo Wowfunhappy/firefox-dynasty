@@ -333,16 +333,6 @@ var allowlist = [
   {
     file: "moz-src:///browser/components/aiwindow/models/IntentClassifier.sys.mjs",
   },
-  // Bug 2005768 - Insights scheduler for generation from history
-  // Bug 2007939 - Rename "insights" to "memories"
-  {
-    file: "moz-src:///browser/components/aiwindow/models/memories/MemoriesHistoryScheduler.sys.mjs",
-  },
-  // Bug 2006090 - Insight updation - Day 0 and incremental updates from Chat history
-  // Bug 2007939 - Rename "insights" to "memories"
-  {
-    file: "moz-src:///browser/components/aiwindow/models/memories/MemoriesConversationScheduler.sys.mjs",
-  },
   // Bug 2006433 - Implement conversation starter/followup inference
   {
     file: "moz-src:///browser/components/aiwindow/models/ConversationSuggestions.sys.mjs",
@@ -357,6 +347,14 @@ var allowlist = [
   // Bug D278060 - Smart Window website 'chip' component
   {
     file: "chrome://browser/content/aiwindow/components/ai-website-chip.mjs",
+  },
+  // Bug 2001456 - Toggle memories button for ai window
+  {
+    file: "chrome://browser/content/aiwindow/components/memories-icon-button.mjs",
+  },
+  // Bug 2010143: memory generation schedule updates
+  {
+    file: "moz-src:///browser/components/aiwindow/models/memories/MemoriesSchedulers.sys.mjs",
   },
 ];
 

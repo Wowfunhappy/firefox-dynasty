@@ -5,8 +5,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef __nsWindow_h__
-#define __nsWindow_h__
+#ifndef _nsWindow_h_
+#define _nsWindow_h_
 
 #include <gdk/gdk.h>
 #include <gtk/gtk.h>
@@ -1089,4 +1089,4 @@ class nsWindow final : public nsIWidget {
 #endif
 };
 
-#endif /* __nsWindow_h__ */
+#endif /* _nsWindow_h_ */

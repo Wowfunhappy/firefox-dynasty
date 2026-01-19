@@ -46,7 +46,7 @@ class GlobalStyleSheetCache final : public nsIObserver,
   NotNull<StyleSheet*> identifier_##Sheet() {            \
     return BuiltInSheet(BuiltInStyleSheet::identifier_); \
   }
-#include "mozilla/BuiltInStyleSheetList.h"
+#include "mozilla/BuiltInStyleSheetList.inc"
 #undef STYLE_SHEET
 
   NotNull<StyleSheet*> BuiltInSheet(BuiltInStyleSheet);

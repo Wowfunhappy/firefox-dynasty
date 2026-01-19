@@ -101,7 +101,7 @@ Object.assign(Chat, {
         type: "function",
         function: {
           name: toolCall.function.name,
-          arguments: toolCall.function.arguments,
+          arguments: toolCall.function.arguments || "{}",
         },
       }));
       conversation.addAssistantMessage("function", { tool_calls });

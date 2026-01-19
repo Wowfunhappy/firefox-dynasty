@@ -69,7 +69,7 @@ const WCHAR* const IA2_RELATION_NULL = L"";
 
 static const std::pair<RelationType, const WCHAR* const> sRelationTypePairs[] =
     {
-#include "RelationTypeMap.h"
+#include "RelationTypeMap.inc"
 };
 
 #undef RELATIONTYPE
